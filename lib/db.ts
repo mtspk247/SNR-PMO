@@ -32,4 +32,77 @@ export async function signOut() {
   await sb.auth.signOut();
 }
 
-// Map the auth session -> the snrpmo.users row (RL
+// Map the auth session -> the snrpmo.users row (RLS lets a user read themselves).
+export async function getCurrentUser(): Promise<AppUser | null> {
+  const { data: sess } = await sb.auth.getSession();
+  if (!sess.session) return null;
+  const { data, error } = await sb
+    .from('users')
+    .select('id, auth_user_id, username, email, full_name, role, department')
+    .eq('auth_user_id', sess.session.user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as AppUser) ?? null;
+}
+
+// Orgs the signed-in user belongs to, with their role (drives the org switcher + authz).
+export async function getMyOrgs(): Promise<MyOrg[]> {
+  const { data, error } = await sb
+    .from('org_members')
+    .select('role, organizations(id, slug, name, branding, plan)')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ ...r.organizations, member_role: r.role })) as MyOrg[];
+}
+
+// Public, anon-safe branding lookup for subdomain resolution (SECURITY DEFINER RPC).
+export async function getOrgBranding(slug: string): Promise<Organization | null> {
+  const { data, error } = await sb.rpc('org_branding', { p_slug: slug });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as Organization) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Data (now automatically scoped by RLS to the user's org + project access)
+// ---------------------------------------------------------------------------
+export async function getProjects(): Promise<Project[]> {
+  const { data, error } = await sb.from('projects').select('*').order('created_at', { ascending: false });
+  if (error) throw error; return data || [];
+}
+
+export async function getTasks(): Promise<Task[]> {
+  const { data, error } = await sb.from('tasks').select('*, projects(name)').order('due_date', { ascending: true });
+  if (error) throw error; return (data as Task[]) || [];
+}
+
+export async function getCompanies(): Promise<Company[]> {
+  const { data, error } = await sb.from('crm_companies').select('*').order('name');
+  if (error) throw error; return data || [];
+}
+
+export async function getContacts(): Promise<Contact[]> {
+  const { data, error } = await sb.from('crm_contacts').select('*, crm_companies(name)').order('full_name');
+  if (error) throw error; return (data as Contact[]) || [];
+}
+
+export async function getDeals(): Promise<Deal[]> {
+  const { data, error } = await sb.from('crm_deals')
+    .select('*, crm_companies(name), crm_contacts(full_name, email)')
+    .order('value', { ascending: false });
+  if (error) throw error; return (data as Deal[]) || [];
+}
+
+export async function getRisks(): Promise<Risk[]> {
+  const { data, error } = await sb.from('risks')
+    .select('*, projects(name)')
+    .order('impact', { ascending: false });
+  if (error) throw error; return (data as Risk[]) || [];
+}
+
+export async function getFinancials(): Promise<Financial[]> {
+  const { data, error } = await sb.from('financials')
+    .select('*, projects(name)')
+    .order('period', { ascending: true });
+  if (error) throw error; return (data as Financial[]) || [];
+}

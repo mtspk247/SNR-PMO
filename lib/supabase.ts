@@ -52,4 +52,32 @@ export interface Project {
 export interface Task {
   id: string; project_id: string | null; name: string;
   status: string; priority: string; assignee_id: string | null;
-  due_date: string | nul
+  due_date: string | null; estimated_hours: number | null;
+  projects?: { name: string } | null;
+}
+
+export interface Company { id: string; name: string; industry: string | null; website: string | null; phone: string | null; }
+export interface Contact {
+  id: string; full_name: string; email: string | null; phone: string | null;
+  title: string | null; status: string | null; company_id: string | null;
+  crm_companies?: { name: string } | null;
+}
+export interface Deal {
+  id: string; title: string; value: number | null; stage: string;
+  expected_close: string | null; company_id: string | null; contact_id: string | null;
+  notes?: string | null; created_at?: string | null;
+  crm_companies?: { name: string } | null; crm_contacts?: { full_name: string; email: string | null } | null;
+}
+
+export interface Risk {
+  id: string; project_id: string | null; title: string; description: string | null;
+  category: string; impact: number; probability: number; status: string;
+  owner_id: string | null; mitigation: string | null; due_date: string | null;
+  projects?: { name: string } | null;
+}
+
+export interface Financial {
+  id: string; project_id: string | null; period: string; category: string;
+  planned: number; actual: number; paid_on: string | null;
+  projects?: { name: string } | null;
+}

@@ -69,4 +69,56 @@ export default function Login() {
           <button onClick={google} type="button" className="btn w-full mb-4" disabled={loading}>
             <Icon name="ti-brand-google" /> Continue with Google
           </button>
-          <div className="flex items-center gap-3 my-4 
+          <div className="flex items-center gap-3 my-4 text-2xs text-neutral-400">
+            <span className="flex-1 h-px bg-line" />OR<span className="flex-1 h-px bg-line" />
+          </div>
+
+          <form onSubmit={submit} className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-md px-3 py-2">
+                <Icon name="ti-alert-circle" />{error}
+              </div>
+            )}
+            {info && (
+              <div className="flex items-center gap-2 text-sm text-sky-700 bg-sky-50 border border-sky-100 rounded-md px-3 py-2">
+                <Icon name="ti-mail" />{info}
+              </div>
+            )}
+            {mode === 'signup' && (
+              <>
+                <div>
+                  <label className="label">Your name</label>
+                  <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" disabled={loading} />
+                </div>
+                <div>
+                  <label className="label">Workspace name</label>
+                  <input className="input" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Acme Inc" disabled={loading} />
+                  {orgName && <p className="text-2xs text-neutral-400 mt-1">URL: {slugify(orgName) || '…'}.app.com</p>}
+                </div>
+              </>
+            )}
+            <div>
+              <label className="label">Email</label>
+              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" autoFocus disabled={loading} />
+            </div>
+            <div>
+              <label className="label">Password</label>
+              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" disabled={loading} />
+            </div>
+            <button className="btn btn-primary w-full" disabled={loading}>
+              {loading ? <Icon name="ti-loader-2" className="animate-spin" /> : mode === 'signin' ? 'Sign in' : 'Create workspace'}
+            </button>
+          </form>
+
+          <p className="text-sm text-neutral-500 mt-6 text-center">
+            {mode === 'signin' ? "Don't have a workspace? " : 'Already have one? '}
+            <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setInfo(''); }}
+              className="font-medium text-ink hover:underline">
+              {mode === 'signin' ? 'Create one' : 'Sign in'}
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

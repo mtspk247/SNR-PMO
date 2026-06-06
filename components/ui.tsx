@@ -75,4 +75,8 @@ export const EmptyState = ({ icon = 'ti-inbox', text }: { icon?: string; text: s
 export const Phase2 = ({ name, icon }: { name: string; icon: string }) => (
   <div className="card flex flex-col items-center justify-center py-24 text-center">
     <Icon name={icon} className="text-4xl text-neutral-300 mb-3" />
-    <h2 clas
+    <h2 className="text-base font-medium">{name}</h2>
+    <p className="text-sm text-neutral-500 mt-1 max-w-sm">This module ships in Phase 2. The data model is already live in Supabase.</p>
+    <span className="pill pill-gray mt-4">Coming soon</span>
+  </div>
+);
