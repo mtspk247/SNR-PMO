@@ -22,7 +22,7 @@ export async function checkIn() {
   await sb.from('attendance').upsert({ user_id: s.uid, work_date: date, check_in: new Date().toISOString(), status: 'OPEN', check_in_ip: addr }, { onConflict: 'user_id,work_date' });
   await audit({ user_id: s.uid, username: s.username, action: 'CHECK_IN', entity_type: 'attendance', entity_id: date, ip: addr });
   await notify({ user_id: s.uid, type: 'CHECK_IN', title: `${s.full_name} checked in` });
-  revalidatePath('/attendance'); revalidatePath('/');
+  revalidatePath('/attendance'); revalidatePath('/dashboard');
 }
 
 export async function checkOut() {
@@ -36,7 +36,7 @@ export async function checkOut() {
   await sb.from('attendance').update({ check_out: now.toISOString(), hours, status: 'CLOSED', check_out_ip: addr }).eq('id', rec.id);
   await audit({ user_id: s.uid, username: s.username, action: 'CHECK_OUT', entity_type: 'attendance', entity_id: date, new_value: { hours }, ip: addr });
   await notify({ user_id: s.uid, type: 'CHECK_OUT', title: `${s.full_name} checked out (${hours}h)` });
-  revalidatePath('/attendance'); revalidatePath('/');
+  revalidatePath('/attendance'); revalidatePath('/dashboard');
 }
 
 export async function requestLeave(fd: FormData) {
@@ -94,5 +94,5 @@ export async function cancelLeave(fd: FormData) {
 export async function markNotificationsRead() {
   const s = await getSession(); if (!s) return;
   await db().from('notifications').update({ is_read: true, read_at: new Date().toISOString() }).eq('user_id', s.uid).eq('is_read', false);
-  revalidatePath('/notifications'); revalidatePath('/');
+  revalidatePath('/notifications'); revalidatePath('/dashboard');
 }

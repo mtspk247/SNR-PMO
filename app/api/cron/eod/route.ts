@@ -56,15 +56,15 @@ export async function GET(req: NextRequest) {
     }
     const pendingLeaves = (leaves || []).filter(l => l.approver_id === pm.id && l.status === 'Pending').length;
     const html = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto">
-      <div style="background:#1e3a8a;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0"><h2 style="margin:0">SNR-PMO Daily Summary</h2>
+      <div style="background:#1e3a8a;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0"><h2 style="margin:0">Shahzad & Rainer — Daily Summary</h2>
       <div style="opacity:.85">${date} · ${pm.full_name} · Team of ${team.length}</div></div>
       <div style="border:1px solid #e5e7eb;border-top:0;padding:16px;border-radius:0 0 10px 10px">
       ${pendingLeaves ? `<div style="background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:8px;margin-bottom:12px">${pendingLeaves} pending leave approval(s)</div>` : ''}
       <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:#6b7280">
       <th style="padding:6px 10px">Member</th><th style="padding:6px 10px">Attendance</th><th style="padding:6px 10px">Tasks (Done·Active·Overdue)</th></tr></thead>
       <tbody>${rows}</tbody></table>
-      <p style="color:#6b7280;font-size:12px;margin-top:16px">Automated end-of-day report · SNR-PMO</p></div></div>`;
-    const r = await sendEmail(pm.email, `[SNR-PMO] Daily Summary — ${date} — ${pm.full_name}`, html);
+      <p style="color:#6b7280;font-size:12px;margin-top:16px">Automated end-of-day report · Shahzad & Rainer</p></div></div>`;
+    const r = await sendEmail(pm.email, `[S&R] Daily Summary — ${date} — ${pm.full_name}`, html);
     if (!r.sent) await notify({ user_id: pm.id, type: 'SYSTEM', title: `EOD summary ready (${date})`, body: `${team.length} team members. ${pendingLeaves} pending leave(s). Configure RESEND_API_KEY to email.` });
     results.push({ pm: pm.username, team: team.length, emailed: r.sent });
   }

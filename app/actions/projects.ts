@@ -26,7 +26,7 @@ export async function createProject(fd: FormData) {
   };
   const { data, error } = await db().from('projects').insert(row).select('id').single();
   if (!error) await audit({ user_id: s.uid, username: s.username, action: 'CREATE', entity_type: 'project', entity_id: data?.id, new_value: row });
-  revalidatePath('/projects'); revalidatePath('/');
+  revalidatePath('/projects'); revalidatePath('/dashboard');
 }
 
 export async function updateProject(fd: FormData) {
