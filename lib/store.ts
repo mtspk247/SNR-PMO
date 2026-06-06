@@ -1,27 +1,24 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppUser } from './supabase';
+import { AppUser, MyOrg } from './supabase';
 
 interface AuthState {
   user: AppUser | null;
+  orgs: MyOrg[];
+  activeOrgId: string | null;   // persisted across reloads
+  sidebarCollapsed: boolean;    // persisted UI pref
   hasHydrated: boolean;
-  setUser: (u: AppUser) => void;
-  logout: () => void;
+
+  setSession: (user: AppUser | null, orgs: MyOrg[]) => void;
+  setActiveOrg: (orgId: string) => void;
+  toggleSidebar: () => void;
+  clear: () => void;
   setHydrated: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
-      hasHydrated: false,
-      setUser: (user) => set({ user }),
-      logout: () => set({ user: null }),
-      setHydrated: () => set({ hasHydrated: true }),
-    }),
-    {
-      name: 'snr-auth',
-      onRehydrateStorage: () => (state) => state?.setHydrated(),
-    }
-  )
-);
+      orgs: [],
+      activeOrgId: n

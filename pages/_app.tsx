@@ -1,5 +1,5 @@
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
-export default function App({ Component, pageProps }: AppProps) {
-  return <Component {...pageProps} />;
-}
+import { useEffect } from 'react';
+import { sb, Organization } from '@/lib/supabase';
+import { getCurrentUs

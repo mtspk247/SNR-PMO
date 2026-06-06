@@ -5,6 +5,13 @@
 
 * { box-sizing: border-box; }
 html, body, #__next { height: 100%; }
+
+/* Per-tenant branding tokens (overridden at runtime from org.branding) */
+:root {
+  --brand-primary: #2D7FF9;
+  --brand-accent: #6FD3D9;
+  --brand-ink: #0E2233;
+}
 body {
   margin: 0;
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -35,11 +42,6 @@ body {
   .nav-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-neutral-600 hover:bg-paper transition; }
   .nav-item-active { @apply bg-white border border-line text-ink font-medium shadow-[0_1px_0_rgba(0,0,0,0.02)]; }
 
-  .th { @apply text-left font-normal text-neutral-400 text-xs px-3 py-2; }
-  .td { @apply px-3 py-2.5 text-sm align-middle; }
-  .row { @apply border-t border-line hover:bg-paper/70; }
-}
-
-::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-thumb { background: #d8d6d0; border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: #c2c0b9; }
+  /* Navy sidebar (PPM-Express look) */
+  .sb-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-white/70 hover:bg-white/10 hover:text-white transition cursor-pointer; }
+  .s
