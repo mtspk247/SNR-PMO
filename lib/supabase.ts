@@ -95,3 +95,54 @@ export interface Comment {
   id: string; entity_type: string; entity_id: string; author_id: string | null;
   body: string; mentions: string[]; deleted?: boolean; created_at?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 types
+// ---------------------------------------------------------------------------
+export interface Attendance {
+  id: string; user_id: string | null; work_date: string;
+  check_in: string | null; check_out: string | null; hours: number | null;
+  status: 'OPEN' | 'CLOSED' | 'AUTO_CHECKOUT'; org_id?: string;
+  users?: { full_name: string } | null;
+}
+
+export interface Leave {
+  id: string; user_id: string | null; type: string;
+  start_date: string; end_date: string; days: number; reason: string | null;
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
+  approver_id: string | null; decision_comment: string | null;
+  requested_at?: string; decided_at?: string | null; org_id?: string;
+  requester?: { full_name: string } | null;
+}
+
+export interface AppNotification {
+  id: string; user_id: string | null; type: string; title: string;
+  body: string | null; link: string | null; entity_type: string | null;
+  entity_id: string | null; is_read: boolean; urgent: boolean; created_at: string;
+}
+
+export interface Tag {
+  id: string; name: string; color: string | null;
+  scope: 'Global' | 'Personal'; created_by?: string | null; org_id?: string;
+}
+
+export interface Integration {
+  id: string; key: string; name: string; category: string | null;
+  description: string | null; icon: string | null;
+  status: 'connected' | 'disconnected'; connected_at: string | null; org_id?: string;
+}
+
+export interface AuditEntry {
+  id: number; ts: string; user_id: string | null; username: string | null;
+  action: string; entity_type: string | null; entity_id: string | null;
+  old_value: any; new_value: any;
+}
+
+export interface AdminUser {
+  id: string; full_name: string; email: string; username: string;
+  role: Role; department: string | null; status: 'active' | 'suspended';
+  can_view_all_projects: boolean; can_edit_all_projects: boolean;
+  can_approve_leaves: boolean; can_delete_tasks: boolean;
+  can_manage_users: boolean; can_view_dashboard: boolean; can_export_data: boolean;
+  annual_balance: number; sick_balance: number; casual_balance: number;
+}

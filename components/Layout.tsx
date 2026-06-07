@@ -4,8 +4,9 @@ import { useRouter } from 'next/router';
 import { sb } from '@/lib/supabase';
 import { signOut } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
-import { roleLabel } from '@/lib/authz';
+import { roleLabel, can } from '@/lib/authz';
 import { Icon, Avatar, Spinner } from '@/components/ui';
+import NotificationBell from '@/components/NotificationBell';
 
 type Item = { href: string; label: string; icon: string };
 const GROUPS: { heading: string; items: Item[] }[] = [
@@ -26,11 +27,17 @@ const GROUPS: { heading: string; items: Item[] }[] = [
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },
   ]},
 ];
+const ADMIN_GROUP: { heading: string; items: Item[] } = { heading: 'Admin', items: [
+  { href: '/users', label: 'Users', icon: 'ti-user-shield' },
+  { href: '/integrations', label: 'Integrations', icon: 'ti-plug' },
+  { href: '/audit', label: 'Audit log', icon: 'ti-history' },
+]};
 
 export default function Layout({ title, children }: { title: string; children: React.ReactNode }) {
   const router = useRouter();
   const { user, orgs, sidebarCollapsed, toggleSidebar, setActiveOrg, clear } = useAuthStore();
   const activeOrg = useActiveOrg();
+  const groups = can.manageMembers(activeOrg) ? [...GROUPS, ADMIN_GROUP] : GROUPS;
   const [checking, setChecking] = useState(true);
   const [orgMenu, setOrgMenu] = useState(false);
 
@@ -94,7 +101,7 @@ export default function Layout({ title, children }: { title: string; children: R
 
         {/* Grouped nav */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          {GROUPS.map((g) => (
+          {groups.map((g) => (
             <div key={g.heading} className="pt-2">
               {!collapsed && <p className="px-2.5 pb-1 text-2xs uppercase tracking-wider text-white/35">{g.heading}</p>}
               {collapsed && <div className="mx-2 my-2 h-px bg-white/10" />}
@@ -131,9 +138,7 @@ export default function Layout({ title, children }: { title: string; children: R
             <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm text-neutral-400">
               <Icon name="ti-search" />Search
             </div>
-            <button className="btn-ghost p-2 rounded-md text-neutral-500 relative">
-              <Icon name="ti-bell" className="text-base" />
-            </button>
+            <NotificationBell />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

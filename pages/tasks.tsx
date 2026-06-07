@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
-import { getTasks, getOrgUsers, getProjects, createTask, updateTask, deleteTask } from '@/lib/db';
+import { getTasks, getOrgUsers, getProjects, createTask, updateTask, deleteTask, notify } from '@/lib/db';
 import { Task, OrgUser, Project } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import CommentsThread from '@/components/Comments';
+import TaskTags from '@/components/TaskTags';
 
 const STATUSES = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done', 'On Hold', 'Cancelled'];
 const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low'];
@@ -74,7 +75,10 @@ export default function Tasks() {
   // ----- mutations -----
   const mutate = async (fn: () => Promise<void>) => { setBusy(true); try { await fn(); } catch (e: any) { alert(e.message); } finally { setBusy(false); } };
   const setStatus = (id: string, status: string) => mutate(async () => patchLocal(await updateTask(id, { status })));
-  const reassign = (assignee_id: string) => selected && mutate(async () => patchLocal(await updateTask(selected.id, { assignee_id: assignee_id || null })));
+  const reassign = (assignee_id: string) => selected && mutate(async () => {
+    patchLocal(await updateTask(selected.id, { assignee_id: assignee_id || null }));
+    if (assignee_id && assignee_id !== me?.id && selected.org_id) notify({ org_id: selected.org_id, user_id: assignee_id, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: selected.name, link: '/tasks', entity_type: 'task', entity_id: selected.id }).catch(() => {});
+  });
   const addSubtask = () => {
     if (!selected || !subInput.trim()) return;
     mutate(async () => {
@@ -91,6 +95,7 @@ export default function Tasks() {
     mutate(async () => {
       const t = await createTask({ name: nt.name.trim(), org_id: activeOrg.id, project_id: nt.project_id || null, priority: nt.priority, due_date: nt.due_date || null, assignee_id: nt.assignee_id || null, status: 'To Do' });
       setTasks((p) => [...p, t]); setSelectedId(t.id); setShowNew(false);
+      if (nt.assignee_id && nt.assignee_id !== me?.id) notify({ org_id: activeOrg.id, user_id: nt.assignee_id, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: t.name, link: '/tasks', entity_type: 'task', entity_id: t.id }).catch(() => {});
       setNt({ name: '', project_id: '', priority: 'Medium', due_date: '', assignee_id: '' });
     });
   };
@@ -247,6 +252,7 @@ export default function Tasks() {
                       </select>
                     )}
                   </div>
+                  <TaskTags taskId={selected.id} orgId={selected.org_id} />
                   <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
                 </div>
               ) : <div className="card p-5 text-sm text-neutral-400">Select a task</div>}
