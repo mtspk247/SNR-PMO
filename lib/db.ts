@@ -43,10 +43,14 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   return (data as AppUser) ?? null;
 }
 
-export async function getMyOrgs(): Promise<MyOrg[]> {
+export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
+  // Must filter by user_id: the org_members SELECT policy lets a member see ALL
+  // members of their org, so without this we'd get one row per co-member (and the
+  // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
     .select('role, organizations(id, slug, name, branding, plan)')
+    .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
   return (data || []).map((r: any) => ({ ...r.organizations, member_role: r.role })) as MyOrg[];

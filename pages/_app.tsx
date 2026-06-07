@@ -29,7 +29,7 @@ export default function App({ Component, pageProps }: AppProps) {
         const user = await getCurrentUser();
         if (!active) return;
         if (!user) { clear(); return; }
-        const orgs = await getMyOrgs();
+        const orgs = await getMyOrgs(user.id);
         if (active) setSession(user, orgs);
       } catch { if (active) clear(); }
     };
