@@ -92,6 +92,24 @@ export async function getProjects(): Promise<Project[]> {
   if (error) throw error; return data || [];
 }
 
+export async function createProject(p: {
+  name: string; org_id: string; description?: string | null;
+  status?: string; priority?: string; start_date?: string | null; end_date?: string | null;
+  pm_id?: string | null; created_by?: string | null;
+}): Promise<Project[]> {
+  // NB: no .select() here. INSERT ... RETURNING re-applies the proj_select RLS
+  // policy (can_access_project) to the new row and rejects it, so we insert with
+  // return=minimal, then refetch the RLS-scoped list.
+  const { error } = await sb.from('projects').insert({
+    name: p.name, org_id: p.org_id, description: p.description || null,
+    status: p.status || 'Planning', priority: p.priority || 'Medium',
+    start_date: p.start_date || null, end_date: p.end_date || null,
+    pm_id: p.pm_id || null, created_by: p.created_by || null,
+  });
+  if (error) throw new Error(error.message);
+  return getProjects();
+}
+
 export async function getTasks(): Promise<Task[]> {
   const { data, error } = await sb.from('tasks').select('*, projects(name)').order('due_date', { ascending: true });
   if (error) throw error; return (data as Task[]) || [];
