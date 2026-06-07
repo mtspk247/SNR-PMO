@@ -1,23 +1,15 @@
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
-import { sb, Organization } from '@/lib/supabase';
+import { sb } from '@/lib/supabase';
 import { getCurrentUser, getMyOrgs, getOrgBranding } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
+import { applyBranding } from '@/lib/branding';
 
 function readCookie(name: string): string {
   if (typeof document === 'undefined') return '';
   const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
   return m ? decodeURIComponent(m[1]) : '';
-}
-
-function applyBranding(org: Organization | null) {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  const b = org?.branding || {};
-  if (b.primary_color) root.style.setProperty('--brand-primary', b.primary_color);
-  if (b.accent_color) root.style.setProperty('--brand-accent', b.accent_color);
-  if (org?.name) root.dataset.orgName = org.name;
 }
 
 export default function App({ Component, pageProps }: AppProps) {

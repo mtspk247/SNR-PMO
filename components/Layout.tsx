@@ -7,6 +7,7 @@ import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
+import { applyBranding } from '@/lib/branding';
 
 type Item = { href: string; label: string; icon: string };
 const GROUPS: { heading: string; items: Item[] }[] = [
@@ -31,6 +32,7 @@ const ADMIN_GROUP: { heading: string; items: Item[] } = { heading: 'Admin', item
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug' },
   { href: '/audit', label: 'Audit log', icon: 'ti-history' },
+  { href: '/settings', label: 'Settings', icon: 'ti-settings' },
 ]};
 
 export default function Layout({ title, children }: { title: string; children: React.ReactNode }) {
@@ -40,6 +42,9 @@ export default function Layout({ title, children }: { title: string; children: R
   const groups = can.manageMembers(activeOrg) ? [...GROUPS, ADMIN_GROUP] : GROUPS;
   const [checking, setChecking] = useState(true);
   const [orgMenu, setOrgMenu] = useState(false);
+
+  // Re-apply branding when the active org changes (covers org switch + apex domain).
+  useEffect(() => { applyBranding(activeOrg); }, [activeOrg?.id, JSON.stringify(activeOrg?.branding)]);
 
   // Auth guard straight from the Supabase session (avoids store-timing flicker).
   useEffect(() => {

@@ -11,6 +11,7 @@ interface AuthState {
 
   setSession: (user: AppUser | null, orgs: MyOrg[]) => void;
   setActiveOrg: (orgId: string) => void;
+  patchOrg: (org: Partial<MyOrg> & { id: string }) => void;
   toggleSidebar: () => void;
   clear: () => void;
   setHydrated: () => void;
@@ -36,6 +37,8 @@ export const useAuthStore = create<AuthState>()(
               : orgs[0]?.id ?? null,
         })),
       setActiveOrg: (activeOrgId) => set({ activeOrgId }),
+      patchOrg: (patch) =>
+        set((s) => ({ orgs: s.orgs.map((o) => (o.id === patch.id ? { ...o, ...patch } : o)) })),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       clear: () => set({ user: null, orgs: [], activeOrgId: null }),
       setHydrated: () => set({ hasHydrated: true }),

@@ -17,6 +17,7 @@ export interface OrgBranding {
   logo_url?: string;
   primary_color?: string;
   accent_color?: string;
+  ink_color?: string;
 }
 
 export interface Organization {

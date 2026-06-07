@@ -59,6 +59,25 @@ export async function getOrgBranding(slug: string): Promise<Organization | null>
   return (row as Organization) ?? null;
 }
 
+// White-label: owner/admin updates org name + branding. RLS policy `org_update`
+// enforces is_org_role(owner|admin); never trust the client gate alone.
+export async function updateOrgSettings(
+  orgId: string,
+  patch: { name?: string; branding?: Record<string, any> }
+): Promise<Organization> {
+  const fields: Record<string, any> = {};
+  if (patch.name !== undefined) fields.name = patch.name;
+  if (patch.branding !== undefined) fields.branding = patch.branding;
+  const { data, error } = await sb
+    .from('organizations')
+    .update(fields)
+    .eq('id', orgId)
+    .select('id, slug, name, branding, plan')
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Organization;
+}
+
 export async function getOrgUsers(): Promise<OrgUser[]> {
   const { data, error } = await sb.from('users').select('id, full_name, email').order('full_name');
   if (error) throw error;
