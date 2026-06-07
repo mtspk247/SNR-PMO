@@ -42,6 +42,13 @@ export interface AppUser {
   department?: string;
 }
 
+// Lightweight directory entry for assignee / follower pickers.
+export interface OrgUser {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
 export interface Project {
   id: string; name: string; description: string | null;
   status: string; priority: string; progress: number | null;
@@ -51,8 +58,12 @@ export interface Project {
 
 export interface Task {
   id: string; project_id: string | null; name: string;
+  description?: string | null;
   status: string; priority: string; assignee_id: string | null;
-  due_date: string | null; estimated_hours: number | null;
+  parent_task_id?: string | null;
+  followers?: string[];
+  due_date: string | null; estimated_hours: number | null; actual_hours?: number | null;
+  org_id?: string; created_by?: string | null;
   projects?: { name: string } | null;
 }
 
@@ -72,12 +83,4 @@ export interface Deal {
 export interface Risk {
   id: string; project_id: string | null; title: string; description: string | null;
   category: string; impact: number; probability: number; status: string;
-  owner_id: string | null; mitigation: string | null; due_date: string | null;
-  projects?: { name: string } | null;
-}
-
-export interface Financial {
-  id: string; project_id: string | null; period: string; category: string;
-  planned: number; actual: number; paid_on: string | null;
-  projects?: { name: string } | null;
-}
+  owner_id:

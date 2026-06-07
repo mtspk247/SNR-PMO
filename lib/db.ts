@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, Contact, Deal, AppUser, MyOrg, Organization, Risk, Financial } from './supabase';
+import { sb, Project, Task, Company, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth — replaces the legacy sha256 `login` RPC)
@@ -63,6 +63,13 @@ export async function getOrgBranding(slug: string): Promise<Organization | null>
   return (row as Organization) ?? null;
 }
 
+// Directory of users sharing the caller's org(s) — for assignee/follower pickers (RLS-scoped).
+export async function getOrgUsers(): Promise<OrgUser[]> {
+  const { data, error } = await sb.from('users').select('id, full_name, email').order('full_name');
+  if (error) throw error;
+  return (data as OrgUser[]) || [];
+}
+
 // ---------------------------------------------------------------------------
 // Data (now automatically scoped by RLS to the user's org + project access)
 // ---------------------------------------------------------------------------
@@ -76,33 +83,22 @@ export async function getTasks(): Promise<Task[]> {
   if (error) throw error; return (data as Task[]) || [];
 }
 
-export async function getCompanies(): Promise<Company[]> {
-  const { data, error } = await sb.from('crm_companies').select('*').order('name');
-  if (error) throw error; return data || [];
+// Phase 2.1 — task detail / subtasks / followers mutations.
+export async function createTask(t: {
+  name: string; org_id: string; project_id?: string | null; parent_task_id?: string | null;
+  priority?: string; status?: string; due_date?: string | null; assignee_id?: string | null;
+  estimated_hours?: number;
+}): Promise<Task> {
+  const { data, error } = await sb.from('tasks').insert(t).select('*, projects(name)').single();
+  if (error) throw new Error(error.message);
+  return data as Task;
 }
 
-export async function getContacts(): Promise<Contact[]> {
-  const { data, error } = await sb.from('crm_contacts').select('*, crm_companies(name)').order('full_name');
-  if (error) throw error; return (data as Contact[]) || [];
+export async function updateTask(id: string, patch: Partial<Task>): Promise<Task> {
+  const { data, error } = await sb.from('tasks').update(patch).eq('id', id).select('*, projects(name)').single();
+  if (error) throw new Error(error.message);
+  return data as Task;
 }
 
-export async function getDeals(): Promise<Deal[]> {
-  const { data, error } = await sb.from('crm_deals')
-    .select('*, crm_companies(name), crm_contacts(full_name, email)')
-    .order('value', { ascending: false });
-  if (error) throw error; return (data as Deal[]) || [];
-}
-
-export async function getRisks(): Promise<Risk[]> {
-  const { data, error } = await sb.from('risks')
-    .select('*, projects(name)')
-    .order('impact', { ascending: false });
-  if (error) throw error; return (data as Risk[]) || [];
-}
-
-export async function getFinancials(): Promise<Financial[]> {
-  const { data, error } = await sb.from('financials')
-    .select('*, projects(name)')
-    .order('period', { ascending: true });
-  if (error) throw error; return (data as Financial[]) || [];
-}
+export async function deleteTask(id: string): Promise<void> {
+  const { error } = await sb.f
