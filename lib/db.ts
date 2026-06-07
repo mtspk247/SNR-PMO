@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial } from './supabase';
+import { sb, Project, Task, Company, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -128,4 +128,20 @@ export async function getFinancials(): Promise<Financial[]> {
     .select('*, projects(name)')
     .order('period', { ascending: true });
   if (error) throw error; return (data as Financial[]) || [];
+}
+
+// Phase 2.2 — @mention comments (entity_type 'task'|'project'); RLS = org member.
+export async function getComments(entityType: 'task' | 'project', entityId: string): Promise<Comment[]> {
+  const { data, error } = await sb.from('comments').select('*')
+    .eq('entity_type', entityType).eq('entity_id', entityId).eq('deleted', false)
+    .order('created_at', { ascending: true });
+  if (error) throw error; return (data as Comment[]) || [];
+}
+export async function addComment(c: { entity_type: 'task' | 'project'; entity_id: string; org_id: string; author_id: string; body: string; mentions: string[] }): Promise<Comment> {
+  const { data, error } = await sb.from('comments').insert(c).select('*').single();
+  if (error) throw new Error(error.message); return data as Comment;
+}
+export async function deleteComment(id: string): Promise<void> {
+  const { error } = await sb.from('comments').update({ deleted: true }).eq('id', id);
+  if (error) throw new Error(error.message);
 }

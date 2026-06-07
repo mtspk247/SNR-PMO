@@ -3,7 +3,8 @@ import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
 import { getTasks, getOrgUsers, getProjects, createTask, updateTask, deleteTask } from '@/lib/db';
 import { Task, OrgUser, Project } from '@/lib/supabase';
-import { useActiveOrg } from '@/lib/store';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
+import CommentsThread from '@/components/Comments';
 
 const STATUSES = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done', 'On Hold', 'Cancelled'];
 const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low'];
@@ -21,6 +22,7 @@ const Bars = ({ level }: { level: number }) => (
 
 export default function Tasks() {
   const activeOrg = useActiveOrg();
+  const me = useAuthStore((s) => s.user);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -245,6 +247,7 @@ export default function Tasks() {
                       </select>
                     )}
                   </div>
+                  <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
                 </div>
               ) : <div className="card p-5 text-sm text-neutral-400">Select a task</div>}
             </aside>

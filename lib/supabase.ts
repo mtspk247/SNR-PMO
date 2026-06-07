@@ -90,3 +90,8 @@ export interface Financial {
   planned: number; actual: number; paid_on: string | null;
   projects?: { name: string } | null;
 }
+
+export interface Comment {
+  id: string; entity_type: string; entity_id: string; author_id: string | null;
+  body: string; mentions: string[]; deleted?: boolean; created_at?: string;
+}
