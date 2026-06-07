@@ -27,7 +27,6 @@ export interface Organization {
   plan: 'free' | 'pro' | 'enterprise';
 }
 
-// An org the signed-in user belongs to, with their role in it.
 export interface MyOrg extends Organization {
   member_role: OrgRole;
 }
@@ -42,7 +41,6 @@ export interface AppUser {
   department?: string;
 }
 
-// Lightweight directory entry for assignee / follower pickers.
 export interface OrgUser {
   id: string;
   full_name: string;
@@ -83,4 +81,12 @@ export interface Deal {
 export interface Risk {
   id: string; project_id: string | null; title: string; description: string | null;
   category: string; impact: number; probability: number; status: string;
-  owner_id:
+  owner_id: string | null; mitigation: string | null; due_date: string | null;
+  projects?: { name: string } | null;
+}
+
+export interface Financial {
+  id: string; project_id: string | null; period: string; category: string;
+  planned: number; actual: number; paid_on: string | null;
+  projects?: { name: string } | null;
+}
