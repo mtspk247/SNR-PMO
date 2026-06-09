@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon } from '@/components/ui';
-import { getDeals, getContacts } from '@/lib/db';
-import { Deal, Contact } from '@/lib/supabase';
+import { getDeals, getContacts, getCompanies, createDeal, createContact, createCrmCompany, advanceDealStage } from '@/lib/db';
+import { Deal, Contact, Company } from '@/lib/supabase';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
 
 const STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 const STAGE_RANK: Record<string, number> = { Lead: 1, Qualified: 2, Proposal: 3, Negotiation: 4, Won: 5, Lost: 0 };
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 
 export default function CRM() {
+  const org = useActiveOrg();
+  const me = useAuthStore((s) => s.user);
   const [view, setView] = useState<'pipeline' | 'contacts'>('pipeline');
   const [deals, setDeals] = useState<Deal[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [query, setQuery] = useState('');
@@ -19,11 +23,30 @@ export default function CRM() {
   const [sort, setSort] = useState<'value' | 'stage' | 'close'>('value');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const [showDeal, setShowDeal] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
-    Promise.all([getDeals(), getContacts()])
-      .then(([d, c]) => { setDeals(d); setContacts(c); })
+    Promise.all([getDeals(), getContacts(), getCompanies()])
+      .then(([d, c, co]) => { setDeals(d); setContacts(c); setCompanies(co); })
       .finally(() => setLoading(false));
-  }, []);
+  }, [org?.id]);
+
+  // Create a CRM company on the fly (used by the deal/contact pickers).
+  const addCompany = async (name: string): Promise<Company | null> => {
+    if (!org) return null;
+    const c = await createCrmCompany({ name, org_id: org.id, owner_id: me?.id });
+    setCompanies((p) => [...p, c].sort((a, b) => a.name.localeCompare(b.name)));
+    return c;
+  };
+
+  const advance = async (d: Deal) => {
+    if (d.stage === 'Won' || d.stage === 'Lost') return;
+    setBusy(true);
+    try { const r = await advanceDealStage(d.id, d.stage); setDeals((p) => p.map((x) => (x.id === r.id ? r : x))); }
+    catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
 
   const openDeals = deals.filter((d) => d.stage !== 'Won' && d.stage !== 'Lost');
   const pipelineValue = openDeals.reduce((a, d) => a + (d.value || 0), 0);
@@ -71,7 +94,9 @@ export default function CRM() {
         action={
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-paper border border-line rounded-lg p-1"><Tab id="pipeline" label="Pipeline" /><Tab id="contacts" label="Contacts" /></div>
-            <button className="btn btn-primary"><Icon name="ti-plus" />New deal</button>
+            {view === 'pipeline'
+              ? <button onClick={() => setShowDeal(true)} className="btn btn-primary"><Icon name="ti-plus" />New deal</button>
+              : <button onClick={() => setShowContact(true)} className="btn btn-primary"><Icon name="ti-plus" />New contact</button>}
           </div>
         } />
 
@@ -136,8 +161,10 @@ export default function CRM() {
                   <h3 className="text-base font-semibold leading-snug">{selected.title}</h3>
                   <p className="text-2xl font-semibold mt-1">{money(selected.value || 0)}</p>
                   <div className="flex gap-2 mt-4">
-                    <button className="btn flex-1 text-xs">Advance stage</button>
-                    <button className="btn flex-1 text-xs">Log activity</button>
+                    <button onClick={() => advance(selected)} disabled={busy || selected.stage === 'Won' || selected.stage === 'Lost'}
+                      className="btn btn-primary flex-1 text-xs">
+                      {selected.stage === 'Won' ? 'Won' : selected.stage === 'Lost' ? 'Closed lost' : 'Advance stage'}
+                    </button>
                   </div>
                   <dl className="mt-5 space-y-3">
                     {[
@@ -197,6 +224,154 @@ export default function CRM() {
           </div>
         )
       )}
+
+      {showDeal && org && (
+        <DealModal companies={companies} contacts={contacts} busy={busy} onAddCompany={addCompany}
+          onClose={() => setShowDeal(false)}
+          onSubmit={async (p) => {
+            setBusy(true);
+            try {
+              const d = await createDeal({ ...p, org_id: org.id, owner_id: me?.id });
+              setDeals((prev) => [d, ...prev]); setSelectedId(d.id); setShowDeal(false); setView('pipeline');
+            } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+          }} />
+      )}
+
+      {showContact && org && (
+        <ContactModal companies={companies} busy={busy} onAddCompany={addCompany}
+          onClose={() => setShowContact(false)}
+          onSubmit={async (p) => {
+            setBusy(true);
+            try {
+              const c = await createContact({ ...p, org_id: org.id, owner_id: me?.id });
+              setContacts((prev) => [...prev, c].sort((a, b) => a.full_name.localeCompare(b.full_name)));
+              setShowContact(false); setView('contacts');
+            } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+          }} />
+      )}
     </Layout>
+  );
+}
+
+// ---- shared modal shell -----------------------------------------------------
+function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-lg border border-line w-full max-w-md p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-semibold mb-4">{title}</h3>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Company picker with inline "add new" -- shared by deal + contact modals.
+function CompanyField({ companies, value, onChange, onAddCompany }:
+  { companies: Company[]; value: string; onChange: (id: string) => void; onAddCompany: (name: string) => Promise<Company | null> }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!name.trim()) return; setBusy(true);
+    try { const c = await onAddCompany(name.trim()); if (c) { onChange(c.id); setAdding(false); setName(''); } }
+    catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div>
+      <label className="label">Company</label>
+      {adding ? (
+        <div className="flex gap-2">
+          <input autoFocus value={name} disabled={busy} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()}
+            placeholder="New company name" className="input flex-1" />
+          <button onClick={save} disabled={busy || !name.trim()} className="btn btn-sm">Save</button>
+          <button onClick={() => { setAdding(false); setName(''); }} className="btn btn-sm">X</button>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <select value={value} onChange={(e) => e.target.value === '__new' ? setAdding(true) : onChange(e.target.value)} className="input flex-1">
+            <option value="">No company</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <option value="__new">+ New company...</option>
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type DealForm = { title: string; value: number; stage: string; company_id: string | null; contact_id: string | null; expected_close: string | null; notes: string | null };
+
+function DealModal({ companies, contacts, busy, onAddCompany, onClose, onSubmit }:
+  { companies: Company[]; contacts: Contact[]; busy: boolean; onAddCompany: (n: string) => Promise<Company | null>; onClose: () => void; onSubmit: (p: DealForm) => void }) {
+  const [title, setTitle] = useState('');
+  const [value, setValue] = useState('');
+  const [stage, setStage] = useState('Lead');
+  const [companyId, setCompanyId] = useState('');
+  const [contactId, setContactId] = useState('');
+  const [close, setClose] = useState('');
+  const [notes, setNotes] = useState('');
+  const pickable = companyId ? contacts.filter((c) => !c.company_id || c.company_id === companyId) : contacts;
+  return (
+    <Modal title="New deal" onClose={onClose}>
+      <div className="space-y-3">
+        <div><label className="label">Title</label><input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Acme -- annual license" className="input" /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label">Value (USD)</label><input value={value} onChange={(e) => setValue(e.target.value)} type="number" min="0" placeholder="0" className="input" /></div>
+          <div><label className="label">Stage</label>
+            <select value={stage} onChange={(e) => setStage(e.target.value)} className="input">
+              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select></div>
+        </div>
+        <CompanyField companies={companies} value={companyId} onChange={setCompanyId} onAddCompany={onAddCompany} />
+        <div><label className="label">Primary contact</label>
+          <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="input">
+            <option value="">None</option>
+            {pickable.map((c) => <option key={c.id} value={c.id}>{c.full_name}{c.title ? ` · ${c.title}` : ''}</option>)}
+          </select></div>
+        <div><label className="label">Expected close</label><input value={close} onChange={(e) => setClose(e.target.value)} type="date" className="input" /></div>
+        <div><label className="label">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optional" className="input" /></div>
+      </div>
+      <div className="flex gap-2 mt-5">
+        <button onClick={onClose} className="btn flex-1">Cancel</button>
+        <button onClick={() => title.trim() && onSubmit({ title: title.trim(), value: parseFloat(value) || 0, stage, company_id: companyId || null, contact_id: contactId || null, expected_close: close || null, notes: notes.trim() || null })}
+          disabled={busy || !title.trim()} className="btn btn-primary flex-1">{busy ? 'Saving...' : 'Create deal'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+type ContactForm = { full_name: string; email: string | null; phone: string | null; title: string | null; company_id: string | null; status: string };
+
+function ContactModal({ companies, busy, onAddCompany, onClose, onSubmit }:
+  { companies: Company[]; busy: boolean; onAddCompany: (n: string) => Promise<Company | null>; onClose: () => void; onSubmit: (p: ContactForm) => void }) {
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [title, setTitle] = useState('');
+  const [companyId, setCompanyId] = useState('');
+  const [status, setStatus] = useState('Lead');
+  return (
+    <Modal title="New contact" onClose={onClose}>
+      <div className="space-y-3">
+        <div><label className="label">Full name</label><input autoFocus value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Jane Doe" className="input" /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label">Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="jane@acme.com" className="input" /></div>
+          <div><label className="label">Phone</label><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" className="input" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label">Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. VP Sales" className="input" /></div>
+          <div><label className="label">Status</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
+              {['Lead', 'Active', 'Customer', 'Inactive'].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select></div>
+        </div>
+        <CompanyField companies={companies} value={companyId} onChange={setCompanyId} onAddCompany={onAddCompany} />
+      </div>
+      <div className="flex gap-2 mt-5">
+        <button onClick={onClose} className="btn flex-1">Cancel</button>
+        <button onClick={() => fullName.trim() && onSubmit({ full_name: fullName.trim(), email: email.trim() || null, phone: phone.trim() || null, title: title.trim() || null, company_id: companyId || null, status })}
+          disabled={busy || !fullName.trim()} className="btn btn-primary flex-1">{busy ? 'Saving...' : 'Create contact'}</button>
+      </div>
+    </Modal>
   );
 }

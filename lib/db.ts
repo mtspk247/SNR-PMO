@@ -174,6 +174,48 @@ export async function getDeals(): Promise<Deal[]> {
   if (error) throw error; return (data as Deal[]) || [];
 }
 
+// --- CRM create/advance flows. All three crm_* tables have a single ALL policy
+// is_org_member(org_id) for both USING + WITH CHECK, so RETURNING (incl. embeds,
+// which are same-org -> visible) is safe -- no return=minimal/refetch needed. ---
+export const DEAL_STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'] as const;
+export type DealStage = typeof DEAL_STAGES[number];
+
+export async function createCrmCompany(p: { name: string; org_id: string; industry?: string | null; website?: string | null; phone?: string | null; owner_id?: string | null }): Promise<Company> {
+  const { data, error } = await sb.from('crm_companies')
+    .insert({ name: p.name, org_id: p.org_id, industry: p.industry || null, website: p.website || null, phone: p.phone || null, owner_id: p.owner_id || null })
+    .select('*').single();
+  if (error) throw new Error(error.message); return data as Company;
+}
+
+export async function createContact(p: { full_name: string; org_id: string; email?: string | null; phone?: string | null; title?: string | null; company_id?: string | null; status?: string | null; owner_id?: string | null }): Promise<Contact> {
+  const { data, error } = await sb.from('crm_contacts')
+    .insert({ full_name: p.full_name, org_id: p.org_id, email: p.email || null, phone: p.phone || null, title: p.title || null, company_id: p.company_id || null, status: p.status || 'Lead', owner_id: p.owner_id || null })
+    .select('*, crm_companies(name)').single();
+  if (error) throw new Error(error.message); return data as Contact;
+}
+
+export async function createDeal(p: { title: string; org_id: string; value?: number | null; stage?: string; company_id?: string | null; contact_id?: string | null; expected_close?: string | null; notes?: string | null; owner_id?: string | null }): Promise<Deal> {
+  const { data, error } = await sb.from('crm_deals')
+    .insert({ title: p.title, org_id: p.org_id, value: p.value ?? 0, stage: p.stage || 'Lead', company_id: p.company_id || null, contact_id: p.contact_id || null, expected_close: p.expected_close || null, notes: p.notes || null, owner_id: p.owner_id || null })
+    .select('*, crm_companies(name), crm_contacts(full_name, email)').single();
+  if (error) throw new Error(error.message); return data as Deal;
+}
+
+export async function updateDeal(id: string, patch: Partial<{ title: string; value: number | null; stage: string; company_id: string | null; contact_id: string | null; expected_close: string | null; notes: string | null }>): Promise<Deal> {
+  const { data, error } = await sb.from('crm_deals')
+    .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
+    .select('*, crm_companies(name), crm_contacts(full_name, email)').single();
+  if (error) throw new Error(error.message); return data as Deal;
+}
+
+// Advance a deal to the next pipeline stage (no-op past Negotiation->Won; Won/Lost are terminal).
+export async function advanceDealStage(id: string, current: string): Promise<Deal> {
+  const order = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
+  const i = order.indexOf(current);
+  const next = i >= 0 && i < order.length - 1 ? order[i + 1] : current;
+  return updateDeal(id, { stage: next });
+}
+
 export async function getRisks(): Promise<Risk[]> {
   const { data, error } = await sb.from('risks')
     .select('*, projects(name)')
