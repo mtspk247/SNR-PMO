@@ -24,7 +24,8 @@ const GROUPS: { heading: string; items: Item[] }[] = [
   { heading: 'Relations', items: [
     { href: '/crm', label: 'CRM', icon: 'ti-users' },
   ]},
-  { heading: 'Operations', items: [
+  { heading: 'People', items: [
+    { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus' },
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock' },
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },
   ]},

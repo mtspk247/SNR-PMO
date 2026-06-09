@@ -150,3 +150,26 @@ export interface AdminUser {
   can_manage_users: boolean; can_view_dashboard: boolean; can_export_data: boolean;
   annual_balance: number; sick_balance: number; casual_balance: number;
 }
+
+
+// ---------------------------------------------------------------------------
+// HR Onboarding types
+// ---------------------------------------------------------------------------
+export interface OnboardingTemplateItem {
+  id: string; template_id: string; org_id?: string;
+  title: string; description: string | null; sort_order: number; offset_days: number;
+}
+export interface OnboardingTemplate {
+  id: string; org_id?: string; name: string; description: string | null;
+  created_by?: string | null; created_at?: string;
+  items?: OnboardingTemplateItem[];
+}
+export interface OnboardingTask {
+  id: string; org_id?: string; user_id: string; template_id: string | null;
+  title: string; description: string | null;
+  status: 'Pending' | 'Done'; due_date: string | null;
+  assignee_id: string | null; sort_order: number; completed_at: string | null;
+  created_by?: string | null; created_at?: string;
+  hire?: { full_name: string } | null;
+  assignee?: { full_name: string } | null;
+}

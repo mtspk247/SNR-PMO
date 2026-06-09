@@ -207,7 +207,7 @@ export async function deleteComment(id: string): Promise<void> {
 // ===========================================================================
 // Phase 2 data access
 // ===========================================================================
-import { Attendance, Leave, AppNotification, Tag, Integration, AuditEntry, AdminUser } from './supabase';
+import { Attendance, Leave, AppNotification, Tag, Integration, AuditEntry, AdminUser, OnboardingTemplate, OnboardingTemplateItem, OnboardingTask } from './supabase';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -341,6 +341,80 @@ export async function addTaskTag(taskId: string, tagId: string, orgId: string): 
 }
 export async function removeTaskTag(taskId: string, tagId: string): Promise<void> {
   const { error } = await sb.from('task_tags').delete().eq('task_id', taskId).eq('tag_id', tagId);
+  if (error) throw new Error(error.message);
+}
+
+// ---- 3.2 HR Onboarding ----------------------------------------------------
+// Templates + their items. insert+select policies on these tables are identical
+// (write=is_org_role owner/admin, select=is_org_member; admin is a member), so
+// RETURNING is safe - same reasoning as createOrgCompany.
+export async function getOnboardingTemplates(): Promise<OnboardingTemplate[]> {
+  const { data, error } = await sb.from('onboarding_templates')
+    .select('*, items:onboarding_template_items(*)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return ((data as OnboardingTemplate[]) || []).map((t) => ({
+    ...t, items: (t.items || []).slice().sort((a, b) => a.sort_order - b.sort_order),
+  }));
+}
+export async function createOnboardingTemplate(p: { name: string; org_id: string; description?: string; created_by?: string }): Promise<OnboardingTemplate> {
+  const { data, error } = await sb.from('onboarding_templates')
+    .insert({ name: p.name, org_id: p.org_id, description: p.description || null, created_by: p.created_by || null })
+    .select('*, items:onboarding_template_items(*)').single();
+  if (error) throw new Error(error.message); return data as OnboardingTemplate;
+}
+export async function deleteOnboardingTemplate(id: string): Promise<void> {
+  const { error } = await sb.from('onboarding_templates').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function addTemplateItem(p: { template_id: string; org_id: string; title: string; description?: string; sort_order?: number; offset_days?: number }): Promise<OnboardingTemplateItem> {
+  const { data, error } = await sb.from('onboarding_template_items')
+    .insert({ template_id: p.template_id, org_id: p.org_id, title: p.title, description: p.description || null, sort_order: p.sort_order ?? 0, offset_days: p.offset_days ?? 0 })
+    .select('*').single();
+  if (error) throw new Error(error.message); return data as OnboardingTemplateItem;
+}
+export async function deleteTemplateItem(id: string): Promise<void> {
+  const { error } = await sb.from('onboarding_template_items').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// Per-hire checklist tasks. Two FKs to users -> disambiguated embeds (cf. leaves).
+const OB_TASK_SEL = '*, hire:users!onboarding_tasks_user_id_fkey(full_name), assignee:users!onboarding_tasks_assignee_id_fkey(full_name)';
+export async function getOnboardingTasks(): Promise<OnboardingTask[]> {
+  const { data, error } = await sb.from('onboarding_tasks').select(OB_TASK_SEL)
+    .order('user_id', { ascending: true }).order('sort_order', { ascending: true });
+  if (error) throw error; return (data as OnboardingTask[]) || [];
+}
+// Assign a template to a new hire: bulk-insert its items as tasks. Insert with
+// return=minimal (no .select()) then refetch - same RLS-safe pattern as createProject.
+export async function assignOnboarding(p: { user_id: string; org_id: string; template: OnboardingTemplate; created_by?: string; start_date?: string }): Promise<OnboardingTask[]> {
+  const base = p.start_date ? new Date(p.start_date) : null;
+  const rows = (p.template.items || []).map((it, i) => ({
+    org_id: p.org_id, user_id: p.user_id, template_id: p.template.id,
+    title: it.title, description: it.description, sort_order: it.sort_order ?? i, status: 'Pending',
+    assignee_id: p.created_by || null,
+    due_date: base ? new Date(base.getTime() + (it.offset_days || 0) * 86400000).toISOString().slice(0, 10) : null,
+    created_by: p.created_by || null,
+  }));
+  if (rows.length === 0) return getOnboardingTasks();
+  const { error } = await sb.from('onboarding_tasks').insert(rows);
+  if (error) throw new Error(error.message);
+  return getOnboardingTasks();
+}
+export async function addOnboardingTask(p: { user_id: string; org_id: string; title: string; assignee_id?: string; due_date?: string; created_by?: string; sort_order?: number }): Promise<OnboardingTask> {
+  const { data, error } = await sb.from('onboarding_tasks')
+    .insert({ user_id: p.user_id, org_id: p.org_id, title: p.title, assignee_id: p.assignee_id || null, due_date: p.due_date || null, created_by: p.created_by || null, sort_order: p.sort_order ?? 0, status: 'Pending' })
+    .select(OB_TASK_SEL).single();
+  if (error) throw new Error(error.message); return data as OnboardingTask;
+}
+export async function setOnboardingTaskStatus(id: string, status: 'Pending' | 'Done'): Promise<OnboardingTask> {
+  const { data, error } = await sb.from('onboarding_tasks')
+    .update({ status, completed_at: status === 'Done' ? new Date().toISOString() : null })
+    .eq('id', id).select(OB_TASK_SEL).single();
+  if (error) throw new Error(error.message); return data as OnboardingTask;
+}
+export async function deleteOnboardingTask(id: string): Promise<void> {
+  const { error } = await sb.from('onboarding_tasks').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
