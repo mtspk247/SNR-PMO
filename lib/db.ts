@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, OrgCompany, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment } from './supabase';
+import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -129,6 +129,39 @@ export async function createOrgCompany(p: { name: string; org_id: string; descri
     .select('id, name, description, org_id').single();
   if (error) throw new Error(error.message);
   return data as OrgCompany;
+}
+
+// --- 3.4 Company RBAC: per-company membership ---------------------------
+// RLS: cm_select=can_access_company, cm_write=manages_company(org owner/admin
+// or company 'manager'). Insert is return=minimal then refetch (uniform RLS-safe
+// pattern; embeds the added user via the list query).
+export async function listCompanyMembers(companyId: string): Promise<CompanyMember[]> {
+  const { data, error } = await sb.from('company_members')
+    .select('company_id, user_id, role, created_at, users(full_name, email)')
+    .eq('company_id', companyId).order('created_at', { ascending: true });
+  if (error) throw error; return (data as CompanyMember[]) || [];
+}
+export async function addCompanyMember(companyId: string, userId: string, role: MemberRole = 'member'): Promise<CompanyMember[]> {
+  const { error } = await sb.from('company_members').insert({ company_id: companyId, user_id: userId, role });
+  if (error) throw new Error(error.message);
+  return listCompanyMembers(companyId);
+}
+export async function updateCompanyMemberRole(companyId: string, userId: string, role: MemberRole): Promise<void> {
+  const { error } = await sb.from('company_members').update({ role })
+    .eq('company_id', companyId).eq('user_id', userId);
+  if (error) throw new Error(error.message);
+}
+export async function removeCompanyMember(companyId: string, userId: string): Promise<void> {
+  const { error } = await sb.from('company_members').delete()
+    .eq('company_id', companyId).eq('user_id', userId);
+  if (error) throw new Error(error.message);
+}
+// Company ids the current user manages as a non-org-admin (role='manager') --
+// lets the UI surface member management to delegated company managers too.
+export async function getMyCompanyManagerships(userId: string): Promise<string[]> {
+  const { data, error } = await sb.from('company_members')
+    .select('company_id').eq('user_id', userId).eq('role', 'manager');
+  if (error) throw error; return ((data || []) as any[]).map((r) => r.company_id);
 }
 
 export async function getTasks(): Promise<Task[]> {

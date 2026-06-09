@@ -1,27 +1,51 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
-import { getOrgCompanies, createOrgCompany, getProjects } from '@/lib/db';
-import { OrgCompany, Project } from '@/lib/supabase';
-import { useActiveOrg } from '@/lib/store';
+import {
+  getOrgCompanies, createOrgCompany, getProjects, getOrgUsers,
+  getMyCompanyManagerships, listCompanyMembers, addCompanyMember,
+  updateCompanyMemberRole, removeCompanyMember,
+} from '@/lib/db';
+import { OrgCompany, Project, OrgUser, CompanyMember, MemberRole } from '@/lib/supabase';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 
 export default function CompaniesPage() {
   const org = useActiveOrg();
+  const userId = useAuthStore((s) => s.user?.id) || null;
   const admin = can.manageMembers(org);
   const [companies, setCompanies] = useState<OrgCompany[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
+  const [mgrIds, setMgrIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [nc, setNc] = useState({ name: '', description: '' });
 
+  // member-management modal
+  const [memCo, setMemCo] = useState<OrgCompany | null>(null);
+  const [members, setMembers] = useState<CompanyMember[]>([]);
+  const [memLoading, setMemLoading] = useState(false);
+  const [memErr, setMemErr] = useState('');
+  const [addUser, setAddUser] = useState('');
+  const [addRole, setAddRole] = useState<MemberRole>('member');
+  const [memBusy, setMemBusy] = useState(false);
+
   useEffect(() => {
-    Promise.all([getOrgCompanies(), getProjects()])
-      .then(([c, p]) => { setCompanies(c); setProjects(p); })
+    if (!org) return;
+    setLoading(true);
+    Promise.all([
+      getOrgCompanies(), getProjects(), getOrgUsers(),
+      userId ? getMyCompanyManagerships(userId) : Promise.resolve<string[]>([]),
+    ])
+      .then(([c, p, u, m]) => { setCompanies(c); setProjects(p); setOrgUsers(u); setMgrIds(new Set(m)); })
       .finally(() => setLoading(false));
-  }, [org?.id]);
+  }, [org?.id, userId]);
+
+  const projectCount = (cid: string) => projects.filter((p) => p.company_id === cid).length;
+  const canManage = (c: OrgCompany) => admin || mgrIds.has(c.id);
 
   const submit = async () => {
     if (!org || !nc.name.trim()) return;
@@ -34,16 +58,42 @@ export default function CompaniesPage() {
     finally { setBusy(false); }
   };
 
-  const projectCount = (cid: string) => projects.filter((p) => p.company_id === cid).length;
+  const openMembers = async (c: OrgCompany) => {
+    setMemCo(c); setMembers([]); setMemErr(''); setAddUser(''); setAddRole('member'); setMemLoading(true);
+    try { setMembers(await listCompanyMembers(c.id)); }
+    catch (e: any) { setMemErr(e.message || 'Could not load members'); }
+    finally { setMemLoading(false); }
+  };
+  const doAdd = async () => {
+    if (!memCo || !addUser) return;
+    setMemBusy(true); setMemErr('');
+    try { setMembers(await addCompanyMember(memCo.id, addUser, addRole)); setAddUser(''); setAddRole('member'); }
+    catch (e: any) { setMemErr(e.message || 'Could not add member'); }
+    finally { setMemBusy(false); }
+  };
+  const doRole = async (uid: string, role: MemberRole) => {
+    if (!memCo) return;
+    setMembers((prev) => prev.map((m) => (m.user_id === uid ? { ...m, role } : m)));
+    try { await updateCompanyMemberRole(memCo.id, uid, role); }
+    catch (e: any) { setMemErr(e.message || 'Could not update role'); openMembers(memCo); }
+  };
+  const doRemove = async (uid: string) => {
+    if (!memCo) return;
+    setMemBusy(true); setMemErr('');
+    try { await removeCompanyMember(memCo.id, uid); setMembers((prev) => prev.filter((m) => m.user_id !== uid)); }
+    catch (e: any) { setMemErr(e.message || 'Could not remove member'); }
+    finally { setMemBusy(false); }
+  };
+
+  const memberIds = new Set(members.map((m) => m.user_id));
+  const addable = orgUsers.filter((u) => !memberIds.has(u.id));
 
   return (
     <Layout title="Companies">
       <PageHeader title="Companies" subtitle={`${companies.length} companies`}
         action={admin ? <button onClick={() => { setErr(''); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New company</button> : undefined} />
-      {loading ? <Spinner /> : !admin ? (
-        <EmptyState icon="ti-lock" text="Only org admins can manage companies" />
-      ) : companies.length === 0 ? (
-        <EmptyState icon="ti-building" text="No companies yet — create your first one" />
+      {loading ? <Spinner /> : companies.length === 0 ? (
+        <EmptyState icon="ti-building" text={admin ? 'No companies yet -- create your first one' : 'No companies you can access yet'} />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {companies.map((c) => (
@@ -54,6 +104,11 @@ export default function CompaniesPage() {
                   <p className="text-sm font-medium truncate">{c.name}</p>
                   <p className="text-2xs text-neutral-400">{projectCount(c.id)} projects</p>
                 </div>
+                {canManage(c) && (
+                  <button onClick={() => openMembers(c)} className="text-2xs text-neutral-500 hover:text-ink inline-flex items-center gap-1 shrink-0" title="Manage members">
+                    <Icon name="ti-users" /> Members
+                  </button>
+                )}
               </div>
               {c.description && <p className="text-2xs text-neutral-500 mt-2 line-clamp-2">{c.description}</p>}
             </div>
@@ -72,7 +127,54 @@ export default function CompaniesPage() {
             </div>
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowNew(false)} className="btn flex-1">Cancel</button>
-              <button onClick={submit} disabled={busy || !nc.name.trim()} className="btn btn-primary flex-1">{busy ? 'Creating…' : 'Create company'}</button>
+              <button onClick={submit} disabled={busy || !nc.name.trim()} className="btn btn-primary flex-1">{busy ? 'Creating...' : 'Create company'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {memCo && (
+        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setMemCo(null)}>
+          <div className="bg-white rounded-lg border border-line w-full max-w-lg p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-base font-semibold">Members</h3>
+              <button onClick={() => setMemCo(null)} className="text-neutral-400 hover:text-ink"><Icon name="ti-x" /></button>
+            </div>
+            <p className="text-2xs text-neutral-400 mb-4">{memCo.name} - managers can edit; members get read access to the company projects</p>
+
+            {memLoading ? <Spinner /> : (
+              <div className="space-y-2 max-h-72 overflow-auto">
+                {members.length === 0 && <p className="text-sm text-neutral-400">No members yet.</p>}
+                {members.map((m) => (
+                  <div key={m.user_id} className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm truncate">{m.users?.full_name || m.users?.email || m.user_id}</p>
+                      {m.users?.full_name && m.users?.email && <p className="text-2xs text-neutral-400 truncate">{m.users.email}</p>}
+                    </div>
+                    <select value={m.role} onChange={(e) => doRole(m.user_id, e.target.value as MemberRole)} className="input w-32 py-1">
+                      <option value="member">Member</option>
+                      <option value="manager">Manager</option>
+                    </select>
+                    <button onClick={() => doRemove(m.user_id)} disabled={memBusy} className="text-neutral-400 hover:text-rose-600 shrink-0" title="Remove"><Icon name="ti-trash" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="border-t border-line mt-4 pt-4">
+              <label className="label">Add member</label>
+              <div className="flex gap-2">
+                <select value={addUser} onChange={(e) => setAddUser(e.target.value)} className="input flex-1">
+                  <option value="">Select a user...</option>
+                  {addable.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+                </select>
+                <select value={addRole} onChange={(e) => setAddRole(e.target.value as MemberRole)} className="input w-32">
+                  <option value="member">Member</option>
+                  <option value="manager">Manager</option>
+                </select>
+                <button onClick={doAdd} disabled={memBusy || !addUser} className="btn btn-primary">Add</button>
+              </div>
+              {memErr && <p className="text-sm text-rose-600 mt-2">{memErr}</p>}
             </div>
           </div>
         </div>
