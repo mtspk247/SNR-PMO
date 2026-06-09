@@ -13,6 +13,7 @@ type Item = { href: string; label: string; icon: string };
 const GROUPS: { heading: string; items: Item[] }[] = [
   { heading: 'Workspace', items: [
     { href: '/dashboard', label: 'Dashboard', icon: 'ti-layout-dashboard' },
+    { href: '/companies', label: 'Companies', icon: 'ti-building' },
     { href: '/projects', label: 'Projects', icon: 'ti-folder' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
   ]},

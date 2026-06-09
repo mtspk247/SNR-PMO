@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment } from './supabase';
+import { sb, Project, Task, Company, OrgCompany, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -99,7 +99,7 @@ export async function getProjects(): Promise<Project[]> {
 export async function createProject(p: {
   name: string; org_id: string; description?: string | null;
   status?: string; priority?: string; start_date?: string | null; end_date?: string | null;
-  pm_id?: string | null; created_by?: string | null;
+  company_id?: string | null; pm_id?: string | null; created_by?: string | null;
 }): Promise<Project[]> {
   // NB: no .select() here. INSERT ... RETURNING re-applies the proj_select RLS
   // policy (can_access_project) to the new row and rejects it, so we insert with
@@ -108,10 +108,27 @@ export async function createProject(p: {
     name: p.name, org_id: p.org_id, description: p.description || null,
     status: p.status || 'Planning', priority: p.priority || 'Medium',
     start_date: p.start_date || null, end_date: p.end_date || null,
+    company_id: p.company_id || null,
     pm_id: p.pm_id || null, created_by: p.created_by || null,
   });
   if (error) throw new Error(error.message);
   return getProjects();
+}
+
+// --- Tenancy companies (Org → Company → Project). RLS: org owner/admin only. ---
+export async function getOrgCompanies(): Promise<OrgCompany[]> {
+  const { data, error } = await sb.from('companies').select('id, name, description, org_id').order('name');
+  if (error) throw error;
+  return (data as OrgCompany[]) || [];
+}
+
+export async function createOrgCompany(p: { name: string; org_id: string; description?: string | null }): Promise<OrgCompany> {
+  // companies insert+select policies are identical (is_org_role owner/admin), so RETURNING is safe.
+  const { data, error } = await sb.from('companies')
+    .insert({ name: p.name, org_id: p.org_id, description: p.description || null })
+    .select('id, name, description, org_id').single();
+  if (error) throw new Error(error.message);
+  return data as OrgCompany;
 }
 
 export async function getTasks(): Promise<Task[]> {

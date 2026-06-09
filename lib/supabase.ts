@@ -67,6 +67,9 @@ export interface Task {
 }
 
 export interface Company { id: string; name: string; industry: string | null; website: string | null; phone: string | null; }
+
+// Tenancy-tier company (Org → Company → Project). Distinct from CRM `Company` above.
+export interface OrgCompany { id: string; name: string; description: string | null; org_id?: string; }
 export interface Contact {
   id: string; full_name: string; email: string | null; phone: string | null;
   title: string | null; status: string | null; company_id: string | null;
