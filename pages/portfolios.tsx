@@ -4,7 +4,7 @@ import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import {
   getPortfolios, createPortfolio, getOrgCompanies, getOrgUsers,
   getMyCompanyManagerships, getMyPortfolioManagerships, listPortfolioMembers, addPortfolioMember,
-  updatePortfolioMemberRole, removePortfolioMember, deletePortfolio,
+  updatePortfolioMemberRole, removePortfolioMember, deletePortfolio, updatePortfolio,
 } from '@/lib/db';
 import { Portfolio, OrgCompany, OrgUser, PortfolioMember, MemberRole } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -24,6 +24,12 @@ export default function PortfoliosPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [np, setNp] = useState({ name: '', company_id: '', description: '' });
+
+  // edit modal
+  const [editPf, setEditPf] = useState<Portfolio | null>(null);
+  const [ep, setEp] = useState({ name: '', description: '' });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editErr, setEditErr] = useState('');
 
   // member-management modal
   const [memPf, setMemPf] = useState<Portfolio | null>(null);
@@ -70,6 +76,20 @@ export default function PortfoliosPage() {
       setShowNew(false); setNp({ name: '', company_id: '', description: '' });
     } catch (e: any) { setErr(e.message || 'Could not create portfolio'); }
     finally { setBusy(false); }
+  };
+
+  const openEdit = (pf: Portfolio) => {
+    setEditPf(pf); setEp({ name: pf.name, description: pf.description || '' }); setEditErr('');
+  };
+  const submitEdit = async () => {
+    if (!editPf || !ep.name.trim()) return;
+    setEditBusy(true); setEditErr('');
+    try {
+      const list = await updatePortfolio(editPf.id, { name: ep.name.trim(), description: ep.description.trim() || null });
+      setPortfolios(list);
+      setEditPf(null);
+    } catch (e: any) { setEditErr(e.message || 'Could not save changes'); }
+    finally { setEditBusy(false); }
   };
 
   const openMembers = async (pf: Portfolio) => {
@@ -124,6 +144,11 @@ export default function PortfoliosPage() {
                   </button>
                 )}
                 {canManage(pf) && (
+                  <button onClick={() => openEdit(pf)} className="text-neutral-300 hover:text-ink shrink-0" title="Rename portfolio">
+                    <Icon name="ti-pencil" />
+                  </button>
+                )}
+                {canManage(pf) && (
                   <button onClick={() => removePortfolio(pf)} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete portfolio">
                     <Icon name="ti-trash" />
                   </button>
@@ -153,6 +178,23 @@ export default function PortfoliosPage() {
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowNew(false)} className="btn flex-1">Cancel</button>
               <button onClick={submit} disabled={busy || !np.name.trim() || !np.company_id} className="btn btn-primary flex-1">{busy ? 'Creating…' : 'Create portfolio'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editPf && (
+        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setEditPf(null)}>
+          <div className="bg-white rounded-lg border border-line w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold mb-4">Edit portfolio</h3>
+            <div className="space-y-3">
+              <div><label className="label">Name</label><input autoFocus value={ep.name} onChange={(e) => setEp({ ...ep, name: e.target.value })} className="input" placeholder="Portfolio name" /></div>
+              <div><label className="label">Description</label><textarea value={ep.description} onChange={(e) => setEp({ ...ep, description: e.target.value })} className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm text-ink placeholder:text-neutral-400 outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 h-20 resize-none" placeholder="Optional" /></div>
+              {editErr && <p className="text-sm text-rose-600">{editErr}</p>}
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setEditPf(null)} className="btn flex-1">Cancel</button>
+              <button onClick={submitEdit} disabled={editBusy || !ep.name.trim()} className="btn btn-primary flex-1">{editBusy ? 'Saving…' : 'Save changes'}</button>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import {
-  getOrgCompanies, createOrgCompany, deleteOrgCompany, getProjects, getOrgUsers,
+  getOrgCompanies, createOrgCompany, updateOrgCompany, deleteOrgCompany, getProjects, getOrgUsers,
   getMyCompanyManagerships, listCompanyMembers, addCompanyMember,
   updateCompanyMemberRole, removeCompanyMember,
 } from '@/lib/db';
@@ -23,6 +23,12 @@ export default function CompaniesPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [nc, setNc] = useState({ name: '', description: '' });
+
+  // edit modal
+  const [editCo, setEditCo] = useState<OrgCompany | null>(null);
+  const [ec, setEc] = useState({ name: '', description: '' });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editErr, setEditErr] = useState('');
 
   // member-management modal
   const [memCo, setMemCo] = useState<OrgCompany | null>(null);
@@ -56,6 +62,20 @@ export default function CompaniesPage() {
       setShowNew(false); setNc({ name: '', description: '' });
     } catch (e: any) { setErr(e.message || 'Could not create company'); }
     finally { setBusy(false); }
+  };
+
+  const openEdit = (c: OrgCompany) => {
+    setEditCo(c); setEc({ name: c.name, description: c.description || '' }); setEditErr('');
+  };
+  const submitEdit = async () => {
+    if (!editCo || !ec.name.trim()) return;
+    setEditBusy(true); setEditErr('');
+    try {
+      const u = await updateOrgCompany(editCo.id, { name: ec.name.trim(), description: ec.description.trim() || null });
+      setCompanies((prev) => prev.map((x) => (x.id === u.id ? u : x)).sort((a, b) => a.name.localeCompare(b.name)));
+      setEditCo(null);
+    } catch (e: any) { setEditErr(e.message || 'Could not save changes'); }
+    finally { setEditBusy(false); }
   };
 
   const openMembers = async (c: OrgCompany) => {
@@ -117,6 +137,11 @@ export default function CompaniesPage() {
                   </button>
                 )}
                 {admin && (
+                  <button onClick={() => openEdit(c)} className="text-neutral-300 hover:text-ink shrink-0" title="Rename company">
+                    <Icon name="ti-pencil" />
+                  </button>
+                )}
+                {admin && (
                   <button onClick={() => removeCompany(c)} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete company">
                     <Icon name="ti-trash" />
                   </button>
@@ -140,6 +165,23 @@ export default function CompaniesPage() {
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowNew(false)} className="btn flex-1">Cancel</button>
               <button onClick={submit} disabled={busy || !nc.name.trim()} className="btn btn-primary flex-1">{busy ? 'Creating…' : 'Create company'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editCo && (
+        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setEditCo(null)}>
+          <div className="bg-white rounded-lg border border-line w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold mb-4">Edit company</h3>
+            <div className="space-y-3">
+              <div><label className="label">Name</label><input autoFocus value={ec.name} onChange={(e) => setEc({ ...ec, name: e.target.value })} className="input" placeholder="Company name" /></div>
+              <div><label className="label">Description</label><textarea value={ec.description} onChange={(e) => setEc({ ...ec, description: e.target.value })} className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm text-ink placeholder:text-neutral-400 outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 h-20 resize-none" placeholder="Optional" /></div>
+              {editErr && <p className="text-sm text-rose-600">{editErr}</p>}
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setEditCo(null)} className="btn flex-1">Cancel</button>
+              <button onClick={submitEdit} disabled={editBusy || !ec.name.trim()} className="btn btn-primary flex-1">{editBusy ? 'Saving…' : 'Save changes'}</button>
             </div>
           </div>
         </div>
