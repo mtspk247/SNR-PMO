@@ -174,7 +174,7 @@ export async function getProjects(): Promise<Project[]> {
 export async function createProject(p: {
   name: string; org_id: string; description?: string | null;
   status?: string; priority?: string; start_date?: string | null; end_date?: string | null;
-  company_id?: string | null; pm_id?: string | null; created_by?: string | null;
+  company_id?: string | null; portfolio_id?: string | null; pm_id?: string | null; created_by?: string | null;
 }): Promise<Project[]> {
   // NB: no .select() here. INSERT ... RETURNING re-applies the proj_select RLS
   // policy (can_access_project) to the new row and rejects it, so we insert with
@@ -183,7 +183,7 @@ export async function createProject(p: {
     name: p.name, org_id: p.org_id, description: p.description || null,
     status: p.status || 'Planning', priority: p.priority || 'Medium',
     start_date: p.start_date || null, end_date: p.end_date || null,
-    company_id: p.company_id || null,
+    company_id: p.company_id || null, portfolio_id: p.portfolio_id || null,
     pm_id: p.pm_id || null, created_by: p.created_by || null,
   });
   if (error) throw new Error(error.message);
@@ -231,7 +231,7 @@ export async function removeCompanyMember(companyId: string, userId: string): Pr
     .eq('company_id', companyId).eq('user_id', userId);
   if (error) throw new Error(error.message);
 }
-// Company ids the current user manages as a non-org-admin (role='manager') --
+// Company ids the current user manages as a non-org-admin (role='manager') —
 // lets the UI surface member management to delegated company managers too.
 export async function getMyCompanyManagerships(userId: string): Promise<string[]> {
   const { data, error } = await sb.from('company_members')
@@ -239,7 +239,7 @@ export async function getMyCompanyManagerships(userId: string): Promise<string[]
   if (error) throw error; return ((data || []) as any[]).map((r) => r.company_id);
 }
 
-// --- Tenancy portfolios (Org -> Company -> Portfolio -> Project) ----------
+// --- Tenancy portfolios (Org → Company → Portfolio → Project) -------------
 // RLS: pf_select = can_access_portfolio AND org_has_feature('portfolios');
 // pf_write = (org owner/admin OR company manager) AND feature. Insert with
 // return=minimal then refetch (RETURNING re-applies pf_select feature+access).
@@ -275,6 +275,13 @@ export async function removePortfolioMember(portfolioId: string, userId: string)
   const { error } = await sb.from('portfolio_members').delete()
     .eq('portfolio_id', portfolioId).eq('user_id', userId);
   if (error) throw new Error(error.message);
+}
+// Portfolio ids the current user manages directly (role='manager') — lets the UI
+// surface member management to delegated portfolio managers (mirrors company side).
+export async function getMyPortfolioManagerships(userId: string): Promise<string[]> {
+  const { data, error } = await sb.from('portfolio_members')
+    .select('portfolio_id').eq('user_id', userId).eq('role', 'manager');
+  if (error) throw error; return ((data || []) as any[]).map((r) => r.portfolio_id);
 }
 
 export async function getTasks(): Promise<Task[]> {
@@ -322,7 +329,7 @@ export async function getDeals(): Promise<Deal[]> {
 
 // --- CRM create/advance flows. All three crm_* tables have a single ALL policy
 // is_org_member(org_id) for both USING + WITH CHECK, so RETURNING (incl. embeds,
-// which are same-org -> visible) is safe -- no return=minimal/refetch needed. ---
+// which are same-org → visible) is safe — no return=minimal/refetch needed. ---
 export const DEAL_STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'] as const;
 export type DealStage = typeof DEAL_STAGES[number];
 
@@ -354,12 +361,21 @@ export async function updateDeal(id: string, patch: Partial<{ title: string; val
   if (error) throw new Error(error.message); return data as Deal;
 }
 
-// Advance a deal to the next pipeline stage (no-op past Negotiation->Won; Won/Lost are terminal).
+// Advance a deal to the next pipeline stage (no-op past Negotiation→Won; Won/Lost are terminal).
 export async function advanceDealStage(id: string, current: string): Promise<Deal> {
   const order = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'];
   const i = order.indexOf(current);
   const next = i >= 0 && i < order.length - 1 ? order[i + 1] : current;
   return updateDeal(id, { stage: next });
+}
+// crm_* = single ALL policy (is_org_member AND feature) → delete is RLS-safe.
+export async function deleteDeal(id: string): Promise<void> {
+  const { error } = await sb.from('crm_deals').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteContact(id: string): Promise<void> {
+  const { error } = await sb.from('crm_contacts').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 export async function getRisks(): Promise<Risk[]> {
@@ -556,7 +572,7 @@ export async function removeTaskTag(taskId: string, tagId: string): Promise<void
 // ---- 3.2 HR Onboarding ----------------------------------------------------
 // Templates + their items. insert+select policies on these tables are identical
 // (write=is_org_role owner/admin, select=is_org_member; admin is a member), so
-// RETURNING is safe - same reasoning as createOrgCompany.
+// RETURNING is safe — same reasoning as createOrgCompany.
 export async function getOnboardingTemplates(): Promise<OnboardingTemplate[]> {
   const { data, error } = await sb.from('onboarding_templates')
     .select('*, items:onboarding_template_items(*)')
@@ -587,7 +603,7 @@ export async function deleteTemplateItem(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-// Per-hire checklist tasks. Two FKs to users -> disambiguated embeds (cf. leaves).
+// Per-hire checklist tasks. Two FKs to users → disambiguated embeds (cf. leaves).
 const OB_TASK_SEL = '*, hire:users!onboarding_tasks_user_id_fkey(full_name), assignee:users!onboarding_tasks_assignee_id_fkey(full_name)';
 export async function getOnboardingTasks(): Promise<OnboardingTask[]> {
   const { data, error } = await sb.from('onboarding_tasks').select(OB_TASK_SEL)
@@ -595,7 +611,7 @@ export async function getOnboardingTasks(): Promise<OnboardingTask[]> {
   if (error) throw error; return (data as OnboardingTask[]) || [];
 }
 // Assign a template to a new hire: bulk-insert its items as tasks. Insert with
-// return=minimal (no .select()) then refetch - same RLS-safe pattern as createProject.
+// return=minimal (no .select()) then refetch — same RLS-safe pattern as createProject.
 export async function assignOnboarding(p: { user_id: string; org_id: string; template: OnboardingTemplate; created_by?: string; start_date?: string }): Promise<OnboardingTask[]> {
   const base = p.start_date ? new Date(p.start_date) : null;
   const rows = (p.template.items || []).map((it, i) => ({

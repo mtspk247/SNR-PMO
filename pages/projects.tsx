@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, PageHeader, Icon } from '@/components/ui';
-import { getProjects, createProject, getOrgCompanies } from '@/lib/db';
-import { Project, OrgCompany } from '@/lib/supabase';
+import { getProjects, createProject, getOrgCompanies, getPortfolios } from '@/lib/db';
+import { Project, OrgCompany, Portfolio } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 
 const STATUSES = ['Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
-const EMPTY = { name: '', description: '', status: 'Planning', priority: 'Medium', start_date: '', end_date: '', company_id: '' };
+const EMPTY = { name: '', description: '', status: 'Planning', priority: 'Medium', start_date: '', end_date: '', company_id: '', portfolio_id: '' };
 
 export default function Projects() {
   const activeOrg = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const [projects, setProjects] = useState<Project[]>([]);
   const [companies, setCompanies] = useState<OrgCompany[]>([]);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -23,10 +24,14 @@ export default function Projects() {
   const canCreate = can.createProject(activeOrg);
 
   useEffect(() => {
-    Promise.all([getProjects(), getOrgCompanies()])
-      .then(([p, c]) => { setProjects(p); setCompanies(c); })
+    Promise.all([getProjects(), getOrgCompanies(), getPortfolios().catch(() => [] as Portfolio[])])
+      .then(([p, c, pf]) => { setProjects(p); setCompanies(c); setPortfolios(pf); })
       .finally(() => setLoading(false));
   }, [activeOrg?.id]);
+
+  const portfolioName = (id?: string | null) => (id ? portfolios.find((pf) => pf.id === id)?.name : undefined);
+  // Portfolios belong to a company; offer only those under the chosen company.
+  const modalPortfolios = portfolios.filter((pf) => pf.company_id === np.company_id);
 
   const submit = async () => {
     if (!activeOrg || !np.name.trim()) return;
@@ -36,7 +41,7 @@ export default function Projects() {
         name: np.name.trim(), org_id: activeOrg.id, description: np.description.trim() || null,
         status: np.status, priority: np.priority,
         start_date: np.start_date || null, end_date: np.end_date || null,
-        company_id: np.company_id || null,
+        company_id: np.company_id || null, portfolio_id: np.portfolio_id || null,
         pm_id: me?.id || null, created_by: me?.id || null,
       });
       setProjects(list);
@@ -63,6 +68,7 @@ export default function Projects() {
                 <tr key={p.id} className="row">
                   <td className="td">
                     <p className="font-medium">{p.name}</p>
+                    {portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}
                     {p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}
                   </td>
                   <td className="td"><Pill label={p.status} /></td>
@@ -87,7 +93,8 @@ export default function Projects() {
             <h3 className="text-base font-semibold mb-4">New project</h3>
             <div className="space-y-3">
               <div><label className="label">Name</label><input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} className="input" placeholder="Project name" /></div>
-              {companies.length > 0 && <div><label className="label">Company</label><select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value })} className="input"><option value="">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+              {companies.length > 0 && <div><label className="label">Company</label><select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value, portfolio_id: '' })} className="input"><option value="">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+              {np.company_id && modalPortfolios.length > 0 && <div><label className="label">Portfolio</label><select value={np.portfolio_id} onChange={(e) => setNp({ ...np, portfolio_id: e.target.value })} className="input"><option value="">No portfolio</option>{modalPortfolios.map((pf) => <option key={pf.id} value={pf.id}>{pf.name}</option>)}</select></div>}
               <div><label className="label">Description</label><textarea value={np.description} onChange={(e) => setNp({ ...np, description: e.target.value })} className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm text-ink placeholder:text-neutral-400 outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 h-20 resize-none" placeholder="Optional" /></div>
               <div className="flex gap-3">
                 <div className="flex-1"><label className="label">Status</label><select value={np.status} onChange={(e) => setNp({ ...np, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select></div>

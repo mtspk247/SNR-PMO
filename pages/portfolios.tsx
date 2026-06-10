@@ -3,7 +3,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import {
   getPortfolios, createPortfolio, getOrgCompanies, getOrgUsers,
-  getMyCompanyManagerships, listPortfolioMembers, addPortfolioMember,
+  getMyCompanyManagerships, getMyPortfolioManagerships, listPortfolioMembers, addPortfolioMember,
   updatePortfolioMemberRole, removePortfolioMember,
 } from '@/lib/db';
 import { Portfolio, OrgCompany, OrgUser, PortfolioMember, MemberRole } from '@/lib/supabase';
@@ -18,6 +18,7 @@ export default function PortfoliosPage() {
   const [companies, setCompanies] = useState<OrgCompany[]>([]);
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
   const [mgrIds, setMgrIds] = useState<Set<string>>(new Set());
+  const [pfMgrIds, setPfMgrIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -39,8 +40,9 @@ export default function PortfoliosPage() {
     Promise.all([
       getPortfolios(), getOrgCompanies(), getOrgUsers(),
       userId ? getMyCompanyManagerships(userId) : Promise.resolve<string[]>([]),
+      userId ? getMyPortfolioManagerships(userId) : Promise.resolve<string[]>([]),
     ])
-      .then(([pf, c, u, m]) => { setPortfolios(pf); setCompanies(c); setOrgUsers(u); setMgrIds(new Set(m)); })
+      .then(([pf, c, u, m, pm]) => { setPortfolios(pf); setCompanies(c); setOrgUsers(u); setMgrIds(new Set(m)); setPfMgrIds(new Set(pm)); })
       .finally(() => setLoading(false));
   }, [org?.id, userId]);
 
@@ -52,7 +54,7 @@ export default function PortfoliosPage() {
     [admin, companies, mgrIds]
   );
   const canCreate = createableCompanies.length > 0;
-  const canManage = (pf: Portfolio) => admin || mgrIds.has(pf.company_id);
+  const canManage = (pf: Portfolio) => admin || mgrIds.has(pf.company_id) || pfMgrIds.has(pf.id);
 
   const submit = async () => {
     if (!org || !np.name.trim() || !np.company_id) return;
