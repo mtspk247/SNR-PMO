@@ -718,3 +718,95 @@ export async function setIntegrationStatus(id: string, status: 'connected' | 'di
   const { data, error } = await sb.from('integrations').update(patch).eq('id', id).select('*').single();
   if (error) throw new Error(error.message); return data as Integration;
 }
+
+// ===========================================================================
+// Phase 4 — HR module: employee directory/profile + payroll
+// ===========================================================================
+import { Employee, EmployeeCompensation, PayrollRun, Payslip } from './supabase';
+
+// ---- Employee directory + profile -----------------------------------------
+const EMPLOYEE_SEL = 'id, full_name, email, role, department, status, reports_to, manager:users!users_reports_to_fkey(full_name)';
+export async function getEmployees(): Promise<Employee[]> {
+  const { data, error } = await sb.from('users').select(EMPLOYEE_SEL).order('full_name');
+  if (error) throw error; return (data as unknown as Employee[]) || [];
+}
+export async function getEmployee(id: string): Promise<Employee | null> {
+  const { data, error } = await sb.from('users').select(EMPLOYEE_SEL).eq('id', id).maybeSingle();
+  if (error) throw error; return (data as unknown as Employee) ?? null;
+}
+
+// ---- Compensation -----------------------------------------------------------
+export async function getEmployeeCompensation(userId: string): Promise<EmployeeCompensation | null> {
+  const { data, error } = await sb.from('employee_compensation').select('*')
+    .eq('user_id', userId).order('effective_date', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error; return (data as EmployeeCompensation) ?? null;
+}
+export async function setCompensation(p: {
+  org_id: string; user_id: string; base_salary: number; currency?: string;
+  pay_schedule?: string; effective_date?: string; notes?: string | null; created_by?: string | null;
+}): Promise<EmployeeCompensation> {
+  const { data, error } = await sb.from('employee_compensation')
+    .insert({
+      org_id: p.org_id, user_id: p.user_id, base_salary: p.base_salary,
+      currency: p.currency || 'USD', pay_schedule: p.pay_schedule || 'Monthly',
+      effective_date: p.effective_date || today(), notes: p.notes || null, created_by: p.created_by || null,
+    })
+    .select('*').single();
+  if (error) throw new Error(error.message); return data as EmployeeCompensation;
+}
+
+// ---- Payroll runs -------------------------------------------------------------
+export async function getPayrollRuns(): Promise<PayrollRun[]> {
+  const { data, error } = await sb.from('payroll_runs').select('*')
+    .order('period_start', { ascending: false });
+  if (error) throw error; return (data as PayrollRun[]) || [];
+}
+export async function createPayrollRun(p: {
+  org_id: string; period_label: string; period_start: string; period_end: string;
+  status?: string; notes?: string | null; created_by?: string | null;
+}): Promise<PayrollRun> {
+  const { data, error } = await sb.from('payroll_runs')
+    .insert({
+      org_id: p.org_id, period_label: p.period_label, period_start: p.period_start,
+      period_end: p.period_end, status: p.status || 'Draft', notes: p.notes || null, created_by: p.created_by || null,
+    })
+    .select('*').single();
+  if (error) throw new Error(error.message); return data as PayrollRun;
+}
+export async function updatePayrollRunStatus(id: string, status: PayrollRun['status']): Promise<PayrollRun> {
+  const { data, error } = await sb.from('payroll_runs').update({ status }).eq('id', id).select('*').single();
+  if (error) throw new Error(error.message); return data as PayrollRun;
+}
+export async function deletePayrollRun(id: string): Promise<void> {
+  const { error } = await sb.from('payroll_runs').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ---- Payslips -------------------------------------------------------------
+const PAYSLIP_SEL = '*, users(full_name, email)';
+export async function getPayslips(runId: string): Promise<Payslip[]> {
+  const { data, error } = await sb.from('payslips').select(PAYSLIP_SEL)
+    .eq('run_id', runId).order('created_at', { ascending: true });
+  if (error) throw error; return (data as Payslip[]) || [];
+}
+export async function getMyPayslips(userId: string): Promise<Payslip[]> {
+  const { data, error } = await sb.from('payslips').select(PAYSLIP_SEL)
+    .eq('user_id', userId).order('created_at', { ascending: false });
+  if (error) throw error; return (data as Payslip[]) || [];
+}
+export async function createPayslip(p: {
+  org_id: string; run_id: string; user_id: string; gross: number; deductions: number;
+  net?: number; breakdown?: Record<string, any>;
+}): Promise<Payslip> {
+  const { data, error } = await sb.from('payslips')
+    .insert({
+      org_id: p.org_id, run_id: p.run_id, user_id: p.user_id, gross: p.gross,
+      deductions: p.deductions, net: p.net ?? (p.gross - p.deductions), breakdown: p.breakdown || {},
+    })
+    .select(PAYSLIP_SEL).single();
+  if (error) throw new Error(error.message); return data as Payslip;
+}
+export async function deletePayslip(id: string): Promise<void> {
+  const { error } = await sb.from('payslips').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}

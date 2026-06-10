@@ -221,3 +221,36 @@ export interface OnboardingTask {
   hire?: { full_name: string } | null;
   assignee?: { full_name: string } | null;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 4 — HR module: employee directory/profile + payroll types
+// ---------------------------------------------------------------------------
+// Employee directory row — org users with the extra People-domain fields
+// needed for the directory list and profile header.
+export interface Employee {
+  id: string; full_name: string; email: string; role: Role;
+  department: string | null; status: 'active' | 'suspended';
+  reports_to: string | null;
+  manager?: { full_name: string | null } | null;
+}
+
+export interface EmployeeCompensation {
+  id: string; org_id?: string; user_id: string;
+  base_salary: number; currency: string; pay_schedule: string;
+  effective_date: string; notes?: string | null;
+  created_by?: string | null; created_at?: string;
+}
+
+export interface PayrollRun {
+  id: string; org_id?: string; period_label: string;
+  period_start: string; period_end: string;
+  status: 'Draft' | 'Processed' | 'Paid' | 'Cancelled';
+  notes?: string | null; created_by?: string | null; created_at?: string;
+}
+
+export interface Payslip {
+  id: string; org_id?: string; run_id: string; user_id: string;
+  gross: number; deductions: number; net: number;
+  breakdown: Record<string, any>; created_at?: string;
+  users?: { full_name: string | null; email?: string } | null;
+}

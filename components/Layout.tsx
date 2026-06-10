@@ -32,12 +32,14 @@ const GROUPS: { heading: string; items: Item[] }[] = [
   ]},
   { heading: 'People', items: [
     { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
+    { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr' },
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock' },
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },
   ]},
 ];
 const ADMIN_GROUP: { heading: string; items: Item[] } = { heading: 'Admin', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
+  { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
   { href: '/audit', label: 'Audit log', icon: 'ti-history', feature: 'audit' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
