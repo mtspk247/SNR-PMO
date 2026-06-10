@@ -42,14 +42,18 @@ export const Spinner = () => (
 
 export const StatCard = ({ label, value, hint, hintTone = 'muted', icon }:
   { label: string; value: React.ReactNode; hint?: string; hintTone?: 'muted' | 'up' | 'down'; icon?: string }) => (
-  <div className="stat">
-    <div className="flex items-center justify-between">
-      <p className="text-xs text-neutral-500">{label}</p>
-      {icon && <Icon name={icon} className="text-neutral-300 text-base" />}
+  <div className="stat group">
+    <div className="flex items-start justify-between gap-2">
+      <p className="text-xs text-muted">{label}</p>
+      {icon && (
+        <span className="w-8 h-8 -mt-0.5 -mr-0.5 rounded-lg grid place-items-center bg-accent/10 text-accentstrong shrink-0 transition group-hover:bg-accent group-hover:text-accentfg">
+          <Icon name={icon} className="text-base" />
+        </span>
+      )}
     </div>
-    <p className="text-2xl font-semibold mt-1.5">{value}</p>
+    <p className="text-2xl font-semibold mt-1.5 text-content">{value}</p>
     {hint && (
-      <p className={`text-2xs mt-1 ${hintTone === 'up' ? 'text-emerald-600' : hintTone === 'down' ? 'text-rose-600' : 'text-neutral-400'}`}>{hint}</p>
+      <p className={`text-2xs mt-1 ${hintTone === 'up' ? 'text-emerald-600' : hintTone === 'down' ? 'text-rose-600' : 'text-muted2'}`}>{hint}</p>
     )}
   </div>
 );

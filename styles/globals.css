@@ -51,7 +51,9 @@ body {
 
 @layer components {
   .card { @apply bg-surface border border-line rounded-lg; }
-  .stat { @apply bg-surface border border-line rounded-lg p-4; }
+  /* Opt-in hover affordance for clickable/feature cards. */
+  .card-interactive { @apply transition duration-200 hover:border-accent/40 hover:shadow-lg hover:-translate-y-0.5; }
+  .stat { @apply bg-surface border border-line rounded-lg p-4 transition duration-200 hover:border-accent/40 hover:shadow-md; }
 
   .btn { @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-md text-sm font-medium border border-line bg-surface text-content transition hover:bg-bg active:scale-[.99] disabled:opacity-50; }
   .btn-primary { @apply bg-accent border-transparent text-accentfg hover:opacity-90 hover:bg-accent; }
@@ -85,6 +87,23 @@ body {
   .row { @apply border-t border-line hover:bg-surface2/60; }
 }
 
-::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-2)); }
+/* ---- Scrollbars: thin, unobtrusive, theme-aware ----
+   Firefox uses scrollbar-width/color; WebKit uses the pseudo-elements.
+   The padding-box + transparent border trick insets the thumb so it reads
+   as a slim pill rather than a chunky bar. */
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--muted-2) / .55) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--muted-2) / .45);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-2) / .8); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* Dark sidebar gets a light-on-dark thumb instead of the light-theme token. */
+.side { scrollbar-color: rgba(255,255,255,.22) transparent; }
+.side ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); background-clip: padding-box; }
+.side ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.32); background-clip: padding-box; }

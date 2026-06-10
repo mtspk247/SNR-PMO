@@ -102,7 +102,7 @@ export default function Dashboard() {
             </div>
 
             {/* Project status donut */}
-            <div className="card p-4">
+            <div className="card p-4 lg:self-start">
               <span className="text-sm font-medium">Project status</span>
               {projects.length === 0 ? <EmptyState text="No data" icon="ti-chart-donut" /> : (
                 <div className="flex items-center gap-5 mt-4">
