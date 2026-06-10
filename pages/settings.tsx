@@ -48,7 +48,7 @@ function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
   );
 }
 
-const DEFAULTS = { primary: '#2D7FF9', accent: '#6FD3D9', ink: '#0E2233' };
+const DEFAULTS = { primary: '#3ECF8E', accent: '#6FD3D9' };
 
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
@@ -72,7 +72,6 @@ export default function SettingsPage() {
   const [logo, setLogo] = useState('');
   const [primary, setPrimary] = useState(DEFAULTS.primary);
   const [accent, setAccent] = useState(DEFAULTS.accent);
-  const [ink, setInk] = useState(DEFAULTS.ink);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -83,7 +82,6 @@ export default function SettingsPage() {
     setLogo(b.logo_url || '');
     setPrimary(b.primary_color || DEFAULTS.primary);
     setAccent(b.accent_color || DEFAULTS.accent);
-    setInk(b.ink_color || DEFAULTS.ink);
   }, [org?.id]);
 
   if (!org) return <Layout title="Settings"><Spinner /></Layout>;
@@ -96,7 +94,6 @@ export default function SettingsPage() {
       logo_url: logo.trim() || undefined,
       primary_color: primary,
       accent_color: accent,
-      ink_color: ink,
     };
     try {
       const updated = await updateOrgSettings(org.id, { name: name.trim() || org.name, branding });
@@ -107,7 +104,7 @@ export default function SettingsPage() {
     finally { setSaving(false); }
   };
 
-  const reset = () => { setPrimary(DEFAULTS.primary); setAccent(DEFAULTS.accent); setInk(DEFAULTS.ink); };
+  const reset = () => { setPrimary(DEFAULTS.primary); setAccent(DEFAULTS.accent); };
 
   return (
     <Layout title="Settings">
@@ -125,11 +122,11 @@ export default function SettingsPage() {
             <input className="input" value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="https://…/logo.png" />
             <p className="text-2xs text-neutral-400 mt-1">Square image works best. Leave blank to use the name initial.</p>
           </div>
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-2 gap-3">
             <ColorField label="Primary" value={primary} onChange={setPrimary} />
             <ColorField label="Accent" value={accent} onChange={setAccent} />
-            <ColorField label="Sidebar" value={ink} onChange={setInk} />
           </div>
+          <p className="text-2xs text-neutral-400 -mt-1">Primary recolours buttons, links, focus rings and the active nav item across the whole app. Accent is used for secondary highlights.</p>
           <div>
             <label className="label">Workspace subdomain</label>
             <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-paper text-sm text-neutral-500">
@@ -149,33 +146,42 @@ export default function SettingsPage() {
           <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-3">Preview</p>
           <div className="rounded-lg overflow-hidden border border-line">
             <div className="flex h-40">
-              <div className="w-28 shrink-0 p-2.5 text-[#fff]" style={{ background: ink }}>
+              <div className="w-28 shrink-0 p-2 bg-surface border-r border-line">
                 <div className="flex items-center gap-2 mb-3">
                   {logo
                     ? <img src={logo} alt="" className="w-6 h-6 rounded object-cover" />
-                    : <span className="w-6 h-6 rounded grid place-items-center text-2xs font-semibold" style={{ background: primary }}>{(name || 'A').charAt(0).toUpperCase()}</span>}
+                    : <span className="w-6 h-6 rounded grid place-items-center text-2xs font-semibold text-[#fff]" style={{ background: primary }}>{(name || 'A').charAt(0).toUpperCase()}</span>}
                   <span className="text-xs font-semibold truncate">{name || 'Workspace'}</span>
                 </div>
-                <div className="space-y-1.5">
-                  <div className="h-1.5 rounded-full" style={{ background: primary, width: '80%' }} />
-                  <div className="h-1.5 rounded-full bg-white/20" style={{ width: '60%' }} />
-                  <div className="h-1.5 rounded-full bg-white/20" style={{ width: '70%' }} />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 rounded px-1.5 py-1" style={{ background: primary + '22', boxShadow: `inset 2px 0 0 ${primary}` }}>
+                    <span className="w-2 h-2 rounded-sm" style={{ background: primary }} />
+                    <span className="h-1.5 flex-1 rounded-full" style={{ background: primary, opacity: 0.6 }} />
+                  </div>
+                  <div className="flex items-center gap-1.5 px-1.5 py-1">
+                    <span className="w-2 h-2 rounded-sm bg-neutral-300" />
+                    <span className="h-1.5 w-3/4 rounded-full bg-neutral-200" />
+                  </div>
+                  <div className="flex items-center gap-1.5 px-1.5 py-1">
+                    <span className="w-2 h-2 rounded-sm bg-neutral-300" />
+                    <span className="h-1.5 w-2/3 rounded-full bg-neutral-200" />
+                  </div>
                 </div>
               </div>
               <div className="flex-1 bg-paper p-2.5">
-                <div className="h-5 w-20 rounded-md mb-2" style={{ background: primary }} />
+                <div className="h-6 w-24 rounded-md mb-2 grid place-items-center text-2xs font-medium text-[#fff]" style={{ background: primary }}>Button</div>
                 <div className="flex gap-1.5 mb-2">
                   <span className="h-4 w-10 rounded-full" style={{ background: accent }} />
-                  <span className="h-4 w-8 rounded-full bg-neutral-200" />
+                  <span className="h-4 w-8 rounded-full" style={{ background: primary + '22' }} />
                 </div>
                 <div className="space-y-1">
                   <div className="h-1.5 w-full rounded bg-neutral-200" />
-                  <div className="h-1.5 w-5/6 rounded bg-neutral-200" />
+                  <div className="h-1.5 w-5/6 rounded" style={{ background: primary, opacity: 0.5 }} />
                 </div>
               </div>
             </div>
           </div>
-          <p className="text-2xs text-neutral-400 mt-3">Primary = buttons &amp; links. Accent = highlights. Sidebar = navigation.</p>
+          <p className="text-2xs text-neutral-400 mt-3">Live white-label preview — primary drives buttons, links and the active nav item.</p>
         </div>
       </div>
     </Layout>
