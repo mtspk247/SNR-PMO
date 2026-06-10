@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, PageHeader, Icon } from '@/components/ui';
-import { getProjects, createProject, getOrgCompanies, getPortfolios } from '@/lib/db';
+import { getProjects, createProject, updateProject, deleteProject, getOrgCompanies, getPortfolios } from '@/lib/db';
 import { Project, OrgCompany, Portfolio } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -21,6 +21,7 @@ export default function Projects() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [np, setNp] = useState(EMPTY);
+  const [editId, setEditId] = useState<string | null>(null);
   const canCreate = can.createProject(activeOrg);
 
   useEffect(() => {
@@ -33,27 +34,51 @@ export default function Projects() {
   // Portfolios belong to a company; offer only those under the chosen company.
   const modalPortfolios = portfolios.filter((pf) => pf.company_id === np.company_id);
 
+  const openNew = () => { setErr(''); setEditId(null); setNp(EMPTY); setShowNew(true); };
+  const openEdit = (p: Project) => {
+    if (!canCreate) return;
+    setErr(''); setEditId(p.id);
+    setNp({
+      name: p.name, description: p.description || '', status: p.status, priority: p.priority,
+      start_date: p.start_date || '', end_date: p.end_date || '',
+      company_id: p.company_id || '', portfolio_id: p.portfolio_id || '',
+    });
+    setShowNew(true);
+  };
+
   const submit = async () => {
     if (!activeOrg || !np.name.trim()) return;
     setBusy(true); setErr('');
     try {
-      const list = await createProject({
-        name: np.name.trim(), org_id: activeOrg.id, description: np.description.trim() || null,
+      const fields = {
+        name: np.name.trim(), description: np.description.trim() || null,
         status: np.status, priority: np.priority,
         start_date: np.start_date || null, end_date: np.end_date || null,
         company_id: np.company_id || null, portfolio_id: np.portfolio_id || null,
-        pm_id: me?.id || null, created_by: me?.id || null,
-      });
+      };
+      const list = editId
+        ? await updateProject(editId, fields)
+        : await createProject({ ...fields, org_id: activeOrg.id, pm_id: me?.id || null, created_by: me?.id || null });
       setProjects(list);
-      setShowNew(false); setNp(EMPTY);
-    } catch (e: any) { setErr(e.message || 'Could not create project'); }
+      setShowNew(false); setEditId(null); setNp(EMPTY);
+    } catch (e: any) { setErr(e.message || 'Could not save project'); }
+    finally { setBusy(false); }
+  };
+  const remove = async () => {
+    if (!editId || !confirm('Delete this project? This cannot be undone.')) return;
+    setBusy(true); setErr('');
+    try {
+      await deleteProject(editId);
+      setProjects(await getProjects());
+      setShowNew(false); setEditId(null); setNp(EMPTY);
+    } catch (e: any) { setErr(e.message || 'Could not delete \u2014 remove its tasks, risks and financials first.'); }
     finally { setBusy(false); }
   };
 
   return (
     <Layout title="Projects">
       <PageHeader title="Projects" subtitle={`${projects.length} projects`}
-        action={canCreate ? <button onClick={() => { setErr(''); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New project</button> : undefined} />
+        action={canCreate ? <button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New project</button> : undefined} />
       {loading ? <Spinner /> : projects.length === 0 ? (
         <EmptyState text={canCreate ? 'No projects yet — create your first one' : 'No projects yet'} />
       ) : (
@@ -65,7 +90,7 @@ export default function Projects() {
             </tr></thead>
             <tbody>
               {projects.map((p) => (
-                <tr key={p.id} className="row">
+                <tr key={p.id} onClick={() => openEdit(p)} className={`row ${canCreate ? 'cursor-pointer' : ''}`}>
                   <td className="td">
                     <p className="font-medium">{p.name}</p>
                     {portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}
@@ -90,7 +115,7 @@ export default function Projects() {
       {showNew && (
         <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setShowNew(false)}>
           <div className="bg-white rounded-lg border border-line w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold mb-4">New project</h3>
+            <h3 className="text-base font-semibold mb-4">{editId ? 'Edit project' : 'New project'}</h3>
             <div className="space-y-3">
               <div><label className="label">Name</label><input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} className="input" placeholder="Project name" /></div>
               {companies.length > 0 && <div><label className="label">Company</label><select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value, portfolio_id: '' })} className="input"><option value="">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
@@ -107,8 +132,9 @@ export default function Projects() {
               {err && <p className="text-sm text-rose-600">{err}</p>}
             </div>
             <div className="flex gap-2 mt-5">
-              <button onClick={() => setShowNew(false)} className="btn flex-1">Cancel</button>
-              <button onClick={submit} disabled={busy || !np.name.trim()} className="btn btn-primary flex-1">{busy ? 'Creating…' : 'Create project'}</button>
+              {editId && <button onClick={remove} disabled={busy} className="btn text-rose-600" title="Delete project"><Icon name="ti-trash" /></button>}
+              <button onClick={() => { setShowNew(false); setEditId(null); }} className="btn flex-1">Cancel</button>
+              <button onClick={submit} disabled={busy || !np.name.trim()} className="btn btn-primary flex-1">{busy ? 'Saving…' : (editId ? 'Save changes' : 'Create project')}</button>
             </div>
           </div>
         </div>

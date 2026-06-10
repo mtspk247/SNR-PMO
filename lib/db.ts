@@ -190,6 +190,20 @@ export async function createProject(p: {
   return getProjects();
 }
 
+export async function updateProject(id: string, patch: Partial<{
+  name: string; description: string | null; status: string; priority: string;
+  start_date: string | null; end_date: string | null; company_id: string | null;
+  portfolio_id: string | null; progress: number;
+}>): Promise<Project[]> {
+  const { error } = await sb.from('projects').update(patch).eq('id', id);
+  if (error) throw new Error(error.message);
+  return getProjects();
+}
+export async function deleteProject(id: string): Promise<void> {
+  const { error } = await sb.from('projects').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 // --- Tenancy companies (Org → Company → Project). RLS: org owner/admin only. ---
 export async function getOrgCompanies(): Promise<OrgCompany[]> {
   const { data, error } = await sb.from('companies').select('id, name, description, org_id').order('name');
@@ -204,6 +218,15 @@ export async function createOrgCompany(p: { name: string; org_id: string; descri
     .select('id, name, description, org_id').single();
   if (error) throw new Error(error.message);
   return data as OrgCompany;
+}
+export async function updateOrgCompany(id: string, patch: { name?: string; description?: string | null }): Promise<OrgCompany> {
+  const { data, error } = await sb.from('companies').update(patch).eq('id', id)
+    .select('id, name, description, org_id').single();
+  if (error) throw new Error(error.message); return data as OrgCompany;
+}
+export async function deleteOrgCompany(id: string): Promise<void> {
+  const { error } = await sb.from('companies').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 // --- 3.4 Company RBAC: per-company membership ---------------------------
@@ -253,6 +276,15 @@ export async function createPortfolio(p: { name: string; org_id: string; company
     .insert({ name: p.name, org_id: p.org_id, company_id: p.company_id, description: p.description || null });
   if (error) throw new Error(error.message);
   return getPortfolios();
+}
+export async function updatePortfolio(id: string, patch: { name?: string; description?: string | null }): Promise<Portfolio[]> {
+  const { error } = await sb.from('portfolios').update(patch).eq('id', id);
+  if (error) throw new Error(error.message);
+  return getPortfolios();
+}
+export async function deletePortfolio(id: string): Promise<void> {
+  const { error } = await sb.from('portfolios').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 // Per-portfolio members. RLS: pfm_select=can_access_portfolio, pfm_write=manages_portfolio.
 export async function listPortfolioMembers(portfolioId: string): Promise<PortfolioMember[]> {

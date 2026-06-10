@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import {
-  getOrgCompanies, createOrgCompany, getProjects, getOrgUsers,
+  getOrgCompanies, createOrgCompany, deleteOrgCompany, getProjects, getOrgUsers,
   getMyCompanyManagerships, listCompanyMembers, addCompanyMember,
   updateCompanyMemberRole, removeCompanyMember,
 } from '@/lib/db';
@@ -85,6 +85,13 @@ export default function CompaniesPage() {
     finally { setMemBusy(false); }
   };
 
+  const removeCompany = async (c: OrgCompany) => {
+    if (projectCount(c.id) > 0) { alert('Reassign or remove this company’s projects first.'); return; }
+    if (!confirm(`Delete company “${c.name}”? Its portfolios and memberships are removed too.`)) return;
+    try { await deleteOrgCompany(c.id); setCompanies((p) => p.filter((x) => x.id !== c.id)); }
+    catch (e: any) { alert(e.message || 'Could not delete company.'); }
+  };
+
   const memberIds = new Set(members.map((m) => m.user_id));
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
 
@@ -93,7 +100,7 @@ export default function CompaniesPage() {
       <PageHeader title="Companies" subtitle={`${companies.length} companies`}
         action={admin ? <button onClick={() => { setErr(''); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New company</button> : undefined} />
       {loading ? <Spinner /> : companies.length === 0 ? (
-        <EmptyState icon="ti-building" text={admin ? 'No companies yet -- create your first one' : 'No companies you can access yet'} />
+        <EmptyState icon="ti-building" text={admin ? 'No companies yet — create your first one' : 'No companies you can access yet'} />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {companies.map((c) => (
@@ -107,6 +114,11 @@ export default function CompaniesPage() {
                 {canManage(c) && (
                   <button onClick={() => openMembers(c)} className="text-2xs text-neutral-500 hover:text-ink inline-flex items-center gap-1 shrink-0" title="Manage members">
                     <Icon name="ti-users" /> Members
+                  </button>
+                )}
+                {admin && (
+                  <button onClick={() => removeCompany(c)} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete company">
+                    <Icon name="ti-trash" />
                   </button>
                 )}
               </div>
@@ -127,7 +139,7 @@ export default function CompaniesPage() {
             </div>
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowNew(false)} className="btn flex-1">Cancel</button>
-              <button onClick={submit} disabled={busy || !nc.name.trim()} className="btn btn-primary flex-1">{busy ? 'Creating...' : 'Create company'}</button>
+              <button onClick={submit} disabled={busy || !nc.name.trim()} className="btn btn-primary flex-1">{busy ? 'Creating…' : 'Create company'}</button>
             </div>
           </div>
         </div>
@@ -140,7 +152,7 @@ export default function CompaniesPage() {
               <h3 className="text-base font-semibold">Members</h3>
               <button onClick={() => setMemCo(null)} className="text-neutral-400 hover:text-ink"><Icon name="ti-x" /></button>
             </div>
-            <p className="text-2xs text-neutral-400 mb-4">{memCo.name} - managers can edit; members get read access to the company projects</p>
+            <p className="text-2xs text-neutral-400 mb-4">{memCo.name} · managers can edit; members get read access to the company’s projects</p>
 
             {memLoading ? <Spinner /> : (
               <div className="space-y-2 max-h-72 overflow-auto">
@@ -165,7 +177,7 @@ export default function CompaniesPage() {
               <label className="label">Add member</label>
               <div className="flex gap-2">
                 <select value={addUser} onChange={(e) => setAddUser(e.target.value)} className="input flex-1">
-                  <option value="">Select a user...</option>
+                  <option value="">Select a user…</option>
                   {addable.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
                 </select>
                 <select value={addRole} onChange={(e) => setAddRole(e.target.value as MemberRole)} className="input w-32">

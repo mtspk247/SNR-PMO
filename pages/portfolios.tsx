@@ -4,7 +4,7 @@ import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import {
   getPortfolios, createPortfolio, getOrgCompanies, getOrgUsers,
   getMyCompanyManagerships, getMyPortfolioManagerships, listPortfolioMembers, addPortfolioMember,
-  updatePortfolioMemberRole, removePortfolioMember,
+  updatePortfolioMemberRole, removePortfolioMember, deletePortfolio,
 } from '@/lib/db';
 import { Portfolio, OrgCompany, OrgUser, PortfolioMember, MemberRole } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -55,6 +55,11 @@ export default function PortfoliosPage() {
   );
   const canCreate = createableCompanies.length > 0;
   const canManage = (pf: Portfolio) => admin || mgrIds.has(pf.company_id) || pfMgrIds.has(pf.id);
+  const removePortfolio = async (pf: Portfolio) => {
+    if (!confirm(`Delete portfolio \u201c${pf.name}\u201d? Any projects must be reassigned first.`)) return;
+    try { await deletePortfolio(pf.id); setPortfolios((prev) => prev.filter((x) => x.id !== pf.id)); }
+    catch (e: any) { alert(e.message || 'Could not delete \u2014 reassign its projects first.'); }
+  };
 
   const submit = async () => {
     if (!org || !np.name.trim() || !np.company_id) return;
@@ -116,6 +121,11 @@ export default function PortfoliosPage() {
                 {canManage(pf) && (
                   <button onClick={() => openMembers(pf)} className="text-2xs text-neutral-500 hover:text-ink inline-flex items-center gap-1 shrink-0" title="Manage members">
                     <Icon name="ti-users" /> Members
+                  </button>
+                )}
+                {canManage(pf) && (
+                  <button onClick={() => removePortfolio(pf)} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete portfolio">
+                    <Icon name="ti-trash" />
                   </button>
                 )}
               </div>
