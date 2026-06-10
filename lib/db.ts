@@ -413,6 +413,27 @@ export async function cancelLeave(id: string): Promise<Leave> {
     .update({ status: 'Cancelled' }).eq('id', id).select(LEAVE_SEL).single();
   if (error) throw new Error(error.message); return data as Leave;
 }
+// Current user's leave entitlements: approval rights + remaining balances.
+// `can_approve_leaves` is enforced server-side (leave_approve RLS + decision
+// trigger); this read just lets the UI surface the queue + balances.
+export interface MyLeaveProfile {
+  can_approve_leaves: boolean;
+  annual_balance: number; sick_balance: number; casual_balance: number; unpaid_balance: number;
+}
+export async function getMyLeaveProfile(userId: string): Promise<MyLeaveProfile> {
+  const { data, error } = await sb.from('users')
+    .select('can_approve_leaves, annual_balance, sick_balance, casual_balance, unpaid_balance')
+    .eq('id', userId).maybeSingle();
+  if (error) throw error;
+  const d = (data as any) || {};
+  return {
+    can_approve_leaves: !!d.can_approve_leaves,
+    annual_balance: Number(d.annual_balance ?? 0),
+    sick_balance: Number(d.sick_balance ?? 0),
+    casual_balance: Number(d.casual_balance ?? 0),
+    unpaid_balance: Number(d.unpaid_balance ?? 0),
+  };
+}
 
 // ---- 2.5 Notifications ----------------------------------------------------
 export async function getNotifications(userId: string): Promise<AppNotification[]> {

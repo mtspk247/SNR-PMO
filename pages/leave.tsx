@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, StatCard, Spinner, EmptyState, Pill, Icon, Avatar } from '@/components/ui';
-import { getLeaves, requestLeave, decideLeave, cancelLeave, notify } from '@/lib/db';
+import { getLeaves, requestLeave, decideLeave, cancelLeave, notify, getMyLeaveProfile, MyLeaveProfile } from '@/lib/db';
 import { Leave } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -16,11 +16,15 @@ export default function LeavePage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [show, setShow] = useState(false);
+  const [profile, setProfile] = useState<MyLeaveProfile | null>(null);
   const [f, setF] = useState({ type: 'Annual', start_date: '', end_date: '', reason: '' });
 
   useEffect(() => { setLoading(true); getLeaves().then(setRows).finally(() => setLoading(false)); }, [org?.id]);
+  useEffect(() => { if (me?.id) getMyLeaveProfile(me.id).then(setProfile).catch(() => {}); }, [me?.id]);
 
-  const isApprover = can.manageMembers(org);
+  // Approvers = org owner/admin OR a delegated approver (can_approve_leaves).
+  // Both are enforced server-side; this just decides who sees the queue.
+  const isApprover = can.manageMembers(org) || !!profile?.can_approve_leaves;
   const mine = useMemo(() => rows.filter((r) => r.user_id === me?.id), [rows, me?.id]);
   const queue = useMemo(() => rows.filter((r) => r.status === 'Pending' && r.user_id !== me?.id), [rows, me?.id]);
   const days = f.start_date && f.end_date ? daysBetween(f.start_date, f.end_date) : 0;
@@ -81,6 +85,14 @@ export default function LeavePage() {
             <StatCard label="Days approved" value={approvedDays} icon="ti-beach" />
             <StatCard label="Requests" value={mine.length} icon="ti-files" />
           </div>
+
+          {profile && (
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <StatCard label="Annual balance" value={profile.annual_balance} icon="ti-calendar" />
+              <StatCard label="Sick balance" value={profile.sick_balance} icon="ti-vaccine" />
+              <StatCard label="Casual balance" value={profile.casual_balance} icon="ti-coffee" />
+            </div>
+          )}
 
           {isApprover && (
             <div className="mb-6">
