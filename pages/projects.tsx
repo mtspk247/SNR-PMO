@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, PageHeader, Icon } from '@/components/ui';
 import { getProjects, createProject, updateProject, deleteProject, getOrgCompanies, getPortfolios } from '@/lib/db';
@@ -86,7 +87,7 @@ export default function Projects() {
           <table className="w-full">
             <thead><tr>
               <th className="th">Name</th><th className="th">Status</th><th className="th">Priority</th>
-              <th className="th">Timeline</th><th className="th w-44">Progress</th>
+              <th className="th">Timeline</th><th className="th w-44">Progress</th><th className="th w-10"></th>
             </tr></thead>
             <tbody>
               {projects.map((p) => (
@@ -104,6 +105,11 @@ export default function Projects() {
                       <div className="flex-1 h-1.5 rounded bg-neutral-100"><div className="h-1.5 rounded bg-ink" style={{ width: `${p.progress || 0}%` }} /></div>
                       <span className="text-2xs text-neutral-500 w-8 text-right">{p.progress || 0}%</span>
                     </div>
+                  </td>
+                  <td className="td">
+                    <Link href={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-neutral-400 hover:text-ink inline-flex" title="Open project">
+                      <Icon name="ti-arrow-right" />
+                    </Link>
                   </td>
                 </tr>
               ))}

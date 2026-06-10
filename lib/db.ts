@@ -171,6 +171,13 @@ export async function getProjects(): Promise<Project[]> {
   if (error) throw error; return data || [];
 }
 
+// Single project by id (RLS-scoped via proj_select=can_access_project). Returns
+// null when the row is absent or not visible to the caller.
+export async function getProjectById(id: string): Promise<Project | null> {
+  const { data, error } = await sb.from('projects').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message); return (data as Project) || null;
+}
+
 export async function createProject(p: {
   name: string; org_id: string; description?: string | null;
   status?: string; priority?: string; start_date?: string | null; end_date?: string | null;
