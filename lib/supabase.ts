@@ -125,6 +125,11 @@ export interface Deal {
   crm_companies?: { name: string } | null; crm_contacts?: { full_name: string; email: string | null } | null;
 }
 
+export interface CrmActivity {
+  id: string; org_id?: string; deal_id: string | null; contact_id: string | null;
+  kind: string; body: string; created_by: string | null; created_at?: string;
+}
+
 export interface Risk {
   id: string; project_id: string | null; title: string; description: string | null;
   category: string; impact: number; probability: number; status: string;

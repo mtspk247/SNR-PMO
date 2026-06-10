@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon } from '@/components/ui';
-import { getDeals, getContacts, getCompanies, createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact } from '@/lib/db';
-import { Deal, Contact, Company } from '@/lib/supabase';
+import { getDeals, getContacts, getCompanies, createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity } from '@/lib/db';
+import { Deal, Contact, Company, CrmActivity } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 
 const STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 const STAGE_RANK: Record<string, number> = { Lead: 1, Qualified: 2, Proposal: 3, Negotiation: 4, Won: 5, Lost: 0 };
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+const ACT_KINDS = [
+  { id: 'note', label: 'Note', icon: 'ti-note' },
+  { id: 'call', label: 'Call', icon: 'ti-phone' },
+  { id: 'email', label: 'Email', icon: 'ti-mail' },
+  { id: 'meeting', label: 'Meeting', icon: 'ti-calendar' },
+];
+const actMeta = (k: string) => ACT_KINDS.find((x) => x.id === k) || { id: k, label: k, icon: 'ti-point' };
+const actWhen = (iso?: string) => (iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
 export default function CRM() {
   const org = useActiveOrg();
@@ -27,6 +35,13 @@ export default function CRM() {
   const [showContact, setShowContact] = useState(false);
   const [editDeal, setEditDeal] = useState<Deal | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // activity log for the selected deal
+  const [acts, setActs] = useState<CrmActivity[]>([]);
+  const [actsLoading, setActsLoading] = useState(false);
+  const [actKind, setActKind] = useState('note');
+  const [actBody, setActBody] = useState('');
+  const [actBusy, setActBusy] = useState(false);
 
   useEffect(() => {
     Promise.all([getDeals(), getContacts(), getCompanies()])
@@ -60,6 +75,25 @@ export default function CRM() {
     setBusy(true);
     try { await deleteContact(c.id); setContacts((p) => p.filter((x) => x.id !== c.id)); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+
+  useEffect(() => {
+    if (!selectedId) { setActs([]); return; }
+    setActsLoading(true);
+    getDealActivities(selectedId).then(setActs).catch(() => setActs([])).finally(() => setActsLoading(false));
+  }, [selectedId]);
+
+  const logActivity = async () => {
+    if (!org || !selectedId || !actBody.trim()) return;
+    setActBusy(true);
+    try {
+      const a = await createActivity({ org_id: org.id, deal_id: selectedId, kind: actKind, body: actBody.trim(), created_by: me?.id });
+      setActs((p) => [a, ...p]); setActBody('');
+    } catch (e: any) { alert(e.message); } finally { setActBusy(false); }
+  };
+  const removeActivity = async (id: string) => {
+    try { await deleteActivity(id); setActs((p) => p.filter((x) => x.id !== id)); }
+    catch (e: any) { alert(e.message); }
   };
 
   const openDeals = deals.filter((d) => d.stage !== 'Won' && d.stage !== 'Lost');
@@ -213,6 +247,35 @@ export default function CRM() {
                       <p className="text-sm text-neutral-600 leading-relaxed">{selected.notes}</p>
                     </div>
                   )}
+
+                  <div className="mt-5 pt-4 border-t border-line">
+                    <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Activity</p>
+                    <div className="flex gap-2 mb-3">
+                      <select value={actKind} onChange={(e) => setActKind(e.target.value)} className="input w-24 py-1 text-xs">
+                        {ACT_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
+                      </select>
+                      <input value={actBody} onChange={(e) => setActBody(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && logActivity()}
+                        placeholder="Log an activity…" className="input flex-1 py-1 text-xs" />
+                      <button onClick={logActivity} disabled={actBusy || !actBody.trim()} className="btn btn-sm" title="Log">
+                        <Icon name="ti-plus" />
+                      </button>
+                    </div>
+                    {actsLoading ? <p className="text-2xs text-neutral-400">Loading…</p>
+                      : acts.length === 0 ? <p className="text-2xs text-neutral-400">No activity yet.</p> : (
+                      <ul className="space-y-3 max-h-72 overflow-y-auto">
+                        {acts.map((a) => (
+                          <li key={a.id} className="flex gap-2.5 group">
+                            <span className="w-6 h-6 rounded-full bg-neutral-100 grid place-items-center text-neutral-500 shrink-0 mt-0.5"><Icon name={actMeta(a.kind).icon} className="text-xs" /></span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-ink leading-snug break-words">{a.body}</p>
+                              <p className="text-2xs text-neutral-400">{actMeta(a.kind).label} · {actWhen(a.created_at)}</p>
+                            </div>
+                            <button onClick={() => removeActivity(a.id)} className="text-neutral-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 shrink-0" title="Delete"><Icon name="ti-trash" className="text-xs" /></button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               ) : <div className="card p-5 text-sm text-neutral-400">Select a deal</div>}
             </aside>

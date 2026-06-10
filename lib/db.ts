@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo } from './supabase';
+import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -414,6 +414,28 @@ export async function deleteDeal(id: string): Promise<void> {
 }
 export async function deleteContact(id: string): Promise<void> {
   const { error } = await sb.from('crm_contacts').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// --- CRM activity log. crm_activities mirrors the crm_* ALL policy
+// (is_org_member AND org_has_feature 'crm') for USING + WITH CHECK, so
+// insert…RETURNING is RLS-safe (verified by RLS-sim). ---
+export async function getDealActivities(dealId: string): Promise<CrmActivity[]> {
+  const { data, error } = await sb.from('crm_activities').select('*')
+    .eq('deal_id', dealId).order('created_at', { ascending: false });
+  if (error) throw error; return (data as CrmActivity[]) || [];
+}
+export async function createActivity(p: {
+  org_id: string; deal_id?: string | null; contact_id?: string | null;
+  kind?: string; body: string; created_by?: string | null;
+}): Promise<CrmActivity> {
+  const { data, error } = await sb.from('crm_activities')
+    .insert({ org_id: p.org_id, deal_id: p.deal_id || null, contact_id: p.contact_id || null, kind: p.kind || 'note', body: p.body, created_by: p.created_by || null })
+    .select('*').single();
+  if (error) throw new Error(error.message); return data as CrmActivity;
+}
+export async function deleteActivity(id: string): Promise<void> {
+  const { error } = await sb.from('crm_activities').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
