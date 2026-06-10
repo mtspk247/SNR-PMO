@@ -108,7 +108,7 @@ export default function Layout({ title, children }: { title: string; children: R
     <div className="flex h-screen bg-bg text-content">
       <aside className={`side shrink-0 flex flex-col transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-60'}`}>
         {/* Brand + org switcher */}
-        <div className="relative h-14 flex items-center gap-2.5 px-3 border-b border-white/10">
+        <div className="relative h-14 flex items-center gap-2.5 px-3 border-b border-line">
           {activeOrg?.branding?.logo_url
             ? <img src={activeOrg.branding.logo_url} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
             : <span className="w-7 h-7 rounded-md grid place-items-center text-sm font-semibold shrink-0 text-accentfg"
@@ -139,7 +139,7 @@ export default function Layout({ title, children }: { title: string; children: R
           {groups.map((g) => (
             <div key={g.heading} className="pt-2">
               {!collapsed && <p className="px-2.5 pb-1 text-2xs uppercase tracking-wider side-faint">{g.heading}</p>}
-              {collapsed && <div className="mx-2 my-2 h-px bg-white/10" />}
+              {collapsed && <div className="mx-2 my-2 h-px side-divider" />}
               {g.items.map((i) => <NavLink key={i.href} {...i} />)}
             </div>
           ))}
@@ -150,7 +150,7 @@ export default function Layout({ title, children }: { title: string; children: R
           <Icon name={collapsed ? 'ti-layout-sidebar-left-expand' : 'ti-layout-sidebar-left-collapse'} className="text-base" />
           {!collapsed && <span>Collapse</span>}
         </button>
-        <div className="p-2 border-t border-white/10">
+        <div className="p-2 border-t border-line">
           <div className={`flex items-center gap-2.5 px-1 ${collapsed ? 'justify-center' : ''}`}>
             <Avatar name={user?.full_name || 'U'} size={32} />
             {!collapsed && (
@@ -159,7 +159,7 @@ export default function Layout({ title, children }: { title: string; children: R
                 <p className="text-2xs side-dim truncate">{roleLabel(activeOrg?.member_role)}</p>
               </div>
             )}
-            <button onClick={logout} title="Sign out" className="p-1.5 rounded-md side-dim hover:text-white hover:bg-white/10">
+            <button onClick={logout} title="Sign out" className="p-1.5 rounded-md side-dim hover:text-content hover:bg-surface2">
               <Icon name="ti-logout" className="text-base" />
             </button>
           </div>

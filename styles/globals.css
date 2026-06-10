@@ -50,7 +50,7 @@ body {
 }
 
 @layer components {
-  .card { @apply bg-surface border border-line rounded-lg; }
+  .card { @apply bg-surface border border-line rounded-xl shadow-sm; }
   /* Opt-in hover affordance for clickable/feature cards. */
   .card-interactive { @apply transition duration-200 hover:border-accent/40 hover:shadow-lg hover:-translate-y-0.5; }
   .stat { @apply bg-surface border border-line rounded-lg p-4 transition duration-200 hover:border-accent/40 hover:shadow-md; }
@@ -72,15 +72,18 @@ body {
   .pill-gray  { @apply bg-muted/15 text-muted; }
   .pill-violet{ @apply bg-violet-500/15 text-violet-600; }
 
-  /* Dark sidebar + login panel (constant across themes) */
-  .side { background: var(--brand-ink, #171717); color: rgba(255,255,255,.92); }
-  .side-fg { color: rgba(255,255,255,.92); }
-  .side-dim { color: rgba(255,255,255,.55); }
-  .side-faint { color: rgba(255,255,255,.38); }
-  .sb-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition cursor-pointer; color: rgba(255,255,255,.66); }
-  .sb-item:hover { background: rgba(255,255,255,.07); color: #fff; }
-  .sb-item-active { background: rgb(var(--accent) / .15); color: #fff; box-shadow: inset 2px 0 0 rgb(var(--accent)); }
-  .sb-item-active:hover { background: rgb(var(--accent) / .18); color: #fff; }
+  /* Sidebar + login panel — token-driven (light in light theme, follows dark theme).
+     No hardcoded dark surface; reads --surface/--content so it themes automatically. */
+  .side { background: rgb(var(--surface)); color: rgb(var(--content)); border-right: 1px solid rgb(var(--border)); }
+  .side-fg { color: rgb(var(--content)); }
+  .side-dim { color: rgb(var(--muted)); }
+  .side-faint { color: rgb(var(--muted-2)); }
+  .sb-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition cursor-pointer; color: rgb(var(--content-soft)); }
+  .sb-item:hover { background: rgb(var(--surface-2)); color: rgb(var(--content)); }
+  .sb-item-active { background: rgb(var(--accent) / .12); color: rgb(var(--accent-strong)); box-shadow: inset 2px 0 0 rgb(var(--accent)); font-weight: 500; }
+  .sb-item-active:hover { background: rgb(var(--accent) / .16); color: rgb(var(--accent-strong)); }
+  /* Sidebar internal dividers/borders that were white-on-dark → token border. */
+  .side-divider { background: rgb(var(--border)); }
 
   .th { @apply text-left font-normal text-muted2 text-xs px-3 py-2; }
   .td { @apply px-3 py-2.5 text-sm align-middle; }
@@ -103,7 +106,3 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-2) / .8); background-clip: padding-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-/* Dark sidebar gets a light-on-dark thumb instead of the light-theme token. */
-.side { scrollbar-color: rgba(255,255,255,.22) transparent; }
-.side ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); background-clip: padding-box; }
-.side ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.32); background-clip: padding-box; }
