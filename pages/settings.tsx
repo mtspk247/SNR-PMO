@@ -1,10 +1,52 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
-import { updateOrgSettings } from '@/lib/db';
+import { updateOrgSettings, getOrgPlanInfo } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
+import { FEATURE_LABELS, formatPrice } from '@/lib/entitlements';
+import { OrgPlanInfo, FeatureKey } from '@/lib/supabase';
+
+function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
+  const [info, setInfo] = useState<OrgPlanInfo | null>(null);
+  useEffect(() => { getOrgPlanInfo(org.id).then(setInfo).catch(() => {}); }, [org.id]);
+  const features = org.features || [];
+  const seatLabel = info?.seat_limit == null ? 'Unlimited' : `${info.seat_count} / ${info.seat_limit}`;
+  const overSeats = info?.seat_limit != null && info.seat_count >= info.seat_limit;
+  return (
+    <div className="card p-5 max-w-4xl mb-6">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-1">Current plan</p>
+          <p className="text-lg font-semibold">{info?.plan?.name || '—'}
+            {info?.status && info.status !== 'active' && <span className="ml-2 text-xs text-amber-600 capitalize">({info.status})</span>}
+          </p>
+          {info?.plan && <p className="text-sm text-neutral-500">{formatPrice(info.plan.price_cents, info.plan.pricing_model)}</p>}
+        </div>
+        <div className="text-right">
+          <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-1">Seats used</p>
+          <p className={`text-lg font-semibold ${overSeats ? 'text-rose-600' : ''}`}>{seatLabel}</p>
+          {overSeats && <p className="text-2xs text-rose-600">Seat limit reached</p>}
+        </div>
+      </div>
+      <div className="mt-4">
+        <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Included features</p>
+        <div className="flex flex-wrap gap-1.5">
+          {(Object.keys(FEATURE_LABELS) as FeatureKey[]).map((k) => {
+            const on = features.includes(k);
+            return (
+              <span key={k} className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${on ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-line bg-paper text-neutral-400'}`}>
+                <Icon name={on ? 'ti-check' : 'ti-minus'} className="text-2xs" />{FEATURE_LABELS[k]}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+      <p className="text-2xs text-neutral-400 mt-3">Plan changes are managed by the platform team. Contact us to upgrade or add seats.</p>
+    </div>
+  );
+}
 
 const DEFAULTS = { primary: '#2D7FF9', accent: '#6FD3D9', ink: '#0E2233' };
 
@@ -69,7 +111,8 @@ export default function SettingsPage() {
 
   return (
     <Layout title="Settings">
-      <PageHeader title="Branding" subtitle="White-label this workspace — logo, colors, and name" />
+      <PageHeader title="Plan & branding" subtitle="Your subscription, entitlements, and white-label settings" />
+      <PlanPanel org={org} />
       <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">
         {/* Form */}
         <div className="lg:col-span-2 card p-5 space-y-4">

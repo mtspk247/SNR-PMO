@@ -30,6 +30,36 @@ export interface Organization {
 
 export interface MyOrg extends Organization {
   member_role: OrgRole;
+  features?: string[];   // 3.3 entitlements: feature keys enabled by the org's plan
+}
+
+// ---------------------------------------------------------------------------
+// 3.3 Platform layer — plans, features, entitlements, subscriptions
+// ---------------------------------------------------------------------------
+export type FeatureKey =
+  | 'crm' | 'risk' | 'financial' | 'hr' | 'integrations' | 'audit' | 'white_label' | 'portfolios';
+export type PricingModel = 'flat' | 'per_user' | 'white_label';
+export type SubStatus = 'active' | 'trialing' | 'past_due' | 'canceled';
+
+export interface Plan {
+  id: string; key: string; name: string; description: string | null;
+  pricing_model: PricingModel; price_cents: number; currency: string;
+  billing_period: 'monthly' | 'annual'; user_limit: number | null;
+  is_active: boolean; sort_order: number;
+}
+export interface Feature { key: string; name: string; description: string | null; sort_order: number; }
+export interface PlanFeature { plan_id: string; feature_key: string; enabled: boolean; }
+
+// Row shape from the platform_list_orgs() RPC (super-super-admin console).
+export interface PlatformOrg {
+  org_id: string; org_name: string; slug: string; member_count: number;
+  plan_key: string | null; plan_name: string | null; sub_status: SubStatus | null;
+  seats: number | null; seat_limit: number | null; current_period_end: string | null;
+}
+// Tenant-facing plan/usage summary for the settings page.
+export interface OrgPlanInfo {
+  plan: Plan | null; status: SubStatus | null;
+  seat_count: number; seat_limit: number | null;
 }
 
 export interface AppUser {

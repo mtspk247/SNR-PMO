@@ -5,11 +5,15 @@ import { sb } from '@/lib/supabase';
 import { signOut } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
+import { hasFeature } from '@/lib/entitlements';
+import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
 import { applyBranding } from '@/lib/branding';
 
-type Item = { href: string; label: string; icon: string };
+// `feature` gates the item behind the active org's plan entitlement (3.3).
+// Items without a feature are core and always shown.
+type Item = { href: string; label: string; icon: string; feature?: FeatureKey };
 const GROUPS: { heading: string; items: Item[] }[] = [
   { heading: 'Workspace', items: [
     { href: '/dashboard', label: 'Dashboard', icon: 'ti-layout-dashboard' },
@@ -18,30 +22,42 @@ const GROUPS: { heading: string; items: Item[] }[] = [
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
   ]},
   { heading: 'Tracking', items: [
-    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle' },
-    { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar' },
+    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
+    { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
   ]},
   { heading: 'Relations', items: [
-    { href: '/crm', label: 'CRM', icon: 'ti-users' },
+    { href: '/crm', label: 'CRM', icon: 'ti-users', feature: 'crm' },
   ]},
   { heading: 'People', items: [
-    { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus' },
+    { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock' },
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },
   ]},
 ];
 const ADMIN_GROUP: { heading: string; items: Item[] } = { heading: 'Admin', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
-  { href: '/integrations', label: 'Integrations', icon: 'ti-plug' },
-  { href: '/audit', label: 'Audit log', icon: 'ti-history' },
+  { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
+  { href: '/audit', label: 'Audit log', icon: 'ti-history', feature: 'audit' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
+]};
+// Super-super-admin (cross-tenant) — gated by platformAdmin, not a plan feature.
+const PLATFORM_GROUP: { heading: string; items: Item[] } = { heading: 'Platform', items: [
+  { href: '/platform', label: 'Tenants & Plans', icon: 'ti-building-skyscraper' },
 ]};
 
 export default function Layout({ title, children }: { title: string; children: React.ReactNode }) {
   const router = useRouter();
-  const { user, orgs, sidebarCollapsed, toggleSidebar, setActiveOrg, clear } = useAuthStore();
+  const { user, orgs, platformAdmin, sidebarCollapsed, toggleSidebar, setActiveOrg, clear } = useAuthStore();
   const activeOrg = useActiveOrg();
-  const groups = can.manageMembers(activeOrg) ? [...GROUPS, ADMIN_GROUP] : GROUPS;
+  // Compose nav: admin group for org admins, platform group for platform admins,
+  // then drop any item the active org's plan doesn't entitle (and empty groups).
+  const groups = [
+    ...GROUPS,
+    ...(can.manageMembers(activeOrg) ? [ADMIN_GROUP] : []),
+    ...(platformAdmin ? [PLATFORM_GROUP] : []),
+  ]
+    .map((g) => ({ ...g, items: g.items.filter((i) => hasFeature(activeOrg, i.feature)) }))
+    .filter((g) => g.items.length > 0);
   const [checking, setChecking] = useState(true);
   const [orgMenu, setOrgMenu] = useState(false);
 

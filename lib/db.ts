@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment } from './supabase';
+import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -86,6 +86,81 @@ export async function getOrgUsers(): Promise<OrgUser[]> {
   const { data, error } = await sb.from('users').select('id, full_name, email').order('full_name');
   if (error) throw error;
   return (data as OrgUser[]) || [];
+}
+
+// ---------------------------------------------------------------------------
+// 3.3 Platform layer — entitlements (tenant) + super-super-admin console
+// ---------------------------------------------------------------------------
+
+// Feature keys enabled by an org's active plan (falls back to the free plan when
+// the org has no active subscription) — mirrors the server org_has_feature logic.
+// Client gate only; RLS feature clauses enforce on every write/read path.
+export async function getOrgFeatures(orgId: string): Promise<string[]> {
+  const { data: sub } = await sb.from('subscriptions')
+    .select('plan_id, status').eq('org_id', orgId).maybeSingle();
+  let planId = sub?.plan_id as string | undefined;
+  const active = sub && (sub.status === 'active' || sub.status === 'trialing');
+  if (!active) {
+    const { data: free } = await sb.from('plans').select('id').eq('key', 'free').maybeSingle();
+    planId = free?.id;
+  }
+  if (!planId) return [];
+  const { data: pf } = await sb.from('plan_features')
+    .select('feature_key').eq('plan_id', planId).eq('enabled', true);
+  return ((pf || []) as any[]).map((r) => r.feature_key);
+}
+
+export async function isPlatformAdmin(): Promise<boolean> {
+  const { data, error } = await sb.rpc('is_platform_admin');
+  if (error) return false;
+  return !!data;
+}
+
+// Tenant-facing: current plan + seat usage for the settings page.
+export async function getOrgPlanInfo(orgId: string): Promise<OrgPlanInfo> {
+  const { data: sub } = await sb.from('subscriptions')
+    .select('status, seats, plans(*)').eq('org_id', orgId).maybeSingle();
+  const [{ data: cnt }, { data: lim }] = await Promise.all([
+    sb.rpc('org_seat_count', { p_org: orgId }),
+    sb.rpc('org_seat_limit', { p_org: orgId }),
+  ]);
+  return {
+    plan: ((sub as any)?.plans as Plan) ?? null,
+    status: (sub as any)?.status ?? null,
+    seat_count: (cnt as number) ?? 0,
+    seat_limit: (lim as number) ?? null,
+  };
+}
+
+// --- super-super-admin console (RLS: platform admin only) ------------------
+export async function listPlatformOrgs(): Promise<PlatformOrg[]> {
+  const { data, error } = await sb.rpc('platform_list_orgs');
+  if (error) throw new Error(error.message);
+  return (data as PlatformOrg[]) || [];
+}
+export async function listPlans(): Promise<Plan[]> {
+  const { data, error } = await sb.from('plans').select('*').order('sort_order');
+  if (error) throw error; return (data as Plan[]) || [];
+}
+export async function listFeatures(): Promise<Feature[]> {
+  const { data, error } = await sb.from('features').select('*').order('sort_order');
+  if (error) throw error; return (data as Feature[]) || [];
+}
+export async function listPlanFeatures(): Promise<PlanFeature[]> {
+  const { data, error } = await sb.from('plan_features').select('plan_id, feature_key, enabled');
+  if (error) throw error; return (data as PlanFeature[]) || [];
+}
+// Toggle a feature on a plan (platform admin). Upsert on the composite PK.
+export async function setPlanFeature(planId: string, featureKey: string, enabled: boolean): Promise<void> {
+  const { error } = await sb.from('plan_features')
+    .upsert({ plan_id: planId, feature_key: featureKey, enabled }, { onConflict: 'plan_id,feature_key' });
+  if (error) throw new Error(error.message);
+}
+// Assign / change a tenant's plan (platform admin). One subscription per org.
+export async function setOrgPlan(orgId: string, planId: string, seats?: number | null): Promise<void> {
+  const { error } = await sb.from('subscriptions')
+    .upsert({ org_id: orgId, plan_id: planId, status: 'active', seats: seats ?? null, updated_at: new Date().toISOString() }, { onConflict: 'org_id' });
+  if (error) throw new Error(error.message);
 }
 
 // ---------------------------------------------------------------------------
