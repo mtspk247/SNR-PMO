@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
-import { getAdminUsers, updateUserAdmin } from '@/lib/db';
-import { AdminUser } from '@/lib/supabase';
+import { getAdminUsers, updateUserAdmin, listRoleTemplates } from '@/lib/db';
+import { AdminUser, RoleTemplate } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 
@@ -20,12 +20,14 @@ const PERMS: { key: keyof AdminUser; label: string }[] = [
 export default function UsersPage() {
   const org = useActiveOrg();
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [roles, setRoles] = useState<RoleTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     getAdminUsers().then((u) => { setUsers(u); if (u.length) setSel((s) => s || u[0].id); }).finally(() => setLoading(false));
+    listRoleTemplates().then(setRoles).catch(() => {});
   }, [org?.id]);
 
   if (!can.manageMembers(org)) {
@@ -64,6 +66,14 @@ export default function UsersPage() {
                 <div className="grid grid-cols-2 gap-4 mb-5">
                   <div><label className="label">Role</label><select value={u.role} disabled={busy} onChange={(e) => patch({ role: e.target.value as any })} className="input">{ROLES.map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}</select></div>
                   <div><label className="label">Status</label><select value={u.status} disabled={busy} onChange={(e) => patch({ status: e.target.value as any })} className="input"><option value="active">Active</option><option value="suspended">Suspended</option></select></div>
+                </div>
+                <div className="mb-5">
+                  <label className="label">Role template</label>
+                  <select value={u.role_template_id || ''} disabled={busy} onChange={(e) => patch({ role_template_id: (e.target.value || null) as any })} className="input">
+                    <option value="">— None (custom permissions) —</option>
+                    {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                  <p className="text-2xs text-neutral-400 mt-1">Assigning a template applies its permissions and module access below.</p>
                 </div>
                 <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Permissions</p>
                 <div className="space-y-1.5">

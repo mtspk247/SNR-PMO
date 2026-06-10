@@ -36,7 +36,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   if (!sess.session) return null;
   const { data, error } = await sb
     .from('users')
-    .select('id, auth_user_id, username, email, full_name, role, department')
+    .select('id, auth_user_id, username, email, full_name, role, department, feature_access')
     .eq('auth_user_id', sess.session.user.id)
     .maybeSingle();
   if (error) throw error;
@@ -472,7 +472,7 @@ export async function deleteComment(id: string): Promise<void> {
 // ===========================================================================
 // Phase 2 data access
 // ===========================================================================
-import { Attendance, Leave, AppNotification, Tag, Integration, AuditEntry, AdminUser, OnboardingTemplate, OnboardingTemplateItem, OnboardingTask } from './supabase';
+import { Attendance, Leave, AppNotification, Tag, Integration, AuditEntry, AdminUser, RoleTemplate, OnboardingTemplate, OnboardingTemplateItem, OnboardingTask } from './supabase';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -596,7 +596,7 @@ export async function logAudit(p: {
 }
 
 // ---- 2.7 Users admin / RBAC ----------------------------------------------
-const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, annual_balance, sick_balance, casual_balance';
+const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, role_template_id, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, annual_balance, sick_balance, casual_balance';
 export async function getAdminUsers(): Promise<AdminUser[]> {
   const { data, error } = await sb.from('users').select(ADMIN_USER_COLS).order('full_name');
   if (error) throw error; return (data as AdminUser[]) || [];
@@ -604,6 +604,29 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
 export async function updateUserAdmin(id: string, patch: Partial<AdminUser>): Promise<AdminUser> {
   const { data, error } = await sb.from('users').update(patch).eq('id', id).select(ADMIN_USER_COLS).single();
   if (error) throw new Error(error.message); return data as AdminUser;
+}
+
+// ---- Custom role templates (RBAC) ----------------------------------------
+// rt_select = is_org_member, writes = is_org_role(owner/admin). Admin is a member,
+// so RETURNING re-applies the select policy to the new row safely.
+export async function listRoleTemplates(): Promise<RoleTemplate[]> {
+  const { data, error } = await sb.from('role_templates').select('*')
+    .order('is_system', { ascending: false }).order('name');
+  if (error) throw error; return (data as RoleTemplate[]) || [];
+}
+export async function createRoleTemplate(p: { org_id: string; name: string; description?: string | null; permissions: Record<string, boolean>; feature_access: string[] }): Promise<RoleTemplate> {
+  const { data, error } = await sb.from('role_templates')
+    .insert({ org_id: p.org_id, name: p.name, description: p.description ?? null, permissions: p.permissions, feature_access: p.feature_access })
+    .select('*').single();
+  if (error) throw new Error(error.message); return data as RoleTemplate;
+}
+export async function updateRoleTemplate(id: string, patch: Partial<Pick<RoleTemplate, 'name' | 'description' | 'permissions' | 'feature_access'>>): Promise<RoleTemplate> {
+  const { data, error } = await sb.from('role_templates').update(patch).eq('id', id).select('*').single();
+  if (error) throw new Error(error.message); return data as RoleTemplate;
+}
+export async function deleteRoleTemplate(id: string): Promise<void> {
+  const { error } = await sb.from('role_templates').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 // ---- 2.8 Tags / task_tags -------------------------------------------------

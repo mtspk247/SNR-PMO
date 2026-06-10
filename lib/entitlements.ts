@@ -1,4 +1,4 @@
-import { FeatureKey, MyOrg } from './supabase';
+import { FeatureKey, MyOrg, AppUser, PermKey } from './supabase';
 
 // 3.3 client-side entitlement gating. The DB is the source of truth (RLS feature
 // clauses + seat trigger); these helpers only decide what the UI offers. A user
@@ -20,6 +20,27 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
 export function hasFeature(org: MyOrg | null | undefined, key?: FeatureKey): boolean {
   if (!key) return true;
   return !!org?.features?.includes(key);
+}
+
+// Role-template permission labels (used by /roles + /users).
+export const PERMISSION_LABELS: Record<PermKey, string> = {
+  can_view_dashboard: 'View dashboard',
+  can_view_all_projects: 'View all projects',
+  can_edit_all_projects: 'Edit all projects',
+  can_delete_tasks: 'Delete tasks',
+  can_approve_leaves: 'Approve leaves',
+  can_manage_users: 'Manage users & roles',
+  can_export_data: 'Export data',
+};
+
+// Per-user feature/form access from their assigned role. Empty/undefined = all
+// (entitled) features visible — backward compatible with users who have no role.
+// Core items (no feature key) are always allowed. DB stays source of truth.
+export function roleAllowsFeature(user: AppUser | null | undefined, key?: FeatureKey): boolean {
+  if (!key) return true;
+  const fa = user?.feature_access;
+  if (!fa || fa.length === 0) return true;
+  return fa.includes(key);
 }
 
 export function formatPrice(cents: number, model: string): string {

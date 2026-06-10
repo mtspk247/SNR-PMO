@@ -5,7 +5,7 @@ import { sb } from '@/lib/supabase';
 import { signOut } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
-import { hasFeature } from '@/lib/entitlements';
+import { hasFeature, roleAllowsFeature } from '@/lib/entitlements';
 import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
@@ -39,6 +39,7 @@ const GROUPS: { heading: string; items: Item[] }[] = [
 ];
 const ADMIN_GROUP: { heading: string; items: Item[] } = { heading: 'Admin', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
+  { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
   { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
   { href: '/audit', label: 'Audit log', icon: 'ti-history', feature: 'audit' },
@@ -71,7 +72,7 @@ export default function Layout({ title, children }: { title: string; children: R
     ...(can.manageMembers(activeOrg) ? [ADMIN_GROUP] : []),
     ...(platformAdmin ? [PLATFORM_GROUP] : []),
   ]
-    .map((g) => ({ ...g, items: g.items.filter((i) => hasFeature(activeOrg, i.feature)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => hasFeature(activeOrg, i.feature) && roleAllowsFeature(user, i.feature)) }))
     .filter((g) => g.items.length > 0);
   const [checking, setChecking] = useState(true);
   const [orgMenu, setOrgMenu] = useState(false);

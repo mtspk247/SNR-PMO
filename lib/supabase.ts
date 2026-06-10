@@ -70,6 +70,22 @@ export interface AppUser {
   full_name: string;
   role: Role;
   department?: string;
+  feature_access?: string[];   // role-template feature/form access; empty = all entitled
+}
+
+// Custom role templates — org-scoped reusable permission bundles + feature access.
+export type PermKey =
+  | 'can_view_all_projects' | 'can_edit_all_projects' | 'can_approve_leaves'
+  | 'can_delete_tasks' | 'can_manage_users' | 'can_view_dashboard' | 'can_export_data';
+export interface RoleTemplate {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string | null;
+  permissions: Partial<Record<PermKey, boolean>>;
+  feature_access: string[];
+  is_system: boolean;
+  created_at?: string;
 }
 
 export interface OrgUser {
@@ -193,6 +209,7 @@ export interface AuditEntry {
 export interface AdminUser {
   id: string; full_name: string; email: string; username: string;
   role: Role; department: string | null; status: 'active' | 'suspended';
+  role_template_id: string | null;
   can_view_all_projects: boolean; can_edit_all_projects: boolean;
   can_approve_leaves: boolean; can_delete_tasks: boolean;
   can_manage_users: boolean; can_view_dashboard: boolean; can_export_data: boolean;
