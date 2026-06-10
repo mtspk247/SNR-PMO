@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo } from './supabase';
+import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -237,6 +237,44 @@ export async function getMyCompanyManagerships(userId: string): Promise<string[]
   const { data, error } = await sb.from('company_members')
     .select('company_id').eq('user_id', userId).eq('role', 'manager');
   if (error) throw error; return ((data || []) as any[]).map((r) => r.company_id);
+}
+
+// --- Tenancy portfolios (Org -> Company -> Portfolio -> Project) ----------
+// RLS: pf_select = can_access_portfolio AND org_has_feature('portfolios');
+// pf_write = (org owner/admin OR company manager) AND feature. Insert with
+// return=minimal then refetch (RETURNING re-applies pf_select feature+access).
+export async function getPortfolios(): Promise<Portfolio[]> {
+  const { data, error } = await sb.from('portfolios')
+    .select('id, org_id, company_id, name, description').order('name');
+  if (error) throw error; return (data as Portfolio[]) || [];
+}
+export async function createPortfolio(p: { name: string; org_id: string; company_id: string; description?: string | null }): Promise<Portfolio[]> {
+  const { error } = await sb.from('portfolios')
+    .insert({ name: p.name, org_id: p.org_id, company_id: p.company_id, description: p.description || null });
+  if (error) throw new Error(error.message);
+  return getPortfolios();
+}
+// Per-portfolio members. RLS: pfm_select=can_access_portfolio, pfm_write=manages_portfolio.
+export async function listPortfolioMembers(portfolioId: string): Promise<PortfolioMember[]> {
+  const { data, error } = await sb.from('portfolio_members')
+    .select('portfolio_id, user_id, role, created_at, users(full_name, email)')
+    .eq('portfolio_id', portfolioId).order('created_at', { ascending: true });
+  if (error) throw error; return (data as PortfolioMember[]) || [];
+}
+export async function addPortfolioMember(portfolioId: string, userId: string, role: MemberRole = 'member'): Promise<PortfolioMember[]> {
+  const { error } = await sb.from('portfolio_members').insert({ portfolio_id: portfolioId, user_id: userId, role });
+  if (error) throw new Error(error.message);
+  return listPortfolioMembers(portfolioId);
+}
+export async function updatePortfolioMemberRole(portfolioId: string, userId: string, role: MemberRole): Promise<void> {
+  const { error } = await sb.from('portfolio_members').update({ role })
+    .eq('portfolio_id', portfolioId).eq('user_id', userId);
+  if (error) throw new Error(error.message);
+}
+export async function removePortfolioMember(portfolioId: string, userId: string): Promise<void> {
+  const { error } = await sb.from('portfolio_members').delete()
+    .eq('portfolio_id', portfolioId).eq('user_id', userId);
+  if (error) throw new Error(error.message);
 }
 
 export async function getTasks(): Promise<Task[]> {

@@ -18,6 +18,7 @@ const GROUPS: { heading: string; items: Item[] }[] = [
   { heading: 'Workspace', items: [
     { href: '/dashboard', label: 'Dashboard', icon: 'ti-layout-dashboard' },
     { href: '/companies', label: 'Companies', icon: 'ti-building' },
+    { href: '/portfolios', label: 'Portfolios', icon: 'ti-stack-2', feature: 'portfolios' },
     { href: '/projects', label: 'Projects', icon: 'ti-folder' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
   ]},

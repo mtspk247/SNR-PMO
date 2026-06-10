@@ -107,6 +107,12 @@ export interface CompanyMember {
   company_id: string; user_id: string; role: MemberRole; created_at?: string;
   users?: { full_name: string | null; email: string } | null;
 }
+// Tenancy-tier portfolio (Org -> Company -> Portfolio -> Project). company_id required.
+export interface Portfolio { id: string; org_id: string; company_id: string; name: string; description: string | null; created_at?: string; }
+export interface PortfolioMember {
+  portfolio_id: string; user_id: string; role: MemberRole; created_at?: string;
+  users?: { full_name: string | null; email: string } | null;
+}
 export interface Contact {
   id: string; full_name: string; email: string | null; phone: string | null;
   title: string | null; status: string | null; company_id: string | null;
