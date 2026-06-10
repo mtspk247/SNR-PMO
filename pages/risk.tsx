@@ -94,7 +94,7 @@ export default function RiskAnalysis() {
                             <button key={p} onClick={() => setCell(cell && cell.i === i && cell.p === p ? null : { i, p })}
                               title={`Impact ${i} × Probability ${p} = ${score} (${sevLabel(score)})`}
                               className={`flex-1 aspect-[5/3] rounded-md grid place-items-center text-sm font-semibold transition
-                                ${cellTone(score, active)} ${count ? 'text-white/95' : 'text-white/55'}
+                                ${cellTone(score, active)} ${count ? 'text-[rgba(255,255,255,0.95)]' : 'text-[rgba(255,255,255,0.55)]'}
                                 ${cell && cell.i === i && cell.p === p ? 'ring-2 ring-ink ring-offset-1' : 'hover:brightness-105'}`}>
                               {count || ''}
                             </button>
@@ -162,7 +162,7 @@ export default function RiskAnalysis() {
                         <td className="td text-center text-sm">{r.impact}</td>
                         <td className="td text-center text-sm">{r.probability}</td>
                         <td className="td text-center">
-                          <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded-md text-2xs font-semibold text-white ${cellTone(e, true)}`}>{e}</span>
+                          <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded-md text-2xs font-semibold text-[#fff] ${cellTone(e, true)}`}>{e}</span>
                         </td>
                         <td className="td"><Pill label={r.status} /></td>
                         <td className="td text-2xs text-neutral-500">{r.due_date || '—'}</td>

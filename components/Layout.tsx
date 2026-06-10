@@ -10,6 +10,7 @@ import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
 import { applyBranding } from '@/lib/branding';
+import { getTheme, toggleTheme, Theme } from '@/lib/theme';
 
 // `feature` gates the item behind the active org's plan entitlement (3.3).
 // Items without a feature are core and always shown.
@@ -46,6 +47,17 @@ const PLATFORM_GROUP: { heading: string; items: Item[] } = { heading: 'Platform'
   { href: '/platform', label: 'Tenants & Plans', icon: 'ti-building-skyscraper' },
 ]};
 
+function ThemeToggle() {
+  const [theme, setTheme] = useState<Theme>('light');
+  useEffect(() => { setTheme(getTheme()); }, []);
+  return (
+    <button onClick={() => setTheme(toggleTheme())} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+      className="h-9 w-9 grid place-items-center rounded-md border border-line text-muted hover:text-content hover:bg-surface2 transition">
+      <Icon name={theme === 'dark' ? 'ti-sun' : 'ti-moon'} className="text-base" />
+    </button>
+  );
+}
+
 export default function Layout({ title, children }: { title: string; children: React.ReactNode }) {
   const router = useRouter();
   const { user, orgs, platformAdmin, sidebarCollapsed, toggleSidebar, setActiveOrg, clear } = useAuthStore();
@@ -76,7 +88,7 @@ export default function Layout({ title, children }: { title: string; children: R
     return () => { active = false; };
   }, [router]);
 
-  if (checking) return <div className="h-screen bg-paper"><Spinner /></div>;
+  if (checking) return <div className="h-screen bg-bg"><Spinner /></div>;
 
   const logout = async () => { await signOut(); clear(); router.replace('/login'); };
   const collapsed = sidebarCollapsed;
@@ -93,30 +105,29 @@ export default function Layout({ title, children }: { title: string; children: R
   };
 
   return (
-    <div className="flex h-screen bg-paper text-ink">
-      <aside className={`shrink-0 flex flex-col text-white transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-60'}`}
-        style={{ background: 'var(--brand-ink, #0E2233)' }}>
+    <div className="flex h-screen bg-bg text-content">
+      <aside className={`side shrink-0 flex flex-col transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-60'}`}>
         {/* Brand + org switcher */}
         <div className="relative h-14 flex items-center gap-2.5 px-3 border-b border-white/10">
           {activeOrg?.branding?.logo_url
             ? <img src={activeOrg.branding.logo_url} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
-            : <span className="w-7 h-7 rounded-md grid place-items-center text-sm font-semibold shrink-0"
-                style={{ background: 'var(--brand-primary, #2D7FF9)' }}>
+            : <span className="w-7 h-7 rounded-md grid place-items-center text-sm font-semibold shrink-0 text-accentfg"
+                style={{ background: 'var(--brand-primary, #3ECF8E)' }}>
                 {(activeOrg?.name || 'S').charAt(0).toUpperCase()}
               </span>}
           {!collapsed && (
-            <button onClick={() => setOrgMenu((v) => !v)} className="flex-1 min-w-0 flex items-center gap-1 text-left">
+            <button onClick={() => setOrgMenu((v) => !v)} className="flex-1 min-w-0 flex items-center gap-1 text-left side-fg">
               <span className="font-semibold truncate">{activeOrg?.name || 'SNR-PMO'}</span>
-              {orgs.length > 1 && <Icon name="ti-selector" className="text-white/50 text-sm" />}
+              {orgs.length > 1 && <Icon name="ti-selector" className="side-dim text-sm" />}
             </button>
           )}
           {!collapsed && orgMenu && orgs.length > 0 && (
-            <div className="absolute left-2 right-2 top-14 z-20 bg-white text-ink rounded-md border border-line shadow-lg py-1">
+            <div className="absolute left-2 right-2 top-14 z-20 bg-surface text-content rounded-md border border-line shadow-lg py-1">
               {orgs.map((o) => (
                 <button key={o.id} onClick={() => { setActiveOrg(o.id); setOrgMenu(false); }}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-paper ${o.id === activeOrg?.id ? 'font-medium' : ''}`}>
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface2 ${o.id === activeOrg?.id ? 'font-medium' : ''}`}>
                   <span className="truncate">{o.name}</span>
-                  <span className="text-2xs text-neutral-400">{roleLabel(o.member_role)}</span>
+                  <span className="text-2xs text-muted2">{roleLabel(o.member_role)}</span>
                 </button>
               ))}
             </div>
@@ -127,7 +138,7 @@ export default function Layout({ title, children }: { title: string; children: R
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
           {groups.map((g) => (
             <div key={g.heading} className="pt-2">
-              {!collapsed && <p className="px-2.5 pb-1 text-2xs uppercase tracking-wider text-white/35">{g.heading}</p>}
+              {!collapsed && <p className="px-2.5 pb-1 text-2xs uppercase tracking-wider side-faint">{g.heading}</p>}
               {collapsed && <div className="mx-2 my-2 h-px bg-white/10" />}
               {g.items.map((i) => <NavLink key={i.href} {...i} />)}
             </div>
@@ -135,7 +146,7 @@ export default function Layout({ title, children }: { title: string; children: R
         </nav>
 
         {/* Collapse toggle + user */}
-        <button onClick={toggleSidebar} className="sb-item mx-2 mb-1 text-white/60 hover:text-white">
+        <button onClick={toggleSidebar} className="sb-item mx-2 mb-1">
           <Icon name={collapsed ? 'ti-layout-sidebar-left-expand' : 'ti-layout-sidebar-left-collapse'} className="text-base" />
           {!collapsed && <span>Collapse</span>}
         </button>
@@ -144,11 +155,11 @@ export default function Layout({ title, children }: { title: string; children: R
             <Avatar name={user?.full_name || 'U'} size={32} />
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">{user?.full_name}</p>
-                <p className="text-2xs text-white/50 truncate">{roleLabel(activeOrg?.member_role)}</p>
+                <p className="text-sm font-medium truncate side-fg">{user?.full_name}</p>
+                <p className="text-2xs side-dim truncate">{roleLabel(activeOrg?.member_role)}</p>
               </div>
             )}
-            <button onClick={logout} title="Sign out" className="p-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10">
+            <button onClick={logout} title="Sign out" className="p-1.5 rounded-md side-dim hover:text-white hover:bg-white/10">
               <Icon name="ti-logout" className="text-base" />
             </button>
           </div>
@@ -156,12 +167,13 @@ export default function Layout({ title, children }: { title: string; children: R
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 shrink-0 border-b border-line bg-white/80 backdrop-blur flex items-center justify-between px-6">
+        <header className="h-14 shrink-0 border-b border-line bg-surface/80 backdrop-blur flex items-center justify-between px-6">
           <h2 className="font-medium">{title}</h2>
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm text-neutral-400">
+            <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm text-muted2">
               <Icon name="ti-search" />Search
             </div>
+            <ThemeToggle />
             <NotificationBell />
           </div>
         </header>

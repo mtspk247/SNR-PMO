@@ -149,7 +149,7 @@ export default function SettingsPage() {
           <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-3">Preview</p>
           <div className="rounded-lg overflow-hidden border border-line">
             <div className="flex h-40">
-              <div className="w-28 shrink-0 p-2.5 text-white" style={{ background: ink }}>
+              <div className="w-28 shrink-0 p-2.5 text-[#fff]" style={{ background: ink }}>
                 <div className="flex items-center gap-2 mb-3">
                   {logo
                     ? <img src={logo} alt="" className="w-6 h-6 rounded object-cover" />

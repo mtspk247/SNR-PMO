@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,51 +6,85 @@
 * { box-sizing: border-box; }
 html, body, #__next { height: 100%; }
 
-/* Per-tenant branding tokens (overridden at runtime from org.branding) */
+/* ---- Theme tokens (RGB channel triplets so Tailwind alpha modifiers work) ----
+   Light is the default (:root). Dark overrides via [data-theme="dark"].
+   Per-tenant white-label still overrides --brand-* (hex) at runtime. */
 :root {
-  --brand-primary: #2D7FF9;
+  --bg: 249 249 248;
+  --surface: 255 255 255;
+  --surface-2: 244 244 242;
+  --border: 230 229 225;
+  --content: 28 27 25;
+  --content-soft: 64 62 58;
+  --muted: 115 113 108;
+  --muted-2: 160 158 152;
+  --accent: 62 207 142;          /* Supabase green #3ECF8E */
+  --accent-strong: 13 132 89;    /* readable green for text/links on light */
+  --accent-fg: 6 30 20;          /* dark text on green fills */
+
+  /* White-label brand tokens (hex; overridden from org.branding) */
+  --brand-primary: #3ECF8E;
   --brand-accent: #6FD3D9;
-  --brand-ink: #0E2233;
+  --brand-ink: #171717;          /* sidebar/login dark surface */
 }
+[data-theme="dark"] {
+  --bg: 23 23 23;
+  --surface: 30 30 30;
+  --surface-2: 38 38 37;
+  --border: 48 48 46;
+  --content: 237 237 235;
+  --content-soft: 201 201 198;
+  --muted: 150 150 146;
+  --muted-2: 117 117 113;
+  --accent: 62 207 142;
+  --accent-strong: 62 207 142;
+  --accent-fg: 6 30 20;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  color: #1c1b19;
-  background: #f7f6f3;
+  color: rgb(var(--content));
+  background: rgb(var(--bg));
   -webkit-font-smoothing: antialiased;
 }
 
 @layer components {
-  .card { @apply bg-white border border-line rounded-lg; }
-  .stat { @apply bg-white border border-line rounded-lg p-4; }
+  .card { @apply bg-surface border border-line rounded-lg; }
+  .stat { @apply bg-surface border border-line rounded-lg p-4; }
 
-  .btn { @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-md text-sm font-medium border border-line bg-white text-ink transition hover:bg-paper active:scale-[.99] disabled:opacity-50; }
-  .btn-primary { @apply bg-ink text-white border-ink hover:bg-ink-soft; }
-  .btn-ghost { @apply border-transparent bg-transparent hover:bg-line/60; }
+  .btn { @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-md text-sm font-medium border border-line bg-surface text-content transition hover:bg-bg active:scale-[.99] disabled:opacity-50; }
+  .btn-primary { @apply bg-accent border-transparent text-accentfg hover:opacity-90 hover:bg-accent; }
+  .btn-ghost { @apply border-transparent bg-transparent hover:bg-surface2; }
+  .btn-danger { @apply border-transparent bg-rose-500 text-[#fff] hover:bg-rose-600; }
 
-  .input { @apply h-9 w-full px-3 rounded-md border border-line bg-white text-sm text-ink placeholder:text-neutral-400 outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200; }
-  .label { @apply block text-xs font-medium text-neutral-500 mb-1; }
+  .input { @apply h-9 w-full px-3 rounded-md border border-line bg-surface text-sm text-content placeholder:text-muted2 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30; }
+  .textarea { @apply w-full px-3 py-2 rounded-md border border-line bg-surface text-sm text-content placeholder:text-muted2 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 resize-none; }
+  .label { @apply block text-xs font-medium text-muted mb-1; }
 
   .pill { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-2xs font-medium leading-5; }
-  .pill-green { @apply bg-emerald-50 text-emerald-700; }
-  .pill-amber { @apply bg-amber-50 text-amber-700; }
-  .pill-blue  { @apply bg-sky-50 text-sky-700; }
-  .pill-red   { @apply bg-rose-50 text-rose-700; }
-  .pill-gray  { @apply bg-neutral-100 text-neutral-600; }
-  .pill-violet{ @apply bg-violet-50 text-violet-700; }
+  .pill-green { @apply bg-emerald-500/15 text-emerald-600; }
+  .pill-amber { @apply bg-amber-500/15 text-amber-600; }
+  .pill-blue  { @apply bg-sky-500/15 text-sky-600; }
+  .pill-red   { @apply bg-rose-500/15 text-rose-600; }
+  .pill-gray  { @apply bg-muted/15 text-muted; }
+  .pill-violet{ @apply bg-violet-500/15 text-violet-600; }
 
-  .nav-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-neutral-600 hover:bg-paper transition; }
-  .nav-item-active { @apply bg-white border border-line text-ink font-medium shadow-[0_1px_0_rgba(0,0,0,0.02)]; }
+  /* Dark sidebar + login panel (constant across themes) */
+  .side { background: var(--brand-ink, #171717); color: rgba(255,255,255,.92); }
+  .side-fg { color: rgba(255,255,255,.92); }
+  .side-dim { color: rgba(255,255,255,.55); }
+  .side-faint { color: rgba(255,255,255,.38); }
+  .sb-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition cursor-pointer; color: rgba(255,255,255,.66); }
+  .sb-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+  .sb-item-active { background: rgb(var(--accent) / .15); color: #fff; box-shadow: inset 2px 0 0 rgb(var(--accent)); }
+  .sb-item-active:hover { background: rgb(var(--accent) / .18); color: #fff; }
 
-  /* Navy sidebar (PPM-Express look) */
-  .sb-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-white/70 hover:bg-white/10 hover:text-white transition cursor-pointer; }
-  .sb-item-active { @apply bg-white text-ink font-medium hover:bg-white hover:text-ink; }
-
-  .th { @apply text-left font-normal text-neutral-400 text-xs px-3 py-2; }
+  .th { @apply text-left font-normal text-muted2 text-xs px-3 py-2; }
   .td { @apply px-3 py-2.5 text-sm align-middle; }
-  .row { @apply border-t border-line hover:bg-paper/70; }
+  .row { @apply border-t border-line hover:bg-surface2/60; }
 }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-thumb { background: #d8d6d0; border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: #c2c0b9; }
+::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-2)); }

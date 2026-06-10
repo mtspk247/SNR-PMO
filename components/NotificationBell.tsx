@@ -42,7 +42,7 @@ export default function NotificationBell() {
     <div className="relative" ref={ref}>
       <button onClick={() => { setOpen((o) => !o); if (!open) load(); }} className="btn-ghost p-2 rounded-md text-neutral-500 relative">
         <Icon name="ti-bell" className="text-base" />
-        {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-2xs grid place-items-center">{unread > 9 ? '9+' : unread}</span>}
+        {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-[#fff] text-2xs grid place-items-center">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {open && (
         <div className="absolute right-0 top-11 z-30 w-80 bg-white border border-line rounded-lg shadow-xl">
