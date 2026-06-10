@@ -76,9 +76,22 @@ export default function Layout({ title, children }: { title: string; children: R
     .filter((g) => g.items.length > 0);
   const [checking, setChecking] = useState(true);
   const [orgMenu, setOrgMenu] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);  // off-canvas drawer (< lg)
+  const [isLg, setIsLg] = useState(true);                // collapse is a desktop-only concept
 
   // Re-apply branding when the active org changes (covers org switch + apex domain).
   useEffect(() => { applyBranding(activeOrg); }, [activeOrg?.id, JSON.stringify(activeOrg?.branding)]);
+
+  // Track the lg breakpoint so the rail only collapses on desktop; mobile is always full-width.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setIsLg(mq.matches);
+    sync(); mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  // Close the drawer whenever the route changes (mobile nav tap).
+  useEffect(() => { setMobileOpen(false); }, [router.pathname]);
 
   // Auth guard straight from the Supabase session (avoids store-timing flicker).
   useEffect(() => {
@@ -94,7 +107,7 @@ export default function Layout({ title, children }: { title: string; children: R
   if (checking) return <div className="h-screen bg-bg"><Spinner /></div>;
 
   const logout = async () => { await signOut(); clear(); router.replace('/login'); };
-  const collapsed = sidebarCollapsed;
+  const collapsed = isLg && sidebarCollapsed;   // never collapse the mobile drawer
 
   const NavLink = ({ href, label, icon }: Item) => {
     const active = router.pathname === href;
@@ -109,7 +122,11 @@ export default function Layout({ title, children }: { title: string; children: R
 
   return (
     <div className="flex h-screen bg-bg text-content">
-      <aside className={`side shrink-0 flex flex-col transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-60'}`}>
+      {/* Mobile drawer backdrop */}
+      {mobileOpen && <div onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-black/40 lg:hidden" aria-hidden />}
+      <aside className={`side shrink-0 flex flex-col z-40 fixed inset-y-0 left-0 w-60 transition-transform duration-200
+        lg:static lg:z-auto lg:transition-[width] ${collapsed ? 'lg:w-16' : 'lg:w-60'}
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Brand + org switcher */}
         <div className="relative h-14 flex items-center gap-2.5 px-3 border-b border-line">
           {activeOrg?.branding?.logo_url
@@ -149,7 +166,7 @@ export default function Layout({ title, children }: { title: string; children: R
         </nav>
 
         {/* Collapse toggle + user */}
-        <button onClick={toggleSidebar} className="sb-item mx-2 mb-1">
+        <button onClick={toggleSidebar} className="sb-item mx-2 mb-1 hidden lg:flex">
           <Icon name={collapsed ? 'ti-layout-sidebar-left-expand' : 'ti-layout-sidebar-left-collapse'} className="text-base" />
           {!collapsed && <span>Collapse</span>}
         </button>
@@ -170,9 +187,15 @@ export default function Layout({ title, children }: { title: string; children: R
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 shrink-0 border-b border-line bg-surface/80 backdrop-blur flex items-center justify-between px-6">
-          <h2 className="font-medium">{title}</h2>
-          <div className="flex items-center gap-3">
+        <header className="h-14 shrink-0 border-b border-line bg-surface/80 backdrop-blur flex items-center justify-between gap-2 px-4 sm:px-6">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <button onClick={() => setMobileOpen(true)} aria-label="Open menu"
+              className="lg:hidden h-9 w-9 -ml-1.5 grid place-items-center rounded-md text-muted hover:text-content hover:bg-surface2 transition">
+              <Icon name="ti-menu-2" className="text-lg" />
+            </button>
+            <h2 className="font-medium truncate">{title}</h2>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm text-muted2">
               <Icon name="ti-search" />Search
             </div>
@@ -180,7 +203,7 @@ export default function Layout({ title, children }: { title: string; children: R
             <NotificationBell />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );
