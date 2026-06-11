@@ -135,15 +135,15 @@ export default function CRM() {
 
   // ----- shared detail panel: sidebar on xl+, overlay drawer below -----
   const DetailPanel = () => !selected ? (
-    <div className="card p-5 text-sm text-neutral-400">Select a deal</div>
+    <div className="card p-5 text-sm text-muted2">Select a deal</div>
   ) : (
     <div className="card p-5 sticky top-0">
       <div className="flex items-center gap-2 mb-3">
         <Pill label={selected.stage} />
         <div className="ml-auto flex items-center gap-1">
-          <button onClick={() => setEditDeal(selected)} className="p-1.5 rounded text-neutral-400 hover:text-ink" title="Edit deal"><Icon name="ti-pencil" /></button>
-          <button onClick={() => removeDeal(selected)} disabled={busy} className="p-1.5 rounded text-neutral-400 hover:text-rose-600" title="Delete deal"><Icon name="ti-trash" /></button>
-          <button onClick={() => setShowDetail(false)} className="p-1.5 rounded text-neutral-400 hover:text-ink xl:hidden" title="Close"><Icon name="ti-x" /></button>
+          <button onClick={() => setEditDeal(selected)} className="btn-ghost p-1.5 rounded text-muted hover:text-content" title="Edit deal"><Icon name="ti-pencil" /></button>
+          <button onClick={() => removeDeal(selected)} disabled={busy} className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500" title="Delete deal"><Icon name="ti-trash" /></button>
+          <button onClick={() => setShowDetail(false)} className="btn-ghost p-1.5 rounded text-muted hover:text-content xl:hidden" title="Close"><Icon name="ti-x" /></button>
         </div>
       </div>
       <h3 className="text-base font-semibold leading-snug">{selected.title}</h3>
@@ -162,13 +162,13 @@ export default function CRM() {
           ['Expected close', selected.expected_close || '—'],
         ].map(([k, v], i) => (
           <div key={i} className="flex items-center justify-between text-sm">
-            <dt className="text-neutral-500">{k as string}</dt><dd className="font-medium">{v as any}</dd>
+            <dt className="text-muted">{k as string}</dt><dd className="font-medium">{v as any}</dd>
           </div>
         ))}
       </dl>
       {selected.crm_contacts?.email && (
         <div className="mt-5 pt-4 border-t border-line">
-          <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Primary contact</p>
+          <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Primary contact</p>
           <div className="flex items-center gap-2">
             <Avatar name={selected.crm_contacts.full_name} size={28} />
             <div className="min-w-0">
@@ -180,12 +180,12 @@ export default function CRM() {
       )}
       {selected.notes && (
         <div className="mt-5 pt-4 border-t border-line">
-          <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Notes</p>
-          <p className="text-sm text-neutral-600 leading-relaxed">{selected.notes}</p>
+          <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Notes</p>
+          <p className="text-sm text-contentsoft leading-relaxed">{selected.notes}</p>
         </div>
       )}
       <div className="mt-5 pt-4 border-t border-line">
-        <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Activity</p>
+        <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Activity</p>
         <div className="flex gap-2 mb-3">
           <select value={actKind} onChange={(e) => setActKind(e.target.value)} className="input w-24 py-1 text-xs">
             {ACT_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
@@ -196,17 +196,17 @@ export default function CRM() {
             <Icon name="ti-plus" />
           </button>
         </div>
-        {actsLoading ? <p className="text-2xs text-neutral-400">Loading…</p>
-          : acts.length === 0 ? <p className="text-2xs text-neutral-400">No activity yet.</p> : (
+        {actsLoading ? <p className="text-2xs text-muted2">Loading…</p>
+          : acts.length === 0 ? <p className="text-2xs text-muted2">No activity yet.</p> : (
           <ul className="space-y-3 max-h-72 overflow-y-auto">
             {acts.map((a) => (
               <li key={a.id} className="flex gap-2.5 group">
-                <span className="w-6 h-6 rounded-full bg-neutral-100 grid place-items-center text-neutral-500 shrink-0 mt-0.5"><Icon name={actMeta(a.kind).icon} className="text-xs" /></span>
+                <span className="w-6 h-6 rounded-full bg-surface2 grid place-items-center text-muted shrink-0 mt-0.5"><Icon name={actMeta(a.kind).icon} className="text-xs" /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-ink leading-snug break-words">{a.body}</p>
-                  <p className="text-2xs text-neutral-400">{actMeta(a.kind).label} · {actWhen(a.created_at)}</p>
+                  <p className="text-sm text-content leading-snug break-words">{a.body}</p>
+                  <p className="text-2xs text-muted2">{actMeta(a.kind).label} · {actWhen(a.created_at)}</p>
                 </div>
-                <button onClick={() => removeActivity(a.id)} className="text-neutral-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 shrink-0" title="Delete"><Icon name="ti-trash" className="text-xs" /></button>
+                <button onClick={() => removeActivity(a.id)} className="text-muted2 hover:text-rose-500 opacity-0 group-hover:opacity-100 shrink-0" title="Delete"><Icon name="ti-trash" className="text-xs" /></button>
               </li>
             ))}
           </ul>
@@ -217,7 +217,7 @@ export default function CRM() {
 
   const Tab = ({ id, label }: { id: 'pipeline' | 'contacts'; label: string }) => (
     <button onClick={() => setView(id)}
-      className={`px-3 h-8 rounded-md text-sm font-medium transition ${view === id ? 'bg-white border border-line text-ink' : 'text-neutral-500 hover:text-ink'}`}>{label}</button>
+      className={`px-3 h-8 rounded-md text-sm font-medium transition ${view === id ? 'bg-surface border border-line text-content' : 'text-muted hover:text-content'}`}>{label}</button>
   );
 
   const Summary = ({ icon, tone, label, value, sub }:
@@ -228,7 +228,7 @@ export default function CRM() {
         <span className="text-sm font-medium">{label}</span>
       </div>
       <p className="text-lg font-semibold mt-2">{value}</p>
-      <p className="text-2xs text-neutral-400 mt-0.5">{sub}</p>
+      <p className="text-2xs text-muted2 mt-0.5">{sub}</p>
     </div>
   );
 
@@ -237,7 +237,7 @@ export default function CRM() {
       <PageHeader title="CRM" subtitle={`${deals.length} deals · ${contacts.length} contacts`}
         action={
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-paper border border-line rounded-lg p-1"><Tab id="pipeline" label="Pipeline" /><Tab id="contacts" label="Contacts" /></div>
+            <div className="flex items-center gap-1 bg-surface2 border border-line rounded-lg p-1"><Tab id="pipeline" label="Pipeline" /><Tab id="contacts" label="Contacts" /></div>
             {view === 'pipeline'
               ? <button onClick={() => setShowDeal(true)} className="btn btn-primary"><Icon name="ti-plus" />New deal</button>
               : <button onClick={() => setShowContact(true)} className="btn btn-primary"><Icon name="ti-plus" />New contact</button>}
@@ -247,28 +247,28 @@ export default function CRM() {
       {loading ? <Spinner /> : view === 'pipeline' ? (
         <div className="flex flex-col h-full">
           <div className="flex gap-3 mb-4">
-            <Summary icon="ti-target" tone="bg-sky-50 text-sky-600" label="Open pipeline" value={money(pipelineValue)} sub={`${openDeals.length} active deals`} />
-            <Summary icon="ti-trophy" tone="bg-emerald-50 text-emerald-600" label="Won" value={money(wonValue)} sub={`${deals.filter(d => d.stage === 'Won').length} closed won`} />
-            <Summary icon="ti-chart-pie" tone="bg-violet-50 text-violet-600" label="Avg deal" value={money(deals.length ? Math.round(deals.reduce((a, d) => a + (d.value || 0), 0) / deals.length) : 0)} sub="across all stages" />
+            <Summary icon="ti-target" tone="bg-sky-500/10 text-sky-600" label="Open pipeline" value={money(pipelineValue)} sub={`${openDeals.length} active deals`} />
+            <Summary icon="ti-trophy" tone="bg-emerald-500/10 text-emerald-600" label="Won" value={money(wonValue)} sub={`${deals.filter(d => d.stage === 'Won').length} closed won`} />
+            <Summary icon="ti-chart-pie" tone="bg-violet-500/10 text-violet-600" label="Avg deal" value={money(deals.length ? Math.round(deals.reduce((a, d) => a + (d.value || 0), 0) / deals.length) : 0)} sub="across all stages" />
           </div>
 
           <div className="flex items-center gap-2 mb-3">
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-white flex-1 max-w-xs">
-              <Icon name="ti-search" className="text-neutral-400" />
+            <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-surface flex-1 max-w-xs">
+              <Icon name="ti-search" className="text-muted2" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals or companies"
-                className="bg-transparent outline-none text-sm w-full" />
+                className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
             </div>
-            <span className="text-2xs text-neutral-400 ml-2">Sort</span>
+            <span className="text-2xs text-muted2 ml-2">Sort</span>
             {(['value', 'stage', 'close'] as const).map((s) => (
               <button key={s} onClick={() => setSort(s)}
-                className={`h-8 px-2.5 rounded-md text-xs capitalize ${sort === s ? 'bg-white border border-line text-ink' : 'text-neutral-500'}`}>{s}</button>
+                className={`h-8 px-2.5 rounded-md text-xs capitalize ${sort === s ? 'bg-surface border border-line text-content' : 'text-muted'}`}>{s}</button>
             ))}
           </div>
 
           <div className="lg:hidden flex gap-1.5 overflow-x-auto pb-2 mb-1">
             {STAGES.map((s) => (
               <button key={s} onClick={() => toggleStage(s)}
-                className={`shrink-0 h-7 px-2.5 rounded-full text-xs border transition ${stageFilter.has(s) ? 'bg-ink text-white border-ink' : 'bg-white text-neutral-500 border-line'}`}>
+                className={`shrink-0 h-7 px-2.5 rounded-full text-xs border transition ${stageFilter.has(s) ? 'bg-accent text-accentfg border-accent' : 'bg-surface text-muted border-line'}`}>
                 {s}<span className="ml-1 text-2xs opacity-70">{deals.filter(d => d.stage === s).length}</span>
               </button>
             ))}
@@ -276,12 +276,12 @@ export default function CRM() {
 
           <div className="flex gap-4 flex-1 min-h-0">
             <aside className="w-48 shrink-0 hidden lg:block">
-              <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Stage</p>
+              <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Stage</p>
               <div className="space-y-1">
                 {STAGES.map((s) => (
-                  <label key={s} className="flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
-                    <input type="checkbox" checked={stageFilter.has(s)} onChange={() => toggleStage(s)} className="accent-ink" />
-                    {s}<span className="ml-auto text-2xs text-neutral-400">{deals.filter(d => d.stage === s).length}</span>
+                  <label key={s} className="flex items-center gap-2 text-sm text-muted cursor-pointer">
+                    <input type="checkbox" checked={stageFilter.has(s)} onChange={() => toggleStage(s)} className="accent-accentstrong" />
+                    {s}<span className="ml-auto text-2xs text-muted2">{deals.filter(d => d.stage === s).length}</span>
                   </label>
                 ))}
               </div>
@@ -290,12 +290,12 @@ export default function CRM() {
             <div className="card flex-1 min-w-0 overflow-y-auto">
               {filtered.length === 0 ? <EmptyState text="No deals match" icon="ti-target" /> : filtered.map((d) => (
                 <button key={d.id} onClick={() => selectDeal(d.id)}
-                  className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line transition ${selectedId === d.id ? 'bg-sky-50/60 border-l-2 border-l-sky-500' : 'hover:bg-paper/70 border-l-2 border-l-transparent'}`}>
+                  className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line transition ${selectedId === d.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-ink truncate">{d.title}</p>
-                    <p className="text-2xs text-neutral-500 truncate">{d.crm_companies?.name || '—'}</p>
-                    <div className="h-1 rounded-full bg-neutral-100 mt-1.5 max-w-[160px] overflow-hidden">
-                      <div className="h-full rounded-full bg-ink/70" style={{ width: `${((d.value || 0) / maxValue) * 100}%` }} />
+                    <p className="text-sm font-medium text-content truncate">{d.title}</p>
+                    <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>
+                    <div className="h-1 rounded-full bg-surface2 mt-1.5 max-w-[160px] overflow-hidden">
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${((d.value || 0) / maxValue) * 100}%` }} />
                     </div>
                   </div>
                   <Pill label={d.stage} />
@@ -322,11 +322,11 @@ export default function CRM() {
                 {cpg.pageItems.map((c) => (
                   <tr key={c.id} className="row">
                     <td className="td"><div className="flex items-center gap-2.5"><Avatar name={c.full_name} size={28} /><span className="font-medium">{c.full_name}</span></div></td>
-                    <td className="td text-2xs text-neutral-500">{c.title || '—'}</td>
+                    <td className="td text-2xs text-muted">{c.title || '—'}</td>
                     <td className="td text-sm">{c.crm_companies?.name || '—'}</td>
                     <td className="td">{c.status && <Pill label={c.status} />}</td>
                     <td className="td text-2xs text-sky-600">{c.email || '—'}</td>
-                    <td className="td text-right"><button onClick={() => removeContact(c)} disabled={busy} className="text-neutral-300 hover:text-rose-600" title="Delete contact"><Icon name="ti-trash" /></button></td>
+                    <td className="td text-right"><button onClick={() => removeContact(c)} disabled={busy} className="text-muted2 hover:text-rose-500" title="Delete contact"><Icon name="ti-trash" /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -339,7 +339,7 @@ export default function CRM() {
 
       {showDetail && selected && view === 'pipeline' && (
         <div className="fixed inset-0 z-30 bg-black/30 flex items-stretch justify-end xl:hidden" onClick={() => setShowDetail(false)}>
-          <div className="bg-white w-full max-w-sm h-full overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface w-full max-w-sm h-full overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
             <DetailPanel />
           </div>
         </div>
