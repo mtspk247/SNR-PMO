@@ -9,35 +9,40 @@ import { hasFeature, roleAllowsFeature } from '@/lib/entitlements';
 import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
+import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
 
 // `feature` gates the item behind the active org's plan entitlement (3.3).
 // Items without a feature are core and always shown.
 type Item = { href: string; label: string; icon: string; feature?: FeatureKey };
-const GROUPS: { heading: string; items: Item[] }[] = [
-  { heading: 'Workspace', items: [
-    { href: '/dashboard', label: 'Dashboard', icon: 'ti-layout-dashboard' },
+type Section =
+  | { kind: 'link'; item: Item }
+  | { kind: 'menu'; key: string; label: string; icon: string; items: Item[] };
+
+const SECTIONS: Section[] = [
+  { kind: 'link', item: { href: '/dashboard', label: 'Dashboard', icon: 'ti-layout-dashboard' } },
+  { kind: 'menu', key: 'work', label: 'Work', icon: 'ti-briefcase', items: [
     { href: '/companies', label: 'Companies', icon: 'ti-building' },
     { href: '/portfolios', label: 'Portfolios', icon: 'ti-stack-2', feature: 'portfolios' },
     { href: '/projects', label: 'Projects', icon: 'ti-folder' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
   ]},
-  { heading: 'Tracking', items: [
+  { kind: 'menu', key: 'tracking', label: 'Tracking', icon: 'ti-chart-line', items: [
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
     { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
   ]},
-  { heading: 'Relations', items: [
-    { href: '/crm', label: 'CRM', icon: 'ti-users', feature: 'crm' },
+  { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
+    { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm' },
   ]},
-  { heading: 'People', items: [
+  { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
     { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
     { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr' },
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock' },
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },
   ]},
 ];
-const ADMIN_GROUP: { heading: string; items: Item[] } = { heading: 'Admin', items: [
+const ADMIN_SECTION: Section = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
   { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
@@ -46,9 +51,14 @@ const ADMIN_GROUP: { heading: string; items: Item[] } = { heading: 'Admin', item
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
 ]};
 // Super-super-admin (cross-tenant) — gated by platformAdmin, not a plan feature.
-const PLATFORM_GROUP: { heading: string; items: Item[] } = { heading: 'Platform', items: [
-  { href: '/platform', label: 'Tenants & Plans', icon: 'ti-building-skyscraper' },
-]};
+const PLATFORM_SECTION: Section = { kind: 'link', item: { href: '/platform', label: 'Platform', icon: 'ti-building-skyscraper' } };
+
+// Flat label lookup for route-derived breadcrumbs.
+const ROUTE_LABELS: Record<string, string> = {};
+for (const s of [...SECTIONS, ADMIN_SECTION, PLATFORM_SECTION]) {
+  if (s.kind === 'link') ROUTE_LABELS[s.item.href] = s.item.label;
+  else for (const i of s.items) ROUTE_LABELS[i.href] = i.label;
+}
 
 function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('light');
@@ -65,19 +75,36 @@ export default function Layout({ title, children }: { title: string; children: R
   const router = useRouter();
   const { user, orgs, platformAdmin, sidebarCollapsed, toggleSidebar, setActiveOrg, clear } = useAuthStore();
   const activeOrg = useActiveOrg();
-  // Compose nav: admin group for org admins, platform group for platform admins,
-  // then drop any item the active org's plan doesn't entitle (and empty groups).
-  const groups = [
-    ...GROUPS,
-    ...(can.manageMembers(activeOrg) ? [ADMIN_GROUP] : []),
-    ...(platformAdmin ? [PLATFORM_GROUP] : []),
+
+  const isActive = (href: string) => router.pathname === href || router.pathname.startsWith(href + '/');
+
+  // Compose nav: admin section for org admins, platform link for platform admins,
+  // then drop any item the active org's plan doesn't entitle (and empty menus).
+  const sections = [
+    ...SECTIONS,
+    ...(can.manageMembers(activeOrg) ? [ADMIN_SECTION] : []),
+    ...(platformAdmin ? [PLATFORM_SECTION] : []),
   ]
-    .map((g) => ({ ...g, items: g.items.filter((i) => hasFeature(activeOrg, i.feature) && roleAllowsFeature(user, i.feature)) }))
-    .filter((g) => g.items.length > 0);
+    .map((s) => s.kind === 'menu'
+      ? { ...s, items: s.items.filter((i) => hasFeature(activeOrg, i.feature) && roleAllowsFeature(user, i.feature)) }
+      : s)
+    .filter((s) => s.kind === 'link'
+      ? hasFeature(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature)
+      : s.items.length > 0);
+
   const [checking, setChecking] = useState(true);
   const [orgMenu, setOrgMenu] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);  // off-canvas drawer (< lg)
   const [isLg, setIsLg] = useState(true);                // collapse is a desktop-only concept
+
+  // Accordion: only the menu containing the current page stays expanded.
+  // Manual toggles live until the next route change re-syncs to the active menu.
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    const active = sections.find((s) => s.kind === 'menu' && s.items.some((i) => isActive(i.href)));
+    setOpenMenus(active && active.kind === 'menu' ? { [active.key]: true } : {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.pathname, sections.length]);
 
   // Re-apply branding when the active org changes (covers org switch + apex domain).
   useEffect(() => { applyBranding(activeOrg); }, [activeOrg?.id, JSON.stringify(activeOrg?.branding)]);
@@ -109,14 +136,42 @@ export default function Layout({ title, children }: { title: string; children: R
   const logout = async () => { await signOut(); clear(); router.replace('/login'); };
   const collapsed = isLg && sidebarCollapsed;   // never collapse the mobile drawer
 
-  const NavLink = ({ href, label, icon }: Item) => {
-    const active = router.pathname === href;
+  // Route-derived breadcrumb default; dynamic pages override via useSetCrumbs.
+  const parts = router.pathname.split('/').filter(Boolean);
+  const rootHref = '/' + (parts[0] || '');
+  const rootLabel = ROUTE_LABELS[rootHref];
+  const defaultCrumbs: Crumb[] = parts.length > 1 && rootLabel
+    ? [{ label: rootLabel, href: rootHref }, { label: title }]
+    : [{ label: title }];
+
+  const NavLink = ({ href, label, icon, sub = false }: Item & { sub?: boolean }) => {
+    const active = isActive(href);
     return (
       <Link href={href} title={collapsed ? label : undefined}
-        className={`sb-item ${active ? 'sb-item-active' : ''} ${collapsed ? 'justify-center px-0' : ''}`}>
-        <Icon name={icon} className="text-base shrink-0" />
+        className={`sb-item ${active ? 'sb-item-active' : ''} ${collapsed ? 'justify-center px-0' : ''} ${sub && !collapsed ? 'py-1.5' : ''}`}>
+        <Icon name={icon} className={`shrink-0 ${sub && !collapsed ? 'text-sm' : 'text-base'}`} />
         {!collapsed && <span className="truncate">{label}</span>}
       </Link>
+    );
+  };
+
+  const Menu = ({ section: s }: { section: Extract<Section, { kind: 'menu' }> }) => {
+    const open = !!openMenus[s.key];
+    const containsActive = s.items.some((i) => isActive(i.href));
+    return (
+      <div>
+        <button onClick={() => setOpenMenus((p) => ({ ...p, [s.key]: !p[s.key] }))}
+          className={`sb-item w-full ${containsActive && !open ? 'sb-item-active' : ''}`}>
+          <Icon name={s.icon} className="text-base shrink-0" />
+          <span className="flex-1 text-left truncate font-medium">{s.label}</span>
+          <Icon name="ti-chevron-down" className={`text-xs text-muted2 transition-transform ${open ? '' : '-rotate-90'}`} />
+        </button>
+        {open && (
+          <div className="ml-[1.05rem] pl-2 border-l border-line space-y-0.5 mt-0.5">
+            {s.items.map((i) => <NavLink key={i.href} {...i} sub />)}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -125,10 +180,17 @@ export default function Layout({ title, children }: { title: string; children: R
       {/* Mobile drawer backdrop */}
       {mobileOpen && <div onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-black/40 lg:hidden" aria-hidden />}
       <aside className={`side shrink-0 flex flex-col z-40 fixed inset-y-0 left-0 w-60 transition-transform duration-200
-        lg:static lg:z-auto lg:transition-[width] ${collapsed ? 'lg:w-16' : 'lg:w-60'}
+        lg:relative lg:z-auto lg:transition-[width] ${collapsed ? 'lg:w-16' : 'lg:w-60'}
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        {/* Edge collapse toggle — sits on the sidebar's right border (desktop only). */}
+        <button onClick={toggleSidebar} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="hidden lg:grid absolute -right-3 top-[4.5rem] z-50 h-6 w-6 place-items-center rounded-full
+            border border-line bg-surface shadow-sm text-muted hover:text-content hover:border-accent/60 transition">
+          <Icon name={collapsed ? 'ti-chevron-right' : 'ti-chevron-left'} className="text-xs" />
+        </button>
+
         {/* Brand + org switcher */}
-        <div className="relative h-14 flex items-center gap-2.5 px-3 border-b border-line">
+        <div className="relative h-14 shrink-0 flex items-center gap-2.5 px-3 border-b border-line">
           {activeOrg?.branding?.logo_url
             ? <img src={activeOrg.branding.logo_url} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
             : <span className="w-7 h-7 rounded-md grid place-items-center text-sm font-semibold shrink-0 text-accentfg"
@@ -154,22 +216,26 @@ export default function Layout({ title, children }: { title: string; children: R
           )}
         </div>
 
-        {/* Grouped nav */}
+        {/* Categorized nav: top-level links + accordion menus (flat icon rail when collapsed) */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          {groups.map((g) => (
-            <div key={g.heading} className="pt-2">
-              {!collapsed && <p className="px-2.5 pb-1 text-2xs uppercase tracking-wider side-faint">{g.heading}</p>}
-              {collapsed && <div className="mx-2 my-2 h-px side-divider" />}
-              {g.items.map((i) => <NavLink key={i.href} {...i} />)}
-            </div>
-          ))}
+          {sections.map((s, idx) => {
+            if (collapsed) {
+              // Collapsed: every leaf as an icon, thin divider between sections.
+              const items = s.kind === 'link' ? [s.item] : s.items;
+              return (
+                <div key={s.kind === 'link' ? s.item.href : s.key}>
+                  {idx > 0 && <div className="mx-2 my-2 h-px side-divider" />}
+                  {items.map((i) => <NavLink key={i.href} {...i} />)}
+                </div>
+              );
+            }
+            return s.kind === 'link'
+              ? <NavLink key={s.item.href} {...s.item} />
+              : <Menu key={s.key} section={s} />;
+          })}
         </nav>
 
-        {/* Collapse toggle + user */}
-        <button onClick={toggleSidebar} className="sb-item mx-2 mb-1 hidden lg:flex">
-          <Icon name={collapsed ? 'ti-layout-sidebar-left-expand' : 'ti-layout-sidebar-left-collapse'} className="text-base" />
-          {!collapsed && <span>Collapse</span>}
-        </button>
+        {/* User */}
         <div className="p-2 border-t border-line">
           <div className={`flex items-center gap-2.5 px-1 ${collapsed ? 'justify-center' : ''}`}>
             <Avatar name={user?.full_name || 'U'} size={32} />
@@ -193,7 +259,7 @@ export default function Layout({ title, children }: { title: string; children: R
               className="lg:hidden h-9 w-9 -ml-1.5 grid place-items-center rounded-md text-muted hover:text-content hover:bg-surface2 transition">
               <Icon name="ti-menu-2" className="text-lg" />
             </button>
-            <h2 className="font-medium truncate">{title}</h2>
+            <Breadcrumbs fallback={defaultCrumbs} />
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm text-muted2">
