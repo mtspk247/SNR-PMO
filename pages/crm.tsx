@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field } from '@/components/Modal';
 import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon } from '@/components/ui';
-import { getDeals, getContacts, getCompanies, createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity } from '@/lib/db';
+import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity } from '@/lib/db';
 import { Deal, Contact, Company, CrmActivity } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { useDeals, useContacts, useCrmCompanies } from '@/lib/queries';
+import { qk } from '@/lib/queryKeys';
+import { usePagination, Pagination } from '@/components/Pagination';
 
 const STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 const STAGE_RANK: Record<string, number> = { Lead: 1, Qualified: 2, Proposal: 3, Negotiation: 4, Won: 5, Lost: 0 };
@@ -21,11 +25,12 @@ const actWhen = (iso?: string) => (iso ? new Date(iso).toLocaleString(undefined,
 export default function CRM() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
+  const qc = useQueryClient();
   const [view, setView] = useState<'pipeline' | 'contacts'>('pipeline');
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: deals = [], isLoading: dealsLoading } = useDeals();
+  const { data: contacts = [], isLoading: contactsLoading } = useContacts();
+  const { data: companies = [], isLoading: companiesLoading } = useCrmCompanies();
+  const loading = dealsLoading || contactsLoading || companiesLoading;
 
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Set<string>>(new Set());
@@ -45,37 +50,40 @@ export default function CRM() {
   const [actBody, setActBody] = useState('');
   const [actBusy, setActBusy] = useState(false);
 
-  useEffect(() => {
-    Promise.all([getDeals(), getContacts(), getCompanies()])
-      .then(([d, c, co]) => { setDeals(d); setContacts(c); setCompanies(co); })
-      .finally(() => setLoading(false));
-  }, [org?.id]);
+  // Patch RQ caches in place with the authoritative rows db.ts returns —
+  // same data flow as the old local setState, no extra refetch round-trip.
+  const setDealsCache = (fn: (prev: Deal[]) => Deal[]) =>
+    qc.setQueryData<Deal[]>(qk.deals(org?.id), (prev) => fn(prev ?? []));
+  const setContactsCache = (fn: (prev: Contact[]) => Contact[]) =>
+    qc.setQueryData<Contact[]>(qk.contacts(org?.id), (prev) => fn(prev ?? []));
+  const setCompaniesCache = (fn: (prev: Company[]) => Company[]) =>
+    qc.setQueryData<Company[]>(qk.crmCompanies(org?.id), (prev) => fn(prev ?? []));
 
   // Create a CRM company on the fly (used by the deal/contact pickers).
   const addCompany = async (name: string): Promise<Company | null> => {
     if (!org) return null;
     const c = await createCrmCompany({ name, org_id: org.id, owner_id: me?.id });
-    setCompanies((p) => [...p, c].sort((a, b) => a.name.localeCompare(b.name)));
+    setCompaniesCache((p) => [...p, c].sort((a, b) => a.name.localeCompare(b.name)));
     return c;
   };
 
   const advance = async (d: Deal) => {
     if (d.stage === 'Won' || d.stage === 'Lost') return;
     setBusy(true);
-    try { const r = await advanceDealStage(d.id, d.stage); setDeals((p) => p.map((x) => (x.id === r.id ? r : x))); }
+    try { const r = await advanceDealStage(d.id, d.stage); setDealsCache((p) => p.map((x) => (x.id === r.id ? r : x))); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
   const removeDeal = async (d: Deal) => {
     if (!confirm(`Delete deal "${d.title}"? This can't be undone.`)) return;
     setBusy(true);
-    try { await deleteDeal(d.id); setDeals((p) => p.filter((x) => x.id !== d.id)); setSelectedId(null); setShowDetail(false); }
+    try { await deleteDeal(d.id); setDealsCache((p) => p.filter((x) => x.id !== d.id)); setSelectedId(null); setShowDetail(false); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const removeContact = async (c: Contact) => {
     if (!confirm(`Delete contact "${c.full_name}"?`)) return;
     setBusy(true);
-    try { await deleteContact(c.id); setContacts((p) => p.filter((x) => x.id !== c.id)); }
+    try { await deleteContact(c.id); setContactsCache((p) => p.filter((x) => x.id !== c.id)); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
@@ -121,6 +129,9 @@ export default function CRM() {
   const selected = filtered.find((d) => d.id === selectedId) || null;
   const maxValue = Math.max(1, ...deals.map((d) => d.value || 0));
   const selectDeal = (id: string) => { setSelectedId(id); setShowDetail(true); };
+
+  // Contacts table pagination (deals are a pipeline board — pagination N/A).
+  const cpg = usePagination(contacts, 25);
 
   // ----- shared detail panel: sidebar on xl+, overlay drawer below -----
   const DetailPanel = () => !selected ? (
@@ -308,7 +319,7 @@ export default function CRM() {
                 <th className="th">Status</th><th className="th">Email</th><th className="th w-10"></th>
               </tr></thead>
               <tbody>
-                {contacts.map((c) => (
+                {cpg.pageItems.map((c) => (
                   <tr key={c.id} className="row">
                     <td className="td"><div className="flex items-center gap-2.5"><Avatar name={c.full_name} size={28} /><span className="font-medium">{c.full_name}</span></div></td>
                     <td className="td text-2xs text-neutral-500">{c.title || '—'}</td>
@@ -321,6 +332,7 @@ export default function CRM() {
               </tbody>
             </table>
             </div>
+            <Pagination page={cpg.page} pageCount={cpg.pageCount} total={cpg.total} start={cpg.start} end={cpg.end} onPage={cpg.setPage} />
           </div>
         )
       )}
@@ -340,7 +352,7 @@ export default function CRM() {
             setBusy(true);
             try {
               const d = await createDeal({ ...p, org_id: org.id, owner_id: me?.id });
-              setDeals((prev) => [d, ...prev]); setSelectedId(d.id); setShowDeal(false); setView('pipeline');
+              setDealsCache((prev) => [d, ...prev]); setSelectedId(d.id); setShowDeal(false); setView('pipeline');
             } catch (e: any) { alert(e.message); } finally { setBusy(false); }
           }} />
       )}
@@ -352,7 +364,7 @@ export default function CRM() {
             setBusy(true);
             try {
               const c = await createContact({ ...p, org_id: org.id, owner_id: me?.id });
-              setContacts((prev) => [...prev, c].sort((a, b) => a.full_name.localeCompare(b.full_name)));
+              setContactsCache((prev) => [...prev, c].sort((a, b) => a.full_name.localeCompare(b.full_name)));
               setShowContact(false); setView('contacts');
             } catch (e: any) { alert(e.message); } finally { setBusy(false); }
           }} />
@@ -367,7 +379,7 @@ export default function CRM() {
             setBusy(true);
             try {
               const d = await updateDeal(editDeal.id, p);
-              setDeals((prev) => prev.map((x) => (x.id === d.id ? d : x))); setSelectedId(d.id); setEditDeal(null);
+              setDealsCache((prev) => prev.map((x) => (x.id === d.id ? d : x))); setSelectedId(d.id); setEditDeal(null);
             } catch (e: any) { alert(e.message); } finally { setBusy(false); }
           }} />
       )}

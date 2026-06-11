@@ -5,6 +5,7 @@ import {
   getProjects, createProject, updateProject, deleteProject,
   getOrgCompanies, getPortfolios,
   getAuditLog, getAttendance, getEmployees, getLeaves, getPayrollRuns,
+  getTasks, getDeals, getContacts, getCompanies,
 } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
@@ -89,4 +90,26 @@ export function useLeaves() {
 export function usePayrollRuns() {
   const org = useActiveOrg();
   return useQuery({ queryKey: qk.payrollRuns(org?.id), queryFn: getPayrollRuns, enabled: !!org });
+}
+
+// --- Tasks & CRM (batch 2) ---------------------------------------------------
+// Pages with fine-grained local mutations (tasks, crm) patch the cached list
+// in place via qc.setQueryData(qk.X(org?.id), ...) using the authoritative row
+// returned by db.ts — same "no extra round-trip" principle as the project
+// mutations above, without forcing a whole-list refetch per inline edit.
+export function useTasks() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.tasks(org?.id), queryFn: getTasks, enabled: !!org });
+}
+export function useDeals() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.deals(org?.id), queryFn: getDeals, enabled: !!org });
+}
+export function useContacts() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.contacts(org?.id), queryFn: getContacts, enabled: !!org });
+}
+export function useCrmCompanies() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.crmCompanies(org?.id), queryFn: getCompanies, enabled: !!org });
 }

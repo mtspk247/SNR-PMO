@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field } from '@/components/Modal';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader } from '@/components/ui';
-import { getTasks, getOrgUsers, getProjects, createTask, updateTask, deleteTask, notify } from '@/lib/db';
-import { Task, OrgUser, Project } from '@/lib/supabase';
+import { getOrgUsers, createTask, updateTask, deleteTask, notify } from '@/lib/db';
+import { Task, OrgUser } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { useTasks, useProjects } from '@/lib/queries';
+import { qk } from '@/lib/queryKeys';
+import { usePagination, Pagination } from '@/components/Pagination';
 import { can } from '@/lib/authz';
 import CommentsThread from '@/components/Comments';
 import TaskTags from '@/components/TaskTags';
@@ -33,10 +37,11 @@ export default function Tasks() {
   const activeOrg = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const canDelete = can.write(activeOrg);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const qc = useQueryClient();
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks();
+  const { data: projects = [] } = useProjects();
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
@@ -51,13 +56,16 @@ export default function Tasks() {
   const [form, setForm] = useState<TaskForm>(EMPTY_FORM);
 
   useEffect(() => {
-    Promise.all([getTasks(), getOrgUsers(), getProjects()])
-      .then(([t, u, p]) => { setTasks(t); setUsers(u); setProjects(p); })
-      .finally(() => setLoading(false));
+    getOrgUsers().then(setUsers).finally(() => setUsersLoading(false));
   }, []);
+  const loading = tasksLoading || usersLoading;
 
   const userName = (id?: string | null) => users.find((u) => u.id === id)?.full_name || (id ? '—' : 'Unassigned');
-  const patchLocal = (u: Task) => setTasks((prev) => prev.map((t) => (t.id === u.id ? u : t)));
+  // Patch the RQ cache in place with the authoritative row db.ts returned —
+  // same data flow as the old setTasks local state, no extra refetch.
+  const setCache = (fn: (prev: Task[]) => Task[]) =>
+    qc.setQueryData<Task[]>(qk.tasks(activeOrg?.id), (prev) => fn(prev ?? []));
+  const patchLocal = (u: Task) => setCache((prev) => prev.map((t) => (t.id === u.id ? u : t)));
 
   const roots = useMemo(() => tasks.filter((t) => !t.parent_task_id), [tasks]);
   const filtered = useMemo(() => {
@@ -71,6 +79,7 @@ export default function Tasks() {
       (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
     return r;
   }, [roots, query, statusFilter, priorityFilter, sort]);
+  const pg = usePagination(filtered, 25);
 
   const selected = tasks.find((t) => t.id === selectedId) || null;
   const subtasks = useMemo(() => tasks.filter((t) => t.parent_task_id === selectedId), [tasks, selectedId]);
@@ -96,7 +105,7 @@ export default function Tasks() {
     if (!selected || !subInput.trim()) return;
     mutate(async () => {
       const st = await createTask({ name: subInput.trim(), org_id: selected.org_id as string, project_id: selected.project_id, parent_task_id: selected.id, priority: 'Medium', status: 'To Do' });
-      setTasks((p) => [...p, st]); setSubInput('');
+      setCache((p) => [...p, st]); setSubInput('');
     });
   };
   const toggleSub = (st: Task) => mutate(async () => patchLocal(await updateTask(st.id, { status: st.status === 'Done' ? 'To Do' : 'Done' })));
@@ -107,7 +116,7 @@ export default function Tasks() {
     if (!confirm(`Delete task "${name}"? This can't be undone.`)) return;
     mutate(async () => {
       await deleteTask(id);
-      setTasks((p) => p.filter((t) => t.id !== id && t.parent_task_id !== id));
+      setCache((p) => p.filter((t) => t.id !== id && t.parent_task_id !== id));
       if (selectedId === id) { setSelectedId(null); setShowDetail(false); }
     });
   };
@@ -148,7 +157,7 @@ export default function Tasks() {
         const final = form.description.trim()
           ? await updateTask(t.id, { description: form.description.trim() })
           : t;
-        setTasks((p) => [...p, final]);
+        setCache((p) => [...p, final]);
         selectTask(final.id);
         setModal(null);
         if (form.assignee_id && form.assignee_id !== me?.id) notify({ org_id: activeOrg.id, user_id: form.assignee_id, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: final.name, link: '/tasks', entity_type: 'task', entity_id: final.id }).catch(() => {});
@@ -327,7 +336,7 @@ export default function Tasks() {
 
           <div className="flex gap-4 flex-1 min-h-0">
             <div className="card flex-1 min-w-0 overflow-y-auto">
-              {filtered.length === 0 ? <EmptyState text="No tasks match" /> : filtered.map((t) => {
+              {filtered.length === 0 ? <EmptyState text="No tasks match" /> : pg.pageItems.map((t) => {
                 const subs = tasks.filter((s) => s.parent_task_id === t.id);
                 const overdueRow = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
                 return (
@@ -367,6 +376,9 @@ export default function Tasks() {
                   </div>
                 );
               })}
+              {filtered.length > 0 && (
+                <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
+              )}
             </div>
 
             {/* Detail sidebar — visible permanently on xl+ */}
