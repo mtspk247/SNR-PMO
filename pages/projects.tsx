@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, PageHeader, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
-import { getProjects, createProject, updateProject, deleteProject, getOrgCompanies, getPortfolios } from '@/lib/db';
-import { Project, OrgCompany, Portfolio } from '@/lib/supabase';
+import { usePagination, Pagination } from '@/components/Pagination';
+import { useProjects, useOrgCompanies, usePortfolios, useCreateProject, useUpdateProject, useDeleteProject } from '@/lib/queries';
+import { Project } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 
@@ -15,22 +16,21 @@ const EMPTY = { name: '', description: '', status: 'Planning', priority: 'Medium
 export default function Projects() {
   const activeOrg = useActiveOrg();
   const me = useAuthStore((s) => s.user);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [companies, setCompanies] = useState<OrgCompany[]>([]);
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: projects = [], isLoading } = useProjects();
+  const { data: companies = [] } = useOrgCompanies();
+  const { data: portfolios = [] } = usePortfolios();
+  const createM = useCreateProject();
+  const updateM = useUpdateProject();
+  const deleteM = useDeleteProject();
+  const busy = createM.isPending || updateM.isPending || deleteM.isPending;
+
   const [showNew, setShowNew] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [np, setNp] = useState(EMPTY);
   const [editId, setEditId] = useState<string | null>(null);
   const canCreate = can.createProject(activeOrg);
 
-  useEffect(() => {
-    Promise.all([getProjects(), getOrgCompanies(), getPortfolios().catch(() => [] as Portfolio[])])
-      .then(([p, c, pf]) => { setProjects(p); setCompanies(c); setPortfolios(pf); })
-      .finally(() => setLoading(false));
-  }, [activeOrg?.id]);
+  const pg = usePagination(projects, 25);
 
   const portfolioName = (id?: string | null) => (id ? portfolios.find((pf) => pf.id === id)?.name : undefined);
   // Portfolios belong to a company; offer only those under the chosen company.
@@ -50,7 +50,7 @@ export default function Projects() {
 
   const submit = async () => {
     if (!activeOrg || !np.name.trim()) return;
-    setBusy(true); setErr('');
+    setErr('');
     try {
       const fields = {
         name: np.name.trim(), description: np.description.trim() || null,
@@ -58,30 +58,25 @@ export default function Projects() {
         start_date: np.start_date || null, end_date: np.end_date || null,
         company_id: np.company_id || null, portfolio_id: np.portfolio_id || null,
       };
-      const list = editId
-        ? await updateProject(editId, fields)
-        : await createProject({ ...fields, org_id: activeOrg.id, pm_id: me?.id || null, created_by: me?.id || null });
-      setProjects(list);
+      if (editId) await updateM.mutateAsync({ id: editId, patch: fields });
+      else await createM.mutateAsync({ ...fields, org_id: activeOrg.id, pm_id: me?.id || null, created_by: me?.id || null });
       setShowNew(false); setEditId(null); setNp(EMPTY);
     } catch (e: any) { setErr(e.message || 'Could not save project'); }
-    finally { setBusy(false); }
   };
   const remove = async () => {
     if (!editId || !confirm('Delete this project? This cannot be undone.')) return;
-    setBusy(true); setErr('');
+    setErr('');
     try {
-      await deleteProject(editId);
-      setProjects(await getProjects());
+      await deleteM.mutateAsync(editId);
       setShowNew(false); setEditId(null); setNp(EMPTY);
-    } catch (e: any) { setErr(e.message || 'Could not delete \u2014 remove its tasks, risks and financials first.'); }
-    finally { setBusy(false); }
+    } catch (e: any) { setErr(e.message || 'Could not delete — remove its tasks, risks and financials first.'); }
   };
 
   return (
     <Layout title="Projects">
       <PageHeader title="Projects" subtitle={`${projects.length} projects`}
         action={canCreate ? <button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New project</button> : undefined} />
-      {loading ? <Spinner /> : projects.length === 0 ? (
+      {isLoading ? <Spinner /> : projects.length === 0 ? (
         <EmptyState text={canCreate ? 'No projects yet — create your first one' : 'No projects yet'} />
       ) : (
         <div className="card overflow-hidden">
@@ -91,7 +86,7 @@ export default function Projects() {
               <th className="th">Timeline</th><th className="th w-44">Progress</th><th className="th w-10"></th>
             </tr></thead>
             <tbody>
-              {projects.map((p) => (
+              {pg.pageItems.map((p) => (
                 <tr key={p.id} onClick={() => openEdit(p)} className={`row ${canCreate ? 'cursor-pointer' : ''}`}>
                   <td className="td">
                     <p className="font-medium">{p.name}</p>
@@ -116,6 +111,7 @@ export default function Projects() {
               ))}
             </tbody>
           </table></div>
+          <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
         </div>
       )}
 
