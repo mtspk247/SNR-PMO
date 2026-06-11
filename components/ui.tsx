@@ -18,6 +18,8 @@ const COLOR: Record<string, string> = {
   // risks
   Open: 'pill-red', Mitigating: 'pill-amber', Monitoring: 'pill-blue', Closed: 'pill-green', Accepted: 'pill-gray',
   Operational: 'pill-blue', Financial: 'pill-violet', Technical: 'pill-amber', Schedule: 'pill-gray', External: 'pill-red',
+  // health
+  'On track': 'pill-green', 'At risk': 'pill-amber', 'Off track': 'pill-red',
 };
 
 export const Pill = ({ label }: { label: string }) => (
@@ -29,13 +31,13 @@ export const Avatar = ({ name, size = 28 }: { name: string; size?: number }) => 
   return (
     <span
       style={{ width: size, height: size, fontSize: size * 0.4 }}
-      className="inline-flex items-center justify-center rounded-full bg-neutral-200 text-neutral-700 font-medium shrink-0"
+      className="inline-flex items-center justify-center rounded-full bg-surface2 text-content font-medium shrink-0"
     >{initials}</span>
   );
 };
 
 export const Spinner = () => (
-  <div className="flex items-center justify-center py-16 text-neutral-400">
+  <div className="flex items-center justify-center py-16 text-muted2">
     <Icon name="ti-loader-2" className="animate-spin text-2xl" />
   </div>
 );
@@ -63,24 +65,45 @@ export const PageHeader = ({ title, subtitle, action }:
   <div className="flex items-end justify-between mb-5">
     <div>
       <h1 className="text-lg font-semibold">{title}</h1>
-      {subtitle && <p className="text-sm text-neutral-500 mt-0.5">{subtitle}</p>}
+      {subtitle && <p className="text-sm text-muted mt-0.5">{subtitle}</p>}
     </div>
     {action}
   </div>
 );
 
 export const EmptyState = ({ icon = 'ti-inbox', text }: { icon?: string; text: string }) => (
-  <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
+  <div className="flex flex-col items-center justify-center py-16 text-muted2">
     <Icon name={icon} className="text-3xl mb-2" />
     <p className="text-sm">{text}</p>
   </div>
 );
 
+/** Underline-style tab strip (token-driven). Counts render as small pills. */
+export const Tabs = ({ tabs, active, onChange }: {
+  tabs: { key: string; label: string; icon?: string; count?: number }[];
+  active: string;
+  onChange: (key: string) => void;
+}) => (
+  <div className="flex items-center gap-1 border-b border-line mb-4 overflow-x-auto">
+    {tabs.map((t) => (
+      <button key={t.key} onClick={() => onChange(t.key)}
+        className={`relative flex items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap transition -mb-px border-b-2
+          ${active === t.key ? 'border-accent text-content font-medium' : 'border-transparent text-muted hover:text-content'}`}>
+        {t.icon && <Icon name={t.icon} className="text-base" />}
+        {t.label}
+        {typeof t.count === 'number' && (
+          <span className={`pill ${active === t.key ? 'bg-accent/15 text-accentstrong' : 'pill-gray'}`}>{t.count}</span>
+        )}
+      </button>
+    ))}
+  </div>
+);
+
 export const Phase2 = ({ name, icon }: { name: string; icon: string }) => (
   <div className="card flex flex-col items-center justify-center py-24 text-center">
-    <Icon name={icon} className="text-4xl text-neutral-300 mb-3" />
+    <Icon name={icon} className="text-4xl text-muted2 mb-3" />
     <h2 className="text-base font-medium">{name}</h2>
-    <p className="text-sm text-neutral-500 mt-1 max-w-sm">This module ships in Phase 2. The data model is already live in Supabase.</p>
+    <p className="text-sm text-muted mt-1 max-w-sm">This module ships in Phase 2. The data model is already live in Supabase.</p>
     <span className="pill pill-gray mt-4">Coming soon</span>
   </div>
 );

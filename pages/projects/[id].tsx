@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
-import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
+import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
 import CommentsThread from '@/components/Comments';
+import { useSetCrumbs } from '@/components/Breadcrumbs';
 import {
   getProjectById, getTasks, getRisks, getFinancials,
   getOrgUsers, getOrgCompanies, getPortfolios,
@@ -12,6 +13,7 @@ import { Project, Task, Risk, Financial, OrgUser, OrgCompany, Portfolio } from '
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 
 const fmtMoney = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+const DONE = ['Completed', 'Done'];
 
 export default function ProjectDetail() {
   const router = useRouter();
@@ -28,6 +30,10 @@ export default function ProjectDetail() {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [tab, setTab] = useState('overview');
+  const [taskStatus, setTaskStatus] = useState<string>('all');
+
+  useSetCrumbs(project ? [{ label: 'Projects', href: '/projects' }, { label: project.name }] : null);
 
   useEffect(() => {
     if (!id) return;
@@ -57,9 +63,32 @@ export default function ProjectDetail() {
   const companyName = (cid?: string | null) => (cid ? companies.find((c) => c.id === cid)?.name : undefined);
   const portfolioName = (pid?: string | null) => (pid ? portfolios.find((pf) => pf.id === pid)?.name : undefined);
 
+  // ---- Derived metrics ----
   const planned = financials.reduce((s, f) => s + (f.planned || 0), 0);
   const actual = financials.reduce((s, f) => s + (f.actual || 0), 0);
-  const openTasks = tasks.filter((t) => t.status !== 'Completed' && t.status !== 'Done').length;
+  const variance = planned > 0 ? Math.round(((actual - planned) / planned) * 100) : 0;
+  const openTasks = tasks.filter((t) => !DONE.includes(t.status)).length;
+  const doneTasks = tasks.length - openTasks;
+  const taskPct = tasks.length > 0 ? Math.round((doneTasks / tasks.length) * 100) : 0;
+  const openRisks = risks.filter((r) => r.status === 'Open' || r.status === 'Mitigating');
+  // Impact/probability may be numeric (1–5) — NaN-safe severity score.
+  const severeRisks = openRisks.filter((r) => Number(r.impact) * Number(r.probability) >= 12).length;
+  const progress = project?.progress || 0;
+
+  // Schedule: days remaining vs end date.
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = project?.end_date ? new Date(project.end_date) : null;
+  const daysLeft = end ? Math.ceil((end.getTime() - today.getTime()) / 86400000) : null;
+  const overdue = daysLeft !== null && daysLeft < 0 && progress < 100;
+  const nearDue = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7 && progress < 80;
+
+  // Health heuristic: schedule + budget + severe open risks.
+  const overBudget = planned > 0 && actual > planned;
+  const health = overdue || (overBudget && variance > 10) || severeRisks >= 2
+    ? 'Off track'
+    : overBudget || severeRisks > 0 || nearDue
+      ? 'At risk'
+      : 'On track';
 
   if (loading) return <Layout title="Project"><Spinner /></Layout>;
 
@@ -78,116 +107,180 @@ export default function ProjectDetail() {
     { label: 'Project manager', value: userName(project.pm_id), icon: 'ti-user' },
     { label: 'Start', value: project.start_date || '—', icon: 'ti-calendar' },
     { label: 'End', value: project.end_date || '—', icon: 'ti-calendar-event' },
+    { label: 'Health', value: health, icon: 'ti-heartbeat' },
   ];
+
+  const taskStatuses = ['all', ...Array.from(new Set(tasks.map((t) => t.status)))];
+  const shownTasks = taskStatus === 'all' ? tasks : tasks.filter((t) => t.status === taskStatus);
+
+  const TaskTable = () => (
+    <div className="card overflow-hidden">
+      <div className="px-5 py-3 border-b border-line flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold mr-auto">Tasks</p>
+        {taskStatuses.map((s) => (
+          <button key={s} onClick={() => setTaskStatus(s)}
+            className={`pill cursor-pointer transition ${taskStatus === s ? 'bg-accent/15 text-accentstrong font-medium' : 'pill-gray hover:bg-surface2'}`}>
+            {s === 'all' ? `All ${tasks.length}` : s}
+          </button>
+        ))}
+        <Link href="/tasks" className="text-2xs text-muted hover:text-content ml-2">All tasks →</Link>
+      </div>
+      {shownTasks.length === 0 ? <div className="p-5"><EmptyState icon="ti-checklist" text="No tasks here yet." /></div> : (
+        <div className="overflow-x-auto"><table className="w-full">
+          <thead><tr><th className="th">Name</th><th className="th">Status</th><th className="th">Priority</th><th className="th">Assignee</th><th className="th">Due</th></tr></thead>
+          <tbody>
+            {shownTasks.map((t) => (
+              <tr key={t.id} className="row">
+                <td className="td font-medium">{t.name}</td>
+                <td className="td"><Pill label={t.status} /></td>
+                <td className="td"><Pill label={t.priority} /></td>
+                <td className="td text-2xs text-muted">{userName(t.assignee_id)}</td>
+                <td className="td text-2xs text-muted">{t.due_date || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+      )}
+    </div>
+  );
 
   return (
     <Layout title={project.name}>
-      <div className="mb-4">
-        <Link href="/projects" className="text-2xs text-neutral-500 hover:text-ink inline-flex items-center gap-1"><Icon name="ti-arrow-left" />Projects</Link>
-      </div>
       <PageHeader title={project.name}
-        subtitle={undefined}
-        action={<div className="flex items-center gap-2"><Pill label={project.status} /><Pill label={project.priority} /></div>} />
+        subtitle={[companyName(project.company_id), portfolioName(project.portfolio_id)].filter(Boolean).join(' · ') || undefined}
+        action={<div className="flex items-center gap-2"><Pill label={health} /><Pill label={project.status} /><Pill label={project.priority} /></div>} />
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <StatCard label="Progress" value={`${project.progress || 0}%`} icon="ti-progress" />
-        <StatCard label="Open tasks" value={`${openTasks}/${tasks.length}`} icon="ti-checklist" />
-        <StatCard label="Open risks" value={`${risks.length}`} icon="ti-alert-triangle" />
-        <StatCard label="Budget actual / planned" value={`${fmtMoney(actual)} / ${fmtMoney(planned)}`} icon="ti-cash" />
+      {/* Metrics */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+        <div className="stat">
+          <p className="text-xs text-muted">Progress</p>
+          <p className="text-2xl font-semibold mt-1.5 text-content">{progress}%</p>
+          <div className="h-1.5 rounded-full bg-surface2 mt-2"><div className="h-1.5 rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} /></div>
+        </div>
+        <StatCard label="Tasks" value={`${doneTasks}/${tasks.length}`} icon="ti-checklist"
+          hint={tasks.length ? `${taskPct}% complete · ${openTasks} open` : 'No tasks yet'} />
+        <StatCard label="Open risks" value={`${openRisks.length}`} icon="ti-alert-triangle"
+          hint={severeRisks > 0 ? `${severeRisks} severe` : openRisks.length ? 'None severe' : 'All clear'}
+          hintTone={severeRisks > 0 ? 'down' : 'muted'} />
+        <StatCard label="Budget" value={fmtMoney(actual)} icon="ti-cash"
+          hint={planned > 0 ? `${variance >= 0 ? '+' : ''}${variance}% vs ${fmtMoney(planned)} planned` : 'No plan recorded'}
+          hintTone={planned > 0 ? (actual > planned ? 'down' : 'up') : 'muted'} />
+        <StatCard label="Schedule" value={daysLeft === null ? '—' : overdue ? `${Math.abs(daysLeft)}d over` : `${daysLeft}d left`}
+          icon="ti-calendar-stats" hint={project.end_date ? `Ends ${project.end_date}` : 'No end date'}
+          hintTone={overdue ? 'down' : 'muted'} />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-4">
-          <div className="card p-5">
-            <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Overview</p>
-            {project.description
-              ? <p className="text-sm text-ink whitespace-pre-line">{project.description}</p>
-              : <p className="text-sm text-neutral-400">No description.</p>}
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-2xs text-neutral-500 mb-1"><span>Progress</span><span>{project.progress || 0}%</span></div>
-              <div className="h-2 rounded bg-neutral-100"><div className="h-2 rounded bg-ink" style={{ width: `${project.progress || 0}%` }} /></div>
+      <Tabs active={tab} onChange={setTab} tabs={[
+        { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
+        { key: 'tasks', label: 'Tasks', icon: 'ti-checklist', count: tasks.length },
+        { key: 'risks', label: 'Risks', icon: 'ti-alert-triangle', count: risks.length },
+        { key: 'financials', label: 'Financials', icon: 'ti-cash', count: financials.length },
+        { key: 'discussion', label: 'Discussion', icon: 'ti-messages' },
+      ]} />
+
+      {tab === 'overview' && (
+        <div className="grid lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="card p-5">
+              <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Description</p>
+              {project.description
+                ? <p className="text-sm text-content whitespace-pre-line">{project.description}</p>
+                : <p className="text-sm text-muted2">No description.</p>}
+              <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 mt-5">
+                {meta.map((m) => (
+                  <div key={m.label} className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-md bg-surface2 grid place-items-center text-muted shrink-0"><Icon name={m.icon} /></span>
+                    <div className="min-w-0">
+                      <p className="text-2xs text-muted2">{m.label}</p>
+                      <p className="text-sm truncate">{m.label === 'Health' ? <Pill label={health} /> : m.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 mt-5">
-              {meta.map((m) => (
-                <div key={m.label} className="flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-md bg-neutral-100 grid place-items-center text-neutral-500 shrink-0"><Icon name={m.icon} /></span>
-                  <div className="min-w-0">
-                    <p className="text-2xs text-neutral-400">{m.label}</p>
-                    <p className="text-sm truncate">{m.value}</p>
+            <TaskTable />
+          </div>
+          <div className="lg:col-span-1 space-y-4">
+            <div className="card p-5">
+              <p className="text-sm font-semibold mb-3">Budget summary</p>
+              {planned === 0 && actual === 0 ? <p className="text-sm text-muted2">No financial records.</p> : (
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex justify-between"><span className="text-muted">Planned</span><span className="font-medium">{fmtMoney(planned)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted">Actual</span><span className="font-medium">{fmtMoney(actual)}</span></div>
+                  <div className="flex justify-between border-t border-line pt-2">
+                    <span className="text-muted">Variance</span>
+                    <span className={`font-medium ${actual > planned ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {variance >= 0 ? '+' : ''}{variance}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-surface2 mt-1">
+                    <div className={`h-1.5 rounded-full ${actual > planned ? 'bg-rose-500' : 'bg-accent'}`}
+                      style={{ width: `${planned > 0 ? Math.min(100, Math.round((actual / planned) * 100)) : 0}%` }} />
                   </div>
                 </div>
-              ))}
+              )}
+            </div>
+            <div className="card p-5">
+              <p className="text-sm font-semibold mb-3">Discussion</p>
+              <CommentsThread entityType="project" entityId={project.id} orgId={org?.id} users={users} currentUserId={me?.id} />
             </div>
           </div>
-
-          <div className="card overflow-hidden">
-            <div className="px-5 py-3 border-b border-line flex items-center justify-between">
-              <p className="text-sm font-semibold">Tasks</p>
-              <Link href="/tasks" className="text-2xs text-neutral-500 hover:text-ink">All tasks →</Link>
-            </div>
-            {tasks.length === 0 ? <div className="p-5"><EmptyState icon="ti-checklist" text="No tasks for this project yet." /></div> : (
-              <div className="overflow-x-auto"><table className="w-full">
-                <thead><tr><th className="th">Name</th><th className="th">Status</th><th className="th">Assignee</th><th className="th">Due</th></tr></thead>
-                <tbody>
-                  {tasks.map((t) => (
-                    <tr key={t.id} className="row">
-                      <td className="td font-medium">{t.name}</td>
-                      <td className="td"><Pill label={t.status} /></td>
-                      <td className="td text-2xs text-neutral-500">{userName(t.assignee_id)}</td>
-                      <td className="td text-2xs text-neutral-500">{t.due_date || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table></div>
-            )}
-          </div>
-
-          <div className="card overflow-hidden">
-            <div className="px-5 py-3 border-b border-line"><p className="text-sm font-semibold">Risks</p></div>
-            {risks.length === 0 ? <div className="p-5"><EmptyState icon="ti-shield-check" text="No risks logged." /></div> : (
-              <div className="overflow-x-auto"><table className="w-full">
-                <thead><tr><th className="th">Title</th><th className="th">Category</th><th className="th">Impact × Prob</th><th className="th">Status</th></tr></thead>
-                <tbody>
-                  {risks.map((r) => (
-                    <tr key={r.id} className="row">
-                      <td className="td font-medium">{r.title}</td>
-                      <td className="td text-2xs text-neutral-500">{r.category}</td>
-                      <td className="td text-2xs text-neutral-500">{r.impact} × {r.probability}</td>
-                      <td className="td"><Pill label={r.status} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table></div>
-            )}
-          </div>
-
-          <div className="card overflow-hidden">
-            <div className="px-5 py-3 border-b border-line"><p className="text-sm font-semibold">Financials</p></div>
-            {financials.length === 0 ? <div className="p-5"><EmptyState icon="ti-cash" text="No financial records." /></div> : (
-              <div className="overflow-x-auto"><table className="w-full">
-                <thead><tr><th className="th">Period</th><th className="th">Category</th><th className="th text-right">Planned</th><th className="th text-right">Actual</th></tr></thead>
-                <tbody>
-                  {financials.map((f) => (
-                    <tr key={f.id} className="row">
-                      <td className="td text-2xs text-neutral-500">{f.period}</td>
-                      <td className="td text-2xs text-neutral-500">{f.category}</td>
-                      <td className="td text-right">{fmtMoney(f.planned || 0)}</td>
-                      <td className="td text-right">{fmtMoney(f.actual || 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table></div>
-            )}
-          </div>
         </div>
+      )}
 
-        <div className="lg:col-span-1">
-          <div className="card p-5">
-            <p className="text-sm font-semibold mb-3">Discussion</p>
-            <CommentsThread entityType="project" entityId={project.id} orgId={org?.id} users={users} currentUserId={me?.id} />
-          </div>
+      {tab === 'tasks' && <TaskTable />}
+
+      {tab === 'risks' && (
+        <div className="card overflow-hidden">
+          {risks.length === 0 ? <div className="p-5"><EmptyState icon="ti-shield-check" text="No risks logged." /></div> : (
+            <div className="overflow-x-auto"><table className="w-full">
+              <thead><tr><th className="th">Title</th><th className="th">Category</th><th className="th">Impact × Prob</th><th className="th">Status</th></tr></thead>
+              <tbody>
+                {risks.map((r) => (
+                  <tr key={r.id} className="row">
+                    <td className="td font-medium">{r.title}</td>
+                    <td className="td text-2xs text-muted">{r.category}</td>
+                    <td className="td text-2xs text-muted">{r.impact} × {r.probability}</td>
+                    <td className="td"><Pill label={r.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table></div>
+          )}
         </div>
-      </div>
+      )}
+
+      {tab === 'financials' && (
+        <div className="card overflow-hidden">
+          {financials.length === 0 ? <div className="p-5"><EmptyState icon="ti-cash" text="No financial records." /></div> : (
+            <div className="overflow-x-auto"><table className="w-full">
+              <thead><tr><th className="th">Period</th><th className="th">Category</th><th className="th text-right">Planned</th><th className="th text-right">Actual</th></tr></thead>
+              <tbody>
+                {financials.map((f) => (
+                  <tr key={f.id} className="row">
+                    <td className="td text-2xs text-muted">{f.period}</td>
+                    <td className="td text-2xs text-muted">{f.category}</td>
+                    <td className="td text-right">{fmtMoney(f.planned || 0)}</td>
+                    <td className="td text-right">{fmtMoney(f.actual || 0)}</td>
+                  </tr>
+                ))}
+                <tr className="row bg-surface2/50">
+                  <td className="td font-medium" colSpan={2}>Total</td>
+                  <td className="td text-right font-medium">{fmtMoney(planned)}</td>
+                  <td className="td text-right font-medium">{fmtMoney(actual)}</td>
+                </tr>
+              </tbody>
+            </table></div>
+          )}
+        </div>
+      )}
+
+      {tab === 'discussion' && (
+        <div className="card p-5 max-w-2xl">
+          <p className="text-sm font-semibold mb-3">Discussion</p>
+          <CommentsThread entityType="project" entityId={project.id} orgId={org?.id} users={users} currentUserId={me?.id} />
+        </div>
+      )}
     </Layout>
   );
 }
