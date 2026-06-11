@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
-import { Modal, Field } from '@/components/Modal';
+import { Modal, Field, ModalSection } from '@/components/Modal';
+import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader } from '@/components/ui';
 import { getOrgUsers, createTask, updateTask, deleteTask, notify } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
@@ -37,6 +39,7 @@ const EMPTY_FORM: TaskForm = { name: '', description: '', project_id: '', assign
 type GroupBy = 'none' | 'project' | 'priority' | 'status';
 
 export default function Tasks() {
+  const router = useRouter();
   const activeOrg = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const canDelete = can.write(activeOrg);
@@ -257,7 +260,12 @@ export default function Tasks() {
           <dt className="text-muted">Assignee</dt>
           <dd><select value={selected.assignee_id || ''} disabled={busy} onChange={(e) => reassign(e.target.value)} className="input h-8 py-0 text-sm max-w-[10rem]"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></dd>
         </div>
-        <div className="flex items-center justify-between"><dt className="text-muted">Project</dt><dd className="font-medium text-content">{selected.projects?.name || '—'}</dd></div>
+        <div className="flex items-center justify-between"><dt className="text-muted">Project</dt><dd className="font-medium text-content">
+          {selected.project_id && selected.projects?.name ? (
+            <EntityLink icon="ti-folder" label={selected.projects.name} href={`/projects/${selected.project_id}`}
+              actions={can.write(activeOrg) ? [{ label: 'Edit in Projects', icon: 'ti-pencil', onClick: () => router.push('/projects') }] : []} />
+          ) : '—'}
+        </dd></div>
         <div className="flex items-center justify-between"><dt className="text-muted">Due date</dt><dd className={`font-medium ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-content'}`}>{selected.due_date || '—'}</dd></div>
         <div className="flex items-center justify-between"><dt className="text-muted">Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
       </dl>
@@ -472,35 +480,51 @@ export default function Tasks() {
           </>
         }
       >
-        <div className="space-y-3.5">
-          <Field label="Name" required hint="What needs doing?">
-            <input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" placeholder="What needs doing?" />
-          </Field>
-          <Field label="Description" hint="Optional — any extra context.">
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="textarea h-20" placeholder="Optional details" />
-          </Field>
-          <Field label="Project">
-            <select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} className="input"><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-          </Field>
-          <div className="flex gap-3">
-            <Field label="Priority" className="flex-1">
-              <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
+        <div>
+          <ModalSection title="Basics" icon="ti-align-left">
+            <div className="space-y-3.5">
+              <Field label="Name" required hint="What needs doing?">
+                <input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" placeholder="What needs doing?" />
+              </Field>
+              <Field label="Description" hint="Optional — any extra context.">
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="textarea h-20" placeholder="Optional details" />
+              </Field>
+              <Field label="Project">
+                <div className="flex items-center gap-2">
+                  <select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} className="input"><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                  {form.project_id && (
+                    <button type="button" title="Open project page" onClick={() => router.push(`/projects/${form.project_id}`)}
+                      className="btn btn-ghost h-9 w-9 px-0 shrink-0 text-muted hover:text-accentstrong"><Icon name="ti-external-link" /></button>
+                  )}
+                </div>
+              </Field>
+            </div>
+          </ModalSection>
+          <ModalSection title="Planning" icon="ti-calendar-stats">
+            <div className="space-y-3.5">
+              <div className="flex gap-3">
+                <Field label="Priority" className="flex-1">
+                  <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
+                </Field>
+                <Field label="Status" className="flex-1">
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+                </Field>
+              </div>
+              <div className="flex gap-3">
+                <Field label="Due date" className="flex-1">
+                  <input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" />
+                </Field>
+                <Field label="Estimated hours" className="flex-1">
+                  <input type="number" min="0" step="0.5" value={form.estimated_hours} onChange={(e) => setForm({ ...form, estimated_hours: e.target.value })} className="input" placeholder="0" />
+                </Field>
+              </div>
+            </div>
+          </ModalSection>
+          <ModalSection title="People" icon="ti-users">
+            <Field label="Assignee">
+              <select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className="input"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select>
             </Field>
-            <Field label="Status" className="flex-1">
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
-            </Field>
-          </div>
-          <div className="flex gap-3">
-            <Field label="Due date" className="flex-1">
-              <input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" />
-            </Field>
-            <Field label="Estimated hours" className="flex-1">
-              <input type="number" min="0" step="0.5" value={form.estimated_hours} onChange={(e) => setForm({ ...form, estimated_hours: e.target.value })} className="input" placeholder="0" />
-            </Field>
-          </div>
-          <Field label="Assignee">
-            <select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className="input"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select>
-          </Field>
+          </ModalSection>
         </div>
       </Modal>
     </Layout>

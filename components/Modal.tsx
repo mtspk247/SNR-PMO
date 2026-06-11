@@ -1,16 +1,17 @@
 import React, { useEffect } from 'react';
 import { Icon } from '@/components/ui';
 
-type Size = 'sm' | 'md' | 'lg';
-const WIDTH: Record<Size, string> = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg' };
+type Size = 'sm' | 'md' | 'lg' | 'xl';
+const WIDTH: Record<Size, string> = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-2xl' };
 
 /**
  * Reusable modal shell — token-driven so it flips with the theme.
  * Header (optional accent icon tile + title + subtitle + X), scrollable body,
  * optional sticky footer. Esc closes; Cmd/Ctrl+Enter fires onSubmit when provided.
+ * `headerExtra` renders inline next to the title (pills, EntityLink dropdowns…).
  */
 export function Modal({
-  open, onClose, title, subtitle, icon, size = 'md', onSubmit, children, footer,
+  open, onClose, title, subtitle, icon, size = 'md', onSubmit, children, footer, headerExtra,
 }: {
   open: boolean;
   onClose: () => void;
@@ -21,6 +22,7 @@ export function Modal({
   onSubmit?: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  headerExtra?: React.ReactNode;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -55,7 +57,10 @@ export function Modal({
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <h3 className="text-base font-semibold text-content leading-tight">{title}</h3>
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="text-base font-semibold text-content leading-tight truncate">{title}</h3>
+              {headerExtra}
+            </div>
             {subtitle && <p className="text-xs text-muted mt-0.5">{subtitle}</p>}
           </div>
           <button
@@ -91,6 +96,23 @@ export function Field({ label, required, hint, className = '', children }: {
       <label className="label">{label}{required && <span className="text-rose-500 ml-0.5">*</span>}</label>
       {children}
       {hint && <p className="text-2xs text-muted2 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+/** Titled group inside a modal body — separates long forms into scannable sections. */
+export function ModalSection({ title, icon, children, className = '' }: {
+  title: string;
+  icon?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`pt-4 mt-4 border-t border-line first:pt-0 first:mt-0 first:border-t-0 ${className}`}>
+      <p className="text-2xs uppercase tracking-wide text-muted2 mb-3 flex items-center gap-1.5">
+        {icon && <Icon name={icon} className="text-sm" />}{title}
+      </p>
+      {children}
     </div>
   );
 }
