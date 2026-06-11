@@ -833,3 +833,38 @@ export async function deletePayslip(id: string): Promise<void> {
   const { error } = await sb.from('payslips').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ---- Task custom fields (per-project; RLS = can_access_project) ----
+import { TaskFieldDef, TaskFieldValue } from './supabase';
+
+export async function getTaskFieldDefs(projectId: string): Promise<TaskFieldDef[]> {
+  const { data, error } = await sb.from('task_field_definitions').select('*').eq('project_id', projectId).order('created_at');
+  if (error) throw new Error(error.message);
+  return (data as TaskFieldDef[]) || [];
+}
+
+export async function createTaskFieldDef(d: {
+  org_id: string; project_id: string; name: string; field_type: string; options?: string[] | null;
+}): Promise<TaskFieldDef> {
+  const { data, error } = await sb.from('task_field_definitions').insert(d).select('*').single();
+  if (error) throw new Error(error.message);
+  return data as TaskFieldDef;
+}
+
+export async function deleteTaskFieldDef(id: string): Promise<void> {
+  const { error } = await sb.from('task_field_definitions').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function getTaskFieldValues(taskId: string): Promise<TaskFieldValue[]> {
+  const { data, error } = await sb.from('task_field_values').select('*').eq('task_id', taskId);
+  if (error) throw new Error(error.message);
+  return (data as TaskFieldValue[]) || [];
+}
+
+export async function upsertTaskFieldValue(v: {
+  task_id: string; field_id: string; project_id: string; value: string | null;
+}): Promise<void> {
+  const { error } = await sb.from('task_field_values').upsert({ ...v, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+}

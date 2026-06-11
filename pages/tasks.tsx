@@ -12,6 +12,7 @@ import { usePagination, Pagination } from '@/components/Pagination';
 import { can } from '@/lib/authz';
 import CommentsThread from '@/components/Comments';
 import TaskTags from '@/components/TaskTags';
+import TaskCustomFields from '@/components/TaskCustomFields';
 
 const STATUSES = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done', 'On Hold', 'Cancelled'];
 const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low'];
@@ -33,6 +34,8 @@ interface TaskForm {
 }
 const EMPTY_FORM: TaskForm = { name: '', description: '', project_id: '', assignee_id: '', priority: 'Medium', status: 'To Do', due_date: '', estimated_hours: '' };
 
+type GroupBy = 'none' | 'project' | 'priority' | 'status';
+
 export default function Tasks() {
   const activeOrg = useActiveOrg();
   const me = useAuthStore((s) => s.user);
@@ -46,6 +49,10 @@ export default function Tasks() {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [assigneeFilter, setAssigneeFilter] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -72,14 +79,30 @@ export default function Tasks() {
     let r = roots.filter((t) =>
       (!query || t.name.toLowerCase().includes(query.toLowerCase())) &&
       (statusFilter.size === 0 || statusFilter.has(t.status)) &&
-      (!priorityFilter || t.priority === priorityFilter));
+      (!priorityFilter || t.priority === priorityFilter) &&
+      (!projectFilter || (projectFilter === 'none' ? !t.project_id : t.project_id === projectFilter)) &&
+      (!assigneeFilter || (assigneeFilter === 'unassigned' ? !t.assignee_id : t.assignee_id === assigneeFilter)) &&
+      (!overdueOnly || (isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled')));
     r = [...r].sort((a, b) =>
       sort === 'name' ? a.name.localeCompare(b.name) :
       sort === 'due' ? (a.due_date || '9999').localeCompare(b.due_date || '9999') :
       (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
     return r;
-  }, [roots, query, statusFilter, priorityFilter, sort]);
+  }, [roots, query, statusFilter, priorityFilter, projectFilter, assigneeFilter, overdueOnly, sort]);
   const pg = usePagination(filtered, 25);
+
+  // Grouped view over the current page (header order: known rank lists, else A→Z).
+  const groupedPage = useMemo(() => {
+    if (groupBy === 'none') return null;
+    const keyOf = (t: Task) =>
+      groupBy === 'project' ? (t.projects?.name || 'No project') :
+      groupBy === 'priority' ? (t.priority || 'None') : (t.status || 'None');
+    const m = new Map<string, Task[]>();
+    pg.pageItems.forEach((t) => { const k = keyOf(t); m.set(k, [...(m.get(k) || []), t]); });
+    const rank = groupBy === 'priority' ? PRIORITIES : groupBy === 'status' ? STATUSES : null;
+    return Array.from(m.entries()).sort(([a], [b]) =>
+      rank ? rank.indexOf(a) - rank.indexOf(b) : a.localeCompare(b));
+  }, [pg.pageItems, groupBy]);
 
   const selected = tasks.find((t) => t.id === selectedId) || null;
   const subtasks = useMemo(() => tasks.filter((t) => t.parent_task_id === selectedId), [tasks, selectedId]);
@@ -239,6 +262,9 @@ export default function Tasks() {
         <div className="flex items-center justify-between"><dt className="text-muted">Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
       </dl>
 
+      {/* Custom fields (per-project, ClickUp-style) */}
+      <TaskCustomFields task={selected} />
+
       {/* Subtasks */}
       <div className="mt-5 pt-4 border-t border-line">
         <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Subtasks {subtasks.length > 0 && <span className="text-muted2">· {doneSubs}/{subtasks.length}</span>}</p>
@@ -283,6 +309,47 @@ export default function Tasks() {
     </div>
   );
 
+  const Row = (t: Task) => {
+    const subs = tasks.filter((s) => s.parent_task_id === t.id);
+    const overdueRow = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
+    return (
+      <div key={t.id}
+        className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}
+        onClick={() => selectTask(t.id)}>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Bars level={PRIORITY_RANK[t.priority] || 1} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-content truncate">{t.name}</p>
+            <p className="text-2xs text-muted truncate flex items-center gap-2 mt-0.5">
+              <span className="truncate">{t.projects?.name || '—'}</span>
+              {t.assignee_id && <span className="inline-flex items-center gap-1 shrink-0"><Avatar name={userName(t.assignee_id)} size={14} />{userName(t.assignee_id)}</span>}
+              {subs.length > 0 && <span className="inline-flex items-center gap-0.5 shrink-0"><Icon name="ti-subtask" />{subs.filter(s => s.status === 'Done').length}/{subs.length}</span>}
+              {(t.followers?.length || 0) > 0 && <span className="inline-flex items-center gap-0.5 shrink-0"><Icon name="ti-eye" />{t.followers!.length}</span>}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0 pl-7 sm:pl-0">
+          <Pill label={t.priority} />
+          <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setStatus(t.id, e.target.value)}
+            className={`pill border-0 cursor-pointer outline-none ${
+              t.status === 'Done' ? 'pill-green' : t.status === 'In Progress' ? 'pill-amber' :
+              t.status === 'Review' ? 'pill-violet' : t.status === 'Cancelled' || t.status === 'On Hold' ? 'pill-red' : 'pill-blue'
+            }`}>
+            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <span className={`text-2xs w-16 text-right shrink-0 ${overdueRow ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>
+          <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} disabled={busy} title="Edit task"
+            className="btn-ghost p-1.5 rounded text-muted2 hover:text-content"><Icon name="ti-pencil" className="text-sm" /></button>
+          {canDelete && (
+            <button onClick={(e) => { e.stopPropagation(); removeTask(t.id, t.name); }} disabled={busy} title="Delete task"
+              className="btn-ghost p-1.5 rounded text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Layout title="Tasks">
       {loading ? <Spinner /> : (
@@ -299,7 +366,7 @@ export default function Tasks() {
               a={['Cancelled', String(roots.filter(t => t.status === 'Cancelled').length)]} b={['Backlog', String(roots.filter(t => t.status === 'Backlog').length)]} />
           </div>
 
-          {/* Toolbar: search, sort, status pills, priority filter */}
+          {/* Toolbar: search, filters, grouping, sort */}
           <div className="flex flex-col gap-3 mb-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-surface flex-1 min-w-[10rem] max-w-xs">
@@ -307,9 +374,29 @@ export default function Tasks() {
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks"
                   className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
               </div>
+              <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="input h-9 w-auto">
+                <option value="">All projects</option>
+                <option value="none">No project</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
               <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="input h-9 w-auto">
                 <option value="">All priorities</option>
                 {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+              </select>
+              <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input h-9 w-auto">
+                <option value="">All assignees</option>
+                <option value="unassigned">Unassigned</option>
+                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              </select>
+              <button onClick={() => setOverdueOnly((v) => !v)}
+                className={`pill cursor-pointer transition h-9 px-3 ${overdueOnly ? 'bg-rose-500/15 text-rose-600 font-medium' : 'bg-surface2 text-muted hover:text-content'}`}>
+                <Icon name="ti-alarm" className="mr-1" />Overdue
+              </button>
+              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} className="input h-9 w-auto">
+                <option value="none">No grouping</option>
+                <option value="project">Group: Project</option>
+                <option value="priority">Group: Priority</option>
+                <option value="status">Group: Status</option>
               </select>
               <span className="text-2xs text-muted2 ml-1 hidden sm:inline">Sort</span>
               <div className="flex items-center gap-1">
@@ -336,46 +423,17 @@ export default function Tasks() {
 
           <div className="flex gap-4 flex-1 min-h-0">
             <div className="card flex-1 min-w-0 overflow-y-auto">
-              {filtered.length === 0 ? <EmptyState text="No tasks match" /> : pg.pageItems.map((t) => {
-                const subs = tasks.filter((s) => s.parent_task_id === t.id);
-                const overdueRow = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
-                return (
-                  <div key={t.id}
-                    className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}
-                    onClick={() => selectTask(t.id)}>
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <Bars level={PRIORITY_RANK[t.priority] || 1} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-content truncate">{t.name}</p>
-                        <p className="text-2xs text-muted truncate flex items-center gap-2 mt-0.5">
-                          <span className="truncate">{t.projects?.name || '—'}</span>
-                          {t.assignee_id && <span className="inline-flex items-center gap-1 shrink-0"><Avatar name={userName(t.assignee_id)} size={14} />{userName(t.assignee_id)}</span>}
-                          {subs.length > 0 && <span className="inline-flex items-center gap-0.5 shrink-0"><Icon name="ti-subtask" />{subs.filter(s => s.status === 'Done').length}/{subs.length}</span>}
-                          {(t.followers?.length || 0) > 0 && <span className="inline-flex items-center gap-0.5 shrink-0"><Icon name="ti-eye" />{t.followers!.length}</span>}
-                        </p>
-                      </div>
+              {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
+                groupedPage.map(([label, items]) => (
+                  <div key={label}>
+                    <div className="sticky top-0 z-10 px-4 py-1.5 bg-surface2/90 backdrop-blur border-b border-line flex items-center gap-2">
+                      <span className="text-2xs font-semibold uppercase tracking-wide text-muted">{label}</span>
+                      <span className="text-2xs text-muted2">{items.length}</span>
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 pl-7 sm:pl-0">
-                      <Pill label={t.priority} />
-                      <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setStatus(t.id, e.target.value)}
-                        className={`pill border-0 cursor-pointer outline-none ${
-                          t.status === 'Done' ? 'pill-green' : t.status === 'In Progress' ? 'pill-amber' :
-                          t.status === 'Review' ? 'pill-violet' : t.status === 'Cancelled' || t.status === 'On Hold' ? 'pill-red' : 'pill-blue'
-                        }`}>
-                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <span className={`text-2xs w-16 text-right shrink-0 ${overdueRow ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>
-                      <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} disabled={busy} title="Edit task"
-                        className="btn-ghost p-1.5 rounded text-muted2 hover:text-content"><Icon name="ti-pencil" className="text-sm" /></button>
-                      {canDelete && (
-                        <button onClick={(e) => { e.stopPropagation(); removeTask(t.id, t.name); }} disabled={busy} title="Delete task"
-                          className="btn-ghost p-1.5 rounded text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>
-                      )}
-                    </div>
+                    {items.map(Row)}
                   </div>
-                );
-              })}
+                ))
+              ) : pg.pageItems.map(Row)}
               {filtered.length > 0 && (
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}

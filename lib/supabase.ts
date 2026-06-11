@@ -271,3 +271,14 @@ export interface Payslip {
   breakdown: Record<string, any>; created_at?: string;
   users?: { full_name: string | null; email?: string } | null;
 }
+
+// ---- Task custom fields (per-project definitions + per-task values) ----
+export interface TaskFieldDef {
+  id: string; org_id: string; project_id: string; name: string;
+  field_type: 'text' | 'number' | 'date' | 'checkbox' | 'dropdown';
+  options?: string[] | null; created_by?: string | null; created_at?: string;
+}
+export interface TaskFieldValue {
+  task_id: string; field_id: string; project_id: string;
+  value: string | null; updated_at?: string;
+}
