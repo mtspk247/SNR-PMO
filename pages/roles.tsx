@@ -124,7 +124,7 @@ export default function RolesPage() {
                 <div>
                   <p className="text-2xs uppercase tracking-wide text-muted mb-1 mt-1">Module access</p>
                   <p className="text-2xs text-muted mb-2">None selected = access to all entitled modules.</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                     {FEATURE_KEYS.map((k) => (
                       <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
                         <span>{FEATURE_LABELS[k]}</span>

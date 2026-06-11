@@ -31,6 +31,7 @@ export default function CRM() {
   const [stageFilter, setStageFilter] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<'value' | 'stage' | 'close'>('value');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
 
   const [showDeal, setShowDeal] = useState(false);
   const [showContact, setShowContact] = useState(false);
@@ -68,7 +69,7 @@ export default function CRM() {
   const removeDeal = async (d: Deal) => {
     if (!confirm(`Delete deal "${d.title}"? This can't be undone.`)) return;
     setBusy(true);
-    try { await deleteDeal(d.id); setDeals((p) => p.filter((x) => x.id !== d.id)); setSelectedId(null); }
+    try { await deleteDeal(d.id); setDeals((p) => p.filter((x) => x.id !== d.id)); setSelectedId(null); setShowDetail(false); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const removeContact = async (c: Contact) => {
@@ -119,6 +120,89 @@ export default function CRM() {
   useEffect(() => { if (!selectedId && filtered.length) setSelectedId(filtered[0].id); }, [filtered, selectedId]);
   const selected = filtered.find((d) => d.id === selectedId) || null;
   const maxValue = Math.max(1, ...deals.map((d) => d.value || 0));
+  const selectDeal = (id: string) => { setSelectedId(id); setShowDetail(true); };
+
+  // ----- shared detail panel: sidebar on xl+, overlay drawer below -----
+  const DetailPanel = () => !selected ? (
+    <div className="card p-5 text-sm text-neutral-400">Select a deal</div>
+  ) : (
+    <div className="card p-5 sticky top-0">
+      <div className="flex items-center gap-2 mb-3">
+        <Pill label={selected.stage} />
+        <div className="ml-auto flex items-center gap-1">
+          <button onClick={() => setEditDeal(selected)} className="p-1.5 rounded text-neutral-400 hover:text-ink" title="Edit deal"><Icon name="ti-pencil" /></button>
+          <button onClick={() => removeDeal(selected)} disabled={busy} className="p-1.5 rounded text-neutral-400 hover:text-rose-600" title="Delete deal"><Icon name="ti-trash" /></button>
+          <button onClick={() => setShowDetail(false)} className="p-1.5 rounded text-neutral-400 hover:text-ink xl:hidden" title="Close"><Icon name="ti-x" /></button>
+        </div>
+      </div>
+      <h3 className="text-base font-semibold leading-snug">{selected.title}</h3>
+      <p className="text-2xl font-semibold mt-1">{money(selected.value || 0)}</p>
+      <div className="flex gap-2 mt-4">
+        <button onClick={() => advance(selected)} disabled={busy || selected.stage === 'Won' || selected.stage === 'Lost'}
+          className="btn btn-primary flex-1 text-xs">
+          {selected.stage === 'Won' ? 'Won' : selected.stage === 'Lost' ? 'Closed lost' : 'Advance stage'}
+        </button>
+      </div>
+      <dl className="mt-5 space-y-3">
+        {[
+          ['Stage', <Pill key="s" label={selected.stage} />],
+          ['Company', selected.crm_companies?.name || '—'],
+          ['Contact', selected.crm_contacts?.full_name || '—'],
+          ['Expected close', selected.expected_close || '—'],
+        ].map(([k, v], i) => (
+          <div key={i} className="flex items-center justify-between text-sm">
+            <dt className="text-neutral-500">{k as string}</dt><dd className="font-medium">{v as any}</dd>
+          </div>
+        ))}
+      </dl>
+      {selected.crm_contacts?.email && (
+        <div className="mt-5 pt-4 border-t border-line">
+          <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Primary contact</p>
+          <div className="flex items-center gap-2">
+            <Avatar name={selected.crm_contacts.full_name} size={28} />
+            <div className="min-w-0">
+              <p className="text-sm truncate">{selected.crm_contacts.full_name}</p>
+              <p className="text-2xs text-sky-600 truncate">{selected.crm_contacts.email}</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {selected.notes && (
+        <div className="mt-5 pt-4 border-t border-line">
+          <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Notes</p>
+          <p className="text-sm text-neutral-600 leading-relaxed">{selected.notes}</p>
+        </div>
+      )}
+      <div className="mt-5 pt-4 border-t border-line">
+        <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Activity</p>
+        <div className="flex gap-2 mb-3">
+          <select value={actKind} onChange={(e) => setActKind(e.target.value)} className="input w-24 py-1 text-xs">
+            {ACT_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
+          </select>
+          <input value={actBody} onChange={(e) => setActBody(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && logActivity()}
+            placeholder="Log an activity…" className="input flex-1 py-1 text-xs" />
+          <button onClick={logActivity} disabled={actBusy || !actBody.trim()} className="btn btn-sm" title="Log">
+            <Icon name="ti-plus" />
+          </button>
+        </div>
+        {actsLoading ? <p className="text-2xs text-neutral-400">Loading…</p>
+          : acts.length === 0 ? <p className="text-2xs text-neutral-400">No activity yet.</p> : (
+          <ul className="space-y-3 max-h-72 overflow-y-auto">
+            {acts.map((a) => (
+              <li key={a.id} className="flex gap-2.5 group">
+                <span className="w-6 h-6 rounded-full bg-neutral-100 grid place-items-center text-neutral-500 shrink-0 mt-0.5"><Icon name={actMeta(a.kind).icon} className="text-xs" /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-ink leading-snug break-words">{a.body}</p>
+                  <p className="text-2xs text-neutral-400">{actMeta(a.kind).label} · {actWhen(a.created_at)}</p>
+                </div>
+                <button onClick={() => removeActivity(a.id)} className="text-neutral-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 shrink-0" title="Delete"><Icon name="ti-trash" className="text-xs" /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 
   const Tab = ({ id, label }: { id: 'pipeline' | 'contacts'; label: string }) => (
     <button onClick={() => setView(id)}
@@ -170,6 +254,15 @@ export default function CRM() {
             ))}
           </div>
 
+          <div className="lg:hidden flex gap-1.5 overflow-x-auto pb-2 mb-1">
+            {STAGES.map((s) => (
+              <button key={s} onClick={() => toggleStage(s)}
+                className={`shrink-0 h-7 px-2.5 rounded-full text-xs border transition ${stageFilter.has(s) ? 'bg-ink text-white border-ink' : 'bg-white text-neutral-500 border-line'}`}>
+                {s}<span className="ml-1 text-2xs opacity-70">{deals.filter(d => d.stage === s).length}</span>
+              </button>
+            ))}
+          </div>
+
           <div className="flex gap-4 flex-1 min-h-0">
             <aside className="w-48 shrink-0 hidden lg:block">
               <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Stage</p>
@@ -185,7 +278,7 @@ export default function CRM() {
 
             <div className="card flex-1 min-w-0 overflow-y-auto">
               {filtered.length === 0 ? <EmptyState text="No deals match" icon="ti-target" /> : filtered.map((d) => (
-                <button key={d.id} onClick={() => setSelectedId(d.id)}
+                <button key={d.id} onClick={() => selectDeal(d.id)}
                   className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line transition ${selectedId === d.id ? 'bg-sky-50/60 border-l-2 border-l-sky-500' : 'hover:bg-paper/70 border-l-2 border-l-transparent'}`}>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-ink truncate">{d.title}</p>
@@ -200,91 +293,15 @@ export default function CRM() {
               ))}
             </div>
 
-            <aside className="w-80 shrink-0 hidden xl:block">
-              {selected ? (
-                <div className="card p-5 sticky top-0">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Pill label={selected.stage} />
-                    <div className="ml-auto flex items-center gap-1">
-                      <button onClick={() => setEditDeal(selected)} className="p-1.5 rounded text-neutral-400 hover:text-ink" title="Edit deal"><Icon name="ti-pencil" /></button>
-                      <button onClick={() => removeDeal(selected)} disabled={busy} className="p-1.5 rounded text-neutral-400 hover:text-rose-600" title="Delete deal"><Icon name="ti-trash" /></button>
-                    </div>
-                  </div>
-                  <h3 className="text-base font-semibold leading-snug">{selected.title}</h3>
-                  <p className="text-2xl font-semibold mt-1">{money(selected.value || 0)}</p>
-                  <div className="flex gap-2 mt-4">
-                    <button onClick={() => advance(selected)} disabled={busy || selected.stage === 'Won' || selected.stage === 'Lost'}
-                      className="btn btn-primary flex-1 text-xs">
-                      {selected.stage === 'Won' ? 'Won' : selected.stage === 'Lost' ? 'Closed lost' : 'Advance stage'}
-                    </button>
-                  </div>
-                  <dl className="mt-5 space-y-3">
-                    {[
-                      ['Stage', <Pill key="s" label={selected.stage} />],
-                      ['Company', selected.crm_companies?.name || '—'],
-                      ['Contact', selected.crm_contacts?.full_name || '—'],
-                      ['Expected close', selected.expected_close || '—'],
-                    ].map(([k, v], i) => (
-                      <div key={i} className="flex items-center justify-between text-sm">
-                        <dt className="text-neutral-500">{k as string}</dt><dd className="font-medium">{v as any}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {selected.crm_contacts?.email && (
-                    <div className="mt-5 pt-4 border-t border-line">
-                      <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Primary contact</p>
-                      <div className="flex items-center gap-2">
-                        <Avatar name={selected.crm_contacts.full_name} size={28} />
-                        <div className="min-w-0">
-                          <p className="text-sm truncate">{selected.crm_contacts.full_name}</p>
-                          <p className="text-2xs text-sky-600 truncate">{selected.crm_contacts.email}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {selected.notes && (
-                    <div className="mt-5 pt-4 border-t border-line">
-                      <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Notes</p>
-                      <p className="text-sm text-neutral-600 leading-relaxed">{selected.notes}</p>
-                    </div>
-                  )}
-
-                  <div className="mt-5 pt-4 border-t border-line">
-                    <p className="text-2xs uppercase tracking-wide text-neutral-400 mb-2">Activity</p>
-                    <div className="flex gap-2 mb-3">
-                      <select value={actKind} onChange={(e) => setActKind(e.target.value)} className="input w-24 py-1 text-xs">
-                        {ACT_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
-                      </select>
-                      <input value={actBody} onChange={(e) => setActBody(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && logActivity()}
-                        placeholder="Log an activity…" className="input flex-1 py-1 text-xs" />
-                      <button onClick={logActivity} disabled={actBusy || !actBody.trim()} className="btn btn-sm" title="Log">
-                        <Icon name="ti-plus" />
-                      </button>
-                    </div>
-                    {actsLoading ? <p className="text-2xs text-neutral-400">Loading…</p>
-                      : acts.length === 0 ? <p className="text-2xs text-neutral-400">No activity yet.</p> : (
-                      <ul className="space-y-3 max-h-72 overflow-y-auto">
-                        {acts.map((a) => (
-                          <li key={a.id} className="flex gap-2.5 group">
-                            <span className="w-6 h-6 rounded-full bg-neutral-100 grid place-items-center text-neutral-500 shrink-0 mt-0.5"><Icon name={actMeta(a.kind).icon} className="text-xs" /></span>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm text-ink leading-snug break-words">{a.body}</p>
-                              <p className="text-2xs text-neutral-400">{actMeta(a.kind).label} · {actWhen(a.created_at)}</p>
-                            </div>
-                            <button onClick={() => removeActivity(a.id)} className="text-neutral-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 shrink-0" title="Delete"><Icon name="ti-trash" className="text-xs" /></button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              ) : <div className="card p-5 text-sm text-neutral-400">Select a deal</div>}
+            <aside className="w-80 shrink-0 hidden xl:block overflow-y-auto">
+              <DetailPanel />
             </aside>
           </div>
         </div>
       ) : (
         contacts.length === 0 ? <EmptyState text="No contacts yet" icon="ti-user" /> : (
           <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr>
                 <th className="th">Name</th><th className="th">Title</th><th className="th">Company</th>
@@ -303,8 +320,17 @@ export default function CRM() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )
+      )}
+
+      {showDetail && selected && view === 'pipeline' && (
+        <div className="fixed inset-0 z-30 bg-black/30 flex items-stretch justify-end xl:hidden" onClick={() => setShowDetail(false)}>
+          <div className="bg-white w-full max-w-sm h-full overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
+            <DetailPanel />
+          </div>
+        </div>
       )}
 
       {showDeal && org && (

@@ -59,7 +59,7 @@ export default function AttendancePage() {
             <StatCard label="Days logged" value={mine.length} icon="ti-checklist" />
           </div>
           <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
                   {isAdmin && <th className="text-left font-medium px-4 py-2.5">Person</th>}
@@ -82,7 +82,7 @@ export default function AttendancePage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
             {visible.length === 0 && <EmptyState icon="ti-clock" text="No attendance yet — check in to start" />}
           </div>
         </>

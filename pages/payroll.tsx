@@ -92,8 +92,8 @@ export default function PayrollPage() {
         action={<button onClick={() => setShowNew(true)} className="btn btn-primary"><Icon name="ti-plus" />New run</button>} />
 
       {loading ? <Spinner /> : (
-        <div className="flex gap-4">
-          <div className="card w-72 shrink-0 overflow-y-auto" style={{ maxHeight: '72vh' }}>
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="card w-full lg:w-72 lg:shrink-0 overflow-y-auto" style={{ maxHeight: '72vh' }}>
             {runs.map((r) => (
               <button key={r.id} onClick={() => setSelected(r.id)}
                 className={`w-full text-left flex items-center justify-between gap-2 px-4 py-3 border-b border-line last:border-0 ${selected === r.id ? 'bg-surface2 border-l-2 border-l-accentstrong' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}>
@@ -126,7 +126,7 @@ export default function PayrollPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 mb-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
                 <div className="stat">
                   <p className="text-xs text-muted">Gross</p>
                   <p className="text-2xl font-semibold mt-1.5 text-content">{totals.gross.toLocaleString()}</p>
@@ -148,7 +148,7 @@ export default function PayrollPage() {
               {slipsLoading ? <Spinner /> : payslips.length === 0 ? (
                 <EmptyState icon="ti-receipt" text="No payslips for this run yet" />
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto"><table className="w-full text-sm">
                   <thead>
                     <tr className="text-2xs uppercase tracking-wide text-muted border-b border-line">
                       <th className="th text-left">Employee</th>
@@ -175,7 +175,7 @@ export default function PayrollPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
           ) : (

@@ -148,7 +148,7 @@ export default function EmployeeProfilePage() {
           {/* Attendance */}
           <div className="card p-5">
             <h3 className="text-sm font-semibold mb-3">Attendance</h3>
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <StatCard label="This month" value={`${Math.round(monthHours * 10) / 10} h`} icon="ti-calendar" />
               <StatCard label="Days logged" value={myAttendance.length} icon="ti-checklist" />
               <StatCard label="Status" value={myAttendance[0]?.status === 'OPEN' ? 'Checked in' : 'Checked out'} icon="ti-clock" />
@@ -156,7 +156,7 @@ export default function EmployeeProfilePage() {
             {recentAttendance.length === 0 ? (
               <EmptyState icon="ti-clock" text="No attendance records" />
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto"><table className="w-full text-sm">
                 <thead>
                   <tr className="text-2xs uppercase tracking-wide text-muted border-b border-line">
                     <th className="th text-left">Date</th>
@@ -177,7 +177,7 @@ export default function EmployeeProfilePage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function EmployeeProfilePage() {
           <div className="card p-5">
             <h3 className="text-sm font-semibold mb-3">Leave balances</h3>
             {leaveProfile ? (
-              <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
                 <StatCard label="Annual" value={leaveProfile.annual_balance} icon="ti-calendar" />
                 <StatCard label="Sick" value={leaveProfile.sick_balance} icon="ti-vaccine" />
                 <StatCard label="Casual" value={leaveProfile.casual_balance} icon="ti-coffee" />

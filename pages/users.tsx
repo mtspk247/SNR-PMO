@@ -46,8 +46,8 @@ export default function UsersPage() {
       {loading ? <Spinner /> : (
         <>
           <PageHeader title="Users & roles" subtitle="Manage team access and permissions" />
-          <div className="flex gap-4">
-            <div className="card w-72 shrink-0 overflow-y-auto" style={{ maxHeight: '72vh' }}>
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="card w-full lg:w-72 lg:shrink-0 overflow-y-auto" style={{ maxHeight: '72vh' }}>
               {users.map((x) => (
                 <button key={x.id} onClick={() => setSel(x.id)} className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line last:border-0 ${sel === x.id ? 'bg-sky-50/60 border-l-2 border-l-sky-500' : 'hover:bg-paper border-l-2 border-l-transparent'}`}>
                   <Avatar name={x.full_name} size={32} />
@@ -63,7 +63,7 @@ export default function UsersPage() {
                   <Avatar name={u.full_name} size={44} />
                   <div><h3 className="font-semibold">{u.full_name}</h3><p className="text-sm text-neutral-500">{u.email}{u.department ? ` · ${u.department}` : ''}</p></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mb-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                   <div><label className="label">Role</label><select value={u.role} disabled={busy} onChange={(e) => patch({ role: e.target.value as any })} className="input">{ROLES.map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}</select></div>
                   <div><label className="label">Status</label><select value={u.status} disabled={busy} onChange={(e) => patch({ status: e.target.value as any })} className="input"><option value="active">Active</option><option value="suspended">Suspended</option></select></div>
                 </div>

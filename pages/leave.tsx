@@ -88,7 +88,7 @@ export default function LeavePage() {
           </div>
 
           {profile && (
-            <div className="grid grid-cols-3 gap-3 mb-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
               <StatCard label="Annual balance" value={profile.annual_balance} icon="ti-calendar" />
               <StatCard label="Sick balance" value={profile.sick_balance} icon="ti-vaccine" />
               <StatCard label="Casual balance" value={profile.casual_balance} icon="ti-coffee" />
@@ -99,12 +99,12 @@ export default function LeavePage() {
             <div className="mb-6">
               <p className="text-sm font-medium mb-2">Approval queue {queue.length > 0 && <span className="pill pill-amber ml-1">{queue.length}</span>}</p>
               <div className="card overflow-hidden">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto"><table className="w-full text-sm">
                   <thead><tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
                     <th className="text-left font-medium px-4 py-2.5">Person</th><th className="text-left font-medium px-4 py-2.5">Type</th><th className="text-left font-medium px-4 py-2.5">Dates</th><th className="text-left font-medium px-4 py-2.5">Days</th><th className="text-left font-medium px-4 py-2.5">Status</th><th></th>
                   </tr></thead>
                   <tbody>{queue.map((l) => <Row key={l.id} l={l} withPerson actions />)}</tbody>
-                </table>
+                </table></div>
                 {queue.length === 0 && <EmptyState icon="ti-inbox" text="No pending requests" />}
               </div>
             </div>
@@ -112,12 +112,12 @@ export default function LeavePage() {
 
           <p className="text-sm font-medium mb-2">My requests</p>
           <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead><tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
                 <th className="text-left font-medium px-4 py-2.5">Type</th><th className="text-left font-medium px-4 py-2.5">Dates</th><th className="text-left font-medium px-4 py-2.5">Days</th><th className="text-left font-medium px-4 py-2.5">Status</th><th></th>
               </tr></thead>
               <tbody>{mine.map((l) => <Row key={l.id} l={l} />)}</tbody>
-            </table>
+            </table></div>
             {mine.length === 0 && <EmptyState icon="ti-beach" text="No leave requests yet" />}
           </div>
         </>

@@ -53,7 +53,7 @@ export default function PlatformPage() {
           {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
           <div className="card overflow-hidden mb-8">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="bg-paper text-neutral-500 text-left text-2xs uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-2.5 font-medium">Tenant</th>
@@ -91,12 +91,12 @@ export default function PlatformPage() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <PageHeader title="Plans & feature entitlements" subtitle="Toggle which plan unlocks which module" />
           <div className="card overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="bg-paper text-left">
                 <tr>
                   <th className="px-4 py-3 font-medium text-2xs uppercase tracking-wide text-neutral-500">Feature</th>
@@ -126,7 +126,7 @@ export default function PlatformPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
           <p className="text-2xs text-neutral-400 mt-3">Changes apply immediately to every tenant on that plan (enforced server-side via RLS).</p>
         </>

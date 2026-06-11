@@ -155,7 +155,7 @@ export default function FinancialData() {
               <div className="px-4 h-11 flex items-center border-b border-line bg-paper/50">
                 <h3 className="text-sm font-semibold">Project breakdown</h3>
               </div>
-              <table className="w-full">
+              <div className="overflow-x-auto"><table className="w-full">
                 <thead><tr>
                   <th className="th">Project</th><th className="th text-right">Planned</th>
                   <th className="th text-right">Actual</th><th className="th text-right">Variance</th><th className="th text-right">Used</th>
@@ -176,7 +176,7 @@ export default function FinancialData() {
                     );
                   })}
                 </tbody>
-              </table>
+              </table></div>
             </div>
 
             {/* Payments timeline */}

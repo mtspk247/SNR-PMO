@@ -145,7 +145,7 @@ export default function RiskAnalysis() {
               {hasFilter && <button onClick={clearFilters} className="btn-ghost text-2xs text-neutral-500 px-2 py-1 rounded">Clear filters</button>}
             </div>
             {filtered.length === 0 ? <EmptyState text="No risks match" icon="ti-shield-check" /> : (
-              <table className="w-full">
+              <div className="overflow-x-auto"><table className="w-full">
                 <thead><tr>
                   <th className="th">Risk</th><th className="th">Project</th><th className="th">Category</th>
                   <th className="th text-center">Impact</th><th className="th text-center">Prob.</th>
@@ -170,7 +170,7 @@ export default function RiskAnalysis() {
                     );
                   })}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         </div>

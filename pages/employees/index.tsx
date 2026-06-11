@@ -44,7 +44,7 @@ export default function EmployeesPage() {
         <EmptyState icon="ti-users" text={rows.length === 0 ? 'No employees yet' : 'No employees match your search'} />
       ) : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="text-2xs uppercase tracking-wide text-muted border-b border-line">
                 <th className="th text-left">Name</th>
@@ -81,7 +81,7 @@ export default function EmployeesPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </Layout>

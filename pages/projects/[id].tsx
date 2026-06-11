@@ -126,7 +126,7 @@ export default function ProjectDetail() {
               <Link href="/tasks" className="text-2xs text-neutral-500 hover:text-ink">All tasks →</Link>
             </div>
             {tasks.length === 0 ? <div className="p-5"><EmptyState icon="ti-checklist" text="No tasks for this project yet." /></div> : (
-              <table className="w-full">
+              <div className="overflow-x-auto"><table className="w-full">
                 <thead><tr><th className="th">Name</th><th className="th">Status</th><th className="th">Assignee</th><th className="th">Due</th></tr></thead>
                 <tbody>
                   {tasks.map((t) => (
@@ -138,14 +138,14 @@ export default function ProjectDetail() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
 
           <div className="card overflow-hidden">
             <div className="px-5 py-3 border-b border-line"><p className="text-sm font-semibold">Risks</p></div>
             {risks.length === 0 ? <div className="p-5"><EmptyState icon="ti-shield-check" text="No risks logged." /></div> : (
-              <table className="w-full">
+              <div className="overflow-x-auto"><table className="w-full">
                 <thead><tr><th className="th">Title</th><th className="th">Category</th><th className="th">Impact × Prob</th><th className="th">Status</th></tr></thead>
                 <tbody>
                   {risks.map((r) => (
@@ -157,14 +157,14 @@ export default function ProjectDetail() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
 
           <div className="card overflow-hidden">
             <div className="px-5 py-3 border-b border-line"><p className="text-sm font-semibold">Financials</p></div>
             {financials.length === 0 ? <div className="p-5"><EmptyState icon="ti-cash" text="No financial records." /></div> : (
-              <table className="w-full">
+              <div className="overflow-x-auto"><table className="w-full">
                 <thead><tr><th className="th">Period</th><th className="th">Category</th><th className="th text-right">Planned</th><th className="th text-right">Actual</th></tr></thead>
                 <tbody>
                   {financials.map((f) => (
@@ -176,7 +176,7 @@ export default function ProjectDetail() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         </div>

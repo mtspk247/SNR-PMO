@@ -27,7 +27,7 @@ export default function AuditPage() {
           <PageHeader title="Audit log" subtitle="Recent activity across the workspace"
             action={<div className="flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-white"><Icon name="ti-search" className="text-neutral-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter" className="bg-transparent outline-none text-sm" /></div>} />
           <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead><tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
                 <th className="text-left font-medium px-4 py-2.5">When</th><th className="text-left font-medium px-4 py-2.5">Who</th><th className="text-left font-medium px-4 py-2.5">Action</th><th className="text-left font-medium px-4 py-2.5">Entity</th>
               </tr></thead>
@@ -39,7 +39,7 @@ export default function AuditPage() {
                   <td className="px-4 py-2.5 text-neutral-500">{r.entity_type ? `${r.entity_type}${r.entity_id ? ' · ' + String(r.entity_id).slice(0, 8) : ''}` : '—'}</td>
                 </tr>
               ))}</tbody>
-            </table>
+            </table></div>
             {filtered.length === 0 && <EmptyState icon="ti-history" text="No audit entries" />}
           </div>
         </>

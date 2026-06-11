@@ -85,7 +85,7 @@ export default function Projects() {
         <EmptyState text={canCreate ? 'No projects yet — create your first one' : 'No projects yet'} />
       ) : (
         <div className="card overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr>
               <th className="th">Name</th><th className="th">Status</th><th className="th">Priority</th>
               <th className="th">Timeline</th><th className="th w-44">Progress</th><th className="th w-10"></th>
@@ -115,7 +115,7 @@ export default function Projects() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
