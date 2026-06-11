@@ -4,6 +4,7 @@ import { qk } from '@/lib/queryKeys';
 import {
   getProjects, createProject, updateProject, deleteProject,
   getOrgCompanies, getPortfolios,
+  getAuditLog, getAttendance, getEmployees, getLeaves, getPayrollRuns,
 } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
@@ -17,9 +18,17 @@ import {
 //    list (insert/update with return=minimal, then refetch — see db.ts). We push
 //    that straight into the cache with setQueryData: no second round-trip, no
 //    invalidate-refetch. deleteProject returns void → invalidate.
+//
+// ROLLOUT note (audit/attendance/employees/leave/payroll + future pages):
+//  Use the list read hook below for the main (paginated) list. For mutations,
+//  keep calling the existing db.ts fn directly, then invalidate the matching
+//  key, e.g.:
+//      const qc = useQueryClient(); const org = useActiveOrg();
+//      await requestLeave(...); qc.invalidateQueries({ queryKey: qk.leaves(org?.id) });
+//  (RQ refetches the scoped list — replaces the old `setX(await getX())`.)
 // ---------------------------------------------------------------------------
 
-// --- Reads -----------------------------------------------------------------
+// --- Projects --------------------------------------------------------------
 export function useProjects() {
   const org = useActiveOrg();
   return useQuery({ queryKey: qk.projects(org?.id), queryFn: getProjects, enabled: !!org });
@@ -37,8 +46,6 @@ export function usePortfolios() {
     enabled: !!org,
   });
 }
-
-// --- Project mutations -----------------------------------------------------
 export function useCreateProject() {
   const qc = useQueryClient(); const org = useActiveOrg();
   return useMutation({
@@ -60,4 +67,26 @@ export function useDeleteProject() {
     mutationFn: deleteProject,
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.projects(org?.id) }),
   });
+}
+
+// --- List reads for rollout pages ------------------------------------------
+export function useAuditLog() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.auditLog(org?.id), queryFn: getAuditLog, enabled: !!org });
+}
+export function useAttendance() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.attendance(org?.id), queryFn: getAttendance, enabled: !!org });
+}
+export function useEmployees() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.employees(org?.id), queryFn: getEmployees, enabled: !!org });
+}
+export function useLeaves() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.leaves(org?.id), queryFn: getLeaves, enabled: !!org });
+}
+export function usePayrollRuns() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.payrollRuns(org?.id), queryFn: getPayrollRuns, enabled: !!org });
 }

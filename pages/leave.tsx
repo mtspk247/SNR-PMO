@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, StatCard, Spinner, EmptyState, Pill, Icon, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
-import { getLeaves, requestLeave, decideLeave, cancelLeave, notify, getMyLeaveProfile, MyLeaveProfile } from '@/lib/db';
+import { usePagination, Pagination } from '@/components/Pagination';
+import { useLeaves } from '@/lib/queries';
+import { qk } from '@/lib/queryKeys';
+import { useQueryClient } from '@tanstack/react-query';
+import { requestLeave, decideLeave, cancelLeave, notify, getMyLeaveProfile, MyLeaveProfile } from '@/lib/db';
 import { Leave } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -13,14 +17,13 @@ const daysBetween = (a: string, b: string) => { const d = Math.round((new Date(b
 export default function LeavePage() {
   const me = useAuthStore((s) => s.user);
   const org = useActiveOrg();
-  const [rows, setRows] = useState<Leave[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data: rows = [], isLoading: loading } = useLeaves();
   const [busy, setBusy] = useState(false);
   const [show, setShow] = useState(false);
   const [profile, setProfile] = useState<MyLeaveProfile | null>(null);
   const [f, setF] = useState({ type: 'Annual', start_date: '', end_date: '', reason: '' });
 
-  useEffect(() => { setLoading(true); getLeaves().then(setRows).finally(() => setLoading(false)); }, [org?.id]);
   useEffect(() => { if (me?.id) getMyLeaveProfile(me.id).then(setProfile).catch(() => {}); }, [me?.id]);
 
   // Approvers = org owner/admin OR a delegated approver (can_approve_leaves).
@@ -30,23 +33,27 @@ export default function LeavePage() {
   const queue = useMemo(() => rows.filter((r) => r.status === 'Pending' && r.user_id !== me?.id), [rows, me?.id]);
   const days = f.start_date && f.end_date ? daysBetween(f.start_date, f.end_date) : 0;
 
+  const minePg = usePagination(mine, 25);
+
   const submit = async () => {
     if (!me || !org || days <= 0) return; setBusy(true);
     try {
-      const l = await requestLeave({ user_id: me.id, org_id: org.id, type: f.type, start_date: f.start_date, end_date: f.end_date, days, reason: f.reason });
-      setRows((p) => [l, ...p]); setShow(false); setF({ type: 'Annual', start_date: '', end_date: '', reason: '' });
+      await requestLeave({ user_id: me.id, org_id: org.id, type: f.type, start_date: f.start_date, end_date: f.end_date, days, reason: f.reason });
+      qc.invalidateQueries({ queryKey: qk.leaves(org?.id) });
+      setShow(false); setF({ type: 'Annual', start_date: '', end_date: '', reason: '' });
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const decide = async (l: Leave, status: 'Approved' | 'Rejected') => {
     if (!me || !org) return; setBusy(true);
     try {
-      const u = await decideLeave(l.id, status, me.id); setRows((p) => p.map((x) => (x.id === u.id ? u : x)));
+      await decideLeave(l.id, status, me.id);
+      qc.invalidateQueries({ queryKey: qk.leaves(org?.id) });
       if (l.user_id) notify({ org_id: org.id, user_id: l.user_id, type: 'LEAVE_STATUS', title: `Leave ${status.toLowerCase()}`, body: `${l.type} leave ${l.start_date}→${l.end_date} was ${status.toLowerCase()}.`, link: '/leave', entity_type: 'leave', entity_id: l.id }).catch(() => {});
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const cancel = async (l: Leave) => {
     setBusy(true);
-    try { const u = await cancelLeave(l.id); setRows((p) => p.map((x) => (x.id === u.id ? u : x))); }
+    try { await cancelLeave(l.id); qc.invalidateQueries({ queryKey: qk.leaves(org?.id) }); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
@@ -116,9 +123,10 @@ export default function LeavePage() {
               <thead><tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
                 <th className="text-left font-medium px-4 py-2.5">Type</th><th className="text-left font-medium px-4 py-2.5">Dates</th><th className="text-left font-medium px-4 py-2.5">Days</th><th className="text-left font-medium px-4 py-2.5">Status</th><th></th>
               </tr></thead>
-              <tbody>{mine.map((l) => <Row key={l.id} l={l} />)}</tbody>
+              <tbody>{minePg.pageItems.map((l) => <Row key={l.id} l={l} />)}</tbody>
             </table></div>
             {mine.length === 0 && <EmptyState icon="ti-beach" text="No leave requests yet" />}
+            <Pagination page={minePg.page} pageCount={minePg.pageCount} total={minePg.total} start={minePg.start} end={minePg.end} onPage={minePg.setPage} />
           </div>
         </>
       )}

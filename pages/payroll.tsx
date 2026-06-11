@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import { usePagination, Pagination } from '@/components/Pagination';
+import { usePayrollRuns } from '@/lib/queries';
+import { qk } from '@/lib/queryKeys';
+import { useQueryClient } from '@tanstack/react-query';
 import {
-  getPayrollRuns, createPayrollRun, updatePayrollRunStatus, deletePayrollRun,
+  createPayrollRun, updatePayrollRunStatus, deletePayrollRun,
   getPayslips, createPayslip, deletePayslip, getEmployees,
 } from '@/lib/db';
 import { PayrollRun, Payslip, Employee } from '@/lib/supabase';
@@ -18,9 +22,9 @@ export default function PayrollPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const isAdmin = can.manageMembers(org);
+  const qc = useQueryClient();
 
-  const [loading, setLoading] = useState(true);
-  const [runs, setRuns] = useState<PayrollRun[]>([]);
+  const { data: runs = [], isLoading: loading } = usePayrollRuns();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
@@ -30,12 +34,13 @@ export default function PayrollPage() {
   const [slipsLoading, setSlipsLoading] = useState(false);
 
   useEffect(() => {
-    if (!isAdmin) { setLoading(false); return; }
-    setLoading(true);
-    Promise.all([getPayrollRuns(), getEmployees()])
-      .then(([r, e]) => { setRuns(r); setEmployees(e); if (r.length) setSelected((s) => s || r[0].id); })
-      .finally(() => setLoading(false));
+    if (!isAdmin) return;
+    getEmployees().then(setEmployees);
   }, [org?.id, isAdmin]);
+
+  useEffect(() => {
+    if (runs.length && !selected) setSelected(runs[0].id);
+  }, [runs, selected]);
 
   useEffect(() => {
     if (!selected) { setPayslips([]); return; }
@@ -56,12 +61,14 @@ export default function PayrollPage() {
 
   const run = runs.find((r) => r.id === selected) || null;
 
+  const pg = usePagination(runs, 25);
+
   const removeRun = async (id: string) => {
     if (!confirm('Delete this payroll run and its payslips?')) return;
     setBusy(true);
     try {
       await deletePayrollRun(id);
-      setRuns((p) => p.filter((r) => r.id !== id));
+      qc.invalidateQueries({ queryKey: qk.payrollRuns(org?.id) });
       if (selected === id) setSelected(null);
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
@@ -69,8 +76,8 @@ export default function PayrollPage() {
   const setStatus = async (r: PayrollRun, status: PayrollRun['status']) => {
     setBusy(true);
     try {
-      const u = await updatePayrollRunStatus(r.id, status);
-      setRuns((p) => p.map((x) => (x.id === u.id ? u : x)));
+      await updatePayrollRunStatus(r.id, status);
+      qc.invalidateQueries({ queryKey: qk.payrollRuns(org?.id) });
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
@@ -94,7 +101,7 @@ export default function PayrollPage() {
       {loading ? <Spinner /> : (
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="card w-full lg:w-72 lg:shrink-0 overflow-y-auto" style={{ maxHeight: '72vh' }}>
-            {runs.map((r) => (
+            {pg.pageItems.map((r) => (
               <button key={r.id} onClick={() => setSelected(r.id)}
                 className={`w-full text-left flex items-center justify-between gap-2 px-4 py-3 border-b border-line last:border-0 ${selected === r.id ? 'bg-surface2 border-l-2 border-l-accentstrong' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}>
                 <span className="min-w-0">
@@ -105,6 +112,7 @@ export default function PayrollPage() {
               </button>
             ))}
             {runs.length === 0 && <EmptyState icon="ti-cash" text="No payroll runs yet" />}
+            <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
           </div>
 
           {run ? (
@@ -190,7 +198,8 @@ export default function PayrollPage() {
             if (!org) return; setBusy(true);
             try {
               const r = await createPayrollRun({ org_id: org.id, period_label: label, period_start: start, period_end: end, created_by: me?.id });
-              setRuns((p) => [r, ...p]); setSelected(r.id); setShowNew(false);
+              qc.invalidateQueries({ queryKey: qk.payrollRuns(org?.id) });
+              setSelected(r.id); setShowNew(false);
             } catch (e: any) { alert(e.message); } finally { setBusy(false); }
           }} />
       )}

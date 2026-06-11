@@ -1,21 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
-import { getEmployees } from '@/lib/db';
-import { Employee } from '@/lib/supabase';
-import { useActiveOrg } from '@/lib/store';
+import { usePagination, Pagination } from '@/components/Pagination';
+import { useEmployees } from '@/lib/queries';
 
 export default function EmployeesPage() {
-  const org = useActiveOrg();
-  const [rows, setRows] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rows = [], isLoading } = useEmployees();
   const [q, setQ] = useState('');
-
-  useEffect(() => {
-    setLoading(true);
-    getEmployees().then(setRows).finally(() => setLoading(false));
-  }, [org?.id]);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -27,6 +19,8 @@ export default function EmployeesPage() {
       e.role?.toLowerCase().includes(term)
     );
   }, [rows, q]);
+
+  const pg = usePagination(filtered, 25);
 
   return (
     <Layout title="Employees">
@@ -40,7 +34,7 @@ export default function EmployeesPage() {
         </div>
       </div>
 
-      {loading ? <Spinner /> : filtered.length === 0 ? (
+      {isLoading ? <Spinner /> : filtered.length === 0 ? (
         <EmptyState icon="ti-users" text={rows.length === 0 ? 'No employees yet' : 'No employees match your search'} />
       ) : (
         <div className="card overflow-hidden">
@@ -56,7 +50,7 @@ export default function EmployeesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((e) => (
+              {pg.pageItems.map((e) => (
                 <tr key={e.id} className="row border-b border-line last:border-0">
                   <td className="td">
                     <Link href={`/employees/${e.id}`} className="inline-flex items-center gap-2.5 hover:text-accentstrong">
@@ -82,6 +76,7 @@ export default function EmployeesPage() {
               ))}
             </tbody>
           </table></div>
+          <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
         </div>
       )}
     </Layout>
