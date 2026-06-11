@@ -90,6 +90,15 @@ body {
   .row { @apply border-t border-line hover:bg-surface2/60; }
 }
 
+/* ---- Modal entrance: subtle backdrop fade + card pop ---- */
+@keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modalPop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+.modal-backdrop { animation: modalFade .12s ease-out; }
+.modal-card { animation: modalPop .14s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop, .modal-card { animation: none; }
+}
+
 /* ---- Scrollbars: thin, unobtrusive, theme-aware ----
    Firefox uses scrollbar-width/color; WebKit uses the pseudo-elements.
    The padding-box + transparent border trick insets the thumb so it reads

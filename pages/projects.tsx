@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, PageHeader, Icon } from '@/components/ui';
+import { Modal, Field } from '@/components/Modal';
 import { getProjects, createProject, updateProject, deleteProject, getOrgCompanies, getPortfolios } from '@/lib/db';
 import { Project, OrgCompany, Portfolio } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -118,33 +119,58 @@ export default function Projects() {
         </div>
       )}
 
-      {showNew && (
-        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setShowNew(false)}>
-          <div className="bg-white rounded-lg border border-line w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold mb-4">{editId ? 'Edit project' : 'New project'}</h3>
-            <div className="space-y-3">
-              <div><label className="label">Name</label><input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} className="input" placeholder="Project name" /></div>
-              {companies.length > 0 && <div><label className="label">Company</label><select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value, portfolio_id: '' })} className="input"><option value="">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
-              {np.company_id && modalPortfolios.length > 0 && <div><label className="label">Portfolio</label><select value={np.portfolio_id} onChange={(e) => setNp({ ...np, portfolio_id: e.target.value })} className="input"><option value="">No portfolio</option>{modalPortfolios.map((pf) => <option key={pf.id} value={pf.id}>{pf.name}</option>)}</select></div>}
-              <div><label className="label">Description</label><textarea value={np.description} onChange={(e) => setNp({ ...np, description: e.target.value })} className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm text-ink placeholder:text-neutral-400 outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 h-20 resize-none" placeholder="Optional" /></div>
-              <div className="flex gap-3">
-                <div className="flex-1"><label className="label">Status</label><select value={np.status} onChange={(e) => setNp({ ...np, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select></div>
-                <div className="flex-1"><label className="label">Priority</label><select value={np.priority} onChange={(e) => setNp({ ...np, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select></div>
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1"><label className="label">Start</label><input type="date" value={np.start_date} onChange={(e) => setNp({ ...np, start_date: e.target.value })} className="input" /></div>
-                <div className="flex-1"><label className="label">End</label><input type="date" value={np.end_date} onChange={(e) => setNp({ ...np, end_date: e.target.value })} className="input" /></div>
-              </div>
-              {err && <p className="text-sm text-rose-600">{err}</p>}
-            </div>
-            <div className="flex gap-2 mt-5">
-              {editId && <button onClick={remove} disabled={busy} className="btn text-rose-600" title="Delete project"><Icon name="ti-trash" /></button>}
-              <button onClick={() => { setShowNew(false); setEditId(null); }} className="btn flex-1">Cancel</button>
-              <button onClick={submit} disabled={busy || !np.name.trim()} className="btn btn-primary flex-1">{busy ? 'Saving…' : (editId ? 'Save changes' : 'Create project')}</button>
-            </div>
+      <Modal
+        open={showNew}
+        onClose={() => { setShowNew(false); setEditId(null); }}
+        title={editId ? 'Edit project' : 'New project'}
+        subtitle={editId ? 'Update details, timeline and assignment.' : 'Set up a project and assign it to a company or portfolio.'}
+        icon={editId ? 'ti-edit' : 'ti-folder-plus'}
+        onSubmit={() => { if (!busy && np.name.trim()) submit(); }}
+        footer={
+          <>
+            {editId && <button onClick={remove} disabled={busy} className="btn text-rose-600 px-3" title="Delete project"><Icon name="ti-trash" /></button>}
+            <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+            <button onClick={() => { setShowNew(false); setEditId(null); }} className="btn">Cancel</button>
+            <button onClick={submit} disabled={busy || !np.name.trim()} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Saving…' : (editId ? 'Save changes' : 'Create project')}</button>
+          </>
+        }
+      >
+        <div className="space-y-3.5">
+          <Field label="Name" required hint="A short, recognizable name for this project.">
+            <input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} className="input" placeholder="e.g. Website redesign" />
+          </Field>
+          {companies.length > 0 && (
+            <Field label="Company">
+              <select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value, portfolio_id: '' })} className="input"><option value="">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+            </Field>
+          )}
+          {np.company_id && modalPortfolios.length > 0 && (
+            <Field label="Portfolio">
+              <select value={np.portfolio_id} onChange={(e) => setNp({ ...np, portfolio_id: e.target.value })} className="input"><option value="">No portfolio</option>{modalPortfolios.map((pf) => <option key={pf.id} value={pf.id}>{pf.name}</option>)}</select>
+            </Field>
+          )}
+          <Field label="Description" hint="Optional — a sentence on scope or goals.">
+            <textarea value={np.description} onChange={(e) => setNp({ ...np, description: e.target.value })} className="textarea h-20" placeholder="What is this project about?" />
+          </Field>
+          <div className="flex gap-3">
+            <Field label="Status" className="flex-1">
+              <select value={np.status} onChange={(e) => setNp({ ...np, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+            </Field>
+            <Field label="Priority" className="flex-1">
+              <select value={np.priority} onChange={(e) => setNp({ ...np, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
+            </Field>
           </div>
+          <div className="flex gap-3">
+            <Field label="Start" className="flex-1">
+              <input type="date" value={np.start_date} onChange={(e) => setNp({ ...np, start_date: e.target.value })} className="input" />
+            </Field>
+            <Field label="End" className="flex-1">
+              <input type="date" value={np.end_date} onChange={(e) => setNp({ ...np, end_date: e.target.value })} className="input" />
+            </Field>
+          </div>
+          {err && <p className="text-sm text-rose-600">{err}</p>}
         </div>
-      )}
+      </Modal>
     </Layout>
   );
 }
