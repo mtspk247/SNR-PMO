@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
+import { Modal, Field } from '@/components/Modal';
 import {
   getOnboardingTemplates, createOnboardingTemplate, deleteOnboardingTemplate,
   addTemplateItem, deleteTemplateItem,
@@ -218,44 +219,48 @@ function TemplateCard({ tmpl, orgId, onItemsChange, onDelete }:
 }
 
 // ---- modals ----------------------------------------------------------------
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-lg border border-line w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-semibold mb-4">{title}</h3>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function AssignModal({ people, templates, busy, onClose, onSubmit }:
   { people: OrgUser[]; templates: OnboardingTemplate[]; busy: boolean; onClose: () => void; onSubmit: (userId: string, tmplId: string, start: string) => void }) {
   const [userId, setUserId] = useState('');
   const [tmplId, setTmplId] = useState(templates[0]?.id || '');
   const [start, setStart] = useState('');
   const noTmpl = templates.length === 0;
+  const valid = !noTmpl && !!userId && !!tmplId;
+  const submit = () => valid && onSubmit(userId, tmplId, start);
   return (
-    <Modal title="Onboard a hire" onClose={onClose}>
+    <Modal
+      open
+      onClose={onClose}
+      title="Onboard a hire"
+      subtitle="Assign an onboarding checklist template to a team member."
+      icon="ti-user-plus"
+      onSubmit={() => { if (!busy && valid) submit(); }}
+      footer={
+        <>
+          {!noTmpl && <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>}
+          <button onClick={onClose} className="btn">Cancel</button>
+          {!noTmpl && <button onClick={submit} disabled={busy || !valid} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Assigning…' : 'Assign checklist'}</button>}
+        </>
+      }
+    >
       {noTmpl ? <p className="text-sm text-neutral-500">Create a template first, then come back to assign it.</p> : (
-        <div className="space-y-3">
-          <div><label className="label">Employee</label>
-            <select value={userId} onChange={(e) => setUserId(e.target.value)} className="input">
+        <div className="space-y-3.5">
+          <Field label="Employee" required>
+            <select autoFocus value={userId} onChange={(e) => setUserId(e.target.value)} className="input">
               <option value="">Select…</option>
               {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-            </select></div>
-          <div><label className="label">Template</label>
+            </select>
+          </Field>
+          <Field label="Template" required>
             <select value={tmplId} onChange={(e) => setTmplId(e.target.value)} className="input">
               {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({(t.items || []).length} steps)</option>)}
-            </select></div>
-          <div><label className="label">Start date <span className="text-neutral-400">(sets due dates)</span></label>
-            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
+            </select>
+          </Field>
+          <Field label="Start date" hint="Sets due dates for checklist items.">
+            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+          </Field>
         </div>
       )}
-      <div className="flex gap-2 mt-5">
-        <button onClick={onClose} className="btn flex-1">Cancel</button>
-        {!noTmpl && <button onClick={() => userId && tmplId && onSubmit(userId, tmplId, start)} disabled={busy || !userId || !tmplId} className="btn btn-primary flex-1">{busy ? 'Assigning…' : 'Assign checklist'}</button>}
-      </div>
     </Modal>
   );
 }
@@ -263,15 +268,27 @@ function AssignModal({ people, templates, busy, onClose, onSubmit }:
 function NewTemplateModal({ busy, onClose, onSubmit }: { busy: boolean; onClose: () => void; onSubmit: (name: string, desc: string) => void }) {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  const valid = !!name.trim();
+  const submit = () => valid && onSubmit(name.trim(), desc.trim());
   return (
-    <Modal title="New onboarding template" onClose={onClose}>
-      <div className="space-y-3">
-        <div><label className="label">Name</label><input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Standard New Hire" className="input" /></div>
-        <div><label className="label">Description</label><input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional" className="input" /></div>
-      </div>
-      <div className="flex gap-2 mt-5">
-        <button onClick={onClose} className="btn flex-1">Cancel</button>
-        <button onClick={() => name.trim() && onSubmit(name.trim(), desc.trim())} disabled={busy || !name.trim()} className="btn btn-primary flex-1">{busy ? 'Creating…' : 'Create template'}</button>
+    <Modal
+      open
+      onClose={onClose}
+      title="New onboarding template"
+      subtitle="Create a reusable checklist for new hires."
+      icon="ti-list-check"
+      onSubmit={() => { if (!busy && valid) submit(); }}
+      footer={
+        <>
+          <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+          <button onClick={onClose} className="btn">Cancel</button>
+          <button onClick={submit} disabled={busy || !valid} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Creating…' : 'Create template'}</button>
+        </>
+      }
+    >
+      <div className="space-y-3.5">
+        <Field label="Name" required hint="A short, recognizable name."><input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Standard New Hire" className="input" /></Field>
+        <Field label="Description" hint="Optional"><input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional" className="input" /></Field>
       </div>
     </Modal>
   );

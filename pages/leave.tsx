@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, StatCard, Spinner, EmptyState, Pill, Icon, Avatar } from '@/components/ui';
+import { Modal, Field } from '@/components/Modal';
 import { getLeaves, requestLeave, decideLeave, cancelLeave, notify, getMyLeaveProfile, MyLeaveProfile } from '@/lib/db';
 import { Leave } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -122,26 +123,31 @@ export default function LeavePage() {
         </>
       )}
 
-      {show && (
-        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setShow(false)}>
-          <div className="bg-white rounded-lg border border-line w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold mb-4">Request leave</h3>
-            <div className="space-y-3">
-              <div><label className="label">Type</label><select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className="input">{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-              <div className="flex gap-3">
-                <div className="flex-1"><label className="label">From</label><input type="date" value={f.start_date} onChange={(e) => setF({ ...f, start_date: e.target.value })} className="input" /></div>
-                <div className="flex-1"><label className="label">To</label><input type="date" value={f.end_date} onChange={(e) => setF({ ...f, end_date: e.target.value })} className="input" /></div>
-              </div>
-              <p className="text-2xs text-neutral-500">{days > 0 ? `${days} day${days === 1 ? '' : 's'}` : 'Select a valid date range'}</p>
-              <div><label className="label">Reason</label><textarea value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} rows={2} className="input h-auto py-2 resize-none" placeholder="Optional" /></div>
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setShow(false)} className="btn flex-1">Cancel</button>
-              <button onClick={submit} disabled={busy || days <= 0} className="btn btn-primary flex-1">Submit request</button>
-            </div>
+      <Modal
+        open={show}
+        onClose={() => setShow(false)}
+        title="Request leave"
+        subtitle="Submit a time-off request for approval."
+        icon="ti-beach"
+        onSubmit={() => { if (!busy && days > 0) submit(); }}
+        footer={
+          <>
+            <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to submit</span>
+            <button onClick={() => setShow(false)} className="btn">Cancel</button>
+            <button onClick={submit} disabled={busy || days <= 0} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Submitting…' : 'Submit request'}</button>
+          </>
+        }
+      >
+        <div className="space-y-3.5">
+          <Field label="Type"><select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className="input">{TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
+          <div className="flex gap-3">
+            <Field label="From" required className="flex-1"><input autoFocus type="date" value={f.start_date} onChange={(e) => setF({ ...f, start_date: e.target.value })} className="input" /></Field>
+            <Field label="To" required className="flex-1"><input type="date" value={f.end_date} onChange={(e) => setF({ ...f, end_date: e.target.value })} className="input" /></Field>
           </div>
+          <p className="text-2xs text-neutral-500">{days > 0 ? `${days} day${days === 1 ? '' : 's'}` : 'Select a valid date range'}</p>
+          <Field label="Reason" hint="Optional"><textarea value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
         </div>
-      )}
+      </Modal>
     </Layout>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import { Modal, Field } from '@/components/Modal';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader } from '@/components/ui';
 import { getTasks, getOrgUsers, getProjects, createTask, updateTask, deleteTask, notify } from '@/lib/db';
 import { Task, OrgUser, Project } from '@/lib/supabase';
@@ -386,31 +387,52 @@ export default function Tasks() {
       )}
 
       {/* Create / edit modal */}
-      {modal && (
-        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={closeModal}>
-          <div className="bg-surface rounded-lg border border-line w-full max-w-md p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold mb-4 text-content">{modal.mode === 'create' ? 'New task' : 'Edit task'}</h3>
-            <div className="space-y-3">
-              <div><label className="label">Name</label><input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" placeholder="What needs doing?" /></div>
-              <div><label className="label">Description</label><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="textarea h-20" placeholder="Optional details" /></div>
-              <div><label className="label">Project</label><select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} className="input"><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-              <div className="flex gap-3">
-                <div className="flex-1"><label className="label">Priority</label><select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select></div>
-                <div className="flex-1"><label className="label">Status</label><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select></div>
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1"><label className="label">Due date</label><input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" /></div>
-                <div className="flex-1"><label className="label">Estimated hours</label><input type="number" min="0" step="0.5" value={form.estimated_hours} onChange={(e) => setForm({ ...form, estimated_hours: e.target.value })} className="input" placeholder="0" /></div>
-              </div>
-              <div><label className="label">Assignee</label><select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className="input"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></div>
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={closeModal} className="btn flex-1">Cancel</button>
-              <button onClick={submitForm} disabled={busy || !form.name.trim()} className="btn btn-primary flex-1">{modal.mode === 'create' ? 'Create task' : 'Save changes'}</button>
-            </div>
+      <Modal
+        open={!!modal}
+        onClose={closeModal}
+        title={modal?.mode === 'edit' ? 'Edit task' : 'New task'}
+        subtitle={modal?.mode === 'edit' ? 'Update details, assignment and schedule.' : 'Add a task and assign it to a project.'}
+        icon={modal?.mode === 'edit' ? 'ti-edit' : 'ti-checkbox'}
+        onSubmit={() => { if (!busy && form.name.trim()) submitForm(); }}
+        footer={
+          <>
+            <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+            <button onClick={closeModal} className="btn">Cancel</button>
+            <button onClick={submitForm} disabled={busy || !form.name.trim()} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Saving…' : (modal?.mode === 'create' ? 'Create task' : 'Save changes')}</button>
+          </>
+        }
+      >
+        <div className="space-y-3.5">
+          <Field label="Name" required hint="What needs doing?">
+            <input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" placeholder="What needs doing?" />
+          </Field>
+          <Field label="Description" hint="Optional — any extra context.">
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="textarea h-20" placeholder="Optional details" />
+          </Field>
+          <Field label="Project">
+            <select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} className="input"><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+          </Field>
+          <div className="flex gap-3">
+            <Field label="Priority" className="flex-1">
+              <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
+            </Field>
+            <Field label="Status" className="flex-1">
+              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+            </Field>
           </div>
+          <div className="flex gap-3">
+            <Field label="Due date" className="flex-1">
+              <input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" />
+            </Field>
+            <Field label="Estimated hours" className="flex-1">
+              <input type="number" min="0" step="0.5" value={form.estimated_hours} onChange={(e) => setForm({ ...form, estimated_hours: e.target.value })} className="input" placeholder="0" />
+            </Field>
+          </div>
+          <Field label="Assignee">
+            <select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className="input"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select>
+          </Field>
         </div>
-      )}
+      </Modal>
     </Layout>
   );
 }

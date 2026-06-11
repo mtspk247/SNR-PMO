@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
+import { Modal, Field } from '@/components/Modal';
 import {
   getPayrollRuns, createPayrollRun, updatePayrollRunStatus, deletePayrollRun,
   getPayslips, createPayslip, deletePayslip, getEmployees,
@@ -208,33 +209,34 @@ export default function PayrollPage() {
   );
 }
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-semibold mb-4">{title}</h3>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function NewRunModal({ busy, onClose, onSubmit }: { busy: boolean; onClose: () => void; onSubmit: (label: string, start: string, end: string) => void }) {
   const [label, setLabel] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+  const valid = !!label.trim() && !!start && !!end;
+  const submit = () => valid && onSubmit(label.trim(), start, end);
   return (
-    <Modal title="New payroll run" onClose={onClose}>
-      <div className="space-y-3">
-        <div><label className="label">Period label</label><input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. June 2026" className="input" /></div>
+    <Modal
+      open
+      onClose={onClose}
+      title="New payroll run"
+      subtitle="Set up a pay period to add payslips against."
+      icon="ti-cash"
+      onSubmit={() => { if (!busy && valid) submit(); }}
+      footer={
+        <>
+          <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+          <button onClick={onClose} className="btn">Cancel</button>
+          <button onClick={submit} disabled={busy || !valid} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Creating…' : 'Create run'}</button>
+        </>
+      }
+    >
+      <div className="space-y-3.5">
+        <Field label="Period label" required hint="A short, recognizable name for this run."><input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. June 2026" className="input" /></Field>
         <div className="flex gap-3">
-          <div className="flex-1"><label className="label">Start</label><input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
-          <div className="flex-1"><label className="label">End</label><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></div>
+          <Field label="Start" required className="flex-1"><input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></Field>
+          <Field label="End" required className="flex-1"><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></Field>
         </div>
-      </div>
-      <div className="flex gap-2 mt-5">
-        <button onClick={onClose} className="btn flex-1">Cancel</button>
-        <button onClick={() => label.trim() && start && end && onSubmit(label.trim(), start, end)} disabled={busy || !label.trim() || !start || !end} className="btn btn-primary flex-1">{busy ? 'Creating…' : 'Create run'}</button>
       </div>
     </Modal>
   );
@@ -247,23 +249,36 @@ function AddPayslipModal({ employees, busy, onClose, onSubmit }: { employees: Em
   const g = parseFloat(gross) || 0;
   const d = parseFloat(deductions) || 0;
   const net = g - d;
+  const valid = !!userId && !!gross;
+  const submit = () => valid && onSubmit(userId, g, d);
   return (
-    <Modal title="Add payslip" onClose={onClose}>
-      <div className="space-y-3">
-        <div><label className="label">Employee</label>
-          <select value={userId} onChange={(e) => setUserId(e.target.value)} className="input">
+    <Modal
+      open
+      onClose={onClose}
+      title="Add payslip"
+      subtitle="Add a payslip for an employee in this run."
+      icon="ti-receipt"
+      onSubmit={() => { if (!busy && valid) submit(); }}
+      footer={
+        <>
+          <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+          <button onClick={onClose} className="btn">Cancel</button>
+          <button onClick={submit} disabled={busy || !valid} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Adding…' : 'Add payslip'}</button>
+        </>
+      }
+    >
+      <div className="space-y-3.5">
+        <Field label="Employee" required>
+          <select autoFocus value={userId} onChange={(e) => setUserId(e.target.value)} className="input">
             <option value="">Select…</option>
             {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-          </select></div>
+          </select>
+        </Field>
         <div className="flex gap-3">
-          <div className="flex-1"><label className="label">Gross</label><input type="number" value={gross} onChange={(e) => setGross(e.target.value)} className="input" /></div>
-          <div className="flex-1"><label className="label">Deductions</label><input type="number" value={deductions} onChange={(e) => setDeductions(e.target.value)} className="input" /></div>
+          <Field label="Gross" required className="flex-1"><input type="number" value={gross} onChange={(e) => setGross(e.target.value)} className="input" /></Field>
+          <Field label="Deductions" className="flex-1"><input type="number" value={deductions} onChange={(e) => setDeductions(e.target.value)} className="input" /></Field>
         </div>
         <p className="text-2xs text-muted2">Net: {net.toLocaleString()}</p>
-      </div>
-      <div className="flex gap-2 mt-5">
-        <button onClick={onClose} className="btn flex-1">Cancel</button>
-        <button onClick={() => userId && onSubmit(userId, g, d)} disabled={busy || !userId || !gross} className="btn btn-primary flex-1">{busy ? 'Adding…' : 'Add payslip'}</button>
       </div>
     </Modal>
   );

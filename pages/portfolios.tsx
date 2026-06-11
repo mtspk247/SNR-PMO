@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
+import { Modal, Field } from '@/components/Modal';
 import {
   getPortfolios, createPortfolio, getOrgCompanies, getOrgUsers,
   getMyCompanyManagerships, getMyPortfolioManagerships, listPortfolioMembers, addPortfolioMember,
@@ -62,9 +63,9 @@ export default function PortfoliosPage() {
   const canCreate = createableCompanies.length > 0;
   const canManage = (pf: Portfolio) => admin || mgrIds.has(pf.company_id) || pfMgrIds.has(pf.id);
   const removePortfolio = async (pf: Portfolio) => {
-    if (!confirm(`Delete portfolio \u201c${pf.name}\u201d? Any projects must be reassigned first.`)) return;
+    if (!confirm(`Delete portfolio “${pf.name}”? Any projects must be reassigned first.`)) return;
     try { await deletePortfolio(pf.id); setPortfolios((prev) => prev.filter((x) => x.id !== pf.id)); }
-    catch (e: any) { alert(e.message || 'Could not delete \u2014 reassign its projects first.'); }
+    catch (e: any) { alert(e.message || 'Could not delete — reassign its projects first.'); }
   };
 
   const submit = async () => {
@@ -160,92 +161,101 @@ export default function PortfoliosPage() {
         </div>
       )}
 
-      {showNew && (
-        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setShowNew(false)}>
-          <div className="bg-white rounded-lg border border-line w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold mb-4">New portfolio</h3>
-            <div className="space-y-3">
-              <div><label className="label">Company</label>
-                <select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value })} className="input">
-                  <option value="">Select a company…</option>
-                  {createableCompanies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div><label className="label">Name</label><input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} className="input" placeholder="Portfolio name" /></div>
-              <div><label className="label">Description</label><textarea value={np.description} onChange={(e) => setNp({ ...np, description: e.target.value })} className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm text-ink placeholder:text-neutral-400 outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 h-20 resize-none" placeholder="Optional" /></div>
-              {err && <p className="text-sm text-rose-600">{err}</p>}
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setShowNew(false)} className="btn flex-1">Cancel</button>
-              <button onClick={submit} disabled={busy || !np.name.trim() || !np.company_id} className="btn btn-primary flex-1">{busy ? 'Creating…' : 'Create portfolio'}</button>
-            </div>
-          </div>
+      <Modal
+        open={showNew}
+        onClose={() => setShowNew(false)}
+        title="New portfolio"
+        subtitle="Group related projects under a company."
+        icon="ti-stack-2"
+        onSubmit={() => { if (!busy && np.name.trim() && np.company_id) submit(); }}
+        footer={
+          <>
+            <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+            <button onClick={() => setShowNew(false)} className="btn">Cancel</button>
+            <button onClick={submit} disabled={busy || !np.name.trim() || !np.company_id} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Creating…' : 'Create portfolio'}</button>
+          </>
+        }
+      >
+        <div className="space-y-3.5">
+          <Field label="Company" required>
+            <select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value })} className="input">
+              <option value="">Select a company…</option>
+              {createableCompanies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Name" required hint="A short, recognizable name."><input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} className="input" placeholder="Portfolio name" /></Field>
+          <Field label="Description" hint="Optional."><textarea value={np.description} onChange={(e) => setNp({ ...np, description: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
+          {err && <p className="text-sm text-rose-600">{err}</p>}
         </div>
-      )}
+      </Modal>
 
-      {editPf && (
-        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setEditPf(null)}>
-          <div className="bg-white rounded-lg border border-line w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold mb-4">Edit portfolio</h3>
-            <div className="space-y-3">
-              <div><label className="label">Name</label><input autoFocus value={ep.name} onChange={(e) => setEp({ ...ep, name: e.target.value })} className="input" placeholder="Portfolio name" /></div>
-              <div><label className="label">Description</label><textarea value={ep.description} onChange={(e) => setEp({ ...ep, description: e.target.value })} className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm text-ink placeholder:text-neutral-400 outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 h-20 resize-none" placeholder="Optional" /></div>
-              {editErr && <p className="text-sm text-rose-600">{editErr}</p>}
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setEditPf(null)} className="btn flex-1">Cancel</button>
-              <button onClick={submitEdit} disabled={editBusy || !ep.name.trim()} className="btn btn-primary flex-1">{editBusy ? 'Saving…' : 'Save changes'}</button>
-            </div>
-          </div>
+      <Modal
+        open={!!editPf}
+        onClose={() => setEditPf(null)}
+        title="Edit portfolio"
+        subtitle="Update the portfolio’s name and description."
+        icon="ti-edit"
+        onSubmit={() => { if (!editBusy && ep.name.trim()) submitEdit(); }}
+        footer={
+          <>
+            <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+            <button onClick={() => setEditPf(null)} className="btn">Cancel</button>
+            <button onClick={submitEdit} disabled={editBusy || !ep.name.trim()} className="btn btn-primary min-w-[7.5rem]">{editBusy ? 'Saving…' : 'Save changes'}</button>
+          </>
+        }
+      >
+        <div className="space-y-3.5">
+          <Field label="Name" required hint="A short, recognizable name."><input autoFocus value={ep.name} onChange={(e) => setEp({ ...ep, name: e.target.value })} className="input" placeholder="Portfolio name" /></Field>
+          <Field label="Description" hint="Optional."><textarea value={ep.description} onChange={(e) => setEp({ ...ep, description: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
+          {editErr && <p className="text-sm text-rose-600">{editErr}</p>}
         </div>
-      )}
+      </Modal>
 
-      {memPf && (
-        <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setMemPf(null)}>
-          <div className="bg-white rounded-lg border border-line w-full max-w-lg p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-base font-semibold">Members</h3>
-              <button onClick={() => setMemPf(null)} className="text-neutral-400 hover:text-ink"><Icon name="ti-x" /></button>
-            </div>
-            <p className="text-2xs text-neutral-400 mb-4">{memPf.name} · managers can edit; members get read access to the portfolio’s projects</p>
-
-            {memLoading ? <Spinner /> : (
-              <div className="space-y-2 max-h-72 overflow-auto">
-                {members.length === 0 && <p className="text-sm text-neutral-400">No members yet.</p>}
-                {members.map((m) => (
-                  <div key={m.user_id} className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm truncate">{m.users?.full_name || m.users?.email || m.user_id}</p>
-                      {m.users?.full_name && m.users?.email && <p className="text-2xs text-neutral-400 truncate">{m.users.email}</p>}
-                    </div>
-                    <select value={m.role} onChange={(e) => doRole(m.user_id, e.target.value as MemberRole)} className="input w-32 py-1">
-                      <option value="member">Member</option>
-                      <option value="manager">Manager</option>
-                    </select>
-                    <button onClick={() => doRemove(m.user_id)} disabled={memBusy} className="text-neutral-400 hover:text-rose-600 shrink-0" title="Remove"><Icon name="ti-trash" /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="border-t border-line mt-4 pt-4">
-              <label className="label">Add member</label>
-              <div className="flex gap-2">
-                <select value={addUser} onChange={(e) => setAddUser(e.target.value)} className="input flex-1">
-                  <option value="">Select a user…</option>
-                  {addable.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
-                </select>
-                <select value={addRole} onChange={(e) => setAddRole(e.target.value as MemberRole)} className="input w-32">
+      <Modal
+        open={!!memPf}
+        onClose={() => setMemPf(null)}
+        title="Manage members"
+        subtitle={memPf ? `${memPf.name} · managers can edit; members get read access to the portfolio’s projects` : undefined}
+        icon="ti-users"
+        size="lg"
+        footer={<button onClick={() => setMemPf(null)} className="btn">Close</button>}
+      >
+        {memLoading ? <Spinner /> : (
+          <div className="space-y-2 max-h-72 overflow-auto">
+            {members.length === 0 && <p className="text-sm text-neutral-400">No members yet.</p>}
+            {members.map((m) => (
+              <div key={m.user_id} className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm truncate">{m.users?.full_name || m.users?.email || m.user_id}</p>
+                  {m.users?.full_name && m.users?.email && <p className="text-2xs text-neutral-400 truncate">{m.users.email}</p>}
+                </div>
+                <select value={m.role} onChange={(e) => doRole(m.user_id, e.target.value as MemberRole)} className="input w-32 py-1">
                   <option value="member">Member</option>
                   <option value="manager">Manager</option>
                 </select>
-                <button onClick={doAdd} disabled={memBusy || !addUser} className="btn btn-primary">Add</button>
+                <button onClick={() => doRemove(m.user_id)} disabled={memBusy} className="text-neutral-400 hover:text-rose-600 shrink-0" title="Remove"><Icon name="ti-trash" /></button>
               </div>
-              {memErr && <p className="text-sm text-rose-600 mt-2">{memErr}</p>}
-            </div>
+            ))}
           </div>
+        )}
+
+        <div className="border-t border-line mt-4 pt-4">
+          <Field label="Add member">
+            <div className="flex gap-2">
+              <select value={addUser} onChange={(e) => setAddUser(e.target.value)} className="input flex-1">
+                <option value="">Select a user…</option>
+                {addable.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+              </select>
+              <select value={addRole} onChange={(e) => setAddRole(e.target.value as MemberRole)} className="input w-32">
+                <option value="member">Member</option>
+                <option value="manager">Manager</option>
+              </select>
+              <button onClick={doAdd} disabled={memBusy || !addUser} className="btn btn-primary">Add</button>
+            </div>
+          </Field>
+          {memErr && <p className="text-sm text-rose-600 mt-2">{memErr}</p>}
         </div>
-      )}
+      </Modal>
     </Layout>
   );
 }

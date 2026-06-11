@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
+import { Modal, Field } from '@/components/Modal';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '@/lib/db';
 import { RoleTemplate, PermKey, FeatureKey } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
@@ -87,47 +88,55 @@ export default function RolesPage() {
             </div>
           )}
 
-          {draft && (
-            <div className="fixed inset-0 z-30 bg-black/30 flex items-center justify-center p-4" onClick={() => setDraft(null)}>
-              <div className="bg-surface rounded-lg border border-line w-full max-w-lg p-5 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-base font-semibold mb-4">{draft.id ? 'Edit role' : 'New role'}</h3>
-                <div className="space-y-3">
-                  <div><label className="label">Name</label><input autoFocus disabled={draft.is_system} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="input disabled:opacity-60" placeholder="e.g. QA Tester" /></div>
-                  <div><label className="label">Description</label><input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className="input" placeholder="Optional" /></div>
+          <Modal
+            open={!!draft}
+            onClose={() => setDraft(null)}
+            title={draft?.id ? 'Edit role' : 'New role'}
+            subtitle={draft?.id ? 'Update permissions and module access for this role.' : 'Create a reusable permission template for your team.'}
+            icon={draft?.id ? 'ti-edit' : 'ti-shield-plus'}
+            size="lg"
+            onSubmit={() => { if (!busy && draft?.name.trim()) save(); }}
+            footer={
+              <>
+                <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+                <button onClick={() => setDraft(null)} className="btn">Cancel</button>
+                <button onClick={save} disabled={busy || !draft?.name.trim()} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Saving…' : 'Save role'}</button>
+              </>
+            }
+          >
+            {draft && (
+              <div className="space-y-3.5">
+                <Field label="Name" required hint="A short, recognizable name."><input autoFocus disabled={draft.is_system} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="input disabled:opacity-60" placeholder="e.g. QA Tester" /></Field>
+                <Field label="Description"><input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className="input" placeholder="Optional" /></Field>
 
-                  <div>
-                    <p className="text-2xs uppercase tracking-wide text-muted mb-2 mt-1">Permissions</p>
-                    <div className="space-y-1">
-                      {PERM_KEYS.map((k) => (
-                        <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
-                          <span>{PERMISSION_LABELS[k]}</span>
-                          <input type="checkbox" checked={!!draft.permissions[k]} onChange={() => togglePerm(k)} className="accent-ink w-4 h-4" />
-                        </label>
-                      ))}
-                    </div>
+                <div>
+                  <p className="text-2xs uppercase tracking-wide text-muted mb-2 mt-1">Permissions</p>
+                  <div className="space-y-1">
+                    {PERM_KEYS.map((k) => (
+                      <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
+                        <span>{PERMISSION_LABELS[k]}</span>
+                        <input type="checkbox" checked={!!draft.permissions[k]} onChange={() => togglePerm(k)} className="accent-ink w-4 h-4" />
+                      </label>
+                    ))}
                   </div>
+                </div>
 
-                  <div>
-                    <p className="text-2xs uppercase tracking-wide text-muted mb-1 mt-1">Module access</p>
-                    <p className="text-2xs text-muted mb-2">None selected = access to all entitled modules.</p>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                      {FEATURE_KEYS.map((k) => (
-                        <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
-                          <span>{FEATURE_LABELS[k]}</span>
-                          <input type="checkbox" checked={draft.feature_access.includes(k)} onChange={() => toggleFeature(k)} className="accent-ink w-4 h-4" />
-                        </label>
-                      ))}
-                    </div>
+                <div>
+                  <p className="text-2xs uppercase tracking-wide text-muted mb-1 mt-1">Module access</p>
+                  <p className="text-2xs text-muted mb-2">None selected = access to all entitled modules.</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {FEATURE_KEYS.map((k) => (
+                      <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
+                        <span>{FEATURE_LABELS[k]}</span>
+                        <input type="checkbox" checked={draft.feature_access.includes(k)} onChange={() => toggleFeature(k)} className="accent-ink w-4 h-4" />
+                      </label>
+                    ))}
                   </div>
-                  {err && <p className="text-sm text-rose-600">{err}</p>}
                 </div>
-                <div className="flex gap-2 mt-5">
-                  <button onClick={() => setDraft(null)} className="btn flex-1">Cancel</button>
-                  <button onClick={save} disabled={busy || !draft.name.trim()} className="btn btn-primary flex-1">{busy ? 'Saving…' : 'Save role'}</button>
-                </div>
+                {err && <p className="text-sm text-rose-600">{err}</p>}
               </div>
-            </div>
-          )}
+            )}
+          </Modal>
         </>
       )}
     </Layout>
