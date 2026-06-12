@@ -649,7 +649,7 @@ export async function deleteRoleTemplate(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-// ---- 2.8 Tags / task_tags -------------------------------------------------
+// ---- 2.8 Tags / entity_tags -------------------------------------------------
 export async function getTags(): Promise<Tag[]> {
   const { data, error } = await sb.from('tags').select('*').order('name');
   if (error) throw error; return (data as Tag[]) || [];
@@ -660,16 +660,20 @@ export async function createTag(p: { name: string; color?: string; scope?: strin
     .select('*').single();
   if (error) throw new Error(error.message); return data as Tag;
 }
-export async function getTaskTags(taskId: string): Promise<Tag[]> {
-  const { data, error } = await sb.from('task_tags').select('tags(*)').eq('task_id', taskId);
+// F1: polymorphic tags — one junction (entity_tags) covers tasks, projects,
+// CRM deals, ledger entries, … RLS = is_org_member (USING==CHECK, RETURNING-safe).
+export type TagEntityType = 'task' | 'project' | 'crm_deal' | 'crm_contact' | 'crm_company' | 'ledger_entry' | 'employee' | 'idea';
+export async function getEntityTags(entityType: TagEntityType, entityId: string): Promise<Tag[]> {
+  const { data, error } = await sb.from('entity_tags').select('tags(*)')
+    .eq('entity_type', entityType).eq('entity_id', entityId);
   if (error) throw error; return ((data || []) as any[]).map((r) => r.tags).filter(Boolean) as Tag[];
 }
-export async function addTaskTag(taskId: string, tagId: string, orgId: string): Promise<void> {
-  const { error } = await sb.from('task_tags').insert({ task_id: taskId, tag_id: tagId, org_id: orgId });
+export async function addEntityTag(entityType: TagEntityType, entityId: string, tagId: string, orgId: string, userId?: string): Promise<void> {
+  const { error } = await sb.from('entity_tags').insert({ entity_type: entityType, entity_id: entityId, tag_id: tagId, org_id: orgId, created_by: userId || null });
   if (error) throw new Error(error.message);
 }
-export async function removeTaskTag(taskId: string, tagId: string): Promise<void> {
-  const { error } = await sb.from('task_tags').delete().eq('task_id', taskId).eq('tag_id', tagId);
+export async function removeEntityTag(entityType: TagEntityType, entityId: string, tagId: string): Promise<void> {
+  const { error } = await sb.from('entity_tags').delete().eq('entity_type', entityType).eq('entity_id', entityId).eq('tag_id', tagId);
   if (error) throw new Error(error.message);
 }
 

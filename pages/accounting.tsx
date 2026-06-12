@@ -5,6 +5,7 @@ import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui
 import { usePagination, Pagination } from '@/components/Pagination';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import CustomFields from '@/components/CustomFields';
+import EntityTags from '@/components/EntityTags';
 import { useLedgerEntries, useProjects, useOrgCompanies } from '@/lib/queries';
 import { createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, LEDGER_CATEGORIES } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
@@ -212,7 +213,7 @@ export default function AccountingPage() {
         tabs={[
           { key: 'details', label: 'Details', icon: 'ti-receipt' },
           { key: 'links', label: 'Links', icon: 'ti-link' },
-          ...(editing ? [{ key: 'custom', label: 'Custom fields', icon: 'ti-list-details' }] : []),
+          ...(editing ? [{ key: 'tags', label: 'Tags', icon: 'ti-tags' }, { key: 'custom', label: 'Custom fields', icon: 'ti-list-details' }] : []),
         ]}
         {...tabs.bind}
         footer={
@@ -270,6 +271,9 @@ export default function AccountingPage() {
               </select>
             </Field>
           </div>
+        )}
+        {tabs.tab === 'tags' && editing && (
+          <EntityTags entityType="ledger_entry" entityId={editing.id} orgId={org?.id} bare />
         )}
         {tabs.tab === 'custom' && editing && (
           <CustomFields orgId={org?.id || ''} entityType="ledger_entry" entityId={editing.id} canManage={isAdmin} title="Custom fields" />

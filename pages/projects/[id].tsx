@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
 import CommentsThread from '@/components/Comments';
+import EntityTags from '@/components/EntityTags';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import {
   getProjectById, getTasks, getRisks, getFinancials, getLedgerEntries,
@@ -204,6 +205,7 @@ export default function ProjectDetail() {
                   </div>
                 ))}
               </div>
+              <EntityTags entityType="project" entityId={project.id} orgId={org?.id} />
             </div>
             <TaskTable />
           </div>

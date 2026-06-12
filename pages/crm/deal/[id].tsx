@@ -6,6 +6,7 @@ import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs, Avatar } f
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import EntityLink from '@/components/EntityLink';
 import CustomFields from '@/components/CustomFields';
+import EntityTags from '@/components/EntityTags';
 import { getDealActivities, createActivity, deleteActivity } from '@/lib/db';
 import { CrmActivity } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -141,6 +142,10 @@ export default function DealDetail() {
                 </div>
               </div>
             )}
+            <div className="card p-5">
+              <p className="text-sm font-semibold mb-2">Tags</p>
+              <EntityTags entityType="crm_deal" entityId={deal.id} orgId={org?.id} bare />
+            </div>
             <div className="card p-5">
               <p className="text-sm font-semibold">Fields</p>
               <CustomFields orgId={org?.id || ''} entityType="crm_deal" entityId={deal.id} canManage={canManage} title="Custom fields" />

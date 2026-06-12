@@ -13,7 +13,7 @@ import { qk } from '@/lib/queryKeys';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { can } from '@/lib/authz';
 import CommentsThread from '@/components/Comments';
-import TaskTags from '@/components/TaskTags';
+import EntityTags from '@/components/EntityTags';
 import TaskCustomFields from '@/components/TaskCustomFields';
 
 const STATUSES = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done', 'On Hold', 'Cancelled'];
@@ -312,7 +312,7 @@ export default function Tasks() {
           </select>
         )}
       </div>
-      <TaskTags taskId={selected.id} orgId={selected.org_id} />
+      <EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} />
       <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
     </div>
   );
