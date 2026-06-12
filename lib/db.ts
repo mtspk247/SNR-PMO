@@ -163,6 +163,26 @@ export async function setOrgPlan(orgId: string, planId: string, seats?: number |
   if (error) throw new Error(error.message);
 }
 
+// Create / edit subscription plans (platform admin). plans_write is a single ALL
+// policy (USING == WITH CHECK = is_platform_admin) and plans_select is true,
+// so INSERT/UPDATE ... RETURNING is safe here.
+export type PlanPatch = {
+  key?: string; name?: string; description?: string | null;
+  pricing_model?: Plan['pricing_model']; price_cents?: number;
+  billing_period?: Plan['billing_period']; user_limit?: number | null;
+  is_active?: boolean; sort_order?: number;
+};
+export async function createPlan(p: PlanPatch & { key: string; name: string }): Promise<Plan> {
+  const { data, error } = await sb.from('plans').insert(p).select('*').single();
+  if (error) throw new Error(error.message);
+  return data as Plan;
+}
+export async function updatePlan(id: string, patch: PlanPatch): Promise<Plan> {
+  const { data, error } = await sb.from('plans').update(patch).eq('id', id).select('*').single();
+  if (error) throw new Error(error.message);
+  return data as Plan;
+}
+
 // ---------------------------------------------------------------------------
 // Data (RLS-scoped to the user's org + project access)
 // ---------------------------------------------------------------------------

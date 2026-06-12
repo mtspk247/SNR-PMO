@@ -1,0 +1,435 @@
+import { useState } from 'react';
+import Layout from '@/components/Layout';
+import { PageHeader, Icon } from '@/components/ui';
+
+// ---------------------------------------------------------------------------
+// Content model — structured data avoids any runtime markdown parsing
+// ---------------------------------------------------------------------------
+
+type BulletItem = { text: string; sub?: string[] };
+type TableRow = string[];
+
+type Block =
+  | { kind: 'p'; text: string }
+  | { kind: 'bullets'; items: BulletItem[] }
+  | { kind: 'table'; headers: string[]; rows: TableRow[] }
+  | { kind: 'steps'; items: { title: string; body: string }[] }
+  | { kind: 'callout'; icon: string; text: string };
+
+type Section = {
+  id: string;
+  title: string;
+  icon: string;
+  blocks: Block[];
+};
+
+const SECTIONS: Section[] = [
+  {
+    id: 'hierarchy',
+    title: 'Tenancy & RBAC',
+    icon: 'ti-sitemap',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'Every piece of data belongs to an Org. Below that, projects can optionally belong to a Company and/or Portfolio. Row-Level Security enforces isolation — a user in one org can never see another org\'s data.',
+      },
+      {
+        kind: 'table',
+        headers: ['Layer', 'Roles'],
+        rows: [
+          ['Org', 'owner · admin · member'],
+          ['Company', 'manager · member'],
+          ['Portfolio', 'manager · member'],
+          ['Project', 'manager · contributor · viewer'],
+        ],
+      },
+      {
+        kind: 'callout',
+        icon: 'ti-lock',
+        text: 'Feature entitlements (CRM, HR, Risk, Financial, Portfolios, Integrations, Audit) are plan-controlled. Modules not in your plan are hidden from nav automatically.',
+      },
+    ],
+  },
+  {
+    id: 'dashboard',
+    title: 'Dashboard',
+    icon: 'ti-layout-dashboard',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'The Dashboard is your daily starting point. It surfaces aggregated KPIs across the entire org.',
+      },
+      {
+        kind: 'bullets',
+        items: [
+          { text: 'Open projects & overdue tasks at a glance' },
+          { text: 'Pipeline value from CRM (if enabled)' },
+          { text: 'Net ledger balance from Accounting (if enabled)' },
+          { text: 'Headcount from HR (if enabled)' },
+          { text: 'Tile links navigate directly to the relevant module' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'work',
+    title: 'Work modules',
+    icon: 'ti-briefcase',
+    blocks: [
+      {
+        kind: 'table',
+        headers: ['Module', 'What it does'],
+        rows: [
+          ['Companies', 'Client and vendor registry. Projects link here for reporting.'],
+          ['Portfolios', 'Group related projects for programme-level tracking. Optional per project.'],
+          ['Projects', 'Core delivery unit. Detail page: Tasks, Risks, Financials, Ledger, Discussion.'],
+          ['Tasks', 'Subtasks, followers, @mention comments, tags. Assignable across project members.'],
+          ['Ideas', 'Pitch board with voting. Managers can convert a winning idea directly into a Project.'],
+          ['Chat', 'Org-wide General channel + auto-created per-project channel. 12 s polling, no external dependency.'],
+        ],
+      },
+      {
+        kind: 'callout',
+        icon: 'ti-bulb',
+        text: 'Ideas → Projects: click "Convert to Project" on any idea. The new project is pre-populated with the idea\'s title and description.',
+      },
+    ],
+  },
+  {
+    id: 'tracking',
+    title: 'Tracking',
+    icon: 'ti-chart-line',
+    blocks: [
+      {
+        kind: 'table',
+        headers: ['Module', 'What it does'],
+        rows: [
+          ['Risk Analysis', 'Per-project risk register. Probability × impact matrix. Feature-gated: risk.'],
+          ['Financial Data', 'Per-project budget lines and actuals. Feature-gated: financial.'],
+          ['Accounting', 'Org-wide ledger for income and expense. Payroll runs auto-post Salary entries on Processed/Paid. Feature-gated: financial.'],
+        ],
+      },
+      {
+        kind: 'callout',
+        icon: 'ti-arrows-exchange',
+        text: 'Payroll → Accounting is automatic: marking a payroll run Processed or Paid creates a Salaries ledger entry via a DB trigger. It is idempotent — re-processing does not double-post.',
+      },
+    ],
+  },
+  {
+    id: 'crm',
+    title: 'CRM',
+    icon: 'ti-target-arrow',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'The Sales Pipeline tracks deals through six stages: Lead → Qualified → Proposal → Negotiation → Won / Lost.',
+      },
+      {
+        kind: 'bullets',
+        items: [
+          { text: 'Each deal links to a CRM Company and Contact' },
+          { text: 'Activity log on every deal, company, and contact record' },
+          { text: 'Custom fields on Deals, Contacts, and Companies — defined once, appear on every record of that type' },
+          { text: 'Won deal → create Project directly from the pipeline view' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'hr',
+    title: 'HR modules',
+    icon: 'ti-heart-handshake',
+    blocks: [
+      {
+        kind: 'table',
+        headers: ['Module', 'What it does'],
+        rows: [
+          ['Onboarding', 'Templates: day-offset tasks + required docs + linked Training Docs. Apply a template to a hire to generate their checklist automatically.'],
+          ['Employees', 'Staff profiles, compensation history, custom fields, org role link.'],
+          ['Training & JDs', 'Training library (file/link uploads, category, department). Job Descriptions (summary, responsibilities, requirements). Both linkable from Onboarding templates.'],
+          ['Payroll', 'Pay runs → per-employee payslips. Processed/Paid status posts Salary to Accounting ledger automatically.'],
+          ['Attendance', 'Clock in/out per employee. Auto-checkout at 00:05 UTC catches forgotten clock-outs.'],
+          ['Leave', 'Annual / sick / casual balances. Requests → delegated-approver flow → server-enforced decrement on approval.'],
+        ],
+      },
+      {
+        kind: 'callout',
+        icon: 'ti-link',
+        text: 'Onboarding templates link Training Docs by ID. When you update a training doc, all future hire checklists that reference it pick up the new version automatically.',
+      },
+    ],
+  },
+  {
+    id: 'admin',
+    title: 'Administration',
+    icon: 'ti-shield-cog',
+    blocks: [
+      {
+        kind: 'table',
+        headers: ['Module', 'What it does'],
+        rows: [
+          ['Users', 'Assign org roles; toggle per-user capability flags (can_*).'],
+          ['Roles', 'Role templates. Editing a template propagates permission changes to all users on that role immediately.'],
+          ['Integrations', 'Third-party connector catalog. Feature-gated: integrations.'],
+          ['Audit Log', 'DB-trigger event stream covering 16 tables. Immutable. Feature-gated: audit.'],
+          ['Settings', 'White-label branding: upload logo, set primary color → CSS theme tokens update live across the entire app with no rebuild.'],
+        ],
+      },
+    ],
+  },
+  {
+    id: 'connections',
+    title: 'Module connections',
+    icon: 'ti-arrows-exchange-2',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'These wiring points are what make SNR-PMO a unified platform. Understanding them prevents data silos.',
+      },
+      {
+        kind: 'table',
+        headers: ['Source', 'Destination', 'Mechanism'],
+        rows: [
+          ['Payroll run (Processed/Paid)', 'Accounting ledger', 'DB trigger — auto-posts Salary entry, idempotent via payroll_run_id'],
+          ['Onboarding template', 'Training docs', 'Checklist items link training doc IDs; docs surface in hire checklist'],
+          ['Ideas', 'Projects', '"Convert to Project" creates a Project pre-populated from idea title/description'],
+          ['CRM Deals', 'Companies & Contacts', 'Each deal belongs to a CRM Company and Contact record'],
+          ['Projects', 'Companies & Portfolios', 'Projects optionally link to one Company and one Portfolio'],
+          ['Leave approval', 'Leave balances', 'Server-side trigger decrements balance on approval; cannot be bypassed'],
+          ['Role templates', 'User permissions', 'Template change instantly propagates to all users on that role'],
+          ['Plan feature keys', 'Nav visibility', 'crm / hr / risk / financial / portfolios / integrations / audit gate entire sections'],
+          ['Settings branding', 'Whole UI', 'Logo + primary color write CSS custom properties; white-label is live, no rebuild'],
+        ],
+      },
+    ],
+  },
+  {
+    id: 'playbook',
+    title: 'Agency playbook',
+    icon: 'ti-rocket',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'Recommended setup sequence for a new agency deployment. Each phase builds on the last — follow the order to avoid rework.',
+      },
+      {
+        kind: 'steps',
+        items: [
+          {
+            title: 'Phase 0 — Foundation',
+            body: 'Platform: create the tenant, assign a plan. Settings: upload logo + brand color (re-themes immediately). Roles: define role templates. Users: invite team, assign roles.',
+          },
+          {
+            title: 'Phase 1 — Client & pipeline',
+            body: 'Work → Companies: add clients and vendors. Portfolios: set up programme groupings. CRM: add companies, contacts, and open deals; move through pipeline stages.',
+          },
+          {
+            title: 'Phase 2 — Project delivery',
+            body: 'Won deal → create Project linked to Company and Portfolio. Ideas board for pre-sales concepts needing team input. Project detail: add tasks, assign contributors, log risks, enter budget lines.',
+          },
+          {
+            title: 'Phase 3 — Staffing & onboarding',
+            body: 'Employees: create profiles. Training & JDs: build the library and job descriptions first. Onboarding templates: define tasks + link training docs. Apply template to each new hire.',
+          },
+          {
+            title: 'Phase 4 — Ongoing operations',
+            body: 'Tasks & Risk: daily updates. Attendance & Leave: staff clock in/out; approve leave to maintain accurate balances. Payroll: run monthly; mark Processed then Paid → ledger posts automatically.',
+          },
+          {
+            title: 'Phase 5 — Review & governance',
+            body: 'Dashboard: weekly KPI review. Accounting: income vs. expense balance and per-project Financial Data. Audit Log: periodic compliance review. Ideas: encourage submissions → vote → convert top ideas to next-cycle projects.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'design',
+    title: 'Design decisions',
+    icon: 'ti-tool',
+    blocks: [
+      {
+        kind: 'bullets',
+        items: [
+          {
+            text: 'RLS-first isolation',
+            sub: ['Every query is scoped by org_id at the database layer. Application code cannot accidentally leak cross-org data.'],
+          },
+          {
+            text: 'INSERT-RETURNING safety',
+            sub: ['Write paths use return=minimal + a re-fetch rather than .select() after insert, avoiding an RLS re-application edge case on newly inserted rows.'],
+          },
+          {
+            text: 'Polymorphic custom fields',
+            sub: ['CRM (Deals, Contacts, Companies) and HR (Employees) share one custom fields schema. Define a field once per entity type; all records inherit it.'],
+          },
+          {
+            text: 'Trigger-based audit',
+            sub: ['Audit log entries are written by DB triggers, not application code. They cannot be bypassed by a misconfigured API call.'],
+          },
+          {
+            text: 'White-label via CSS tokens',
+            sub: ['Branding changes write --color-accent and related CSS custom properties. No per-tenant builds, no CDN invalidation.'],
+          },
+          {
+            text: 'Idempotent payroll→ledger',
+            sub: ['The ledger entry is created in the same DB transaction as the payroll status update, keyed on payroll_run_id. Re-processing is safe.'],
+          },
+        ],
+      },
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Renderers
+// ---------------------------------------------------------------------------
+
+function renderBlock(block: Block, idx: number) {
+  if (block.kind === 'p') {
+    return (
+      <p key={idx} className="text-sm text-content leading-relaxed">
+        {block.text}
+      </p>
+    );
+  }
+  if (block.kind === 'callout') {
+    return (
+      <div key={idx} className="flex items-start gap-3 rounded-lg bg-accent/10 border border-accent/20 px-4 py-3">
+        <span className="w-7 h-7 rounded-md grid place-items-center bg-accent/15 text-accentstrong shrink-0 mt-0.5">
+          <Icon name={block.icon} className="text-sm" />
+        </span>
+        <p className="text-sm text-content leading-relaxed">{block.text}</p>
+      </div>
+    );
+  }
+  if (block.kind === 'bullets') {
+    return (
+      <ul key={idx} className="space-y-1.5">
+        {block.items.map((item, i) => (
+          <li key={i} className="text-sm text-content leading-relaxed">
+            <span className="inline-flex items-start gap-2">
+              <span className="text-accentstrong mt-1 shrink-0">
+                <Icon name="ti-circle-filled" className="text-[6px]" />
+              </span>
+              <span>
+                {item.text}
+                {item.sub && item.sub.map((s, si) => (
+                  <span key={si} className="block text-muted mt-0.5">{s}</span>
+                ))}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (block.kind === 'table') {
+    return (
+      <div key={idx} className="overflow-x-auto rounded-lg border border-line">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-surface2 text-left">
+              {block.headers.map((h, hi) => (
+                <th key={hi} className="px-3 py-2 text-xs font-semibold text-muted uppercase tracking-wide border-b border-line">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {block.rows.map((row, ri) => (
+              <tr key={ri} className="border-b border-line last:border-0 hover:bg-surface2/50 transition-colors">
+                {row.map((cell, ci) => (
+                  <td key={ci} className={`px-3 py-2 text-sm ${ci === 0 ? 'font-medium text-content whitespace-nowrap' : 'text-muted'}`}>
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+  if (block.kind === 'steps') {
+    return (
+      <ol key={idx} className="space-y-3">
+        {block.items.map((step, si) => (
+          <li key={si} className="flex gap-3">
+            <span className="w-6 h-6 rounded-full grid place-items-center bg-accent/10 text-accentstrong text-xs font-bold shrink-0 mt-0.5">
+              {si + 1}
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-content">{step.title}</p>
+              <p className="text-sm text-muted mt-0.5 leading-relaxed">{step.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    );
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
+
+export default function DocsPage() {
+  const [active, setActive] = useState(SECTIONS[0].id);
+
+  return (
+    <Layout title="Docs">
+      <PageHeader
+        title="System Guide"
+        subtitle="Module reference, cross-module connections, and the recommended agency operating workflow."
+      />
+
+      <div className="flex gap-6 items-start">
+        {/* Left nav — sticky, hidden below lg */}
+        <aside className="hidden lg:flex flex-col gap-0.5 w-52 shrink-0 sticky top-20">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => {
+                setActive(s.id);
+                document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors
+                ${active === s.id
+                  ? 'bg-accent/10 text-accentstrong font-medium'
+                  : 'text-muted hover:text-content hover:bg-surface2'}`}
+            >
+              <Icon name={s.icon} className="text-base shrink-0" />
+              {s.title}
+            </button>
+          ))}
+        </aside>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 space-y-6">
+          {SECTIONS.map((section) => (
+            <section
+              key={section.id}
+              id={section.id}
+              className="card p-5 scroll-mt-24"
+            >
+              {/* Section header */}
+              <div className="flex items-center gap-3 mb-4 pb-3 border-b border-line">
+                <span className="w-8 h-8 rounded-lg grid place-items-center bg-accent/10 text-accentstrong shrink-0">
+                  <Icon name={section.icon} className="text-base" />
+                </span>
+                <h2 className="text-base font-semibold text-content">{section.title}</h2>
+              </div>
+              <div className="space-y-4">
+                {section.blocks.map((block, bi) => renderBlock(block, bi))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    </Layout>
+  );
+}
