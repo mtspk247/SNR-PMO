@@ -1027,7 +1027,7 @@ export async function deleteLedgerEntry(id: string): Promise<void> {
 import { Idea, IdeaStatus } from './supabase';
 
 export const IDEA_STATUSES: IdeaStatus[] = ['idea', 'exploring', 'approved', 'building', 'shipped', 'parked'];
-const IDEA_SEL = '*, votes:idea_votes(user_id), project:projects(name), creator:users(full_name)';
+const IDEA_SEL = '*, votes:idea_votes(user_id), project:projects(name), creator:users!ideas_created_by_fkey(full_name)';
 
 export async function getIdeas(): Promise<Idea[]> {
   const { data, error } = await sb.from('ideas').select(IDEA_SEL)
