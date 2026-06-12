@@ -6,10 +6,10 @@ import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/c
 import CommentsThread from '@/components/Comments';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import {
-  getProjectById, getTasks, getRisks, getFinancials,
+  getProjectById, getTasks, getRisks, getFinancials, getLedgerEntries,
   getOrgUsers, getOrgCompanies, getPortfolios,
 } from '@/lib/db';
-import { Project, Task, Risk, Financial, OrgUser, OrgCompany, Portfolio } from '@/lib/supabase';
+import { Project, Task, Risk, Financial, LedgerEntry, OrgUser, OrgCompany, Portfolio } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 
 const fmtMoney = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -25,6 +25,7 @@ export default function ProjectDetail() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [financials, setFinancials] = useState<Financial[]>([]);
+  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [companies, setCompanies] = useState<OrgCompany[]>([]);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -43,16 +44,18 @@ export default function ProjectDetail() {
       getTasks().catch(() => [] as Task[]),
       getRisks().catch(() => [] as Risk[]),
       getFinancials().catch(() => [] as Financial[]),
+      getLedgerEntries().catch(() => [] as LedgerEntry[]),
       getOrgUsers().catch(() => [] as OrgUser[]),
       getOrgCompanies().catch(() => [] as OrgCompany[]),
       getPortfolios().catch(() => [] as Portfolio[]),
     ])
-      .then(([p, t, r, f, u, c, pf]) => {
+      .then(([p, t, r, f, l, u, c, pf]) => {
         if (!p) { setNotFound(true); return; }
         setProject(p);
         setTasks(t.filter((x) => x.project_id === id));
         setRisks(r.filter((x) => x.project_id === id));
         setFinancials(f.filter((x) => x.project_id === id));
+        setLedger(l.filter((x) => x.project_id === id));
         setUsers(u); setCompanies(c); setPortfolios(pf);
       })
       .catch(() => setNotFound(true))
@@ -67,6 +70,10 @@ export default function ProjectDetail() {
   const planned = financials.reduce((s, f) => s + (f.planned || 0), 0);
   const actual = financials.reduce((s, f) => s + (f.actual || 0), 0);
   const variance = planned > 0 ? Math.round(((actual - planned) / planned) * 100) : 0;
+  // Real money movements from the org ledger scoped to this project.
+  const ledgerIncome = ledger.filter((e) => e.type === 'income').reduce((s, e) => s + (e.amount || 0), 0);
+  const ledgerExpense = ledger.filter((e) => e.type === 'expense').reduce((s, e) => s + (e.amount || 0), 0);
+  const realSpend = actual + ledgerExpense;
   const openTasks = tasks.filter((t) => !DONE.includes(t.status)).length;
   const doneTasks = tasks.length - openTasks;
   const taskPct = tasks.length > 0 ? Math.round((doneTasks / tasks.length) * 100) : 0;
@@ -174,7 +181,7 @@ export default function ProjectDetail() {
         { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
         { key: 'tasks', label: 'Tasks', icon: 'ti-checklist', count: tasks.length },
         { key: 'risks', label: 'Risks', icon: 'ti-alert-triangle', count: risks.length },
-        { key: 'financials', label: 'Financials', icon: 'ti-cash', count: financials.length },
+        { key: 'financials', label: 'Financials', icon: 'ti-cash', count: financials.length + ledger.length },
         { key: 'discussion', label: 'Discussion', icon: 'ti-messages' },
       ]} />
 
@@ -217,6 +224,13 @@ export default function ProjectDetail() {
                     <div className={`h-1.5 rounded-full ${actual > planned ? 'bg-rose-500' : 'bg-accent'}`}
                       style={{ width: `${planned > 0 ? Math.min(100, Math.round((actual / planned) * 100)) : 0}%` }} />
                   </div>
+                  {(ledgerIncome > 0 || ledgerExpense > 0) && (
+                    <div className="border-t border-line pt-2 mt-2 space-y-2.5">
+                      <div className="flex justify-between"><span className="text-muted">Ledger income</span><span className="font-medium text-emerald-600">+{fmtMoney(ledgerIncome)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted">Ledger spend</span><span className="font-medium text-rose-600">−{fmtMoney(ledgerExpense)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted">Total spend</span><span className="font-medium">{fmtMoney(realSpend)}</span></div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -272,6 +286,30 @@ export default function ProjectDetail() {
               </tbody>
             </table></div>
           )}
+          <div className="border-t border-line">
+            <div className="px-5 h-12 flex items-center justify-between">
+              <span className="text-sm font-semibold">Ledger entries</span>
+              <span className="text-2xs text-muted2">{ledger.length} linked to this project</span>
+            </div>
+            {ledger.length === 0 ? <div className="px-5 pb-5"><p className="text-sm text-muted2">No ledger entries yet — add them in Accounting.</p></div> : (
+              <div className="overflow-x-auto"><table className="w-full">
+                <thead><tr><th className="th">Date</th><th className="th">Type</th><th className="th">Category</th><th className="th">Notes</th><th className="th text-right">Amount</th></tr></thead>
+                <tbody>
+                  {ledger.map((e) => (
+                    <tr key={e.id} className="row">
+                      <td className="td text-2xs text-muted tabular-nums">{e.entry_date}</td>
+                      <td className="td"><span className={`pill ${e.type === 'income' ? 'pill-green' : 'pill-red'}`}>{e.type}</span></td>
+                      <td className="td font-medium">{e.category}</td>
+                      <td className="td text-2xs text-muted max-w-[16rem] truncate">{e.notes || '—'}</td>
+                      <td className={`td text-right font-medium tabular-nums ${e.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {e.type === 'income' ? '+' : '−'}{fmtMoney(e.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+          </div>
         </div>
       )}
 

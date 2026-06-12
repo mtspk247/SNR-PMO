@@ -289,7 +289,7 @@ export interface TaskFieldValue {
 }
 
 // ---- Generalized custom fields (CRM + HR; org-scoped, polymorphic by entity_type) ----
-export type CustomEntityType = 'crm_deal' | 'crm_contact' | 'crm_company' | 'employee';
+export type CustomEntityType = 'crm_deal' | 'crm_contact' | 'crm_company' | 'employee' | 'ledger_entry';
 export interface CustomFieldDef {
   id: string; org_id: string; entity_type: CustomEntityType; name: string;
   field_type: 'text' | 'number' | 'date' | 'checkbox' | 'dropdown';
@@ -298,4 +298,16 @@ export interface CustomFieldDef {
 export interface CustomFieldValue {
   org_id: string; entity_type: CustomEntityType; entity_id: string; field_id: string;
   value: string | null; updated_at?: string;
+}
+
+// ---- S2 Finance core: org ledger (income/expense book; payroll posts Salaries) ----
+export interface LedgerEntry {
+  id: string; org_id: string;
+  type: 'income' | 'expense';
+  category: string; amount: number; entry_date: string;
+  project_id?: string | null; company_id?: string | null;
+  payroll_run_id?: string | null; notes?: string | null;
+  created_by?: string | null; created_at?: string;
+  project?: { name: string | null } | null;
+  company?: { name: string | null } | null;
 }

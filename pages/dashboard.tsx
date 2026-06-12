@@ -3,8 +3,8 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { StatCard, Pill, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
-import { getProjects, getTasks, getDeals } from '@/lib/db';
-import { Project, Task, Deal } from '@/lib/supabase';
+import { getProjects, getTasks, getDeals, getLedgerEntries } from '@/lib/db';
+import { Project, Task, Deal, LedgerEntry } from '@/lib/supabase';
 
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date(new Date().toDateString());
@@ -20,11 +20,12 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getProjects(), getTasks(), getDeals()])
-      .then(([p, t, d]) => { setProjects(p); setTasks(t); setDeals(d); })
+    Promise.all([getProjects(), getTasks(), getDeals(), getLedgerEntries().catch(() => [] as LedgerEntry[])])
+      .then(([p, t, d, l]) => { setProjects(p); setTasks(t); setDeals(d); setLedger(l); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -33,6 +34,15 @@ export default function Dashboard() {
   const overdue = openTasks.filter((t) => isOverdue(t.due_date)).length;
   const openDeals = deals.filter((d) => d.stage !== 'Won' && d.stage !== 'Lost');
   const pipeline = openDeals.reduce((s, d) => s + (d.value || 0), 0);
+
+  // Real finance numbers from the ledger (payroll posts Salaries here too).
+  const income = ledger.filter((e) => e.type === 'income').reduce((s, e) => s + (e.amount || 0), 0);
+  const expense = ledger.filter((e) => e.type === 'expense').reduce((s, e) => s + (e.amount || 0), 0);
+  const net = income - expense;
+  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthExpense = ledger
+    .filter((e) => e.type === 'expense' && (e.entry_date || '').slice(0, 7) === monthKey)
+    .reduce((s, e) => s + (e.amount || 0), 0);
 
   // Project status breakdown for the donut.
   const statusCounts = projects.reduce<Record<string, number>>((m, p) => { m[p.status] = (m[p.status] || 0) + 1; return m; }, {});
@@ -71,6 +81,13 @@ export default function Dashboard() {
             <StatCard label="Open tasks" value={openTasks.length} hint={overdue ? `${overdue} overdue` : 'On schedule'} hintTone={overdue ? 'down' : 'up'} icon="ti-checkbox" />
             <StatCard label="Open deals" value={openDeals.length} hint={`${deals.length} total`} icon="ti-target" />
             <StatCard label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <StatCard label="Income" value={money(income)} hint="Ledger, all time" icon="ti-trending-up" />
+            <StatCard label="Expenses" value={money(expense)} hint="Ledger incl. payroll" icon="ti-trending-down" />
+            <StatCard label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Running negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" />
+            <StatCard label="Spend this month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-5 mb-5">

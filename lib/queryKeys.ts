@@ -17,5 +17,6 @@ export const qk = {
   leaves: (org?: string | null) => ['leaves', org ?? null] as const,
   auditLog: (org?: string | null) => ['auditLog', org ?? null] as const,
   payrollRuns: (org?: string | null) => ['payrollRuns', org ?? null] as const,
+  ledger: (org?: string | null) => ['ledger', org ?? null] as const,
   adminUsers: (org?: string | null) => ['adminUsers', org ?? null] as const,
 };

@@ -5,7 +5,7 @@ import {
   getProjects, createProject, updateProject, deleteProject,
   getOrgCompanies, getPortfolios,
   getAuditLog, getAttendance, getEmployees, getLeaves, getPayrollRuns,
-  getTasks, getDeals, getContacts, getCompanies,
+  getTasks, getDeals, getContacts, getCompanies, getLedgerEntries,
 } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
@@ -112,4 +112,9 @@ export function useContacts() {
 export function useCrmCompanies() {
   const org = useActiveOrg();
   return useQuery({ queryKey: qk.crmCompanies(org?.id), queryFn: getCompanies, enabled: !!org });
+}
+
+export function useLedgerEntries() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.ledger(org?.id), queryFn: getLedgerEntries, enabled: !!org });
 }

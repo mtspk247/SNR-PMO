@@ -962,3 +962,42 @@ export async function upsertCustomFieldValue(v: {
   const { error } = await sb.from('custom_field_values').upsert({ ...v, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
 }
+
+// ---- Ledger entries (S2 finance core) -------------------------------------
+// RLS `ledger_all` mirrors financials: (project null -> org member, else
+// can_access_project) AND org_has_feature 'financial'. Single ALL policy with
+// identical WITH CHECK -> INSERT...RETURNING is safe (no return=minimal dance).
+import { LedgerEntry } from './supabase';
+
+export const LEDGER_CATEGORIES: Record<'income' | 'expense', string[]> = {
+  income: ['Sales', 'Services', 'Retainers', 'Other income'],
+  expense: ['Salaries', 'Domains', 'Tools', 'Rent', 'Fuel', 'Food', 'Welfare', 'Marketing', 'Travel', 'Other'],
+};
+const LEDGER_SEL = '*, project:projects(name), company:companies(name)';
+
+export async function getLedgerEntries(): Promise<LedgerEntry[]> {
+  const { data, error } = await sb.from('ledger_entries').select(LEDGER_SEL)
+    .order('entry_date', { ascending: false }).order('created_at', { ascending: false });
+  if (error) throw error; return (data as LedgerEntry[]) || [];
+}
+export async function createLedgerEntry(p: {
+  org_id: string; type: 'income' | 'expense'; category: string; amount: number;
+  entry_date: string; project_id?: string | null; company_id?: string | null;
+  notes?: string | null; created_by?: string | null;
+}): Promise<LedgerEntry> {
+  const { data, error } = await sb.from('ledger_entries').insert({
+    org_id: p.org_id, type: p.type, category: p.category, amount: p.amount,
+    entry_date: p.entry_date, project_id: p.project_id || null, company_id: p.company_id || null,
+    notes: p.notes || null, created_by: p.created_by || null,
+  }).select(LEDGER_SEL).single();
+  if (error) throw new Error(error.message); return data as LedgerEntry;
+}
+export async function updateLedgerEntry(id: string, patch: Partial<Pick<LedgerEntry,
+  'type' | 'category' | 'amount' | 'entry_date' | 'project_id' | 'company_id' | 'notes'>>): Promise<LedgerEntry> {
+  const { data, error } = await sb.from('ledger_entries').update(patch).eq('id', id).select(LEDGER_SEL).single();
+  if (error) throw new Error(error.message); return data as LedgerEntry;
+}
+export async function deleteLedgerEntry(id: string): Promise<void> {
+  const { error } = await sb.from('ledger_entries').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
