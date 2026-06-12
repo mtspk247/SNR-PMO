@@ -15,6 +15,8 @@ import { can } from '@/lib/authz';
 import CommentsThread from '@/components/Comments';
 import EntityTags from '@/components/EntityTags';
 import TimeTracking from '@/components/TimeTracking';
+import Checklist from '@/components/Checklist';
+import { createReminder } from '@/lib/db';
 import TaskCustomFields from '@/components/TaskCustomFields';
 
 const STATUSES = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done', 'On Hold', 'Cancelled'];
@@ -269,6 +271,32 @@ export default function Tasks() {
         </dd></div>
         <div className="flex items-center justify-between"><dt className="text-muted">Due date</dt><dd className={`font-medium ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-content'}`}>{selected.due_date || '—'}</dd></div>
         <div className="flex items-center justify-between"><dt className="text-muted">Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
+        <div className="flex items-center justify-between gap-2">
+          <dt className="text-muted">Repeat</dt>
+          <dd>
+            <select value={selected.recur_every || ''} disabled={busy}
+              onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { recur_every: (e.target.value || null) as Task['recur_every'] })))}
+              className="input h-8 py-0 text-sm">
+              <option value="">Never</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 weeks</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </dd>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <dt className="text-muted">Remind me</dt>
+          <dd>
+            <input type="datetime-local" disabled={busy} value="" className="input h-8 py-0 text-sm"
+              onChange={(e) => {
+                if (!e.target.value || !me || !selected.org_id) return;
+                const at = new Date(e.target.value);
+                createReminder({ org_id: selected.org_id, user_id: me.id, note: `Task: ${selected.name}`, remind_at: at.toISOString(), entity_type: 'task', entity_id: selected.id })
+                  .then(() => alert(`Reminder set for ${at.toLocaleString()}`)).catch((er) => alert(er.message));
+              }} />
+          </dd>
+        </div>
       </dl>
 
       {/* Custom fields (per-project, ClickUp-style) */}
@@ -313,7 +341,8 @@ export default function Tasks() {
           </select>
         )}
       </div>
-      <TimeTracking taskId={selected.id} orgId={selected.org_id} projectId={selected.project_id} />
+      <Checklist taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
+      <TimeTracking taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
       <EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} />
       <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
     </div>

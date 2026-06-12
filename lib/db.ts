@@ -1183,6 +1183,45 @@ export async function getTrainingDocUrl(path: string): Promise<string> {
 // chat_insert pins sender_id = current_app_user_id() (spoof-proof);
 // chat_delete = own message OR org owner/admin. RETURNING is safe (the sender
 // always passes chat_select on their own new row), so .select() embeds work.
+import { ChecklistItem, Reminder } from './supabase';
+
+// ---- W2 Checklists / Reminders ----------------------------------------------
+export async function getTaskChecklist(taskId: string): Promise<ChecklistItem[]> {
+  const { data, error } = await sb.from('task_checklist_items').select('*')
+    .eq('task_id', taskId).order('sort_order').order('created_at');
+  if (error) throw error; return (data as ChecklistItem[]) || [];
+}
+export async function addChecklistItem(p: { org_id: string; task_id: string; project_id?: string | null; label: string; sort_order?: number }): Promise<ChecklistItem> {
+  const { data, error } = await sb.from('task_checklist_items')
+    .insert({ org_id: p.org_id, task_id: p.task_id, project_id: p.project_id || null, label: p.label, sort_order: p.sort_order ?? 0 })
+    .select('*').single();
+  if (error) throw new Error(error.message); return data as ChecklistItem;
+}
+export async function toggleChecklistItem(id: string, done: boolean): Promise<void> {
+  const { error } = await sb.from('task_checklist_items').update({ done }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteChecklistItem(id: string): Promise<void> {
+  const { error } = await sb.from('task_checklist_items').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function createReminder(p: { org_id: string; user_id: string; note: string; remind_at: string; entity_type?: string; entity_id?: string }): Promise<Reminder> {
+  const { data, error } = await sb.from('reminders').insert({
+    org_id: p.org_id, user_id: p.user_id, note: p.note, remind_at: p.remind_at,
+    entity_type: p.entity_type || null, entity_id: p.entity_id || null,
+  }).select('*').single();
+  if (error) throw new Error(error.message); return data as Reminder;
+}
+export async function getMyReminders(userId: string): Promise<Reminder[]> {
+  const { data, error } = await sb.from('reminders').select('*')
+    .eq('user_id', userId).is('sent_at', null).order('remind_at');
+  if (error) throw error; return (data as Reminder[]) || [];
+}
+export async function deleteReminder(id: string): Promise<void> {
+  const { error } = await sb.from('reminders').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 import { TimeEntry } from './supabase';
 
 // ---- W1 Time tracking -------------------------------------------------------

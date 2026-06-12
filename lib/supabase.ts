@@ -108,8 +108,21 @@ export interface Task {
   parent_task_id?: string | null;
   followers?: string[];
   due_date: string | null; estimated_hours: number | null; actual_hours?: number | null;
+  recur_every?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | null;
+  recur_until?: string | null;
   org_id?: string; created_by?: string | null;
   projects?: { name: string } | null;
+}
+
+export interface ChecklistItem {
+  id: string; org_id: string; task_id: string; project_id: string | null;
+  label: string; done: boolean; sort_order: number; created_at: string;
+}
+
+export interface Reminder {
+  id: string; org_id: string; user_id: string;
+  entity_type: string | null; entity_id: string | null;
+  note: string; remind_at: string; sent_at: string | null; created_at: string;
 }
 
 export interface Company { id: string; name: string; industry: string | null; website: string | null; phone: string | null; }
