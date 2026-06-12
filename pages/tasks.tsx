@@ -124,6 +124,14 @@ export default function Tasks() {
   const selectTask = (id: string) => { setSelectedId(id); setShowDetail(true); };
 
   // ----- mutations -----
+  // C2 deep-link: /tasks?task=<id> selects the task and opens the drawer
+  useEffect(() => {
+    const tid = typeof router.query.task === 'string' ? router.query.task : null;
+    if (!tid || !tasks.length) return;
+    const t = tasks.find((x) => x.id === tid);
+    if (t) { setSelectedId(t.id); setShowDetail(true); }
+  }, [router.query.task, tasks.length]);
+
   const mutate = async (fn: () => Promise<void>) => { setBusy(true); try { await fn(); } catch (e: any) { alert(e.message); } finally { setBusy(false); } };
   const setStatus = (id: string, status: string) => mutate(async () => patchLocal(await updateTask(id, { status })));
   const reassign = (assignee_id: string) => selected && mutate(async () => {
