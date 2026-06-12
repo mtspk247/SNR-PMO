@@ -30,6 +30,8 @@ const SECTIONS: Section[] = [
     { href: '/projects', label: 'Projects', icon: 'ti-folder' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
     { href: '/ideas', label: 'Ideas', icon: 'ti-bulb' },
+    { href: '/roadmap', label: 'Roadmap', icon: 'ti-timeline' },
+    { href: '/calendar', label: 'Calendar', icon: 'ti-calendar' },
     { href: '/chat', label: 'Chat', icon: 'ti-messages' },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Tracking', icon: 'ti-chart-line', items: [

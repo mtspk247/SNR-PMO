@@ -1183,6 +1183,38 @@ export async function getTrainingDocUrl(path: string): Promise<string> {
 // chat_insert pins sender_id = current_app_user_id() (spoof-proof);
 // chat_delete = own message OR org owner/admin. RETURNING is safe (the sender
 // always passes chat_select on their own new row), so .select() embeds work.
+import { Team } from './supabase';
+
+// ---- W3 Teams -----------------------------------------------------------------
+// split policies: member read / owner-admin write => RETURNING safe for admins.
+const TEAM_SEL = '*, members:team_members(user_id, users(full_name))';
+export async function getTeams(): Promise<Team[]> {
+  const { data, error } = await sb.from('teams').select(TEAM_SEL).order('name');
+  if (error) throw error; return (data as Team[]) || [];
+}
+export async function createTeam(p: { org_id: string; name: string; description?: string; color?: string }): Promise<Team> {
+  const { data, error } = await sb.from('teams')
+    .insert({ org_id: p.org_id, name: p.name, description: p.description || null, color: p.color || null })
+    .select(TEAM_SEL).single();
+  if (error) throw new Error(error.message); return data as Team;
+}
+export async function updateTeam(id: string, patch: { name?: string; description?: string | null; color?: string | null }): Promise<Team> {
+  const { data, error } = await sb.from('teams').update(patch).eq('id', id).select(TEAM_SEL).single();
+  if (error) throw new Error(error.message); return data as Team;
+}
+export async function deleteTeam(id: string): Promise<void> {
+  const { error } = await sb.from('teams').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function addTeamMember(teamId: string, userId: string, orgId: string): Promise<void> {
+  const { error } = await sb.from('team_members').insert({ team_id: teamId, user_id: userId, org_id: orgId });
+  if (error) throw new Error(error.message);
+}
+export async function removeTeamMember(teamId: string, userId: string): Promise<void> {
+  const { error } = await sb.from('team_members').delete().eq('team_id', teamId).eq('user_id', userId);
+  if (error) throw new Error(error.message);
+}
+
 import { ChecklistItem, Reminder } from './supabase';
 
 // ---- W2 Checklists / Reminders ----------------------------------------------

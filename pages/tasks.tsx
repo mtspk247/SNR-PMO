@@ -8,7 +8,7 @@ import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader } from '@/component
 import { getOrgUsers, createTask, updateTask, deleteTask, notify } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
-import { useTasks, useProjects } from '@/lib/queries';
+import { useTasks, useProjects, useTeams } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { can } from '@/lib/authz';
@@ -49,6 +49,7 @@ export default function Tasks() {
   const qc = useQueryClient();
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: projects = [] } = useProjects();
+  const { data: teams = [] } = useTeams();
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -279,6 +280,19 @@ export default function Tasks() {
         </dd></div>
         <div className="flex items-center justify-between"><dt className="text-muted">Due date</dt><dd className={`font-medium ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-content'}`}>{selected.due_date || '—'}</dd></div>
         <div className="flex items-center justify-between"><dt className="text-muted">Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
+        {teams.length > 0 && (
+          <div className="flex items-center justify-between gap-2">
+            <dt className="text-muted">Team</dt>
+            <dd>
+              <select value={selected.team_id || ''} disabled={busy}
+                onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { team_id: e.target.value || null })))}
+                className="input h-8 py-0 text-sm max-w-[10rem]">
+                <option value="">—</option>
+                {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </dd>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2">
           <dt className="text-muted">Repeat</dt>
           <dd>

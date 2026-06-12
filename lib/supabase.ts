@@ -110,6 +110,7 @@ export interface Task {
   due_date: string | null; estimated_hours: number | null; actual_hours?: number | null;
   recur_every?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | null;
   recur_until?: string | null;
+  team_id?: string | null;
   org_id?: string; created_by?: string | null;
   projects?: { name: string } | null;
 }
@@ -117,6 +118,12 @@ export interface Task {
 export interface ChecklistItem {
   id: string; org_id: string; task_id: string; project_id: string | null;
   label: string; done: boolean; sort_order: number; created_at: string;
+}
+
+export interface Team {
+  id: string; org_id: string; name: string; description: string | null;
+  color: string | null; created_at: string;
+  members?: { user_id: string; users?: { full_name: string | null } | null }[];
 }
 
 export interface Reminder {

@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
-import { getAdminUsers, updateUserAdmin, listRoleTemplates } from '@/lib/db';
-import { AdminUser, RoleTemplate } from '@/lib/supabase';
+import { Modal, Field } from '@/components/Modal';
+import { getAdminUsers, updateUserAdmin, listRoleTemplates, createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember } from '@/lib/db';
+import { AdminUser, RoleTemplate, Team } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
+import { useTeams } from '@/lib/queries';
+import qk from '@/lib/queryKeys';
 
 const ROLES = ['super_admin', 'pm', 'team_member', 'viewer'];
 const PERMS: { key: keyof AdminUser; label: string }[] = [
@@ -17,16 +21,97 @@ const PERMS: { key: keyof AdminUser; label: string }[] = [
   { key: 'can_export_data', label: 'Export data' },
 ];
 
-type Tab = 'manage' | 'templates';
+const SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
+
+type Tab = 'manage' | 'templates' | 'teams';
+
+type TeamDraft = { id?: string; name: string; description: string; color: string };
+const emptyTeamDraft = (): TeamDraft => ({ name: '', description: '', color: SWATCHES[0] });
+
+function TeamMembersPanel({
+  team,
+  users,
+  orgId,
+  onRefresh,
+}: {
+  team: Team;
+  users: AdminUser[];
+  orgId: string;
+  onRefresh: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const members = team.members || [];
+  const memberIds = new Set(members.map((m) => m.user_id));
+  const available = users.filter((u) => !memberIds.has(u.id));
+
+  const remove = async (userId: string) => {
+    setBusy(true);
+    try { await removeTeamMember(team.id, userId); onRefresh(); }
+    catch (e: any) { alert(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const add = async (userId: string) => {
+    if (!userId) return;
+    setBusy(true);
+    try { await addTeamMember(team.id, userId, orgId); onRefresh(); }
+    catch (e: any) { alert(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mt-3 border-t border-line pt-3 space-y-2">
+      {members.length === 0 && <p className="text-2xs text-muted2">No members yet</p>}
+      {members.map((m) => {
+        const name = m.users?.full_name || m.user_id;
+        return (
+          <div key={m.user_id} className="flex items-center gap-2 text-sm">
+            <Avatar name={name} size={24} />
+            <span className="flex-1 truncate text-content">{name}</span>
+            <button
+              onClick={() => remove(m.user_id)}
+              disabled={busy}
+              className="text-muted hover:text-rose-500 transition-colors"
+              title="Remove member"
+            >
+              <Icon name="ti-x" className="text-xs" />
+            </button>
+          </div>
+        );
+      })}
+      {available.length > 0 && (
+        <select
+          value=""
+          disabled={busy}
+          onChange={(e) => add(e.target.value)}
+          className="input h-8 py-0 text-xs w-full mt-1"
+        >
+          <option value="">+ Add member…</option>
+          {available.map((u) => (
+            <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
 
 export default function UsersPage() {
   const org = useActiveOrg();
+  const qc = useQueryClient();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<RoleTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('manage');
   const [sel, setSel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Teams state
+  const { data: teams = [], isLoading: teamsLoading } = useTeams();
+  const [teamDraft, setTeamDraft] = useState<TeamDraft | null>(null);
+  const [teamDraftId, setTeamDraftId] = useState<string | undefined>(undefined);
+  const [teamBusy, setTeamBusy] = useState(false);
+  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   useEffect(() => {
     getAdminUsers().then((u) => { setUsers(u); if (u.length) setSel((s) => s || u[0].id); }).finally(() => setLoading(false));
@@ -44,6 +129,42 @@ export default function UsersPage() {
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
+  // Team handlers
+  const openNewTeam = () => { setTeamDraftId(undefined); setTeamDraft(emptyTeamDraft()); };
+  const openEditTeam = (t: Team) => { setTeamDraftId(t.id); setTeamDraft({ name: t.name, description: t.description || '', color: t.color || SWATCHES[0] }); };
+
+  const saveTeam = async () => {
+    if (!teamDraft || !org) return;
+    if (!teamDraft.name.trim()) return;
+    setTeamBusy(true);
+    try {
+      if (teamDraftId) {
+        await updateTeam(teamDraftId, { name: teamDraft.name.trim(), description: teamDraft.description || null, color: teamDraft.color || null });
+      } else {
+        await createTeam({ org_id: org.id, name: teamDraft.name.trim(), description: teamDraft.description || undefined, color: teamDraft.color || undefined });
+      }
+      await qc.invalidateQueries({ queryKey: qk.teams(org?.id) });
+      setTeamDraft(null);
+    } catch (e: any) { alert(e.message); }
+    finally { setTeamBusy(false); }
+  };
+
+  const removeTeam = async (t: Team) => {
+    if (!confirm(`Delete team "${t.name}"? This will remove all members from the team.`)) return;
+    try {
+      await deleteTeam(t.id);
+      await qc.invalidateQueries({ queryKey: qk.teams(org?.id) });
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const refreshTeams = () => qc.invalidateQueries({ queryKey: qk.teams(org?.id) });
+
+  const tabLabel = (t: Tab) => {
+    if (t === 'manage') return 'Manage users';
+    if (t === 'templates') return 'Role templates';
+    return `Teams${teams.length ? ` (${teams.length})` : ''}`;
+  };
+
   return (
     <Layout title="Users">
       {loading ? <Spinner /> : (
@@ -52,7 +173,7 @@ export default function UsersPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['manage', 'templates'] as const).map((t) => (
+            {(['manage', 'templates', 'teams'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -62,7 +183,7 @@ export default function UsersPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'manage' ? 'Manage users' : 'Role templates'}
+                {tabLabel(t)}
               </button>
             ))}
           </div>
@@ -113,12 +234,157 @@ export default function UsersPage() {
                 </div>
               ) : <div className="card flex-1 p-6 rounded-t-none text-sm text-muted">Select a user</div>}
             </div>
-          ) : (
+          ) : tab === 'templates' ? (
             <div className="card rounded-t-none p-6">
               <p className="text-sm text-muted mb-4">Switch to the Roles section to manage role templates.</p>
               <button onClick={() => window.location.href = '/roles'} className="btn btn-primary">Manage roles</button>
             </div>
+          ) : (
+            /* ── Teams tab ─────────────────────────────────────────── */
+            <div className="card rounded-t-none p-6">
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-sm text-muted">Organise members into teams for project assignment and visibility.</p>
+                <button onClick={openNewTeam} className="btn btn-primary shrink-0">
+                  <Icon name="ti-plus" />New team
+                </button>
+              </div>
+
+              {teamsLoading ? <Spinner /> : teams.length === 0 ? (
+                <EmptyState text="No teams yet — create one to get started" />
+              ) : (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {teams.map((team) => {
+                    const memberCount = team.members?.length || 0;
+                    const previewMembers = (team.members || []).slice(0, 4);
+                    const overflow = memberCount - previewMembers.length;
+                    const isExpanded = expandedTeam === team.id;
+
+                    return (
+                      <div key={team.id} className="card p-5 flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-start gap-2 mb-2">
+                          <span
+                            className="w-3 h-3 rounded-full mt-1 shrink-0"
+                            style={{ background: team.color || '#64748b' }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-content text-sm leading-tight truncate">{team.name}</h3>
+                            {team.description && (
+                              <p className="text-2xs text-muted mt-0.5 line-clamp-2">{team.description}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Member preview */}
+                        <div className="flex items-center gap-1.5 my-3 min-h-[28px]">
+                          {memberCount === 0 ? (
+                            <span className="text-2xs text-muted2">No members</span>
+                          ) : (
+                            <>
+                              <div className="flex -space-x-1.5">
+                                {previewMembers.map((m) => (
+                                  <Avatar
+                                    key={m.user_id}
+                                    name={m.users?.full_name || '?'}
+                                    size={24}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-2xs text-muted ml-1">
+                                {memberCount} member{memberCount !== 1 ? 's' : ''}
+                                {overflow > 0 && ` (+${overflow} more)`}
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2 mt-auto pt-1">
+                          <button
+                            onClick={() => setExpandedTeam(isExpanded ? null : team.id)}
+                            className="btn flex-1 text-xs"
+                          >
+                            <Icon name="ti-users" />
+                            {isExpanded ? 'Hide' : 'Members'}
+                          </button>
+                          <button onClick={() => openEditTeam(team)} className="btn text-xs" title="Edit team">
+                            <Icon name="ti-pencil" />
+                          </button>
+                          <button onClick={() => removeTeam(team)} className="btn text-rose-600 text-xs" title="Delete team">
+                            <Icon name="ti-trash" />
+                          </button>
+                        </div>
+
+                        {/* Inline members panel */}
+                        {isExpanded && org && (
+                          <TeamMembersPanel
+                            team={team}
+                            users={users}
+                            orgId={org.id}
+                            onRefresh={refreshTeams}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
+
+          {/* Team create/edit modal */}
+          <Modal
+            open={!!teamDraft}
+            onClose={() => setTeamDraft(null)}
+            title={teamDraftId ? 'Edit team' : 'New team'}
+            icon={teamDraftId ? 'ti-edit' : 'ti-users-group'}
+            size="sm"
+            onSubmit={saveTeam}
+            footer={
+              <>
+                <button onClick={saveTeam} disabled={teamBusy || !teamDraft?.name.trim()} className="btn btn-primary">
+                  {teamBusy ? 'Saving…' : teamDraftId ? 'Save changes' : 'Create team'}
+                </button>
+                <button onClick={() => setTeamDraft(null)} className="btn">Cancel</button>
+              </>
+            }
+          >
+            {teamDraft && (
+              <div className="space-y-4">
+                <Field label="Name" required>
+                  <input
+                    autoFocus
+                    value={teamDraft.name}
+                    onChange={(e) => setTeamDraft((d) => d && ({ ...d, name: e.target.value }))}
+                    className="input"
+                    placeholder="e.g. Engineering"
+                  />
+                </Field>
+                <Field label="Description">
+                  <input
+                    value={teamDraft.description}
+                    onChange={(e) => setTeamDraft((d) => d && ({ ...d, description: e.target.value }))}
+                    className="input"
+                    placeholder="Optional short description"
+                  />
+                </Field>
+                <Field label="Color">
+                  <div className="flex items-center gap-2 mt-1">
+                    {SWATCHES.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setTeamDraft((d) => d && ({ ...d, color: c }))}
+                        aria-label={c}
+                        className={`w-6 h-6 rounded-full transition-shadow ${teamDraft.color === c ? 'ring-2 ring-offset-2 ring-accent' : 'hover:scale-110'}`}
+                        style={{ background: c }}
+                      />
+                    ))}
+                  </div>
+                </Field>
+              </div>
+            )}
+          </Modal>
         </>
       )}
     </Layout>

@@ -7,7 +7,7 @@ import {
   getAuditLog, getAttendance, getEmployees, getLeaves, getPayrollRuns,
   getTasks, getDeals, getContacts, getCompanies, getLedgerEntries,
   getIdeas, getTrainingDocs, getJobDescriptions, getChatMessages,
-  getTaskTimeEntries, getMyOpenTimer,
+  getTaskTimeEntries, getMyOpenTimer, getTeams,
 } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
@@ -164,4 +164,9 @@ export function useMyOpenTimer(userId?: string | null) {
     enabled: !!org && !!userId,
     refetchInterval: 60000,
   });
+}
+
+export function useTeams() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.teams(org?.id), queryFn: getTeams, enabled: !!org });
 }
