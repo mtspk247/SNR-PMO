@@ -11,12 +11,12 @@ export default function AuditPage() {
   const { data: rows = [], isLoading } = useAuditLog();
   const [q, setQ] = useState('');
 
+  const filtered = rows.filter((r) => !q || [r.action, r.username, r.entity_type, r.entity_id].some((v) => String(v || '').toLowerCase().includes(q.toLowerCase())));
+  const pg = usePagination(filtered, 25);
+
   if (!can.manageMembers(org)) {
     return <Layout title="Audit log"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to view the audit log.</div></Layout>;
   }
-
-  const filtered = rows.filter((r) => !q || [r.action, r.username, r.entity_type, r.entity_id].some((v) => String(v || '').toLowerCase().includes(q.toLowerCase())));
-  const pg = usePagination(filtered, 25);
 
   return (
     <Layout title="Audit log">

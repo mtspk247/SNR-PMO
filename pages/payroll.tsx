@@ -48,6 +48,8 @@ export default function PayrollPage() {
     getPayslips(selected).then(setPayslips).finally(() => setSlipsLoading(false));
   }, [selected]);
 
+  const pg = usePagination(runs, 25);
+
   if (!isAdmin) {
     return (
       <Layout title="Payroll">
@@ -60,8 +62,6 @@ export default function PayrollPage() {
   }
 
   const run = runs.find((r) => r.id === selected) || null;
-
-  const pg = usePagination(runs, 25);
 
   const removeRun = async (id: string) => {
     if (!confirm('Delete this payroll run and its payslips?')) return;
