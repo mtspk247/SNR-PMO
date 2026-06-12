@@ -19,5 +19,7 @@ export const qk = {
   payrollRuns: (org?: string | null) => ['payrollRuns', org ?? null] as const,
   ledger: (org?: string | null) => ['ledger', org ?? null] as const,
   ideas: (org?: string | null) => ['ideas', org ?? null] as const,
+  trainingDocs: (org?: string | null) => ['trainingDocs', org ?? null] as const,
+  jobDescriptions: (org?: string | null) => ['jobDescriptions', org ?? null] as const,
   adminUsers: (org?: string | null) => ['adminUsers', org ?? null] as const,
 };

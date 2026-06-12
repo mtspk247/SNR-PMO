@@ -659,7 +659,7 @@ export async function removeTaskTag(taskId: string, tagId: string): Promise<void
 // RETURNING is safe — same reasoning as createOrgCompany.
 export async function getOnboardingTemplates(): Promise<OnboardingTemplate[]> {
   const { data, error } = await sb.from('onboarding_templates')
-    .select('*, items:onboarding_template_items(*)')
+    .select('*, items:onboarding_template_items(*, training_doc:training_docs(title,doc_path,doc_name,link_url))')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return ((data as OnboardingTemplate[]) || []).map((t) => ({
@@ -676,10 +676,10 @@ export async function deleteOnboardingTemplate(id: string): Promise<void> {
   const { error } = await sb.from('onboarding_templates').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
-export async function addTemplateItem(p: { template_id: string; org_id: string; title: string; description?: string; sort_order?: number; offset_days?: number; requires_doc?: boolean }): Promise<OnboardingTemplateItem> {
+export async function addTemplateItem(p: { template_id: string; org_id: string; title: string; description?: string; sort_order?: number; offset_days?: number; requires_doc?: boolean; training_doc_id?: string | null }): Promise<OnboardingTemplateItem> {
   const { data, error } = await sb.from('onboarding_template_items')
-    .insert({ template_id: p.template_id, org_id: p.org_id, title: p.title, description: p.description || null, sort_order: p.sort_order ?? 0, offset_days: p.offset_days ?? 0, requires_doc: p.requires_doc ?? false })
-    .select('*').single();
+    .insert({ template_id: p.template_id, org_id: p.org_id, title: p.title, description: p.description || null, sort_order: p.sort_order ?? 0, offset_days: p.offset_days ?? 0, requires_doc: p.requires_doc ?? false, training_doc_id: p.training_doc_id || null })
+    .select('*, training_doc:training_docs(title,doc_path,doc_name,link_url)').single();
   if (error) throw new Error(error.message); return data as OnboardingTemplateItem;
 }
 export async function deleteTemplateItem(id: string): Promise<void> {
@@ -688,7 +688,7 @@ export async function deleteTemplateItem(id: string): Promise<void> {
 }
 
 // Per-hire checklist tasks. Two FKs to users → disambiguated embeds (cf. leaves).
-const OB_TASK_SEL = '*, hire:users!onboarding_tasks_user_id_fkey(full_name), assignee:users!onboarding_tasks_assignee_id_fkey(full_name)';
+const OB_TASK_SEL = '*, hire:users!onboarding_tasks_user_id_fkey(full_name), assignee:users!onboarding_tasks_assignee_id_fkey(full_name), training_doc:training_docs(title,doc_path,doc_name,link_url)';
 export async function getOnboardingTasks(): Promise<OnboardingTask[]> {
   const { data, error } = await sb.from('onboarding_tasks').select(OB_TASK_SEL)
     .order('user_id', { ascending: true }).order('sort_order', { ascending: true });
@@ -702,6 +702,7 @@ export async function assignOnboarding(p: { user_id: string; org_id: string; tem
     org_id: p.org_id, user_id: p.user_id, template_id: p.template.id,
     title: it.title, description: it.description, sort_order: it.sort_order ?? i, status: 'Pending',
     requires_doc: it.requires_doc ?? false,
+    training_doc_id: it.training_doc_id || null,
     assignee_id: p.created_by || null,
     due_date: base ? new Date(base.getTime() + (it.offset_days || 0) * 86400000).toISOString().slice(0, 10) : null,
     created_by: p.created_by || null,
@@ -1056,4 +1057,98 @@ export async function convertIdeaToProject(idea: Idea, userId?: string | null):
     : null;
   const updated = await updateIdea(idea.id, { status: 'building', project_id: proj ? proj.id : null });
   return { idea: updated, projects };
+}
+
+// --- S4: Training docs & Job descriptions (HR; Storage bucket training-docs) ---
+// RLS: select = org member (+hr feature), writes = org owner/admin -> insert
+// RETURNING is safe (admins pass the member select policy). Files live in the
+// private bucket 'training-docs' under <org_id>/<table>/<row_id>/<filename>;
+// storage policies mirror that split (member read / admin write).
+import { TrainingDoc, JobDescription } from './supabase';
+
+const TDOC_SEL = '*, role_template:role_templates(name), creator:users(full_name)';
+const JD_SEL = TDOC_SEL;
+type HrDocTable = 'training_docs' | 'job_descriptions';
+
+export async function getTrainingDocs(): Promise<TrainingDoc[]> {
+  const { data, error } = await sb.from('training_docs').select(TDOC_SEL)
+    .order('created_at', { ascending: false });
+  if (error) throw error; return (data as TrainingDoc[]) || [];
+}
+export async function createTrainingDoc(p: {
+  org_id: string; title: string; description?: string | null; category?: string | null;
+  department?: string | null; role_template_id?: string | null; link_url?: string | null;
+  created_by?: string | null;
+}): Promise<TrainingDoc> {
+  const { data, error } = await sb.from('training_docs').insert({
+    org_id: p.org_id, title: p.title, description: p.description || null,
+    category: p.category || null, department: p.department || null,
+    role_template_id: p.role_template_id || null, link_url: p.link_url || null,
+    created_by: p.created_by || null,
+  }).select(TDOC_SEL).single();
+  if (error) throw new Error(error.message); return data as TrainingDoc;
+}
+export async function updateTrainingDoc(id: string, patch: Partial<Pick<TrainingDoc,
+  'title' | 'description' | 'category' | 'department' | 'role_template_id' | 'link_url'>>): Promise<TrainingDoc> {
+  const { data, error } = await sb.from('training_docs').update(patch).eq('id', id).select(TDOC_SEL).single();
+  if (error) throw new Error(error.message); return data as TrainingDoc;
+}
+export async function deleteTrainingDoc(d: { id: string; doc_path?: string | null }): Promise<void> {
+  if (d.doc_path) await sb.storage.from('training-docs').remove([d.doc_path]); // best-effort
+  const { error } = await sb.from('training_docs').delete().eq('id', d.id);
+  if (error) throw new Error(error.message);
+}
+
+export async function getJobDescriptions(): Promise<JobDescription[]> {
+  const { data, error } = await sb.from('job_descriptions').select(JD_SEL)
+    .order('created_at', { ascending: false });
+  if (error) throw error; return (data as JobDescription[]) || [];
+}
+export async function createJobDescription(p: {
+  org_id: string; title: string; department?: string | null; role_template_id?: string | null;
+  summary?: string | null; responsibilities?: string | null; requirements?: string | null;
+  created_by?: string | null;
+}): Promise<JobDescription> {
+  const { data, error } = await sb.from('job_descriptions').insert({
+    org_id: p.org_id, title: p.title, department: p.department || null,
+    role_template_id: p.role_template_id || null, summary: p.summary || null,
+    responsibilities: p.responsibilities || null, requirements: p.requirements || null,
+    created_by: p.created_by || null,
+  }).select(JD_SEL).single();
+  if (error) throw new Error(error.message); return data as JobDescription;
+}
+export async function updateJobDescription(id: string, patch: Partial<Pick<JobDescription,
+  'title' | 'department' | 'role_template_id' | 'summary' | 'responsibilities' | 'requirements'>>): Promise<JobDescription> {
+  const { data, error } = await sb.from('job_descriptions').update(patch).eq('id', id).select(JD_SEL).single();
+  if (error) throw new Error(error.message); return data as JobDescription;
+}
+export async function deleteJobDescription(d: { id: string; doc_path?: string | null }): Promise<void> {
+  if (d.doc_path) await sb.storage.from('training-docs').remove([d.doc_path]); // best-effort
+  const { error } = await sb.from('job_descriptions').delete().eq('id', d.id);
+  if (error) throw new Error(error.message);
+}
+
+// Upload/replace the file attached to a training doc or JD (admin-only per storage RLS).
+export async function uploadHrDoc<T extends TrainingDoc | JobDescription>(
+  table: HrDocTable, row: { id: string; org_id: string }, file: File): Promise<T> {
+  const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
+  const path = `${row.org_id}/${table}/${row.id}/${safe}`;
+  const { error: upErr } = await sb.storage.from('training-docs').upload(path, file, { upsert: true });
+  if (upErr) throw new Error(upErr.message);
+  const { data, error } = await sb.from(table)
+    .update({ doc_path: path, doc_name: file.name, doc_uploaded_at: new Date().toISOString() })
+    .eq('id', row.id).select(table === 'training_docs' ? TDOC_SEL : JD_SEL).single();
+  if (error) throw new Error(error.message); return data as T;
+}
+export async function removeHrDoc<T extends TrainingDoc | JobDescription>(
+  table: HrDocTable, row: { id: string; doc_path?: string | null }): Promise<T> {
+  if (row.doc_path) await sb.storage.from('training-docs').remove([row.doc_path]);
+  const { data, error } = await sb.from(table)
+    .update({ doc_path: null, doc_name: null, doc_uploaded_at: null })
+    .eq('id', row.id).select(table === 'training_docs' ? TDOC_SEL : JD_SEL).single();
+  if (error) throw new Error(error.message); return data as T;
+}
+export async function getTrainingDocUrl(path: string): Promise<string> {
+  const { data, error } = await sb.storage.from('training-docs').createSignedUrl(path, 3600);
+  if (error) throw new Error(error.message); return data.signedUrl;
 }

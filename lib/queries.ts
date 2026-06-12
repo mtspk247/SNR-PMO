@@ -6,7 +6,7 @@ import {
   getOrgCompanies, getPortfolios,
   getAuditLog, getAttendance, getEmployees, getLeaves, getPayrollRuns,
   getTasks, getDeals, getContacts, getCompanies, getLedgerEntries,
-  getIdeas,
+  getIdeas, getTrainingDocs, getJobDescriptions,
 } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
@@ -123,4 +123,13 @@ export function useLedgerEntries() {
 export function useIdeas() {
   const org = useActiveOrg();
   return useQuery({ queryKey: qk.ideas(org?.id), queryFn: getIdeas, enabled: !!org });
+}
+
+export function useTrainingDocs() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.trainingDocs(org?.id), queryFn: getTrainingDocs, enabled: !!org });
+}
+export function useJobDescriptions() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.jobDescriptions(org?.id), queryFn: getJobDescriptions, enabled: !!org });
 }

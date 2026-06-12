@@ -40,6 +40,7 @@ const SECTIONS: Section[] = [
   { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
     { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
     { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr' },
+    { href: '/training', label: 'Training & JDs', icon: 'ti-school', feature: 'hr' },
     { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock' },
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },

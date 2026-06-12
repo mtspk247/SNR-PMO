@@ -224,6 +224,8 @@ export interface OnboardingTemplateItem {
   id: string; template_id: string; org_id?: string;
   title: string; description: string | null; sort_order: number; offset_days: number;
   requires_doc?: boolean;
+  training_doc_id?: string | null;
+  training_doc?: TrainingDocRef | null;
 }
 export interface OnboardingTemplate {
   id: string; org_id?: string; name: string; description: string | null;
@@ -236,6 +238,8 @@ export interface OnboardingTask {
   status: 'Pending' | 'Done'; due_date: string | null;
   assignee_id: string | null; sort_order: number; completed_at: string | null;
   requires_doc?: boolean; doc_path?: string | null; doc_name?: string | null; doc_uploaded_at?: string | null;
+  training_doc_id?: string | null;
+  training_doc?: TrainingDocRef | null;
   created_by?: string | null; created_at?: string;
   hire?: { full_name: string } | null;
   assignee?: { full_name: string } | null;
@@ -322,5 +326,32 @@ export interface Idea {
   created_by?: string | null; created_at?: string;
   votes?: { user_id: string }[];
   project?: { name: string | null } | null;
+  creator?: { full_name: string | null } | null;
+}
+
+// ---- S4: Training docs & Job descriptions (HR) -----------------------------
+// Lightweight embed shape used on onboarding items/tasks.
+export interface TrainingDocRef {
+  title: string; doc_path: string | null; doc_name?: string | null; link_url?: string | null;
+}
+export interface TrainingDoc {
+  id: string; org_id: string;
+  title: string; description?: string | null;
+  category?: string | null; department?: string | null;
+  role_template_id?: string | null;
+  doc_path?: string | null; doc_name?: string | null; doc_uploaded_at?: string | null;
+  link_url?: string | null;
+  created_by?: string | null; created_at?: string;
+  role_template?: { name: string | null } | null;
+  creator?: { full_name: string | null } | null;
+}
+export interface JobDescription {
+  id: string; org_id: string;
+  title: string; department?: string | null;
+  role_template_id?: string | null;
+  summary?: string | null; responsibilities?: string | null; requirements?: string | null;
+  doc_path?: string | null; doc_name?: string | null; doc_uploaded_at?: string | null;
+  created_by?: string | null; created_at?: string;
+  role_template?: { name: string | null } | null;
   creator?: { full_name: string | null } | null;
 }

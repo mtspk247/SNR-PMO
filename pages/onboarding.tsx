@@ -7,9 +7,9 @@ import {
   addTemplateItem, deleteTemplateItem,
   getOnboardingTasks, assignOnboarding, addOnboardingTask, setOnboardingTaskStatus, deleteOnboardingTask,
   uploadOnboardingDoc, getOnboardingDocUrl, removeOnboardingDoc,
-  getOrgUsers,
+  getOrgUsers, getTrainingDocs, getTrainingDocUrl,
 } from '@/lib/db';
-import { OnboardingTemplate, OnboardingTask, OrgUser } from '@/lib/supabase';
+import { OnboardingTemplate, OnboardingTask, OrgUser, TrainingDoc } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 
@@ -25,6 +25,7 @@ export default function OnboardingPage() {
   const [templates, setTemplates] = useState<OnboardingTemplate[]>([]);
   const [tasks, setTasks] = useState<OnboardingTask[]>([]);
   const [people, setPeople] = useState<OrgUser[]>([]);
+  const [docs, setDocs] = useState<TrainingDoc[]>([]);
   const [busy, setBusy] = useState(false);
 
   // modals
@@ -32,8 +33,8 @@ export default function OnboardingPage() {
   const [showTmpl, setShowTmpl] = useState(false);
 
   useEffect(() => {
-    Promise.all([getOnboardingTemplates(), getOnboardingTasks(), getOrgUsers()])
-      .then(([t, k, p]) => { setTemplates(t); setTasks(k); setPeople(p); })
+    Promise.all([getOnboardingTemplates(), getOnboardingTasks(), getOrgUsers(), getTrainingDocs().catch(() => [])])
+      .then(([t, k, p, d]) => { setTemplates(t); setTasks(k); setPeople(p); setDocs(d); })
       .finally(() => setLoading(false));
   }, [org?.id]);
 
@@ -105,6 +106,7 @@ export default function OnboardingPage() {
                         <span className={`text-sm flex-1 min-w-0 truncate ${t.status === 'Done' ? 'line-through text-muted2' : ''}`}>{t.title}</span>
                         <DocCell task={t} canUpload={admin || me?.id === t.user_id} orgId={org?.id || ''}
                           onChange={(r) => setTasks((p) => p.map((x) => (x.id === r.id ? r : x)))} />
+                        <TrainingChip doc={t.training_doc} />
                         {t.due_date && <span className="text-2xs text-muted2 shrink-0">{t.due_date}</span>}
                         {t.assignee?.full_name && <span className="text-2xs text-muted2 shrink-0 hidden sm:inline">· {t.assignee.full_name}</span>}
                         {admin && <button onClick={() => removeTask(t.id)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500 shrink-0"><Icon name="ti-x" className="text-sm" /></button>}
@@ -125,7 +127,7 @@ export default function OnboardingPage() {
         templates.length === 0 ? <EmptyState icon="ti-list-check" text="No templates yet — create one to standardize onboarding" /> : (
           <div className="grid md:grid-cols-2 gap-3">
             {templates.map((t) => (
-              <TemplateCard key={t.id} tmpl={t} orgId={org!.id}
+              <TemplateCard key={t.id} tmpl={t} orgId={org!.id} docs={docs}
                 onItemsChange={(items) => setTemplates((p) => p.map((x) => (x.id === t.id ? { ...x, items } : x)))}
                 onDelete={async () => { if (!confirm('Delete template?')) return; await deleteOnboardingTemplate(t.id); setTemplates((p) => p.filter((x) => x.id !== t.id)); }} />
             ))}
@@ -224,19 +226,20 @@ function AddItemRow({ onAdd }: { onAdd: (title: string) => Promise<void> }) {
 }
 
 // ---- template card with item editor ---------------------------------------
-function TemplateCard({ tmpl, orgId, onItemsChange, onDelete }:
-  { tmpl: OnboardingTemplate; orgId: string; onItemsChange: (items: OnboardingTemplate['items']) => void; onDelete: () => void }) {
+function TemplateCard({ tmpl, orgId, docs, onItemsChange, onDelete }:
+  { tmpl: OnboardingTemplate; orgId: string; docs: TrainingDoc[]; onItemsChange: (items: OnboardingTemplate['items']) => void; onDelete: () => void }) {
   const items = tmpl.items || [];
   const [title, setTitle] = useState('');
   const [days, setDays] = useState('');
   const [needsDoc, setNeedsDoc] = useState(false);
+  const [docId, setDocId] = useState('');
   const [busy, setBusy] = useState(false);
 
   const add = async () => {
     if (!title.trim()) return; setBusy(true);
     try {
-      const it = await addTemplateItem({ template_id: tmpl.id, org_id: orgId, title: title.trim(), sort_order: items.length, offset_days: parseInt(days) || 0, requires_doc: needsDoc });
-      onItemsChange([...items, it]); setTitle(''); setDays(''); setNeedsDoc(false);
+      const it = await addTemplateItem({ template_id: tmpl.id, org_id: orgId, title: title.trim(), sort_order: items.length, offset_days: parseInt(days) || 0, requires_doc: needsDoc, training_doc_id: docId || null });
+      onItemsChange([...items, it]); setTitle(''); setDays(''); setNeedsDoc(false); setDocId('');
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const remove = async (id: string) => {
@@ -259,6 +262,7 @@ function TemplateCard({ tmpl, orgId, onItemsChange, onDelete }:
             <Icon name="ti-point" className="text-muted2 text-xs shrink-0" />
             <span className="flex-1 min-w-0 truncate">{it.title}</span>
             {it.requires_doc && <Icon name="ti-paperclip" className="text-muted2 text-xs shrink-0" />}
+            {it.training_doc && <Icon name="ti-book" title={it.training_doc.title} className="text-muted2 text-xs shrink-0" />}
             {!!it.offset_days && <span className="text-2xs text-muted2 shrink-0">+{it.offset_days}d</span>}
             <button onClick={() => remove(it.id)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500 shrink-0"><Icon name="ti-x" className="text-sm" /></button>
           </div>
@@ -275,9 +279,38 @@ function TemplateCard({ tmpl, orgId, onItemsChange, onDelete }:
           <input type="checkbox" checked={needsDoc} disabled={busy} onChange={(e) => setNeedsDoc(e.target.checked)} className="hidden" />
           <Icon name="ti-paperclip" className="text-xs" />doc
         </label>
+        {docs.length > 0 && (
+          <select value={docId} disabled={busy} onChange={(e) => setDocId(e.target.value)}
+            title="Attach a training doc to this step"
+            className="w-24 px-1 py-1 rounded border border-line bg-surface text-2xs outline-none">
+            <option value="">no training</option>
+            {docs.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+          </select>
+        )}
         <button onClick={add} disabled={busy || !title.trim()} className="btn btn-sm">Add</button>
       </div>
     </div>
+  );
+}
+
+// ---- training material chip -------------------------------------------------
+// Shown on a hire's checklist row when the template step linked a training doc.
+function TrainingChip({ doc }: { doc?: OnboardingTask['training_doc'] }) {
+  const [busy, setBusy] = useState(false);
+  if (!doc) return null;
+  const open = async () => {
+    if (busy) return;
+    try {
+      setBusy(true);
+      if (doc.doc_path) window.open(await getTrainingDocUrl(doc.doc_path), '_blank');
+      else if (doc.link_url) window.open(doc.link_url, '_blank');
+    } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <button onClick={open} disabled={busy} title={`Training: ${doc.title}`}
+      className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-line text-2xs text-muted hover:text-accentstrong hover:border-accent max-w-[10rem]">
+      <Icon name="ti-book" className="text-xs" /><span className="truncate">{doc.title}</span>
+    </button>
   );
 }
 
