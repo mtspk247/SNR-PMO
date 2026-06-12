@@ -1001,3 +1001,59 @@ export async function deleteLedgerEntry(id: string): Promise<void> {
   const { error } = await sb.from('ledger_entries').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// --- S3: Ideas (org-scoped backlog; single ALL policy is_org_member -> RETURNING safe) ---
+import { Idea, IdeaStatus } from './supabase';
+
+export const IDEA_STATUSES: IdeaStatus[] = ['idea', 'exploring', 'approved', 'building', 'shipped', 'parked'];
+const IDEA_SEL = '*, votes:idea_votes(user_id), project:projects(name), creator:users(full_name)';
+
+export async function getIdeas(): Promise<Idea[]> {
+  const { data, error } = await sb.from('ideas').select(IDEA_SEL)
+    .order('created_at', { ascending: false });
+  if (error) throw error; return (data as Idea[]) || [];
+}
+export async function createIdea(p: {
+  org_id: string; title: string; pitch?: string | null; created_by?: string | null;
+}): Promise<Idea> {
+  const { data, error } = await sb.from('ideas').insert({
+    org_id: p.org_id, title: p.title, pitch: p.pitch || null, created_by: p.created_by || null,
+  }).select(IDEA_SEL).single();
+  if (error) throw new Error(error.message); return data as Idea;
+}
+export async function updateIdea(id: string, patch: Partial<Pick<Idea,
+  'title' | 'pitch' | 'status' | 'project_id'>>): Promise<Idea> {
+  const { data, error } = await sb.from('ideas').update(patch).eq('id', id).select(IDEA_SEL).single();
+  if (error) throw new Error(error.message); return data as Idea;
+}
+export async function deleteIdea(id: string): Promise<void> {
+  const { error } = await sb.from('ideas').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+// Toggle the current user's vote. RLS pins idea_votes.user_id to the caller.
+export async function toggleIdeaVote(idea: Idea, userId: string): Promise<void> {
+  const voted = (idea.votes || []).some((v) => v.user_id === userId);
+  if (voted) {
+    const { error } = await sb.from('idea_votes').delete().eq('idea_id', idea.id).eq('user_id', userId);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await sb.from('idea_votes').insert({ idea_id: idea.id, user_id: userId });
+    if (error) throw new Error(error.message);
+  }
+}
+// Convert an idea into a real project (status -> building, link kept on the idea).
+// Reuses createProject (return=minimal + refetch, the projects RLS-safe path),
+// then locates the new row in the authoritative list it returns.
+export async function convertIdeaToProject(idea: Idea, userId?: string | null):
+  Promise<{ idea: Idea; projects: Project[] }> {
+  const projects = await createProject({
+    name: idea.title, org_id: idea.org_id,
+    description: idea.pitch || null, created_by: userId || null,
+  });
+  const matches = projects.filter((p) => p.name === idea.title);
+  const proj = matches.length
+    ? matches.reduce((a, b) => ((a.created_at || '') > (b.created_at || '') ? a : b))
+    : null;
+  const updated = await updateIdea(idea.id, { status: 'building', project_id: proj ? proj.id : null });
+  return { idea: updated, projects };
+}

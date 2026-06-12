@@ -6,6 +6,7 @@ import {
   getOrgCompanies, getPortfolios,
   getAuditLog, getAttendance, getEmployees, getLeaves, getPayrollRuns,
   getTasks, getDeals, getContacts, getCompanies, getLedgerEntries,
+  getIdeas,
 } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
@@ -117,4 +118,9 @@ export function useCrmCompanies() {
 export function useLedgerEntries() {
   const org = useActiveOrg();
   return useQuery({ queryKey: qk.ledger(org?.id), queryFn: getLedgerEntries, enabled: !!org });
+}
+
+export function useIdeas() {
+  const org = useActiveOrg();
+  return useQuery({ queryKey: qk.ideas(org?.id), queryFn: getIdeas, enabled: !!org });
 }

@@ -311,3 +311,16 @@ export interface LedgerEntry {
   project?: { name: string | null } | null;
   company?: { name: string | null } | null;
 }
+
+// --- S3: Ideas ---
+export type IdeaStatus = 'idea' | 'exploring' | 'approved' | 'building' | 'shipped' | 'parked';
+export interface Idea {
+  id: string; org_id: string;
+  title: string; pitch?: string | null;
+  status: IdeaStatus;
+  project_id?: string | null;
+  created_by?: string | null; created_at?: string;
+  votes?: { user_id: string }[];
+  project?: { name: string | null } | null;
+  creator?: { full_name: string | null } | null;
+}

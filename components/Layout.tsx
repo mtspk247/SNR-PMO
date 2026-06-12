@@ -27,6 +27,7 @@ const SECTIONS: Section[] = [
     { href: '/portfolios', label: 'Portfolios', icon: 'ti-stack-2', feature: 'portfolios' },
     { href: '/projects', label: 'Projects', icon: 'ti-folder' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
+    { href: '/ideas', label: 'Ideas', icon: 'ti-bulb' },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Tracking', icon: 'ti-chart-line', items: [
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
