@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { StatCard, Pill, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
@@ -52,10 +53,27 @@ function buildTrendBuckets(ledger: LedgerEntry[]): MonthBucket[] {
   }));
 }
 
+// Reusable clickable card wrapper
+function ClickCard({ href, className = '', children }: { href: string; className?: string; children: React.ReactNode }) {
+  const router = useRouter();
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={() => router.push(href)}
+      onKeyDown={(e) => e.key === 'Enter' && router.push(href)}
+      className={`cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-xl ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const { user } = useAuthStore();
+  const router = useRouter();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -87,6 +105,18 @@ export default function Dashboard() {
   const overdue = openTasks.filter((t) => isOverdue(t.due_date)).length;
   const openDeals = deals.filter((d) => d.stage !== 'Won' && d.stage !== 'Lost');
   const pipeline = openDeals.reduce((s, d) => s + (d.value || 0), 0);
+
+  // ── derived: my work ────────────────────────────────────────────────────
+  const myTasks = user
+    ? openTasks
+        .filter((t) => t.assignee_id === user.id)
+        .sort((a, b) => {
+          if (!a.due_date && !b.due_date) return 0;
+          if (!a.due_date) return 1;
+          if (!b.due_date) return -1;
+          return a.due_date < b.due_date ? -1 : 1;
+        })
+    : [];
 
   // ── derived: finance ────────────────────────────────────────────────────
   const income = ledger.filter((e) => e.type === 'income').reduce((s, e) => s + (e.amount || 0), 0);
@@ -152,6 +182,9 @@ export default function Dashboard() {
     .filter((h) => h.done < h.total)
     .slice(0, 4);
 
+  // Shared hover-ring class for stat cards
+  const cardHover = 'hover:ring-2 hover:ring-accent/30 transition-shadow';
+
   return (
     <Layout title="Dashboard">
       {/* ── header ── */}
@@ -166,20 +199,74 @@ export default function Dashboard() {
 
       {loading ? <Spinner /> : (
         <>
+          {/* ── row 0: My work (shown only when user has assigned tasks) ── */}
+          {myTasks.length > 0 && (
+            <div className="card overflow-hidden mb-6">
+              <div className="flex items-center justify-between px-5 h-14 border-b border-line">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">My work</span>
+                  <span className="pill pill-blue">{myTasks.length}</span>
+                </div>
+                <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks →</Link>
+              </div>
+              <div className="divide-y divide-line">
+                {myTasks.slice(0, 3).map((t) => (
+                  <Link
+                    key={t.id}
+                    href={`/tasks?task=${t.id}`}
+                    className="flex items-center gap-3 px-5 py-3 transition hover:bg-surface2/60 group"
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isOverdue(t.due_date) ? 'bg-rose-500' : 'bg-accent'}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm truncate">{t.name}</p>
+                      <p className="text-2xs text-muted truncate mt-0.5">{t.projects?.name || '—'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Pill label={t.priority} />
+                      {t.due_date && (
+                        <span className={`text-2xs font-medium ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-muted2'}`}>
+                          {t.due_date}
+                        </span>
+                      )}
+                      <Icon name="ti-chevron-right" className="text-base text-muted2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ── row 1: PMO stats ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Active projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />
-            <StatCard label="Open tasks" value={openTasks.length} hint={overdue ? `${overdue} overdue` : 'On schedule'} hintTone={overdue ? 'down' : 'up'} icon="ti-checkbox" />
-            <StatCard label="Open deals" value={openDeals.length} hint={`${deals.length} total`} icon="ti-target" />
-            <StatCard label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <ClickCard href="/projects" className={`stat ${cardHover}`}>
+              <StatCard label="Active projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />
+              <span className="sr-only">View projects</span>
+            </ClickCard>
+            <ClickCard href="/tasks" className={`stat ${cardHover}`}>
+              <StatCard label="Open tasks" value={openTasks.length} hint={overdue ? `${overdue} overdue` : 'On schedule'} hintTone={overdue ? 'down' : 'up'} icon="ti-checkbox" />
+            </ClickCard>
+            <ClickCard href="/crm" className={`stat ${cardHover}`}>
+              <StatCard label="Open deals" value={openDeals.length} hint={`${deals.length} total`} icon="ti-target" />
+            </ClickCard>
+            <ClickCard href="/crm" className={`stat ${cardHover}`}>
+              <StatCard label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />
+            </ClickCard>
           </div>
 
           {/* ── row 2: finance stats ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Income" value={money(income)} hint="Ledger, all time" icon="ti-trending-up" />
-            <StatCard label="Expenses" value={money(expense)} hint="Ledger incl. payroll" icon="ti-trending-down" />
-            <StatCard label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Running negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" />
-            <StatCard label="Spend this month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <ClickCard href="/accounting" className={`stat ${cardHover}`}>
+              <StatCard label="Income" value={money(income)} hint="Ledger, all time" icon="ti-trending-up" />
+            </ClickCard>
+            <ClickCard href="/accounting" className={`stat ${cardHover}`}>
+              <StatCard label="Expenses" value={money(expense)} hint="Ledger incl. payroll" icon="ti-trending-down" />
+            </ClickCard>
+            <ClickCard href="/accounting" className={`stat ${cardHover}`}>
+              <StatCard label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Running negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" />
+            </ClickCard>
+            <ClickCard href="/accounting" className={`stat ${cardHover}`}>
+              <StatCard label="Spend this month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" />
+            </ClickCard>
           </div>
 
           {/* ── row 3: projects list + donut ── */}
@@ -190,7 +277,7 @@ export default function Dashboard() {
                   <span className="text-sm font-semibold">Projects</span>
                   <span className="ml-2 text-2xs text-muted2">{projects.length} total</span>
                 </div>
-                <Link href="/projects" className="text-xs font-medium text-accentstrong hover:underline">View all</Link>
+                <Link href="/projects" className="text-xs font-medium text-accentstrong hover:underline">View all →</Link>
               </div>
               {projects.length === 0 ? <EmptyState text="No projects yet" icon="ti-folder" /> : (
                 <div className="divide-y divide-line">
@@ -198,7 +285,7 @@ export default function Dashboard() {
                     <Link
                       key={p.id}
                       href={`/projects/${p.id}`}
-                      className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-surface2/60"
+                      className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-surface2/60 group"
                     >
                       <Avatar name={p.name} size={34} />
                       <div className="min-w-0 flex-1">
@@ -209,24 +296,34 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <div className="hidden sm:flex items-center gap-2 w-32 shrink-0">
-                        <div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden">
+                        <div
+                          className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"
+                          title={`Progress: ${p.progress || 0}%`}
+                        >
                           <div className="h-full rounded-full bg-accent" style={{ width: `${p.progress || 0}%` }} />
                         </div>
                         <span className="text-2xs text-muted w-8 text-right tabular-nums">{p.progress || 0}%</span>
                       </div>
-                      <Icon name="ti-chevron-right" className="text-base text-muted2 shrink-0" />
+                      <Icon name="ti-chevron-right" className="text-base text-muted2 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
                     </Link>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* project status donut */}
-            <div className="card p-5 lg:self-start">
-              <span className="text-sm font-semibold">Project status</span>
+            {/* project status donut — clicks to /projects */}
+            <ClickCard href="/projects" className={`card p-5 lg:self-start ${cardHover}`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-semibold">Project status</span>
+                <span className="text-xs text-muted2 opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
+              </div>
               {projects.length === 0 ? <EmptyState text="No data" icon="ti-chart-donut" /> : (
-                <div className="flex items-center gap-6 mt-5">
-                  <div className="relative w-28 h-28 shrink-0 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
+                <div className="flex items-center gap-6 mt-4">
+                  <div
+                    className="relative w-28 h-28 shrink-0 rounded-full"
+                    style={{ background: `conic-gradient(${gradient})` }}
+                    title={`${projects.length} projects total`}
+                  >
                     <div className="absolute inset-[14px] rounded-full bg-surface grid place-items-center">
                       <div className="text-center">
                         <p className="text-xl font-semibold leading-none">{projects.length}</p>
@@ -236,7 +333,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex-1 space-y-2.5">
                     {statusEntries.map(([s, c]) => (
-                      <div key={s} className="flex items-center gap-2.5 text-xs">
+                      <div key={s} className="flex items-center gap-2.5 text-xs" title={`${s}: ${c} project${c === 1 ? '' : 's'}`}>
                         <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: STATUS_COLOR[s] || '#94a3b8' }} />
                         <span className="flex-1 truncate text-contentsoft">{s}</span>
                         <span className="font-medium text-content tabular-nums">{c}</span>
@@ -245,14 +342,14 @@ export default function Dashboard() {
                   </div>
                 </div>
               )}
-            </div>
+            </ClickCard>
           </div>
 
           {/* ── row 4: income/expense trend chart ── */}
-          <div className="card p-5 mb-5">
+          <ClickCard href="/accounting" className={`card p-5 mb-5 ${cardHover}`}>
             <div className="flex items-center justify-between mb-5">
               <span className="text-sm font-semibold">Income vs. Expenses — last 6 months</span>
-              <Link href="/finance" className="text-xs font-medium text-accentstrong hover:underline">Finance</Link>
+              <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
             </div>
             {!hasLedger ? <EmptyState text="No ledger entries yet" icon="ti-chart-bar" /> : (
               <div className="w-full overflow-x-auto">
@@ -267,15 +364,15 @@ export default function Dashboard() {
                           <div className="w-full flex items-end justify-center gap-1" style={{ height: '100%' }}>
                             {/* income bar */}
                             <div
-                              className="flex-1 rounded-t bg-accent transition-all"
+                              className="flex-1 rounded-t bg-accent transition-all hover:opacity-80"
                               style={{ height: `${incH}%`, minHeight: b.income > 0 ? 3 : 0 }}
-                              title={`Income ${money(b.income)}`}
+                              title={`${shortMonth(b.month)} Income: ${money(b.income)}`}
                             />
                             {/* expense bar */}
                             <div
-                              className="flex-1 rounded-t bg-rose-500/70 transition-all"
+                              className="flex-1 rounded-t bg-rose-500/70 transition-all hover:opacity-80"
                               style={{ height: `${expH}%`, minHeight: b.expense > 0 ? 3 : 0 }}
-                              title={`Expense ${money(b.expense)}`}
+                              title={`${shortMonth(b.month)} Expenses: ${money(b.expense)}`}
                             />
                           </div>
                         </div>
@@ -315,20 +412,20 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-          </div>
+          </ClickCard>
 
           {/* ── row 5: pipeline + due soon ── */}
           <div className="grid lg:grid-cols-3 gap-5 mb-5">
-            {/* pipeline by stage */}
-            <div className="card p-5 lg:col-span-2">
+            {/* pipeline by stage — whole card clickable */}
+            <ClickCard href="/crm" className={`card p-5 lg:col-span-2 ${cardHover}`}>
               <div className="flex items-center justify-between mb-5">
                 <span className="text-sm font-semibold">Pipeline by stage</span>
-                <Link href="/crm" className="text-xs font-medium text-accentstrong hover:underline">Open CRM</Link>
+                <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">Open CRM →</span>
               </div>
               {openDeals.length === 0 ? <EmptyState text="No open deals" icon="ti-target" /> : (
                 <div className="space-y-4">
                   {stageTotals.map((s) => (
-                    <div key={s.stage}>
+                    <div key={s.stage} title={`${s.stage}: ${s.count} deal${s.count === 1 ? '' : 's'} — ${money(s.value)}`}>
                       <div className="flex items-center justify-between mb-1.5 text-xs">
                         <span className="flex items-center gap-2">
                           <Pill label={s.stage} />
@@ -337,23 +434,30 @@ export default function Dashboard() {
                         <span className="font-semibold text-content tabular-nums">{money(s.value)}</span>
                       </div>
                       <div className="h-2 rounded-full bg-surface2 overflow-hidden">
-                        <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(s.value / maxStage) * 100}%` }} />
+                        <div
+                          className="h-full rounded-full bg-accent transition-all"
+                          style={{ width: `${(s.value / maxStage) * 100}%` }}
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </ClickCard>
 
-            {/* due soon */}
+            {/* due soon — task rows clickable individually */}
             <div className="card overflow-hidden">
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
                 <span className="text-sm font-semibold">Due soon</span>
-                <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks</Link>
+                <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks →</Link>
               </div>
               <div className="divide-y divide-line">
                 {openTasks.slice(0, 6).map((t) => (
-                  <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+                  <Link
+                    key={t.id}
+                    href={`/tasks?task=${t.id}`}
+                    className="flex items-center gap-3 px-5 py-3 transition hover:bg-surface2/60 group"
+                  >
                     <span className={`w-2 h-2 rounded-full shrink-0 ${isOverdue(t.due_date) ? 'bg-rose-500' : 'bg-accent'}`} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm truncate">{t.name}</p>
@@ -362,7 +466,7 @@ export default function Dashboard() {
                     <span className={`text-2xs font-medium shrink-0 ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-muted2'}`}>
                       {t.due_date || ''}
                     </span>
-                  </div>
+                  </Link>
                 ))}
                 {openTasks.length === 0 && <EmptyState text="All caught up" icon="ti-checks" />}
               </div>
@@ -370,23 +474,27 @@ export default function Dashboard() {
           </div>
 
           {/* ── row 6: HR snapshot ── */}
-          <div className="grid lg:grid-cols-3 gap-5">
-            {/* headcount + departments */}
-            <div className="card p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {/* headcount + departments — whole card clickable */}
+            <ClickCard href="/employees" className={`card p-5 ${cardHover}`}>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-semibold">Headcount</span>
-                <Link href="/employees" className="text-xs font-medium text-accentstrong hover:underline">All employees</Link>
+                <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">All →</span>
               </div>
               {employees.length === 0 ? <EmptyState text="No employees yet" icon="ti-users" /> : (
                 <>
-                  <div className="flex items-end gap-2 mb-4">
+                  <div className="flex items-end gap-2 mb-4" title={`${headcount} active employees`}>
                     <p className="text-3xl font-semibold text-content tabular-nums">{headcount}</p>
                     <p className="text-sm text-muted mb-1">active</p>
                   </div>
                   {topDepts.length > 0 && (
                     <div className="space-y-2.5">
                       {topDepts.map(([dept, count]) => (
-                        <div key={dept} className="flex items-center gap-2 text-xs">
+                        <div
+                          key={dept}
+                          className="flex items-center gap-2 text-xs"
+                          title={`${dept}: ${count} employee${count === 1 ? '' : 's'}`}
+                        >
                           <div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden">
                             <div
                               className="h-full rounded-full bg-accent"
@@ -401,17 +509,17 @@ export default function Dashboard() {
                   )}
                 </>
               )}
-            </div>
+            </ClickCard>
 
-            {/* leave requests */}
-            <div className="card overflow-hidden">
+            {/* leave requests — whole card clickable */}
+            <ClickCard href="/leave" className={`card overflow-hidden ${cardHover}`}>
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
                 <span className="text-sm font-semibold">Leave</span>
-                <Link href="/leave" className="text-xs font-medium text-accentstrong hover:underline">Manage leave</Link>
+                <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">Manage →</span>
               </div>
               {leaves.length === 0 ? <EmptyState text="No leave requests" icon="ti-calendar-off" /> : (
                 <div className="p-5 space-y-3">
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between text-sm" title={`${pendingLeaves} pending leave requests`}>
                     <span className="text-contentsoft">Pending approval</span>
                     <span className={`font-semibold tabular-nums ${pendingLeaves > 0 ? 'text-amber-500' : 'text-content'}`}>
                       {pendingLeaves}
@@ -438,13 +546,13 @@ export default function Dashboard() {
                   </div>
                 </div>
               )}
-            </div>
+            </ClickCard>
 
-            {/* onboarding progress */}
-            <div className="card overflow-hidden">
+            {/* onboarding progress — whole card clickable */}
+            <ClickCard href="/onboarding" className={`card overflow-hidden sm:col-span-2 lg:col-span-1 ${cardHover}`}>
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
                 <span className="text-sm font-semibold">Onboarding</span>
-                <Link href="/onboarding" className="text-xs font-medium text-accentstrong hover:underline">View all</Link>
+                <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">View all →</span>
               </div>
               {activeHires.length === 0 ? (
                 <EmptyState text="No active onboarding" icon="ti-user-check" />
@@ -453,7 +561,11 @@ export default function Dashboard() {
                   {activeHires.map((h) => {
                     const pct = h.total > 0 ? Math.round((h.done / h.total) * 100) : 0;
                     return (
-                      <div key={h.uid} className="flex items-center gap-3 px-5 py-3">
+                      <div
+                        key={h.uid}
+                        className="flex items-center gap-3 px-5 py-3"
+                        title={`${h.name}: ${h.done}/${h.total} tasks (${pct}%)`}
+                      >
                         <Avatar name={h.name} size={28} />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm truncate">{h.name}</p>
@@ -470,7 +582,7 @@ export default function Dashboard() {
                   })}
                 </div>
               )}
-            </div>
+            </ClickCard>
           </div>
         </>
       )}

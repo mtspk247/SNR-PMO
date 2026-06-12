@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import CustomFields from '@/components/CustomFields';
@@ -16,6 +16,72 @@ const money = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+// ── P&L helpers ──────────────────────────────────────────────────────────────
+
+/** Build an array of N calendar month keys ('YYYY-MM'), oldest first, ending at `anchorMonth`. */
+function buildMonthRange(anchorMonth: string, n: number): string[] {
+  const [y, m] = anchorMonth.split('-').map(Number);
+  const out: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1);
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+function shortMonth(ym: string) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleString('default', { month: 'short' });
+}
+
+function shiftAnchor(current: string, delta: number): string {
+  const [y, m] = current.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// ── CSV helpers ───────────────────────────────────────────────────────────────
+
+function downloadCSV(filename: string, rows: string[][]) {
+  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportEntries(entries: LedgerEntry[]) {
+  const header = ['Date', 'Type', 'Category', 'Amount', 'Project', 'Company', 'Notes', 'Payroll Run'];
+  const rows = entries.map((e) => [
+    e.entry_date || '', e.type, e.category, String(e.amount ?? 0),
+    e.project?.name || '', e.company?.name || '', e.notes || '',
+    e.payroll_run_id || '',
+  ]);
+  downloadCSV('ledger-entries.csv', [header, ...rows]);
+}
+
+function exportPnL(months: string[], incomeRows: Record<string, Record<string, number>>,
+  expenseRows: Record<string, Record<string, number>>,
+  incomeTotals: Record<string, number>, expenseTotals: Record<string, number>) {
+  const header = ['', ...months.map(shortMonth), 'Total'];
+  const rows: string[][] = [header, ['INCOME']];
+  Object.entries(incomeRows).forEach(([cat, byMonth]) => {
+    rows.push([cat, ...months.map((mo) => String(byMonth[mo] ?? 0)), String(months.reduce((s, mo) => s + (byMonth[mo] ?? 0), 0))]);
+  });
+  rows.push(['Total Income', ...months.map((mo) => String(incomeTotals[mo] ?? 0)), String(Object.values(incomeTotals).reduce((s, v) => s + v, 0))]);
+  rows.push(['EXPENSES']);
+  Object.entries(expenseRows).forEach(([cat, byMonth]) => {
+    rows.push([cat, ...months.map((mo) => String(byMonth[mo] ?? 0)), String(months.reduce((s, mo) => s + (byMonth[mo] ?? 0), 0))]);
+  });
+  rows.push(['Total Expenses', ...months.map((mo) => String(expenseTotals[mo] ?? 0)), String(Object.values(expenseTotals).reduce((s, v) => s + v, 0))]);
+  rows.push(['Net', ...months.map((mo) => String((incomeTotals[mo] ?? 0) - (expenseTotals[mo] ?? 0))),
+    String(Object.values(incomeTotals).reduce((s, v) => s + v, 0) - Object.values(expenseTotals).reduce((s, v) => s + v, 0))]);
+  downloadCSV('pl-summary.csv', rows);
+}
+
+// ── Form types ────────────────────────────────────────────────────────────────
+
 type FormState = {
   type: 'income' | 'expense'; category: string; amount: string; entry_date: string;
   project_id: string; company_id: string; notes: string;
@@ -24,6 +90,8 @@ const emptyForm = (): FormState => ({
   type: 'expense', category: 'Tools', amount: '', entry_date: todayStr(),
   project_id: '', company_id: '', notes: '',
 });
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AccountingPage() {
   const org = useActiveOrg();
@@ -35,6 +103,10 @@ export default function AccountingPage() {
   const { data: projects = [] } = useProjects();
   const { data: companies = [] } = useOrgCompanies();
 
+  // ── page view ──
+  const [pageView, setPageView] = useState<'entries' | 'pl'>('entries');
+
+  // ── Entries tab state ──
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [catFilter, setCatFilter] = useState('all');
@@ -43,7 +115,12 @@ export default function AccountingPage() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [busy, setBusy] = useState(false);
 
-  const tabs = useModalTabs('details');
+  // ── P&L tab state ──
+  const currentMonthKey = todayStr().slice(0, 7);
+  const [plAnchor, setPlAnchor] = useState(currentMonthKey); // last month in the window
+  const PL_WINDOW = 6;
+
+  const modalTabs = useModalTabs('details');
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -71,7 +148,7 @@ export default function AccountingPage() {
 
   const pg = usePagination(filtered, 25);
 
-  // ---- Stats (over ALL entries, not the filtered view) ----
+  // ---- Stats (over ALL entries) ----
   const income = entries.filter((e) => e.type === 'income').reduce((s, e) => s + (e.amount || 0), 0);
   const expense = entries.filter((e) => e.type === 'expense').reduce((s, e) => s + (e.amount || 0), 0);
   const net = income - expense;
@@ -80,7 +157,43 @@ export default function AccountingPage() {
     .filter((e) => e.type === 'expense' && e.entry_date?.slice(0, 7) === monthKey)
     .reduce((s, e) => s + (e.amount || 0), 0);
 
-  const openNew = () => { setEditing(null); setForm(emptyForm()); tabs.setTab('details'); setShowModal(true); };
+  // ── P&L matrix (client-side) ──
+  const plMonths = useMemo(() => buildMonthRange(plAnchor, PL_WINDOW), [plAnchor]);
+
+  const plData = useMemo(() => {
+    // Only entries within the displayed window
+    const inWindow = entries.filter((e) => plMonths.includes((e.entry_date || '').slice(0, 7)));
+
+    // category → month → total
+    const incomeRows: Record<string, Record<string, number>> = {};
+    const expenseRows: Record<string, Record<string, number>> = {};
+
+    inWindow.forEach((e) => {
+      const mo = (e.entry_date || '').slice(0, 7);
+      const amt = e.amount || 0;
+      if (e.type === 'income') {
+        if (!incomeRows[e.category]) incomeRows[e.category] = {};
+        incomeRows[e.category][mo] = (incomeRows[e.category][mo] || 0) + amt;
+      } else {
+        if (!expenseRows[e.category]) expenseRows[e.category] = {};
+        expenseRows[e.category][mo] = (expenseRows[e.category][mo] || 0) + amt;
+      }
+    });
+
+    const incomeTotals: Record<string, number> = {};
+    const expenseTotals: Record<string, number> = {};
+    plMonths.forEach((mo) => {
+      incomeTotals[mo] = Object.values(incomeRows).reduce((s, r) => s + (r[mo] || 0), 0);
+      expenseTotals[mo] = Object.values(expenseRows).reduce((s, r) => s + (r[mo] || 0), 0);
+    });
+
+    const trendMax = Math.max(1, ...plMonths.flatMap((mo) => [incomeTotals[mo], expenseTotals[mo]]));
+
+    return { incomeRows, expenseRows, incomeTotals, expenseTotals, trendMax };
+  }, [entries, plMonths]);
+
+  // ── Modal helpers ──
+  const openNew = () => { setEditing(null); setForm(emptyForm()); modalTabs.setTab('details'); setShowModal(true); };
   const openEdit = (e: LedgerEntry) => {
     setEditing(e);
     setForm({
@@ -88,7 +201,7 @@ export default function AccountingPage() {
       entry_date: e.entry_date || todayStr(), project_id: e.project_id || '',
       company_id: e.company_id || '', notes: e.notes || '',
     });
-    tabs.setTab('details');
+    modalTabs.setTab('details');
     setShowModal(true);
   };
 
@@ -96,7 +209,7 @@ export default function AccountingPage() {
     if (!org) return;
     const amount = parseFloat(form.amount);
     if (!form.category.trim() || !isFinite(amount) || amount < 0) {
-      tabs.setTab('details');
+      modalTabs.setTab('details');
       alert('Enter a category and a non-negative amount.');
       return;
     }
@@ -123,18 +236,37 @@ export default function AccountingPage() {
     } catch (err: any) { alert(err.message); }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <Layout title="Accounting">
       <PageHeader
         title="Accounting"
         subtitle="Income & expense ledger across the workspace — payroll posts Salaries here automatically."
         action={
-          <button className="btn btn-primary" onClick={openNew}>
-            <Icon name="ti-plus" /> New entry
-          </button>
+          <div className="flex items-center gap-2">
+            {pageView === 'entries' ? (
+              <>
+                <button className="btn btn-ghost text-xs" onClick={() => exportEntries(filtered)}>
+                  <Icon name="ti-download" /> Export CSV
+                </button>
+                <button className="btn btn-primary" onClick={openNew}>
+                  <Icon name="ti-plus" /> New entry
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn btn-ghost text-xs"
+                onClick={() => exportPnL(plMonths, plData.incomeRows, plData.expenseRows, plData.incomeTotals, plData.expenseTotals)}
+              >
+                <Icon name="ti-download" /> Export CSV
+              </button>
+            )}
+          </div>
         }
       />
 
+      {/* Stat row — always visible */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Income" value={money(income)} hint="All time" icon="ti-trending-up" />
         <StatCard label="Expenses" value={money(expense)} hint="All time" icon="ti-trending-down" />
@@ -142,66 +274,270 @@ export default function AccountingPage() {
         <StatCard label="Spend this month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" />
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-line">
-          <div className="relative flex-1 max-w-xs">
-            <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2" />
-            <input className="input pl-8 w-full" placeholder="Search ledger…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <select className="input w-auto" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as any)}>
-            <option value="all">All types</option>
-            <option value="income">Income</option>
-            <option value="expense">Expense</option>
-          </select>
-          <select className="input w-auto" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
-            <option value="all">All categories</option>
-            {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+      {/* Page-level view switch */}
+      <Tabs
+        tabs={[
+          { key: 'entries', label: 'Entries', icon: 'ti-list', count: entries.length },
+          { key: 'pl', label: 'P&L', icon: 'ti-chart-bar' },
+        ]}
+        active={pageView}
+        onChange={(k) => setPageView(k as 'entries' | 'pl')}
+      />
 
-        {isLoading ? <div className="p-8"><Spinner /></div> : filtered.length === 0 ? (
-          <div className="p-5"><EmptyState icon="ti-report-money" text="No ledger entries match." /></div>
-        ) : (
-          <>
+      {/* ── ENTRIES VIEW ─────────────────────────────────────────────────────── */}
+      {pageView === 'entries' && (
+        <div className="card overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-line">
+            <div className="relative flex-1 max-w-xs">
+              <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2" />
+              <input className="input pl-8 w-full" placeholder="Search ledger…" value={q} onChange={(e) => setQ(e.target.value)} />
+            </div>
+            <select className="input w-auto" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as any)}>
+              <option value="all">All types</option>
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+            </select>
+            <select className="input w-auto" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
+              <option value="all">All categories</option>
+              {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {isLoading ? <div className="p-8"><Spinner /></div> : filtered.length === 0 ? (
+            <div className="p-5"><EmptyState icon="ti-report-money" text="No ledger entries match." /></div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      <th className="th">Date</th><th className="th">Type</th><th className="th">Category</th>
+                      <th className="th">Project</th><th className="th">Company</th><th className="th">Notes</th>
+                      <th className="th text-right">Amount</th><th className="th w-20"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pg.pageItems.map((e) => (
+                      <tr key={e.id} className="row">
+                        <td className="td text-2xs text-muted tabular-nums">{e.entry_date}</td>
+                        <td className="td"><span className={`pill ${e.type === 'income' ? 'pill-green' : 'pill-red'}`}>{e.type}</span></td>
+                        <td className="td font-medium">
+                          {e.category}
+                          {e.payroll_run_id && <Icon name="ti-lock" className="ml-1 text-2xs text-muted2" />}
+                        </td>
+                        <td className="td text-2xs text-muted">{e.project?.name || '—'}</td>
+                        <td className="td text-2xs text-muted">{e.company?.name || '—'}</td>
+                        <td className="td text-2xs text-muted max-w-[16rem] truncate">{e.notes || '—'}</td>
+                        <td className={`td text-right font-medium tabular-nums ${e.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {e.type === 'income' ? '+' : '−'}{money(e.amount)}
+                        </td>
+                        <td className="td">
+                          <div className="flex items-center justify-end gap-1">
+                            <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEdit(e)}><Icon name="ti-pencil" /></button>
+                            {!e.payroll_run_id && (
+                              <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => remove(e)}><Icon name="ti-trash" /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── P&L VIEW ─────────────────────────────────────────────────────────── */}
+      {pageView === 'pl' && (
+        <div className="space-y-4">
+          {/* Month range navigator */}
+          <div className="flex items-center gap-3">
+            <button className="btn btn-ghost text-xs" onClick={() => setPlAnchor((a) => shiftAnchor(a, -1))}>
+              <Icon name="ti-chevron-left" /> Prev
+            </button>
+            <span className="text-sm font-medium tabular-nums">
+              {shortMonth(plMonths[0])} {plMonths[0].slice(0, 4)} – {shortMonth(plMonths[plMonths.length - 1])} {plMonths[plMonths.length - 1].slice(0, 4)}
+            </span>
+            <button className="btn btn-ghost text-xs" onClick={() => setPlAnchor((a) => shiftAnchor(a, 1))}
+              disabled={plAnchor >= currentMonthKey}>
+              Next <Icon name="ti-chevron-right" />
+            </button>
+          </div>
+
+          {/* Mini grouped bar chart */}
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-semibold">Income vs. Expenses</span>
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5 text-xs text-muted">
+                  <span className="w-3 h-2 rounded-sm bg-accent inline-block" />Income
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-muted">
+                  <span className="w-3 h-2 rounded-sm bg-rose-500/70 inline-block" />Expenses
+                </span>
+              </div>
+            </div>
+            <div className="w-full overflow-x-auto">
+              <div className="min-w-[360px]">
+                {/* bars */}
+                <div className="flex items-end gap-2 h-32">
+                  {plMonths.map((mo) => {
+                    const inc = plData.incomeTotals[mo] || 0;
+                    const exp = plData.expenseTotals[mo] || 0;
+                    const incH = Math.round((inc / plData.trendMax) * 100);
+                    const expH = Math.round((exp / plData.trendMax) * 100);
+                    return (
+                      <div key={mo} className="flex-1 flex flex-col items-center gap-0.5">
+                        <div className="w-full flex items-end justify-center gap-1" style={{ height: '100%' }}>
+                          <div className="flex-1 rounded-t bg-accent transition-all"
+                            style={{ height: `${incH}%`, minHeight: inc > 0 ? 3 : 0 }}
+                            title={`Income ${money(inc)}`} />
+                          <div className="flex-1 rounded-t bg-rose-500/70 transition-all"
+                            style={{ height: `${expH}%`, minHeight: exp > 0 ? 3 : 0 }}
+                            title={`Expense ${money(exp)}`} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* month labels */}
+                <div className="flex gap-2 mt-2">
+                  {plMonths.map((mo) => (
+                    <div key={mo} className="flex-1 text-center text-2xs text-muted2 tabular-nums">{shortMonth(mo)}</div>
+                  ))}
+                </div>
+                {/* amounts */}
+                <div className="flex gap-2 mt-1">
+                  {plMonths.map((mo) => {
+                    const inc = plData.incomeTotals[mo] || 0;
+                    const exp = plData.expenseTotals[mo] || 0;
+                    return (
+                      <div key={mo} className="flex-1 flex flex-col items-center gap-0.5">
+                        {inc > 0 && <span className="text-2xs tabular-nums text-accent font-medium truncate w-full text-center">{money(inc)}</span>}
+                        {exp > 0 && <span className="text-2xs tabular-nums text-rose-500 truncate w-full text-center">{money(exp)}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* P&L table */}
+          <div className="card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead>
                   <tr>
-                    <th className="th">Date</th><th className="th">Type</th><th className="th">Category</th>
-                    <th className="th">Project</th><th className="th">Company</th><th className="th">Notes</th>
-                    <th className="th text-right">Amount</th><th className="th w-20"></th>
+                    <th className="th text-left w-48">Category</th>
+                    {plMonths.map((mo) => <th key={mo} className="th text-right tabular-nums">{shortMonth(mo)}</th>)}
+                    <th className="th text-right tabular-nums">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pg.pageItems.map((e) => (
-                    <tr key={e.id} className="row">
-                      <td className="td text-2xs text-muted tabular-nums">{e.entry_date}</td>
-                      <td className="td"><span className={`pill ${e.type === 'income' ? 'pill-green' : 'pill-red'}`}>{e.type}</span></td>
-                      <td className="td font-medium">{e.category}</td>
-                      <td className="td text-2xs text-muted">{e.project?.name || '—'}</td>
-                      <td className="td text-2xs text-muted">{e.company?.name || '—'}</td>
-                      <td className="td text-2xs text-muted max-w-[16rem] truncate">{e.notes || '—'}</td>
-                      <td className={`td text-right font-medium tabular-nums ${e.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {e.type === 'income' ? '+' : '−'}{money(e.amount)}
-                      </td>
-                      <td className="td">
-                        <div className="flex items-center justify-end gap-1">
-                          <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEdit(e)}><Icon name="ti-pencil" /></button>
-                          {!e.payroll_run_id && (
-                            <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => remove(e)}><Icon name="ti-trash" /></button>
-                          )}
-                        </div>
-                      </td>
+                  {/* ── Income section ── */}
+                  <tr className="bg-surface2">
+                    <td colSpan={plMonths.length + 2} className="td py-1.5 font-semibold text-xs uppercase tracking-wide text-accent">
+                      Income
+                    </td>
+                  </tr>
+                  {Object.keys(plData.incomeRows).length === 0 ? (
+                    <tr>
+                      <td className="td text-muted2 text-xs" colSpan={plMonths.length + 2}>No income in this period</td>
                     </tr>
-                  ))}
+                  ) : Object.entries(plData.incomeRows).map(([cat, byMonth]) => {
+                    const rowTotal = plMonths.reduce((s, mo) => s + (byMonth[mo] || 0), 0);
+                    return (
+                      <tr key={cat} className="row">
+                        <td className="td">{cat}</td>
+                        {plMonths.map((mo) => (
+                          <td key={mo} className="td text-right tabular-nums text-emerald-600">
+                            {byMonth[mo] ? money(byMonth[mo]) : <span className="text-muted2">—</span>}
+                          </td>
+                        ))}
+                        <td className="td text-right tabular-nums font-medium text-emerald-600">{money(rowTotal)}</td>
+                      </tr>
+                    );
+                  })}
+                  {/* Income subtotal */}
+                  <tr className="bg-emerald-50/40 dark:bg-emerald-900/10 font-medium">
+                    <td className="td text-xs">Total Income</td>
+                    {plMonths.map((mo) => (
+                      <td key={mo} className="td text-right tabular-nums text-emerald-700">{money(plData.incomeTotals[mo] || 0)}</td>
+                    ))}
+                    <td className="td text-right tabular-nums text-emerald-700 font-semibold">
+                      {money(plMonths.reduce((s, mo) => s + (plData.incomeTotals[mo] || 0), 0))}
+                    </td>
+                  </tr>
+
+                  {/* ── Expenses section ── */}
+                  <tr className="bg-surface2">
+                    <td colSpan={plMonths.length + 2} className="td py-1.5 font-semibold text-xs uppercase tracking-wide text-rose-500">
+                      Expenses
+                    </td>
+                  </tr>
+                  {Object.keys(plData.expenseRows).length === 0 ? (
+                    <tr>
+                      <td className="td text-muted2 text-xs" colSpan={plMonths.length + 2}>No expenses in this period</td>
+                    </tr>
+                  ) : Object.entries(plData.expenseRows).map(([cat, byMonth]) => {
+                    const rowTotal = plMonths.reduce((s, mo) => s + (byMonth[mo] || 0), 0);
+                    return (
+                      <tr key={cat} className="row">
+                        <td className="td">{cat}</td>
+                        {plMonths.map((mo) => (
+                          <td key={mo} className="td text-right tabular-nums text-rose-600">
+                            {byMonth[mo] ? money(byMonth[mo]) : <span className="text-muted2">—</span>}
+                          </td>
+                        ))}
+                        <td className="td text-right tabular-nums font-medium text-rose-600">{money(rowTotal)}</td>
+                      </tr>
+                    );
+                  })}
+                  {/* Expenses subtotal */}
+                  <tr className="bg-rose-50/40 dark:bg-rose-900/10 font-medium">
+                    <td className="td text-xs">Total Expenses</td>
+                    {plMonths.map((mo) => (
+                      <td key={mo} className="td text-right tabular-nums text-rose-700">{money(plData.expenseTotals[mo] || 0)}</td>
+                    ))}
+                    <td className="td text-right tabular-nums text-rose-700 font-semibold">
+                      {money(plMonths.reduce((s, mo) => s + (plData.expenseTotals[mo] || 0), 0))}
+                    </td>
+                  </tr>
+
+                  {/* ── Net row ── */}
+                  {(() => {
+                    const totalInc = plMonths.reduce((s, mo) => s + (plData.incomeTotals[mo] || 0), 0);
+                    const totalExp = plMonths.reduce((s, mo) => s + (plData.expenseTotals[mo] || 0), 0);
+                    const totalNet = totalInc - totalExp;
+                    return (
+                      <tr className="border-t-2 border-line font-semibold text-sm">
+                        <td className="td">Net</td>
+                        {plMonths.map((mo) => {
+                          const n = (plData.incomeTotals[mo] || 0) - (plData.expenseTotals[mo] || 0);
+                          return (
+                            <td key={mo} className={`td text-right tabular-nums ${n >= 0 ? 'text-accent' : 'text-rose-600'}`}>
+                              {n !== 0 ? money(n) : <span className="text-muted2">—</span>}
+                            </td>
+                          );
+                        })}
+                        <td className={`td text-right tabular-nums font-bold ${totalNet >= 0 ? 'text-accent' : 'text-rose-600'}`}>
+                          {money(totalNet)}
+                        </td>
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
-            <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
 
+      {/* ── Modal (shared) ──────────────────────────────────────────────────── */}
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
@@ -215,7 +551,7 @@ export default function AccountingPage() {
           { key: 'links', label: 'Links', icon: 'ti-link' },
           ...(editing ? [{ key: 'tags', label: 'Tags', icon: 'ti-tags' }, { key: 'custom', label: 'Custom fields', icon: 'ti-list-details' }] : []),
         ]}
-        {...tabs.bind}
+        {...modalTabs.bind}
         footer={
           <>
             <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
@@ -226,7 +562,7 @@ export default function AccountingPage() {
           </>
         }
       >
-        {tabs.tab === 'details' && (
+        {modalTabs.tab === 'details' && (
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Type" required>
               <select className="input w-full" value={form.type}
@@ -256,7 +592,7 @@ export default function AccountingPage() {
             </Field>
           </div>
         )}
-        {tabs.tab === 'links' && (
+        {modalTabs.tab === 'links' && (
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Project" hint="Optional — links spend to a project">
               <select className="input w-full" value={form.project_id} onChange={(e) => set({ project_id: e.target.value })}>
@@ -272,10 +608,10 @@ export default function AccountingPage() {
             </Field>
           </div>
         )}
-        {tabs.tab === 'tags' && editing && (
+        {modalTabs.tab === 'tags' && editing && (
           <EntityTags entityType="ledger_entry" entityId={editing.id} orgId={org?.id} bare />
         )}
-        {tabs.tab === 'custom' && editing && (
+        {modalTabs.tab === 'custom' && editing && (
           <CustomFields orgId={org?.id || ''} entityType="ledger_entry" entityId={editing.id} canManage={isAdmin} title="Custom fields" />
         )}
       </Modal>
