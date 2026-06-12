@@ -75,7 +75,7 @@ export default function LeavePage() {
             <button onClick={() => decide(l, 'Rejected')} disabled={busy} className="btn h-7 px-2 text-xs text-rose-600"><Icon name="ti-x" />Reject</button>
           </span>
         ) : (l.status === 'Pending' && l.user_id === me?.id) ? (
-          <button onClick={() => cancel(l)} disabled={busy} className="btn h-7 px-2 text-xs text-neutral-500">Cancel</button>
+          <button onClick={() => cancel(l)} disabled={busy} className="btn h-7 px-2 text-xs text-muted">Cancel</button>
         ) : null}
       </td>
     </tr>
@@ -107,7 +107,7 @@ export default function LeavePage() {
               <p className="text-sm font-medium mb-2">Approval queue {queue.length > 0 && <span className="pill pill-amber ml-1">{queue.length}</span>}</p>
               <div className="card overflow-hidden">
                 <div className="overflow-x-auto"><table className="w-full text-sm">
-                  <thead><tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
+                  <thead><tr className="text-2xs uppercase tracking-wide text-muted2 border-b border-line">
                     <th className="text-left font-medium px-4 py-2.5">Person</th><th className="text-left font-medium px-4 py-2.5">Type</th><th className="text-left font-medium px-4 py-2.5">Dates</th><th className="text-left font-medium px-4 py-2.5">Days</th><th className="text-left font-medium px-4 py-2.5">Status</th><th></th>
                   </tr></thead>
                   <tbody>{queue.map((l) => <Row key={l.id} l={l} withPerson actions />)}</tbody>
@@ -120,7 +120,7 @@ export default function LeavePage() {
           <p className="text-sm font-medium mb-2">My requests</p>
           <div className="card overflow-hidden">
             <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
+              <thead><tr className="text-2xs uppercase tracking-wide text-muted2 border-b border-line">
                 <th className="text-left font-medium px-4 py-2.5">Type</th><th className="text-left font-medium px-4 py-2.5">Dates</th><th className="text-left font-medium px-4 py-2.5">Days</th><th className="text-left font-medium px-4 py-2.5">Status</th><th></th>
               </tr></thead>
               <tbody>{minePg.pageItems.map((l) => <Row key={l.id} l={l} />)}</tbody>
@@ -152,7 +152,7 @@ export default function LeavePage() {
             <Field label="From" required className="flex-1"><input autoFocus type="date" value={f.start_date} onChange={(e) => setF({ ...f, start_date: e.target.value })} className="input" /></Field>
             <Field label="To" required className="flex-1"><input type="date" value={f.end_date} onChange={(e) => setF({ ...f, end_date: e.target.value })} className="input" /></Field>
           </div>
-          <p className="text-2xs text-neutral-500">{days > 0 ? `${days} day${days === 1 ? '' : 's'}` : 'Select a valid date range'}</p>
+          <p className="text-2xs text-muted">{days > 0 ? `${days} day${days === 1 ? '' : 's'}` : 'Select a valid date range'}</p>
           <Field label="Reason" hint="Optional"><textarea value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
         </div>
       </Modal>

@@ -27,7 +27,7 @@ export default function RolesPage() {
   }, [org?.id]);
 
   if (!can.manageMembers(org)) {
-    return <Layout title="Roles"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-neutral-300 block mb-2" />You need admin access to manage roles.</div></Layout>;
+    return <Layout title="Roles"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to manage roles.</div></Layout>;
   }
 
   const openNew = () => { setErr(''); setDraft(emptyDraft()); };

@@ -72,7 +72,7 @@ export default function OnboardingPage() {
       <div className="flex gap-1 mb-4 border-b border-line">
         {([['hires', 'Active onboarding'], ['templates', 'Templates']] as [Tab, string][]).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)}
-            className={`px-3 py-2 text-sm border-b-2 -mb-px ${tab === k ? 'border-sky-500 text-ink font-medium' : 'border-transparent text-neutral-500 hover:text-ink'}`}>{label}</button>
+            className={`px-3 py-2 text-sm border-b-2 -mb-px ${tab === k ? 'border-accent text-content font-medium' : 'border-transparent text-muted hover:text-content'}`}>{label}</button>
         ))}
       </div>
 
@@ -90,21 +90,21 @@ export default function OnboardingPage() {
                     <Avatar name={g.name} size={36} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{g.name}</p>
-                      <p className="text-2xs text-neutral-400">{done}/{g.rows.length} complete</p>
+                      <p className="text-2xs text-muted2">{done}/{g.rows.length} complete</p>
                     </div>
                     <span className={`pill ${pct === 100 ? 'pill-green' : 'pill-blue'}`}>{pct}%</span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-neutral-100 mb-3 overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-surface2 mb-3 overflow-hidden">
                     <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${pct}%`, background: pct === 100 ? '#10b981' : 'var(--brand-primary, #2D7FF9)' }} />
                   </div>
                   <div className="space-y-1">
                     {g.rows.map((t) => (
                       <div key={t.id} className="flex items-center gap-2.5 py-1 group">
                         <input type="checkbox" checked={t.status === 'Done'} disabled={busy} onChange={() => toggle(t)} className="accent-ink w-4 h-4 shrink-0" />
-                        <span className={`text-sm flex-1 min-w-0 truncate ${t.status === 'Done' ? 'line-through text-neutral-400' : ''}`}>{t.title}</span>
-                        {t.due_date && <span className="text-2xs text-neutral-400 shrink-0">{t.due_date}</span>}
-                        {t.assignee?.full_name && <span className="text-2xs text-neutral-400 shrink-0 hidden sm:inline">· {t.assignee.full_name}</span>}
-                        {admin && <button onClick={() => removeTask(t.id)} className="opacity-0 group-hover:opacity-100 text-neutral-300 hover:text-rose-500 shrink-0"><Icon name="ti-x" className="text-sm" /></button>}
+                        <span className={`text-sm flex-1 min-w-0 truncate ${t.status === 'Done' ? 'line-through text-muted2' : ''}`}>{t.title}</span>
+                        {t.due_date && <span className="text-2xs text-muted2 shrink-0">{t.due_date}</span>}
+                        {t.assignee?.full_name && <span className="text-2xs text-muted2 shrink-0 hidden sm:inline">· {t.assignee.full_name}</span>}
+                        {admin && <button onClick={() => removeTask(t.id)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500 shrink-0"><Icon name="ti-x" className="text-sm" /></button>}
                       </div>
                     ))}
                   </div>
@@ -160,9 +160,9 @@ function AddItemRow({ onAdd }: { onAdd: (title: string) => Promise<void> }) {
   const submit = async () => { if (!v.trim()) return; setBusy(true); try { await onAdd(v.trim()); setV(''); } catch (e: any) { alert(e.message); } finally { setBusy(false); } };
   return (
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-line">
-      <Icon name="ti-plus" className="text-neutral-300 text-sm" />
+      <Icon name="ti-plus" className="text-muted2 text-sm" />
       <input value={v} disabled={busy} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()}
-        placeholder="Add an item…" className="flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-400" />
+        placeholder="Add an item…" className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted2" />
     </div>
   );
 }
@@ -189,27 +189,27 @@ function TemplateCard({ tmpl, orgId, onItemsChange, onDelete }:
   return (
     <div className="card p-4">
       <div className="flex items-start gap-2 mb-3">
-        <span className="w-9 h-9 rounded-md bg-neutral-100 grid place-items-center text-neutral-500 shrink-0"><Icon name="ti-list-check" className="text-lg" /></span>
+        <span className="w-9 h-9 rounded-md bg-surface2 grid place-items-center text-muted shrink-0"><Icon name="ti-list-check" className="text-lg" /></span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium truncate">{tmpl.name}</p>
-          <p className="text-2xs text-neutral-400">{items.length} steps{tmpl.description ? ` · ${tmpl.description}` : ''}</p>
+          <p className="text-2xs text-muted2">{items.length} steps{tmpl.description ? ` · ${tmpl.description}` : ''}</p>
         </div>
-        <button onClick={onDelete} className="text-neutral-300 hover:text-rose-500 shrink-0"><Icon name="ti-trash" className="text-base" /></button>
+        <button onClick={onDelete} className="text-muted2 hover:text-rose-500 shrink-0"><Icon name="ti-trash" className="text-base" /></button>
       </div>
       <div className="space-y-1 mb-2">
         {items.map((it) => (
           <div key={it.id} className="flex items-center gap-2 py-0.5 group text-sm">
-            <Icon name="ti-point" className="text-neutral-300 text-xs shrink-0" />
+            <Icon name="ti-point" className="text-muted2 text-xs shrink-0" />
             <span className="flex-1 min-w-0 truncate">{it.title}</span>
-            {!!it.offset_days && <span className="text-2xs text-neutral-400 shrink-0">+{it.offset_days}d</span>}
-            <button onClick={() => remove(it.id)} className="opacity-0 group-hover:opacity-100 text-neutral-300 hover:text-rose-500 shrink-0"><Icon name="ti-x" className="text-sm" /></button>
+            {!!it.offset_days && <span className="text-2xs text-muted2 shrink-0">+{it.offset_days}d</span>}
+            <button onClick={() => remove(it.id)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500 shrink-0"><Icon name="ti-x" className="text-sm" /></button>
           </div>
         ))}
-        {items.length === 0 && <p className="text-2xs text-neutral-400 py-1">No steps yet</p>}
+        {items.length === 0 && <p className="text-2xs text-muted2 py-1">No steps yet</p>}
       </div>
       <div className="flex items-center gap-2 pt-2 border-t border-line">
         <input value={title} disabled={busy} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
-          placeholder="Add a step…" className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-neutral-400" />
+          placeholder="Add a step…" className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-muted2" />
         <input value={days} disabled={busy} onChange={(e) => setDays(e.target.value)} type="number" placeholder="day"
           title="Due day offset from start date" className="w-14 px-1.5 py-1 rounded border border-line text-2xs text-center outline-none" />
         <button onClick={add} disabled={busy || !title.trim()} className="btn btn-sm">Add</button>
@@ -243,7 +243,7 @@ function AssignModal({ people, templates, busy, onClose, onSubmit }:
         </>
       }
     >
-      {noTmpl ? <p className="text-sm text-neutral-500">Create a template first, then come back to assign it.</p> : (
+      {noTmpl ? <p className="text-sm text-muted">Create a template first, then come back to assign it.</p> : (
         <div className="space-y-3.5">
           <Field label="Employee" required>
             <select autoFocus value={userId} onChange={(e) => setUserId(e.target.value)} className="input">

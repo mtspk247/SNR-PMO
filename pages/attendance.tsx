@@ -63,7 +63,7 @@ export default function AttendancePage() {
           <div className="card overflow-hidden">
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
-                <tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
+                <tr className="text-2xs uppercase tracking-wide text-muted2 border-b border-line">
                   {isAdmin && <th className="text-left font-medium px-4 py-2.5">Person</th>}
                   <th className="text-left font-medium px-4 py-2.5">Date</th>
                   <th className="text-left font-medium px-4 py-2.5">In</th>
