@@ -7,6 +7,7 @@ import {
   getAuditLog, getAttendance, getEmployees, getLeaves, getPayrollRuns,
   getTasks, getDeals, getContacts, getCompanies, getLedgerEntries,
   getIdeas, getTrainingDocs, getJobDescriptions, getChatMessages,
+  getTaskTimeEntries, getMyOpenTimer,
 } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
@@ -144,5 +145,23 @@ export function useChatMessages(projectId: string | null) {
     queryFn: () => getChatMessages(projectId),
     enabled: !!org,
     refetchInterval: 12000,
+  });
+}
+
+// ---- W1 Time tracking -------------------------------------------------------
+export function useTaskTime(taskId?: string | null) {
+  return useQuery({
+    queryKey: qk.taskTime(taskId || ''),
+    queryFn: () => getTaskTimeEntries(taskId!),
+    enabled: !!taskId,
+  });
+}
+export function useMyOpenTimer(userId?: string | null) {
+  const org = useActiveOrg();
+  return useQuery({
+    queryKey: qk.myTimer(org?.id, userId),
+    queryFn: () => getMyOpenTimer(userId!),
+    enabled: !!org && !!userId,
+    refetchInterval: 60000,
   });
 }

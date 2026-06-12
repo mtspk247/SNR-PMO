@@ -10,6 +10,7 @@ import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
 import ChatPanel from '@/components/ChatPanel';
+import { TimerChip } from '@/components/TimeTracking';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
@@ -272,6 +273,7 @@ export default function Layout({ title, children }: { title: string; children: R
             <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm text-muted2">
               <Icon name="ti-search" />Search
             </div>
+            <TimerChip />
             <button onClick={() => setChatOpen(true)} title="Chat"
               className="h-9 w-9 grid place-items-center rounded-md border border-line text-muted hover:text-content hover:bg-surface2 transition">
               <Icon name="ti-messages" className="text-base" />

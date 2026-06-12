@@ -23,4 +23,6 @@ export const qk = {
   jobDescriptions: (org?: string | null) => ['jobDescriptions', org ?? null] as const,
   adminUsers: (org?: string | null) => ['adminUsers', org ?? null] as const,
   chat: (org?: string | null, channel?: string | null) => ['chat', org ?? null, channel ?? null] as const,
+  taskTime: (task: string) => ['taskTime', task] as const,
+  myTimer: (org?: string | null, user?: string | null) => ['myTimer', org ?? null, user ?? null] as const,
 };

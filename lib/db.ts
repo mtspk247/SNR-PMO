@@ -1183,6 +1183,58 @@ export async function getTrainingDocUrl(path: string): Promise<string> {
 // chat_insert pins sender_id = current_app_user_id() (spoof-proof);
 // chat_delete = own message OR org owner/admin. RETURNING is safe (the sender
 // always passes chat_select on their own new row), so .select() embeds work.
+import { TimeEntry } from './supabase';
+
+// ---- W1 Time tracking -------------------------------------------------------
+// insert pinned to self (RLS time_insert); own rows pass time_select => RETURNING safe.
+const TIME_SEL = '*, user:users!time_entries_user_id_fkey(full_name)';
+
+export async function getTaskTimeEntries(taskId: string): Promise<TimeEntry[]> {
+  const { data, error } = await sb.from('time_entries').select(TIME_SEL)
+    .eq('task_id', taskId).order('started_at', { ascending: false });
+  if (error) throw error; return (data as TimeEntry[]) || [];
+}
+export async function getMyOpenTimer(userId: string): Promise<TimeEntry | null> {
+  const { data, error } = await sb.from('time_entries').select(TIME_SEL)
+    .eq('user_id', userId).is('ended_at', null).maybeSingle();
+  if (error) throw error; return (data as TimeEntry) || null;
+}
+export async function startTimer(p: { org_id: string; task_id: string; project_id?: string | null; user_id: string }): Promise<TimeEntry> {
+  const { data, error } = await sb.from('time_entries')
+    .insert({ org_id: p.org_id, task_id: p.task_id, project_id: p.project_id || null, user_id: p.user_id })
+    .select(TIME_SEL).single();
+  if (error) throw new Error(error.code === '23505' ? 'You already have a running timer — stop it first.' : error.message);
+  return data as TimeEntry;
+}
+export async function stopTimer(entry: TimeEntry): Promise<TimeEntry> {
+  const ended = new Date();
+  const mins = Math.max(1, Math.round((ended.getTime() - new Date(entry.started_at).getTime()) / 60000));
+  const { data, error } = await sb.from('time_entries')
+    .update({ ended_at: ended.toISOString(), duration_minutes: mins })
+    .eq('id', entry.id).select(TIME_SEL).single();
+  if (error) throw new Error(error.message); return data as TimeEntry;
+}
+export async function addManualTime(p: { org_id: string; task_id: string; project_id?: string | null; user_id: string; minutes: number; date?: string; notes?: string }): Promise<TimeEntry> {
+  const start = p.date ? new Date(p.date + 'T09:00:00') : new Date(Date.now() - p.minutes * 60000);
+  const { data, error } = await sb.from('time_entries').insert({
+    org_id: p.org_id, task_id: p.task_id, project_id: p.project_id || null, user_id: p.user_id,
+    started_at: start.toISOString(), ended_at: new Date(start.getTime() + p.minutes * 60000).toISOString(),
+    duration_minutes: p.minutes, is_manual: true, notes: p.notes || null,
+  }).select(TIME_SEL).single();
+  if (error) throw new Error(error.message); return data as TimeEntry;
+}
+export async function deleteTimeEntry(id: string): Promise<void> {
+  const { error } = await sb.from('time_entries').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+/** Org-wide finished entries in a date range (admin: payroll/reporting). */
+export async function getTimeEntriesRange(orgId: string, fromIso: string, toIso: string): Promise<TimeEntry[]> {
+  const { data, error } = await sb.from('time_entries').select(TIME_SEL)
+    .eq('org_id', orgId).gte('started_at', fromIso).lt('started_at', toIso)
+    .not('duration_minutes', 'is', null);
+  if (error) throw error; return (data as TimeEntry[]) || [];
+}
+
 import { ChatMessage } from './supabase';
 
 const CHAT_SEL = '*, sender:users(full_name)';

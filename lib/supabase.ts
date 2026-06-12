@@ -357,6 +357,21 @@ export interface JobDescription {
 }
 
 // ---- S5: Chat ---------------------------------------------------------------
+export interface TimeEntry {
+  id: string;
+  org_id: string;
+  task_id: string;
+  project_id: string | null;
+  user_id: string;
+  started_at: string;
+  ended_at: string | null;
+  duration_minutes: number | null;
+  is_manual: boolean;
+  notes: string | null;
+  created_at: string;
+  user?: { full_name: string } | null;
+}
+
 export interface ChatMessage {
   id: string; org_id: string;
   project_id: string | null;   // null = org-wide channel
