@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, Avatar, Icon, StatCard } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { useEmployees } from '@/lib/queries';
 
@@ -22,9 +22,19 @@ export default function EmployeesPage() {
 
   const pg = usePagination(filtered, 25);
 
+  const activeCount = useMemo(() => rows.filter((e) => e.status === 'active').length, [rows]);
+  const deptCount = useMemo(() => new Set(rows.map((e) => e.department).filter(Boolean)).size, [rows]);
+
   return (
     <Layout title="Employees">
       <PageHeader title="Employee directory" subtitle="Everyone in your organization, with role, department and manager" />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <StatCard label="Headcount" value={rows.length} icon="ti-users" />
+        <StatCard label="Active" value={activeCount} icon="ti-user-check" hintTone="up" hint={rows.length ? `${Math.round((activeCount / rows.length) * 100)}% of team` : undefined} />
+        <StatCard label="Suspended" value={rows.length - activeCount} icon="ti-user-off" hintTone={rows.length - activeCount > 0 ? 'down' : 'muted'} />
+        <StatCard label="Departments" value={deptCount} icon="ti-building-community" />
+      </div>
 
       <div className="mb-4">
         <div className="relative max-w-sm">

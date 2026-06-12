@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon, StatCard } from '@/components/ui';
+import { useSetCrumbs } from '@/components/Breadcrumbs';
+import CustomFields from '@/components/CustomFields';
 import {
   getEmployee, getOnboardingTasks, getAttendance, getLeaves, getMyLeaveProfile,
   getEmployeeCompensation, setCompensation, getMyPayslips,
@@ -63,6 +65,8 @@ export default function EmployeeProfilePage() {
     getMyLeaveProfile(id).then(setLeaveProfile).catch(() => {});
   }, [id, org?.id]);
   const myLeaves = useMemo(() => leaves.filter((l) => l.user_id === id).slice(0, 5), [leaves, id]);
+
+  useSetCrumbs(employee ? [{ label: 'Employees', href: '/employees' }, { label: employee.full_name }] : null);
 
   if (loading) return <Layout title="Employee"><Spinner /></Layout>;
   if (!employee) return <Layout title="Employee"><EmptyState icon="ti-user-x" text="Employee not found" /></Layout>;
@@ -221,6 +225,12 @@ export default function EmployeeProfilePage() {
               onSaved={(c) => setComp(c)}
             />
           )}
+
+          {/* Custom fields (HR) — org-level employee fields, admin-managed */}
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold">Custom fields</h3>
+            <CustomFields orgId={org?.id || ''} entityType="employee" entityId={employee.id} canManage={isAdmin} title="HR fields" />
+          </div>
         </div>
       </div>
     </Layout>

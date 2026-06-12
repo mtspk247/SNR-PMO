@@ -282,3 +282,15 @@ export interface TaskFieldValue {
   task_id: string; field_id: string; project_id: string;
   value: string | null; updated_at?: string;
 }
+
+// ---- Generalized custom fields (CRM + HR; org-scoped, polymorphic by entity_type) ----
+export type CustomEntityType = 'crm_deal' | 'crm_contact' | 'crm_company' | 'employee';
+export interface CustomFieldDef {
+  id: string; org_id: string; entity_type: CustomEntityType; name: string;
+  field_type: 'text' | 'number' | 'date' | 'checkbox' | 'dropdown';
+  options?: string[] | null; position?: number; created_by?: string | null; created_at?: string;
+}
+export interface CustomFieldValue {
+  org_id: string; entity_type: CustomEntityType; entity_id: string; field_id: string;
+  value: string | null; updated_at?: string;
+}

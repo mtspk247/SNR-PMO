@@ -868,3 +868,41 @@ export async function upsertTaskFieldValue(v: {
   const { error } = await sb.from('task_field_values').upsert({ ...v, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
 }
+
+// ---- Generalized custom fields (CRM + HR; RLS = is_org_member + feature; defs gated owner/admin) ----
+import { CustomFieldDef, CustomFieldValue, CustomEntityType } from './supabase';
+
+export async function getCustomFieldDefs(orgId: string, entityType: CustomEntityType): Promise<CustomFieldDef[]> {
+  const { data, error } = await sb.from('custom_field_definitions').select('*')
+    .eq('org_id', orgId).eq('entity_type', entityType).order('position').order('created_at');
+  if (error) throw new Error(error.message);
+  return (data as CustomFieldDef[]) || [];
+}
+
+export async function createCustomFieldDef(d: {
+  org_id: string; entity_type: CustomEntityType; name: string; field_type: string;
+  options?: string[] | null; position?: number;
+}): Promise<CustomFieldDef> {
+  const { data, error } = await sb.from('custom_field_definitions').insert(d).select('*').single();
+  if (error) throw new Error(error.message);
+  return data as CustomFieldDef;
+}
+
+export async function deleteCustomFieldDef(id: string): Promise<void> {
+  const { error } = await sb.from('custom_field_definitions').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function getCustomFieldValues(entityType: CustomEntityType, entityId: string): Promise<CustomFieldValue[]> {
+  const { data, error } = await sb.from('custom_field_values').select('*')
+    .eq('entity_type', entityType).eq('entity_id', entityId);
+  if (error) throw new Error(error.message);
+  return (data as CustomFieldValue[]) || [];
+}
+
+export async function upsertCustomFieldValue(v: {
+  org_id: string; entity_type: CustomEntityType; entity_id: string; field_id: string; value: string | null;
+}): Promise<void> {
+  const { error } = await sb.from('custom_field_values').upsert({ ...v, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+}

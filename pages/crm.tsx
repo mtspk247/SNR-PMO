@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field } from '@/components/Modal';
@@ -26,6 +27,7 @@ export default function CRM() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const qc = useQueryClient();
+  const router = useRouter();
   const [view, setView] = useState<'pipeline' | 'contacts'>('pipeline');
   const { data: deals = [], isLoading: dealsLoading } = useDeals();
   const { data: contacts = [], isLoading: contactsLoading } = useContacts();
@@ -141,6 +143,7 @@ export default function CRM() {
       <div className="flex items-center gap-2 mb-3">
         <Pill label={selected.stage} />
         <div className="ml-auto flex items-center gap-1">
+          <button onClick={() => router.push(`/crm/deal/${selected.id}`)} className="btn-ghost p-1.5 rounded text-muted hover:text-accentstrong" title="Open full page"><Icon name="ti-arrow-up-right" /></button>
           <button onClick={() => setEditDeal(selected)} className="btn-ghost p-1.5 rounded text-muted hover:text-content" title="Edit deal"><Icon name="ti-pencil" /></button>
           <button onClick={() => removeDeal(selected)} disabled={busy} className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500" title="Delete deal"><Icon name="ti-trash" /></button>
           <button onClick={() => setShowDetail(false)} className="btn-ghost p-1.5 rounded text-muted hover:text-content xl:hidden" title="Close"><Icon name="ti-x" /></button>
@@ -289,8 +292,8 @@ export default function CRM() {
 
             <div className="card flex-1 min-w-0 overflow-y-auto">
               {filtered.length === 0 ? <EmptyState text="No deals match" icon="ti-target" /> : filtered.map((d) => (
-                <button key={d.id} onClick={() => selectDeal(d.id)}
-                  className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line transition ${selectedId === d.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}>
+                <div key={d.id} onClick={() => selectDeal(d.id)}
+                  className={`group w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line cursor-pointer transition ${selectedId === d.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-content truncate">{d.title}</p>
                     <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>
@@ -300,7 +303,11 @@ export default function CRM() {
                   </div>
                   <Pill label={d.stage} />
                   <span className="text-sm font-medium w-20 text-right">{money(d.value || 0)}</span>
-                </button>
+                  <button onClick={(e) => { e.stopPropagation(); router.push(`/crm/deal/${d.id}`); }}
+                    className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong opacity-0 group-hover:opacity-100 shrink-0" title="Open deal">
+                    <Icon name="ti-arrow-up-right" />
+                  </button>
+                </div>
               ))}
             </div>
 
@@ -320,13 +327,22 @@ export default function CRM() {
               </tr></thead>
               <tbody>
                 {cpg.pageItems.map((c) => (
-                  <tr key={c.id} className="row">
-                    <td className="td"><div className="flex items-center gap-2.5"><Avatar name={c.full_name} size={28} /><span className="font-medium">{c.full_name}</span></div></td>
+                  <tr key={c.id} className="row group">
+                    <td className="td">
+                      <button onClick={() => router.push(`/crm/contact/${c.id}`)} className="flex items-center gap-2.5 text-left hover:text-accentstrong">
+                        <Avatar name={c.full_name} size={28} /><span className="font-medium">{c.full_name}</span>
+                      </button>
+                    </td>
                     <td className="td text-2xs text-muted">{c.title || '—'}</td>
                     <td className="td text-sm">{c.crm_companies?.name || '—'}</td>
                     <td className="td">{c.status && <Pill label={c.status} />}</td>
                     <td className="td text-2xs text-sky-600">{c.email || '—'}</td>
-                    <td className="td text-right"><button onClick={() => removeContact(c)} disabled={busy} className="text-muted2 hover:text-rose-500" title="Delete contact"><Icon name="ti-trash" /></button></td>
+                    <td className="td text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => router.push(`/crm/contact/${c.id}`)} className="text-muted2 hover:text-accentstrong" title="Open contact"><Icon name="ti-arrow-up-right" /></button>
+                        <button onClick={() => removeContact(c)} disabled={busy} className="text-muted2 hover:text-rose-500" title="Delete contact"><Icon name="ti-trash" /></button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
