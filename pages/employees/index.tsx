@@ -1,13 +1,34 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon, StatCard } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
-import { useEmployees } from '@/lib/queries';
+import EmployeeModal, { EmployeeFormValues } from '@/components/EmployeeModal';
+import { useEmployees, useOrgCompanies } from '@/lib/queries';
+import { createEmployee } from '@/lib/db';
+import { qk } from '@/lib/queryKeys';
+import { useActiveOrg } from '@/lib/store';
+import { can } from '@/lib/authz';
 
 export default function EmployeesPage() {
+  const org = useActiveOrg();
+  const qc = useQueryClient();
+  const isAdmin = can.manageMembers(org);
   const { data: rows = [], isLoading } = useEmployees();
+  const { data: companies = [] } = useOrgCompanies();
   const [q, setQ] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const create = async (v: EmployeeFormValues) => {
+    if (!org) return; setBusy(true);
+    try {
+      await createEmployee({ org_id: org.id, ...v });
+      qc.invalidateQueries({ queryKey: qk.employees(org.id) });
+      setShowNew(false);
+    } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -27,7 +48,8 @@ export default function EmployeesPage() {
 
   return (
     <Layout title="Employees">
-      <PageHeader title="Employee directory" subtitle="Everyone in your organization, with role, department and manager" />
+      <PageHeader title="Employee directory" subtitle="Everyone in your organization, with role, department and manager"
+        action={isAdmin ? <button onClick={() => setShowNew(true)} className="btn btn-primary"><Icon name="ti-user-plus" />New employee</button> : undefined} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Headcount" value={rows.length} icon="ti-users" />
@@ -88,6 +110,11 @@ export default function EmployeesPage() {
           </table></div>
           <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
         </div>
+      )}
+
+      {showNew && (
+        <EmployeeModal people={rows} companies={companies} busy={busy}
+          onClose={() => setShowNew(false)} onSubmit={create} />
       )}
     </Layout>
   );

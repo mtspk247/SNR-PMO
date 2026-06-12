@@ -6,6 +6,7 @@ import {
   getOnboardingTemplates, createOnboardingTemplate, deleteOnboardingTemplate,
   addTemplateItem, deleteTemplateItem,
   getOnboardingTasks, assignOnboarding, addOnboardingTask, setOnboardingTaskStatus, deleteOnboardingTask,
+  uploadOnboardingDoc, getOnboardingDocUrl, removeOnboardingDoc,
   getOrgUsers,
 } from '@/lib/db';
 import { OnboardingTemplate, OnboardingTask, OrgUser } from '@/lib/supabase';
@@ -102,6 +103,8 @@ export default function OnboardingPage() {
                       <div key={t.id} className="flex items-center gap-2.5 py-1 group">
                         <input type="checkbox" checked={t.status === 'Done'} disabled={busy} onChange={() => toggle(t)} className="accent-ink w-4 h-4 shrink-0" />
                         <span className={`text-sm flex-1 min-w-0 truncate ${t.status === 'Done' ? 'line-through text-muted2' : ''}`}>{t.title}</span>
+                        <DocCell task={t} canUpload={admin || me?.id === t.user_id} orgId={org?.id || ''}
+                          onChange={(r) => setTasks((p) => p.map((x) => (x.id === r.id ? r : x)))} />
                         {t.due_date && <span className="text-2xs text-muted2 shrink-0">{t.due_date}</span>}
                         {t.assignee?.full_name && <span className="text-2xs text-muted2 shrink-0 hidden sm:inline">· {t.assignee.full_name}</span>}
                         {admin && <button onClick={() => removeTask(t.id)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500 shrink-0"><Icon name="ti-x" className="text-sm" /></button>}
@@ -153,6 +156,59 @@ export default function OnboardingPage() {
   );
 }
 
+// ---- per-item document cell (upload / view / remove) -----------------------
+// Storage RLS (bucket employee-docs) admits org owner/admin or the hire; the
+// canUpload flag only mirrors that for UX.
+function DocCell({ task, canUpload, orgId, onChange }: {
+  task: OnboardingTask; canUpload: boolean; orgId: string; onChange: (t: OnboardingTask) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  if (!task.requires_doc && !task.doc_path) return null;
+
+  const pick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = async () => {
+      const file = input.files?.[0]; if (!file) return;
+      setBusy(true);
+      try { onChange(await uploadOnboardingDoc(task, orgId, file)); }
+      catch (e: any) { alert(e.message); } finally { setBusy(false); }
+    };
+    input.click();
+  };
+  const view = async () => {
+    try { window.open(await getOnboardingDocUrl(task.doc_path!), '_blank'); }
+    catch (e: any) { alert(e.message); }
+  };
+  const remove = async () => {
+    if (!confirm('Remove this document?')) return;
+    setBusy(true);
+    try { onChange(await removeOnboardingDoc(task)); }
+    catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+
+  if (task.doc_path) return (
+    <span className="inline-flex items-center gap-1 shrink-0">
+      <button onClick={view} title={task.doc_name || 'View document'}
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/10 text-accentstrong text-2xs max-w-[9rem]">
+        <Icon name="ti-file-check" className="text-xs" /><span className="truncate">{task.doc_name || 'document'}</span>
+      </button>
+      {canUpload && <button onClick={remove} disabled={busy} title="Remove document"
+        className="text-muted2 hover:text-rose-500"><Icon name="ti-x" className="text-xs" /></button>}
+    </span>
+  );
+  return canUpload ? (
+    <button onClick={pick} disabled={busy} title="Upload required document"
+      className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-dashed border-line text-2xs text-muted hover:text-content hover:border-accent">
+      <Icon name="ti-upload" className="text-xs" />{busy ? 'Uploading…' : 'Upload doc'}
+    </button>
+  ) : (
+    <span className="shrink-0 inline-flex items-center gap-1 text-2xs text-amber-500" title="Document required">
+      <Icon name="ti-paperclip" className="text-xs" />doc needed
+    </span>
+  );
+}
+
 // ---- inline add-item row (active checklist) -------------------------------
 function AddItemRow({ onAdd }: { onAdd: (title: string) => Promise<void> }) {
   const [v, setV] = useState('');
@@ -173,13 +229,14 @@ function TemplateCard({ tmpl, orgId, onItemsChange, onDelete }:
   const items = tmpl.items || [];
   const [title, setTitle] = useState('');
   const [days, setDays] = useState('');
+  const [needsDoc, setNeedsDoc] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const add = async () => {
     if (!title.trim()) return; setBusy(true);
     try {
-      const it = await addTemplateItem({ template_id: tmpl.id, org_id: orgId, title: title.trim(), sort_order: items.length, offset_days: parseInt(days) || 0 });
-      onItemsChange([...items, it]); setTitle(''); setDays('');
+      const it = await addTemplateItem({ template_id: tmpl.id, org_id: orgId, title: title.trim(), sort_order: items.length, offset_days: parseInt(days) || 0, requires_doc: needsDoc });
+      onItemsChange([...items, it]); setTitle(''); setDays(''); setNeedsDoc(false);
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const remove = async (id: string) => {
@@ -201,6 +258,7 @@ function TemplateCard({ tmpl, orgId, onItemsChange, onDelete }:
           <div key={it.id} className="flex items-center gap-2 py-0.5 group text-sm">
             <Icon name="ti-point" className="text-muted2 text-xs shrink-0" />
             <span className="flex-1 min-w-0 truncate">{it.title}</span>
+            {it.requires_doc && <Icon name="ti-paperclip" className="text-muted2 text-xs shrink-0" />}
             {!!it.offset_days && <span className="text-2xs text-muted2 shrink-0">+{it.offset_days}d</span>}
             <button onClick={() => remove(it.id)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500 shrink-0"><Icon name="ti-x" className="text-sm" /></button>
           </div>
@@ -212,6 +270,11 @@ function TemplateCard({ tmpl, orgId, onItemsChange, onDelete }:
           placeholder="Add a step…" className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-muted2" />
         <input value={days} disabled={busy} onChange={(e) => setDays(e.target.value)} type="number" placeholder="day"
           title="Due day offset from start date" className="w-14 px-1.5 py-1 rounded border border-line text-2xs text-center outline-none" />
+        <label title="Hire must upload a document (contract, ID, bank details…)"
+          className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-1 rounded border text-2xs cursor-pointer select-none ${needsDoc ? 'border-accent text-accentstrong' : 'border-line text-muted2'}`}>
+          <input type="checkbox" checked={needsDoc} disabled={busy} onChange={(e) => setNeedsDoc(e.target.checked)} className="hidden" />
+          <Icon name="ti-paperclip" className="text-xs" />doc
+        </label>
         <button onClick={add} disabled={busy || !title.trim()} className="btn btn-sm">Add</button>
       </div>
     </div>

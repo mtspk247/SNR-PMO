@@ -38,6 +38,7 @@ const SECTIONS: Section[] = [
   { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
     { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
     { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr' },
+    { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock' },
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },
   ]},
@@ -45,7 +46,6 @@ const SECTIONS: Section[] = [
 const ADMIN_SECTION: Section = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
-  { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
   { href: '/audit', label: 'Audit log', icon: 'ti-history', feature: 'audit' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },

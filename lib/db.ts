@@ -676,9 +676,9 @@ export async function deleteOnboardingTemplate(id: string): Promise<void> {
   const { error } = await sb.from('onboarding_templates').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
-export async function addTemplateItem(p: { template_id: string; org_id: string; title: string; description?: string; sort_order?: number; offset_days?: number }): Promise<OnboardingTemplateItem> {
+export async function addTemplateItem(p: { template_id: string; org_id: string; title: string; description?: string; sort_order?: number; offset_days?: number; requires_doc?: boolean }): Promise<OnboardingTemplateItem> {
   const { data, error } = await sb.from('onboarding_template_items')
-    .insert({ template_id: p.template_id, org_id: p.org_id, title: p.title, description: p.description || null, sort_order: p.sort_order ?? 0, offset_days: p.offset_days ?? 0 })
+    .insert({ template_id: p.template_id, org_id: p.org_id, title: p.title, description: p.description || null, sort_order: p.sort_order ?? 0, offset_days: p.offset_days ?? 0, requires_doc: p.requires_doc ?? false })
     .select('*').single();
   if (error) throw new Error(error.message); return data as OnboardingTemplateItem;
 }
@@ -701,6 +701,7 @@ export async function assignOnboarding(p: { user_id: string; org_id: string; tem
   const rows = (p.template.items || []).map((it, i) => ({
     org_id: p.org_id, user_id: p.user_id, template_id: p.template.id,
     title: it.title, description: it.description, sort_order: it.sort_order ?? i, status: 'Pending',
+    requires_doc: it.requires_doc ?? false,
     assignee_id: p.created_by || null,
     due_date: base ? new Date(base.getTime() + (it.offset_days || 0) * 86400000).toISOString().slice(0, 10) : null,
     created_by: p.created_by || null,
@@ -727,6 +728,31 @@ export async function deleteOnboardingTask(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// ---- Onboarding document uploads (Storage bucket employee-docs) ------------
+// Path convention <org_id>/<hire_user_id>/<task_id>/<filename> — storage RLS
+// admits org owner/admin or the hire themself (see migration s1_hr_core_*).
+export async function uploadOnboardingDoc(t: { id: string; org_id?: string; user_id: string }, orgId: string, file: File): Promise<OnboardingTask> {
+  const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
+  const path = `${t.org_id || orgId}/${t.user_id}/${t.id}/${safe}`;
+  const { error: upErr } = await sb.storage.from('employee-docs').upload(path, file, { upsert: true });
+  if (upErr) throw new Error(upErr.message);
+  const { data, error } = await sb.from('onboarding_tasks')
+    .update({ doc_path: path, doc_name: file.name, doc_uploaded_at: new Date().toISOString() })
+    .eq('id', t.id).select(OB_TASK_SEL).single();
+  if (error) throw new Error(error.message); return data as OnboardingTask;
+}
+export async function getOnboardingDocUrl(path: string): Promise<string> {
+  const { data, error } = await sb.storage.from('employee-docs').createSignedUrl(path, 3600);
+  if (error) throw new Error(error.message); return data.signedUrl;
+}
+export async function removeOnboardingDoc(t: { id: string; doc_path?: string | null }): Promise<OnboardingTask> {
+  if (t.doc_path) await sb.storage.from('employee-docs').remove([t.doc_path]);
+  const { data, error } = await sb.from('onboarding_tasks')
+    .update({ doc_path: null, doc_name: null, doc_uploaded_at: null })
+    .eq('id', t.id).select(OB_TASK_SEL).single();
+  if (error) throw new Error(error.message); return data as OnboardingTask;
+}
+
 // ---- 2.10 Integrations ----------------------------------------------------
 export async function getIntegrations(): Promise<Integration[]> {
   const { data, error } = await sb.from('integrations').select('*').order('category', { ascending: true }).order('name', { ascending: true });
@@ -748,7 +774,7 @@ export async function setIntegrationStatus(id: string, status: 'connected' | 'di
 import { Employee, EmployeeCompensation, PayrollRun, Payslip } from './supabase';
 
 // ---- Employee directory + profile -----------------------------------------
-const EMPLOYEE_SEL = 'id, full_name, email, role, department, status, reports_to, manager:users!users_reports_to_fkey(full_name)';
+const EMPLOYEE_SEL = 'id, full_name, email, role, department, status, reports_to, phone, job_title, hire_date, company_id, address, emergency_contact, manager:users!users_reports_to_fkey(full_name), company:companies(name)';
 export async function getEmployees(): Promise<Employee[]> {
   const { data, error } = await sb.from('users').select(EMPLOYEE_SEL).order('full_name');
   if (error) throw error; return (data as unknown as Employee[]) || [];
@@ -756,6 +782,36 @@ export async function getEmployees(): Promise<Employee[]> {
 export async function getEmployee(id: string): Promise<Employee | null> {
   const { data, error } = await sb.from('users').select(EMPLOYEE_SEL).eq('id', id).maybeSingle();
   if (error) throw error; return (data as unknown as Employee) ?? null;
+}
+
+// Create an UNLINKED employee (auth_user_id null) via SECURITY DEFINER RPC —
+// usr_insert RLS can't admit brand-new users (no shared org yet). The RPC
+// enforces org owner/admin + hr feature and adds the org_members row (seat
+// trigger still applies). Returns the new user id.
+export async function createEmployee(p: {
+  org_id: string; full_name: string; email: string; role?: string;
+  department?: string | null; job_title?: string | null; hire_date?: string | null;
+  company_id?: string | null; phone?: string | null; address?: string | null;
+  emergency_contact?: string | null; reports_to?: string | null;
+}): Promise<string> {
+  const { data, error } = await sb.rpc('create_employee', {
+    p_org: p.org_id, p_full_name: p.full_name, p_email: p.email,
+    p_role: p.role || 'team_member', p_department: p.department || null,
+    p_job_title: p.job_title || null, p_hire_date: p.hire_date || null,
+    p_company_id: p.company_id || null, p_phone: p.phone || null,
+    p_address: p.address || null, p_emergency_contact: p.emergency_contact || null,
+    p_reports_to: p.reports_to || null,
+  });
+  if (error) throw new Error(error.message); return data as string;
+}
+
+// Profile edit (admin via can_manage_user, or self) — plain users update.
+export type EmployeeProfilePatch = Partial<Pick<Employee,
+  'full_name' | 'email' | 'role' | 'department' | 'status' | 'reports_to' |
+  'phone' | 'job_title' | 'hire_date' | 'company_id' | 'address' | 'emergency_contact'>>;
+export async function updateEmployeeProfile(id: string, patch: EmployeeProfilePatch): Promise<Employee> {
+  const { data, error } = await sb.from('users').update(patch).eq('id', id).select(EMPLOYEE_SEL).single();
+  if (error) throw new Error(error.message); return data as unknown as Employee;
 }
 
 // ---- Compensation -----------------------------------------------------------

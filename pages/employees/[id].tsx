@@ -8,7 +8,10 @@ import CustomFields from '@/components/CustomFields';
 import {
   getEmployee, getOnboardingTasks, getAttendance, getLeaves, getMyLeaveProfile,
   getEmployeeCompensation, setCompensation, getMyPayslips,
+  getEmployees, getOrgCompanies, updateEmployeeProfile,
 } from '@/lib/db';
+import EmployeeModal, { EmployeeFormValues } from '@/components/EmployeeModal';
+import { OrgCompany } from '@/lib/supabase';
 import { Employee, OnboardingTask, Attendance, Leave, EmployeeCompensation, Payslip } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -27,6 +30,22 @@ export default function EmployeeProfilePage() {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [comp, setComp] = useState<EmployeeCompensation | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [people, setPeople] = useState<Employee[]>([]);
+  const [companies, setCompanies] = useState<OrgCompany[]>([]);
+
+  useEffect(() => {
+    if (!showEdit) return;
+    getEmployees().then(setPeople).catch(() => {});
+    getOrgCompanies().then(setCompanies).catch(() => {});
+  }, [showEdit]);
+
+  const saveProfile = async (v: EmployeeFormValues) => {
+    setEditBusy(true);
+    try { const r = await updateEmployeeProfile(id, v); setEmployee(r); setShowEdit(false); }
+    catch (e: any) { alert(e.message); } finally { setEditBusy(false); }
+  };
 
   const isSelf = me?.id === id;
   const canViewPay = isAdmin || isSelf;
@@ -85,6 +104,7 @@ export default function EmployeeProfilePage() {
         action={
           <div className="flex items-center gap-2">
             <span className={`pill ${employee.status === 'active' ? 'pill-green' : 'pill-red'}`}>{employee.status}</span>
+            {isAdmin && <button onClick={() => setShowEdit(true)} className="btn"><Icon name="ti-user-edit" />Edit profile</button>}
           </div>
         }
       />
@@ -116,6 +136,30 @@ export default function EmployeeProfilePage() {
               <div>
                 <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Status</p>
                 <p className="capitalize">{employee.status}</p>
+              </div>
+              <div>
+                <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Job title</p>
+                <p>{employee.job_title || '—'}</p>
+              </div>
+              <div>
+                <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Hire date</p>
+                <p>{employee.hire_date || '—'}</p>
+              </div>
+              <div>
+                <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Company</p>
+                <p>{employee.company?.name || '—'}</p>
+              </div>
+              <div>
+                <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Phone</p>
+                <p>{employee.phone || '—'}</p>
+              </div>
+              <div>
+                <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Address</p>
+                <p>{employee.address || '—'}</p>
+              </div>
+              <div>
+                <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Emergency contact</p>
+                <p>{employee.emergency_contact || '—'}</p>
               </div>
             </div>
           </div>
@@ -233,6 +277,10 @@ export default function EmployeeProfilePage() {
           </div>
         </div>
       </div>
+      {showEdit && (
+        <EmployeeModal initial={employee} people={people} companies={companies} busy={editBusy}
+          onClose={() => setShowEdit(false)} onSubmit={saveProfile} />
+      )}
     </Layout>
   );
 }

@@ -223,6 +223,7 @@ export interface AdminUser {
 export interface OnboardingTemplateItem {
   id: string; template_id: string; org_id?: string;
   title: string; description: string | null; sort_order: number; offset_days: number;
+  requires_doc?: boolean;
 }
 export interface OnboardingTemplate {
   id: string; org_id?: string; name: string; description: string | null;
@@ -234,6 +235,7 @@ export interface OnboardingTask {
   title: string; description: string | null;
   status: 'Pending' | 'Done'; due_date: string | null;
   assignee_id: string | null; sort_order: number; completed_at: string | null;
+  requires_doc?: boolean; doc_path?: string | null; doc_name?: string | null; doc_uploaded_at?: string | null;
   created_by?: string | null; created_at?: string;
   hire?: { full_name: string } | null;
   assignee?: { full_name: string } | null;
@@ -248,7 +250,10 @@ export interface Employee {
   id: string; full_name: string; email: string; role: Role;
   department: string | null; status: 'active' | 'suspended';
   reports_to: string | null;
+  phone?: string | null; job_title?: string | null; hire_date?: string | null;
+  company_id?: string | null; address?: string | null; emergency_contact?: string | null;
   manager?: { full_name: string | null } | null;
+  company?: { name: string | null } | null;
 }
 
 export interface EmployeeCompensation {
