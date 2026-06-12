@@ -795,7 +795,7 @@ export async function setIntegrationStatus(id: string, status: 'connected' | 'di
 import { Employee, EmployeeCompensation, PayrollRun, Payslip } from './supabase';
 
 // ---- Employee directory + profile -----------------------------------------
-const EMPLOYEE_SEL = 'id, full_name, email, role, department, status, reports_to, phone, job_title, hire_date, company_id, address, emergency_contact, manager:users!users_reports_to_fkey(full_name), company:companies(name)';
+const EMPLOYEE_SEL = 'id, full_name, email, role, department, status, reports_to, phone, job_title, hire_date, company_id, address, emergency_contact, manager:users!reports_to(full_name), company:companies!users_company_id_fkey(name)';
 export async function getEmployees(): Promise<Employee[]> {
   const { data, error } = await sb.from('users').select(EMPLOYEE_SEL).order('full_name');
   if (error) throw error; return (data as unknown as Employee[]) || [];
