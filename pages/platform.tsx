@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
-import { Modal, Field } from '@/components/Modal';
+import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch } from '@/lib/db';
 import { PlatformOrg, Plan, Feature, PlanFeature } from '@/lib/supabase';
@@ -20,6 +20,7 @@ const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_'
 // Create / edit a subscription plan (platform admin only — enforced by plans_write RLS).
 function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () => void; onSaved: () => Promise<void> }) {
   const editing = !!plan;
+  const tabs = useModalTabs('plan');
   const [name, setName] = useState(plan?.name || '');
   const [key, setKey] = useState(plan?.key || '');
   const [keyTouched, setKeyTouched] = useState(editing);
@@ -34,9 +35,9 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
   const [err, setErr] = useState('');
 
   const submit = async () => {
-    if (!name.trim() || saving) return;
+    if (!name.trim() || saving) { tabs.setTab('plan'); return; }
     const cents = Math.round((parseFloat(price) || 0) * 100);
-    if (cents < 0) { setErr('Price cannot be negative'); return; }
+    if (cents < 0) { setErr('Price cannot be negative'); tabs.setTab('pricing'); return; }
     const limit = userLimit.trim() === '' ? null : Math.max(1, parseInt(userLimit, 10) || 1);
     const patch: PlanPatch = {
       name: name.trim(),
@@ -61,8 +62,14 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
     <Modal open onClose={onClose} onSubmit={submit} size="lg" icon="ti-license"
       title={editing ? `Edit plan — ${plan!.name}` : 'New plan'}
       subtitle={editing ? 'Changes apply immediately to every tenant on this plan' : 'Define pricing, seats and billing; toggle features in the matrix after saving'}
+      tabs={[
+        { key: 'plan', label: 'Plan', icon: 'ti-license' },
+        { key: 'pricing', label: 'Pricing', icon: 'ti-currency-dollar' },
+      ]}
+      {...tabs.bind}
       footer={(
         <div className="flex items-center justify-end gap-2">
+          <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
             {saving ? 'Saving…' : editing ? 'Save changes' : 'Create plan'}
@@ -70,45 +77,51 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
         </div>
       )}>
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Name" required>
-          <input className="input" value={name} autoFocus placeholder="e.g. Growth"
-            onChange={(e) => { setName(e.target.value); if (!keyTouched) setKey(slugify(e.target.value)); }} />
-        </Field>
-        <Field label="Key" required hint={editing ? 'Immutable — referenced by subscriptions' : 'Unique identifier (auto from name)'}>
-          <input className="input font-mono" value={key} disabled={editing}
-            onChange={(e) => { setKeyTouched(true); setKey(slugify(e.target.value)); }} />
-        </Field>
-        <Field label="Description" className="sm:col-span-2">
-          <input className="input" value={description} placeholder="Shown on the plan column" onChange={(e) => setDescription(e.target.value)} />
-        </Field>
-        <Field label="Pricing model" required>
-          <select className="input" value={pricingModel} onChange={(e) => setPricingModel(e.target.value as Plan['pricing_model'])}>
-            {PRICING_MODELS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
-        </Field>
-        <Field label="Price (USD)" required hint={pricingModel === 'per_user' ? 'Charged per seat per period' : 'Charged per org per period'}>
-          <input className="input" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-        </Field>
-        <Field label="Billing period" required>
-          <select className="input" value={billingPeriod} onChange={(e) => setBillingPeriod(e.target.value as Plan['billing_period'])}>
-            <option value="monthly">Monthly</option>
-            <option value="annual">Annual</option>
-          </select>
-        </Field>
-        <Field label="Seat limit" hint="Blank = unlimited; enforced on member invites">
-          <input className="input" type="number" min="1" placeholder="∞" value={userLimit} onChange={(e) => setUserLimit(e.target.value)} />
-        </Field>
-        <Field label="Sort order" hint="Column position in the matrix">
-          <input className="input" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
-        </Field>
-        <Field label="Status">
-          <label className="flex items-center gap-2 h-9 text-sm cursor-pointer select-none">
-            <input type="checkbox" className="accent-accent w-4 h-4" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-            <span className={isActive ? 'text-content' : 'text-muted'}>{isActive ? 'Active — selectable for tenants' : 'Inactive (hidden from new assignments)'}</span>
-          </label>
-        </Field>
-      </div>
+      {tabs.tab === 'plan' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Name" required>
+            <input className="input" value={name} autoFocus placeholder="e.g. Growth"
+              onChange={(e) => { setName(e.target.value); if (!keyTouched) setKey(slugify(e.target.value)); }} />
+          </Field>
+          <Field label="Key" required hint={editing ? 'Immutable — referenced by subscriptions' : 'Unique identifier (auto from name)'}>
+            <input className="input font-mono" value={key} disabled={editing}
+              onChange={(e) => { setKeyTouched(true); setKey(slugify(e.target.value)); }} />
+          </Field>
+          <Field label="Description" className="sm:col-span-2">
+            <input className="input" value={description} placeholder="Shown on the plan column" onChange={(e) => setDescription(e.target.value)} />
+          </Field>
+          <Field label="Sort order" hint="Column position in the matrix">
+            <input className="input" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
+          </Field>
+          <Field label="Status">
+            <label className="flex items-center gap-2 h-9 text-sm cursor-pointer select-none">
+              <input type="checkbox" className="accent-accent w-4 h-4" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+              <span className={isActive ? 'text-content' : 'text-muted'}>{isActive ? 'Active — selectable for tenants' : 'Inactive (hidden from new assignments)'}</span>
+            </label>
+          </Field>
+        </div>
+      )}
+      {tabs.tab === 'pricing' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Pricing model" required>
+            <select className="input" value={pricingModel} onChange={(e) => setPricingModel(e.target.value as Plan['pricing_model'])}>
+              {PRICING_MODELS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Price (USD)" required hint={pricingModel === 'per_user' ? 'Charged per seat per period' : 'Charged per org per period'}>
+            <input className="input" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+          </Field>
+          <Field label="Billing period" required>
+            <select className="input" value={billingPeriod} onChange={(e) => setBillingPeriod(e.target.value as Plan['billing_period'])}>
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual</option>
+            </select>
+          </Field>
+          <Field label="Seat limit" hint="Blank = unlimited; enforced on member invites">
+            <input className="input" type="number" min="1" placeholder="∞" value={userLimit} onChange={(e) => setUserLimit(e.target.value)} />
+          </Field>
+        </div>
+      )}
     </Modal>
   );
 }

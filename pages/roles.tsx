@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
-import { Modal, Field } from '@/components/Modal';
+import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '@/lib/db';
 import { RoleTemplate, PermKey, FeatureKey } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
@@ -22,6 +22,8 @@ export default function RolesPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  const tabs = useModalTabs('basics');
+
   useEffect(() => {
     listRoleTemplates().then(setRoles).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   }, [org?.id]);
@@ -30,14 +32,15 @@ export default function RolesPage() {
     return <Layout title="Roles"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to manage roles.</div></Layout>;
   }
 
-  const openNew = () => { setErr(''); setDraft(emptyDraft()); };
-  const openEdit = (r: RoleTemplate) => { setErr(''); setDraft({ id: r.id, name: r.name, description: r.description || '', permissions: { ...r.permissions }, feature_access: [...r.feature_access], is_system: r.is_system }); };
+  const openNew = () => { setErr(''); tabs.setTab('basics'); setDraft(emptyDraft()); };
+  const openEdit = (r: RoleTemplate) => { setErr(''); tabs.setTab('basics'); setDraft({ id: r.id, name: r.name, description: r.description || '', permissions: { ...r.permissions }, feature_access: [...r.feature_access], is_system: r.is_system }); };
 
   const togglePerm = (k: string) => setDraft((d) => d && ({ ...d, permissions: { ...d.permissions, [k]: !d.permissions[k] } }));
   const toggleFeature = (k: string) => setDraft((d) => d && ({ ...d, feature_access: d.feature_access.includes(k) ? d.feature_access.filter((x) => x !== k) : [...d.feature_access, k] }));
 
   const save = async () => {
     if (!draft || !org) return;
+    if (!draft.name.trim()) { tabs.setTab('basics'); return; }
     setBusy(true); setErr('');
     try {
       if (draft.id) {
@@ -95,45 +98,56 @@ export default function RolesPage() {
             subtitle={draft?.id ? 'Update permissions and module access for this role.' : 'Create a reusable permission template for your team.'}
             icon={draft?.id ? 'ti-edit' : 'ti-shield-plus'}
             size="lg"
+            tabs={[
+              { key: 'basics', label: 'Basics', icon: 'ti-id-badge-2' },
+              { key: 'permissions', label: 'Permissions', icon: 'ti-shield-check' },
+              { key: 'features', label: 'Features', icon: 'ti-puzzle' },
+            ]}
+            {...tabs.bind}
             onSubmit={() => { if (!busy && draft?.name.trim()) save(); }}
             footer={
               <>
-                <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+                <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
                 <button onClick={() => setDraft(null)} className="btn">Cancel</button>
                 <button onClick={save} disabled={busy || !draft?.name.trim()} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Saving…' : 'Save role'}</button>
               </>
             }
           >
-            {draft && (
+            {draft && tabs.tab === 'basics' && (
               <div className="space-y-3.5">
-                <Field label="Name" required hint="A short, recognizable name."><input autoFocus disabled={draft.is_system} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="input disabled:opacity-60" placeholder="e.g. QA Tester" /></Field>
-                <Field label="Description"><input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className="input" placeholder="Optional" /></Field>
-
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted mb-2 mt-1">Permissions</p>
-                  <div className="space-y-1">
-                    {PERM_KEYS.map((k) => (
-                      <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
-                        <span>{PERMISSION_LABELS[k]}</span>
-                        <input type="checkbox" checked={!!draft.permissions[k]} onChange={() => togglePerm(k)} className="accent-ink w-4 h-4" />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted mb-1 mt-1">Module access</p>
-                  <p className="text-2xs text-muted mb-2">None selected = access to all entitled modules.</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                    {FEATURE_KEYS.map((k) => (
-                      <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
-                        <span>{FEATURE_LABELS[k]}</span>
-                        <input type="checkbox" checked={draft.feature_access.includes(k)} onChange={() => toggleFeature(k)} className="accent-ink w-4 h-4" />
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                <Field label="Name" required hint="A short, recognizable name.">
+                  <input autoFocus disabled={draft.is_system} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="input disabled:opacity-60" placeholder="e.g. QA Tester" />
+                </Field>
+                <Field label="Description">
+                  <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className="input" placeholder="Optional" />
+                </Field>
                 {err && <p className="text-sm text-rose-600">{err}</p>}
+              </div>
+            )}
+            {draft && tabs.tab === 'permissions' && (
+              <div>
+                <p className="text-2xs text-muted mb-3">Toggle which actions this role can perform.</p>
+                <div className="space-y-1">
+                  {PERM_KEYS.map((k) => (
+                    <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
+                      <span>{PERMISSION_LABELS[k]}</span>
+                      <input type="checkbox" checked={!!draft.permissions[k]} onChange={() => togglePerm(k)} className="accent-ink w-4 h-4" />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            {draft && tabs.tab === 'features' && (
+              <div>
+                <p className="text-2xs text-muted mb-3">None selected = access to all entitled modules.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                  {FEATURE_KEYS.map((k) => (
+                    <label key={k} className="flex items-center justify-between text-sm py-1 cursor-pointer">
+                      <span>{FEATURE_LABELS[k]}</span>
+                      <input type="checkbox" checked={draft.feature_access.includes(k)} onChange={() => toggleFeature(k)} className="accent-ink w-4 h-4" />
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
           </Modal>

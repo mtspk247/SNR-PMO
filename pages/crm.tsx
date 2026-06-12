@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
-import { Modal, Field } from '@/components/Modal';
+import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon } from '@/components/ui';
 import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity } from '@/lib/db';
 import { Deal, Contact, Company, CrmActivity } from '@/lib/supabase';
@@ -440,6 +440,7 @@ type DealForm = { title: string; value: number; stage: string; company_id: strin
 
 function DealModal({ open, companies, contacts, busy, onAddCompany, onClose, onSubmit, initial, heading, submitLabel }:
   { open: boolean; companies: Company[]; contacts: Contact[]; busy: boolean; onAddCompany: (n: string) => Promise<Company | null>; onClose: () => void; onSubmit: (p: DealForm) => void; initial?: Partial<DealForm>; heading?: string; submitLabel?: string }) {
+  const tabs = useModalTabs('details');
   const [title, setTitle] = useState(initial?.title ?? '');
   const [value, setValue] = useState(initial?.value != null ? String(initial.value) : '');
   const [stage, setStage] = useState(initial?.stage ?? 'Lead');
@@ -449,7 +450,10 @@ function DealModal({ open, companies, contacts, busy, onAddCompany, onClose, onS
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const pickable = companyId ? contacts.filter((c) => !c.company_id || c.company_id === companyId) : contacts;
   const isEdit = !!heading;
-  const submit = () => title.trim() && onSubmit({ title: title.trim(), value: parseFloat(value) || 0, stage, company_id: companyId || null, contact_id: contactId || null, expected_close: close || null, notes: notes.trim() || null });
+  const submit = () => {
+    if (!title.trim()) { tabs.setTab('details'); return; }
+    onSubmit({ title: title.trim(), value: parseFloat(value) || 0, stage, company_id: companyId || null, contact_id: contactId || null, expected_close: close || null, notes: notes.trim() || null });
+  };
   return (
     <Modal
       open={open}
@@ -457,43 +461,54 @@ function DealModal({ open, companies, contacts, busy, onAddCompany, onClose, onS
       title={heading ?? 'New deal'}
       subtitle={isEdit ? 'Update deal details, stage and assignment.' : 'Add a deal to your pipeline.'}
       icon={isEdit ? 'ti-edit' : 'ti-target'}
-      onSubmit={() => { if (!busy && title.trim()) submit(); }}
+      tabs={[
+        { key: 'details', label: 'Details', icon: 'ti-target' },
+        { key: 'relations', label: 'Relations', icon: 'ti-link' },
+      ]}
+      {...tabs.bind}
+      onSubmit={() => { if (!busy) submit(); }}
       footer={
         <>
-          <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+          <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
           <button onClick={onClose} className="btn">Cancel</button>
           <button onClick={submit} disabled={busy || !title.trim()} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Saving…' : (submitLabel ?? 'Create deal')}</button>
         </>
       }
     >
-      <div className="space-y-3.5">
-        <Field label="Title" required hint="A short, recognizable name for this deal.">
-          <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Acme — annual license" className="input" />
-        </Field>
-        <div className="flex gap-3">
-          <Field label="Value (USD)" className="flex-1">
-            <input value={value} onChange={(e) => setValue(e.target.value)} type="number" min="0" placeholder="0" className="input" />
+      {tabs.tab === 'details' && (
+        <div className="space-y-3.5">
+          <Field label="Title" required hint="A short, recognizable name for this deal.">
+            <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Acme — annual license" className="input" />
           </Field>
-          <Field label="Stage" className="flex-1">
-            <select value={stage} onChange={(e) => setStage(e.target.value)} className="input">
-              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+          <div className="flex gap-3">
+            <Field label="Value (USD)" className="flex-1">
+              <input value={value} onChange={(e) => setValue(e.target.value)} type="number" min="0" placeholder="0" className="input" />
+            </Field>
+            <Field label="Stage" className="flex-1">
+              <select value={stage} onChange={(e) => setStage(e.target.value)} className="input">
+                {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="Expected close">
+            <input value={close} onChange={(e) => setClose(e.target.value)} type="date" className="input" />
+          </Field>
+          <Field label="Notes" hint="Optional — any extra context.">
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="textarea h-20" placeholder="Optional" />
+          </Field>
+        </div>
+      )}
+      {tabs.tab === 'relations' && (
+        <div className="space-y-3.5">
+          <CompanyField companies={companies} value={companyId} onChange={setCompanyId} onAddCompany={onAddCompany} />
+          <Field label="Primary contact">
+            <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="input">
+              <option value="">None</option>
+              {pickable.map((c) => <option key={c.id} value={c.id}>{c.full_name}{c.title ? ` · ${c.title}` : ''}</option>)}
             </select>
           </Field>
         </div>
-        <CompanyField companies={companies} value={companyId} onChange={setCompanyId} onAddCompany={onAddCompany} />
-        <Field label="Primary contact">
-          <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="input">
-            <option value="">None</option>
-            {pickable.map((c) => <option key={c.id} value={c.id}>{c.full_name}{c.title ? ` · ${c.title}` : ''}</option>)}
-          </select>
-        </Field>
-        <Field label="Expected close">
-          <input value={close} onChange={(e) => setClose(e.target.value)} type="date" className="input" />
-        </Field>
-        <Field label="Notes" hint="Optional — any extra context.">
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="textarea h-20" placeholder="Optional" />
-        </Field>
-      </div>
+      )}
     </Modal>
   );
 }
@@ -519,7 +534,7 @@ function ContactModal({ open, companies, busy, onAddCompany, onClose, onSubmit }
       onSubmit={() => { if (!busy && fullName.trim()) submit(); }}
       footer={
         <>
-          <span className="hidden sm:block text-2xs text-muted2 mr-auto">⌘↵ to save</span>
+          <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
           <button onClick={onClose} className="btn">Cancel</button>
           <button onClick={submit} disabled={busy || !fullName.trim()} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Saving…' : 'Create contact'}</button>
         </>

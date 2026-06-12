@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
-import { Modal, Field } from '@/components/Modal';
+import { Modal, Field, useModalTabs } from '@/components/Modal';
 import CustomFields from '@/components/CustomFields';
 import { useLedgerEntries, useProjects, useOrgCompanies } from '@/lib/queries';
 import { createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, LEDGER_CATEGORIES } from '@/lib/db';
@@ -42,6 +42,8 @@ export default function AccountingPage() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [busy, setBusy] = useState(false);
 
+  const tabs = useModalTabs('details');
+
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
   // Category options: curated lists + anything already used (covers payroll-posted rows).
@@ -77,7 +79,7 @@ export default function AccountingPage() {
     .filter((e) => e.type === 'expense' && e.entry_date?.slice(0, 7) === monthKey)
     .reduce((s, e) => s + (e.amount || 0), 0);
 
-  const openNew = () => { setEditing(null); setForm(emptyForm()); setShowModal(true); };
+  const openNew = () => { setEditing(null); setForm(emptyForm()); tabs.setTab('details'); setShowModal(true); };
   const openEdit = (e: LedgerEntry) => {
     setEditing(e);
     setForm({
@@ -85,13 +87,18 @@ export default function AccountingPage() {
       entry_date: e.entry_date || todayStr(), project_id: e.project_id || '',
       company_id: e.company_id || '', notes: e.notes || '',
     });
+    tabs.setTab('details');
     setShowModal(true);
   };
 
   const save = async () => {
     if (!org) return;
     const amount = parseFloat(form.amount);
-    if (!form.category.trim() || !isFinite(amount) || amount < 0) { alert('Enter a category and a non-negative amount.'); return; }
+    if (!form.category.trim() || !isFinite(amount) || amount < 0) {
+      tabs.setTab('details');
+      alert('Enter a category and a non-negative amount.');
+      return;
+    }
     setBusy(true);
     try {
       const payload = {
@@ -202,8 +209,15 @@ export default function AccountingPage() {
         subtitle={editing ? `${editing.type} · ${editing.category}` : 'Record income or an expense'}
         icon="ti-report-money"
         size="md"
+        tabs={[
+          { key: 'details', label: 'Details', icon: 'ti-receipt' },
+          { key: 'links', label: 'Links', icon: 'ti-link' },
+          ...(editing ? [{ key: 'custom', label: 'Custom fields', icon: 'ti-list-details' }] : []),
+        ]}
+        {...tabs.bind}
         footer={
           <>
+            <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
             <button className="btn" onClick={() => setShowModal(false)} disabled={busy}>Cancel</button>
             <button className="btn btn-primary" onClick={save} disabled={busy}>
               {busy ? 'Saving…' : editing ? 'Save changes' : 'Add entry'}
@@ -211,50 +225,54 @@ export default function AccountingPage() {
           </>
         }
       >
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Type" required>
-            <select className="input w-full" value={form.type}
-              onChange={(e) => {
-                const t = e.target.value as 'income' | 'expense';
-                set({ type: t, category: LEDGER_CATEGORIES[t].includes(form.category) ? form.category : LEDGER_CATEGORIES[t][0] });
-              }}>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
-          </Field>
-          <Field label="Category" required>
-            <select className="input w-full" value={form.category} onChange={(e) => set({ category: e.target.value })}>
-              {LEDGER_CATEGORIES[form.type].map((c) => <option key={c} value={c}>{c}</option>)}
-              {!LEDGER_CATEGORIES[form.type].includes(form.category) && <option value={form.category}>{form.category}</option>}
-            </select>
-          </Field>
-          <Field label="Amount (USD)" required>
-            <input className="input w-full" type="number" min="0" step="0.01" value={form.amount}
-              onChange={(e) => set({ amount: e.target.value })} placeholder="0.00" />
-          </Field>
-          <Field label="Date" required>
-            <input className="input w-full" type="date" value={form.entry_date} onChange={(e) => set({ entry_date: e.target.value })} />
-          </Field>
-          <Field label="Project" hint="Optional — links spend to a project">
-            <select className="input w-full" value={form.project_id} onChange={(e) => set({ project_id: e.target.value })}>
-              <option value="">—</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Company" hint="Optional">
-            <select className="input w-full" value={form.company_id} onChange={(e) => set({ company_id: e.target.value })}>
-              <option value="">—</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Notes" className="sm:col-span-2">
-            <textarea className="input w-full" rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
-          </Field>
-        </div>
-        {editing && (
-          <div className="mt-5 border-t border-line pt-4">
-            <CustomFields orgId={org?.id || ''} entityType="ledger_entry" entityId={editing.id} canManage={isAdmin} title="Custom fields" />
+        {tabs.tab === 'details' && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field label="Type" required>
+              <select className="input w-full" value={form.type}
+                onChange={(e) => {
+                  const t = e.target.value as 'income' | 'expense';
+                  set({ type: t, category: LEDGER_CATEGORIES[t].includes(form.category) ? form.category : LEDGER_CATEGORIES[t][0] });
+                }}>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+              </select>
+            </Field>
+            <Field label="Category" required>
+              <select className="input w-full" value={form.category} onChange={(e) => set({ category: e.target.value })}>
+                {LEDGER_CATEGORIES[form.type].map((c) => <option key={c} value={c}>{c}</option>)}
+                {!LEDGER_CATEGORIES[form.type].includes(form.category) && <option value={form.category}>{form.category}</option>}
+              </select>
+            </Field>
+            <Field label="Amount (USD)" required>
+              <input className="input w-full" type="number" min="0" step="0.01" value={form.amount}
+                onChange={(e) => set({ amount: e.target.value })} placeholder="0.00" />
+            </Field>
+            <Field label="Date" required>
+              <input className="input w-full" type="date" value={form.entry_date} onChange={(e) => set({ entry_date: e.target.value })} />
+            </Field>
+            <Field label="Notes" className="sm:col-span-2">
+              <textarea className="input w-full" rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
+            </Field>
           </div>
+        )}
+        {tabs.tab === 'links' && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field label="Project" hint="Optional — links spend to a project">
+              <select className="input w-full" value={form.project_id} onChange={(e) => set({ project_id: e.target.value })}>
+                <option value="">—</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Company" hint="Optional">
+              <select className="input w-full" value={form.company_id} onChange={(e) => set({ company_id: e.target.value })}>
+                <option value="">—</option>
+                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </Field>
+          </div>
+        )}
+        {tabs.tab === 'custom' && editing && (
+          <CustomFields orgId={org?.id || ''} entityType="ledger_entry" entityId={editing.id} canManage={isAdmin} title="Custom fields" />
         )}
       </Modal>
     </Layout>

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
-import { Modal, Field } from '@/components/Modal';
+import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useTrainingDocs, useJobDescriptions } from '@/lib/queries';
 import {
   createTrainingDoc, updateTrainingDoc, deleteTrainingDoc,
@@ -420,92 +420,183 @@ export default function TrainingPage() {
         </div>
       )}
 
-      <Modal
-        open={showTdModal} onClose={() => setShowTdModal(false)} onSubmit={saveTd}
-        title={editingTd ? 'Edit training document' : 'New training document'}
-        subtitle={editingTd ? editingTd.title : 'Add a training resource for your organisation'}
-        icon="ti-school" size="md"
-        footer={
-          <>
-            <button className="btn" onClick={() => setShowTdModal(false)} disabled={tdBusy}>Cancel</button>
-            <button className="btn btn-primary" onClick={saveTd} disabled={tdBusy}>
-              {tdBusy ? 'Saving…' : editingTd ? 'Save changes' : 'Add document'}
-            </button>
-          </>
-        }
-      >
+      <TdModal
+        open={showTdModal}
+        editing={editingTd}
+        form={tdForm}
+        setForm={setTdForm}
+        busy={tdBusy}
+        roleTemplates={roleTemplates}
+        onClose={() => setShowTdModal(false)}
+        onSubmit={saveTd}
+      />
+
+      <JdModal
+        open={showJdModal}
+        editing={editingJd}
+        form={jdForm}
+        setForm={setJdForm}
+        busy={jdBusy}
+        roleTemplates={roleTemplates}
+        onClose={() => setShowJdModal(false)}
+        onSubmit={saveJd}
+      />
+    </Layout>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// TdModal — Training document modal (tabbed: Basics / Source)
+// ---------------------------------------------------------------------------
+function TdModal({ open, editing, form, setForm, busy, roleTemplates, onClose, onSubmit }: {
+  open: boolean;
+  editing: TrainingDoc | null;
+  form: TDocForm;
+  setForm: React.Dispatch<React.SetStateAction<TDocForm>>;
+  busy: boolean;
+  roleTemplates: RoleTemplate[];
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const tabs = useModalTabs('basics');
+  const submit = () => {
+    if (!form.title.trim()) { tabs.setTab('basics'); return; }
+    onSubmit();
+  };
+  return (
+    <Modal
+      open={open} onClose={onClose}
+      title={editing ? 'Edit training document' : 'New training document'}
+      subtitle={editing ? editing.title : 'Add a training resource for your organisation'}
+      icon="ti-school" size="md"
+      tabs={[
+        { key: 'basics', label: 'Basics', icon: 'ti-id-badge-2' },
+        { key: 'source', label: 'Source', icon: 'ti-link' },
+      ]}
+      {...tabs.bind}
+      onSubmit={() => { if (!busy) submit(); }}
+      footer={
+        <>
+          <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
+          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn btn-primary" onClick={submit} disabled={busy}>
+            {busy ? 'Saving…' : editing ? 'Save changes' : 'Add document'}
+          </button>
+        </>
+      }
+    >
+      {tabs.tab === 'basics' && (
         <div className="flex flex-col gap-4">
           <Field label="Title" required>
-            <input className="input w-full" placeholder="Document title" value={tdForm.title} onChange={(e) => setTdForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
+            <input className="input w-full" placeholder="Document title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
           </Field>
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Category">
-              <input className="input w-full" placeholder="e.g. Safety, Compliance" value={tdForm.category} onChange={(e) => setTdForm((f) => ({ ...f, category: e.target.value }))} />
+              <input className="input w-full" placeholder="e.g. Safety, Compliance" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
             </Field>
             <Field label="Department">
-              <input className="input w-full" placeholder="e.g. Engineering, HR" value={tdForm.department} onChange={(e) => setTdForm((f) => ({ ...f, department: e.target.value }))} />
+              <input className="input w-full" placeholder="e.g. Engineering, HR" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} />
             </Field>
           </div>
           {roleTemplates.length > 0 && (
             <Field label="Role template">
-              <select className="input w-full" value={tdForm.role_template_id} onChange={(e) => setTdForm((f) => ({ ...f, role_template_id: e.target.value }))}>
+              <select className="input w-full" value={form.role_template_id} onChange={(e) => setForm((f) => ({ ...f, role_template_id: e.target.value }))}>
                 <option value="">None</option>
                 {roleTemplates.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </Field>
           )}
-          <Field label="Link URL" hint="External resource (optional; overridden by an uploaded file)">
-            <input className="input w-full" placeholder="https://…" value={tdForm.link_url} onChange={(e) => setTdForm((f) => ({ ...f, link_url: e.target.value }))} />
-          </Field>
           <Field label="Description">
-            <textarea className="input w-full" rows={3} placeholder="Brief description of this document" value={tdForm.description} onChange={(e) => setTdForm((f) => ({ ...f, description: e.target.value }))} />
+            <textarea className="input w-full" rows={3} placeholder="Brief description of this document" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
           </Field>
         </div>
-      </Modal>
+      )}
+      {tabs.tab === 'source' && (
+        <div className="flex flex-col gap-4">
+          <Field label="Link URL" hint="External resource (optional; overridden by an uploaded file)">
+            <input className="input w-full" placeholder="https://…" value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} autoFocus />
+          </Field>
+        </div>
+      )}
+    </Modal>
+  );
+}
 
-      <Modal
-        open={showJdModal} onClose={() => setShowJdModal(false)} onSubmit={saveJd}
-        title={editingJd ? 'Edit job description' : 'New job description'}
-        subtitle={editingJd ? editingJd.title : 'Add a job description for your organisation'}
-        icon="ti-briefcase" size="md"
-        footer={
-          <>
-            <button className="btn" onClick={() => setShowJdModal(false)} disabled={jdBusy}>Cancel</button>
-            <button className="btn btn-primary" onClick={saveJd} disabled={jdBusy}>
-              {jdBusy ? 'Saving…' : editingJd ? 'Save changes' : 'Add JD'}
-            </button>
-          </>
-        }
-      >
+// ---------------------------------------------------------------------------
+// JdModal — Job description modal (tabbed: Basics / Content)
+// ---------------------------------------------------------------------------
+function JdModal({ open, editing, form, setForm, busy, roleTemplates, onClose, onSubmit }: {
+  open: boolean;
+  editing: JobDescription | null;
+  form: JDForm;
+  setForm: React.Dispatch<React.SetStateAction<JDForm>>;
+  busy: boolean;
+  roleTemplates: RoleTemplate[];
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const tabs = useModalTabs('basics');
+  const submit = () => {
+    if (!form.title.trim()) { tabs.setTab('basics'); return; }
+    onSubmit();
+  };
+  return (
+    <Modal
+      open={open} onClose={onClose}
+      title={editing ? 'Edit job description' : 'New job description'}
+      subtitle={editing ? editing.title : 'Add a job description for your organisation'}
+      icon="ti-briefcase" size="md"
+      tabs={[
+        { key: 'basics', label: 'Basics', icon: 'ti-id-badge-2' },
+        { key: 'content', label: 'Content', icon: 'ti-article' },
+      ]}
+      {...tabs.bind}
+      onSubmit={() => { if (!busy) submit(); }}
+      footer={
+        <>
+          <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
+          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn btn-primary" onClick={submit} disabled={busy}>
+            {busy ? 'Saving…' : editing ? 'Save changes' : 'Add JD'}
+          </button>
+        </>
+      }
+    >
+      {tabs.tab === 'basics' && (
         <div className="flex flex-col gap-4">
           <Field label="Title" required>
-            <input className="input w-full" placeholder="Job title" value={jdForm.title} onChange={(e) => setJdForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
+            <input className="input w-full" placeholder="Job title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
           </Field>
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Department">
-              <input className="input w-full" placeholder="e.g. Engineering" value={jdForm.department} onChange={(e) => setJdForm((f) => ({ ...f, department: e.target.value }))} />
+              <input className="input w-full" placeholder="e.g. Engineering" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} />
             </Field>
             {roleTemplates.length > 0 && (
               <Field label="Role template">
-                <select className="input w-full" value={jdForm.role_template_id} onChange={(e) => setJdForm((f) => ({ ...f, role_template_id: e.target.value }))}>
+                <select className="input w-full" value={form.role_template_id} onChange={(e) => setForm((f) => ({ ...f, role_template_id: e.target.value }))}>
                   <option value="">None</option>
                   {roleTemplates.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
               </Field>
             )}
           </div>
+        </div>
+      )}
+      {tabs.tab === 'content' && (
+        <div className="flex flex-col gap-4">
           <Field label="Summary">
-            <textarea className="input w-full" rows={2} placeholder="Brief role overview" value={jdForm.summary} onChange={(e) => setJdForm((f) => ({ ...f, summary: e.target.value }))} />
+            <textarea className="input w-full" rows={2} placeholder="Brief role overview" value={form.summary} onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} autoFocus />
           </Field>
           <Field label="Responsibilities">
-            <textarea className="input w-full" rows={3} placeholder="Key responsibilities…" value={jdForm.responsibilities} onChange={(e) => setJdForm((f) => ({ ...f, responsibilities: e.target.value }))} />
+            <textarea className="input w-full" rows={3} placeholder="Key responsibilities…" value={form.responsibilities} onChange={(e) => setForm((f) => ({ ...f, responsibilities: e.target.value }))} />
           </Field>
           <Field label="Requirements">
-            <textarea className="input w-full" rows={3} placeholder="Skills, experience, qualifications…" value={jdForm.requirements} onChange={(e) => setJdForm((f) => ({ ...f, requirements: e.target.value }))} />
+            <textarea className="input w-full" rows={3} placeholder="Skills, experience, qualifications…" value={form.requirements} onChange={(e) => setForm((f) => ({ ...f, requirements: e.target.value }))} />
           </Field>
         </div>
-      </Modal>
-    </Layout>
+      )}
+    </Modal>
   );
 }
 

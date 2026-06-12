@@ -4,6 +4,14 @@ import { Icon } from '@/components/ui';
 type Size = 'sm' | 'md' | 'lg' | 'xl';
 const WIDTH: Record<Size, string> = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-2xl' };
 
+export interface ModalTab { key: string; label: string; icon?: string; badge?: number | string | null }
+
+/** Tiny controlled-tab helper for tabbed modals: const t = useModalTabs('basics'); <Modal tabs={…} {...t.bind}> */
+export function useModalTabs(initial: string) {
+  const [tab, setTab] = React.useState(initial);
+  return { tab, setTab, bind: { tab, onTab: setTab } };
+}
+
 /**
  * Reusable modal shell — token-driven so it flips with the theme.
  * Header (optional accent icon tile + title + subtitle + X), scrollable body,
@@ -11,7 +19,7 @@ const WIDTH: Record<Size, string> = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w
  * `headerExtra` renders inline next to the title (pills, EntityLink dropdowns…).
  */
 export function Modal({
-  open, onClose, title, subtitle, icon, size = 'md', onSubmit, children, footer, headerExtra,
+  open, onClose, title, subtitle, icon, size = 'md', onSubmit, children, footer, headerExtra, tabs, tab, onTab,
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,12 +31,21 @@ export function Modal({
   children: React.ReactNode;
   footer?: React.ReactNode;
   headerExtra?: React.ReactNode;
+  /** Optional tab strip under the header — long forms switch panels instead of scrolling. */
+  tabs?: ModalTab[];
+  tab?: string;
+  onTab?: (key: string) => void;
 }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
       else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && onSubmit) { e.preventDefault(); onSubmit(); }
+      else if (e.key === 'Enter' && onSubmit) {
+        // Standard form behaviour: Enter in a single-line input/select submits.
+        const t = e.target as HTMLElement;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT')) { e.preventDefault(); onSubmit(); }
+      }
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -73,6 +90,31 @@ export function Modal({
           </button>
         </div>
 
+        {tabs && tabs.length > 0 && (
+          <div className="px-5 border-b border-line bg-surface2/30 flex items-center gap-1 overflow-x-auto" role="tablist">
+            {tabs.map((t) => {
+              const active = t.key === tab;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onTab?.(t.key)}
+                  className={`relative shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors -mb-px border-b-2 ${
+                    active ? 'border-accent text-content' : 'border-transparent text-muted hover:text-content'
+                  }`}
+                >
+                  {t.icon && <Icon name={t.icon} className="text-sm" />}
+                  {t.label}
+                  {t.badge != null && t.badge !== 0 && (
+                    <span className="text-2xs px-1.5 py-px rounded-full bg-accent/10 text-accentstrong">{t.badge}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="px-5 py-4 overflow-y-auto">{children}</div>
 
         {footer && (
