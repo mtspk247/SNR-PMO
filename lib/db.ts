@@ -1152,3 +1152,36 @@ export async function getTrainingDocUrl(path: string): Promise<string> {
   const { data, error } = await sb.storage.from('training-docs').createSignedUrl(path, 3600);
   if (error) throw new Error(error.message); return data.signedUrl;
 }
+
+// ---------------------------------------------------------------------------
+// S5 Chat — org channel (project_id null) + per-project channels.
+// RLS: chat_select = is_org_member AND (org channel OR can_access_project);
+// chat_insert pins sender_id = current_app_user_id() (spoof-proof);
+// chat_delete = own message OR org owner/admin. RETURNING is safe (the sender
+// always passes chat_select on their own new row), so .select() embeds work.
+import { ChatMessage } from './supabase';
+
+const CHAT_SEL = '*, sender:users(full_name)';
+const CHAT_PAGE = 50;
+
+export async function getChatMessages(projectId: string | null): Promise<ChatMessage[]> {
+  let q = sb.from('chat_messages').select(CHAT_SEL)
+    .order('created_at', { ascending: false }).limit(CHAT_PAGE);
+  q = projectId === null ? q.is('project_id', null) : q.eq('project_id', projectId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (((data as ChatMessage[]) || [])).reverse(); // oldest -> newest for rendering
+}
+export async function sendChatMessage(p: {
+  org_id: string; project_id?: string | null; sender_id: string; body: string;
+}): Promise<ChatMessage> {
+  const { data, error } = await sb.from('chat_messages').insert({
+    org_id: p.org_id, project_id: p.project_id || null, sender_id: p.sender_id, body: p.body,
+  }).select(CHAT_SEL).single();
+  if (error) throw new Error(error.message);
+  return data as ChatMessage;
+}
+export async function deleteChatMessage(id: string): Promise<void> {
+  const { error } = await sb.from('chat_messages').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}

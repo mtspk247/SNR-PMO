@@ -9,6 +9,7 @@ import { hasFeature, roleAllowsFeature } from '@/lib/entitlements';
 import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
+import ChatPanel from '@/components/ChatPanel';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
@@ -28,6 +29,7 @@ const SECTIONS: Section[] = [
     { href: '/projects', label: 'Projects', icon: 'ti-folder' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
     { href: '/ideas', label: 'Ideas', icon: 'ti-bulb' },
+    { href: '/chat', label: 'Chat', icon: 'ti-messages' },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Tracking', icon: 'ti-chart-line', items: [
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
@@ -98,6 +100,7 @@ export default function Layout({ title, children }: { title: string; children: R
   const [checking, setChecking] = useState(true);
   const [orgMenu, setOrgMenu] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);  // off-canvas drawer (< lg)
+  const [chatOpen, setChatOpen] = useState(false);       // S5 slide-in chat panel
   const [isLg, setIsLg] = useState(true);                // collapse is a desktop-only concept
 
   // Accordion: only the menu containing the current page stays expanded.
@@ -268,12 +271,17 @@ export default function Layout({ title, children }: { title: string; children: R
             <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm text-muted2">
               <Icon name="ti-search" />Search
             </div>
+            <button onClick={() => setChatOpen(true)} title="Chat"
+              className="h-9 w-9 grid place-items-center rounded-md border border-line text-muted hover:text-content hover:bg-surface2 transition">
+              <Icon name="ti-messages" className="text-base" />
+            </button>
             <ThemeToggle />
             <NotificationBell />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
+      {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
     </div>
   );
 }

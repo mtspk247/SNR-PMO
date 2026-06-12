@@ -6,7 +6,7 @@ import {
   getOrgCompanies, getPortfolios,
   getAuditLog, getAttendance, getEmployees, getLeaves, getPayrollRuns,
   getTasks, getDeals, getContacts, getCompanies, getLedgerEntries,
-  getIdeas, getTrainingDocs, getJobDescriptions,
+  getIdeas, getTrainingDocs, getJobDescriptions, getChatMessages,
 } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
@@ -132,4 +132,17 @@ export function useTrainingDocs() {
 export function useJobDescriptions() {
   const org = useActiveOrg();
   return useQuery({ queryKey: qk.jobDescriptions(org?.id), queryFn: getJobDescriptions, enabled: !!org });
+}
+
+// S5 chat: poll every 12s (decision: polling, not realtime — NotificationBell pattern).
+// channel = project id or null (org-wide). Mount-gated: panel unmounts on close, so
+// polling stops automatically when the chat UI isn't visible.
+export function useChatMessages(projectId: string | null) {
+  const org = useActiveOrg();
+  return useQuery({
+    queryKey: qk.chat(org?.id, projectId),
+    queryFn: () => getChatMessages(projectId),
+    enabled: !!org,
+    refetchInterval: 12000,
+  });
 }

@@ -22,4 +22,5 @@ export const qk = {
   trainingDocs: (org?: string | null) => ['trainingDocs', org ?? null] as const,
   jobDescriptions: (org?: string | null) => ['jobDescriptions', org ?? null] as const,
   adminUsers: (org?: string | null) => ['adminUsers', org ?? null] as const,
+  chat: (org?: string | null, channel?: string | null) => ['chat', org ?? null, channel ?? null] as const,
 };

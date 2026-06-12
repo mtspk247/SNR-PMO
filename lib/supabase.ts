@@ -355,3 +355,12 @@ export interface JobDescription {
   role_template?: { name: string | null } | null;
   creator?: { full_name: string | null } | null;
 }
+
+// ---- S5: Chat ---------------------------------------------------------------
+export interface ChatMessage {
+  id: string; org_id: string;
+  project_id: string | null;   // null = org-wide channel
+  sender_id: string;
+  body: string; created_at: string;
+  sender?: { full_name: string | null } | null;
+}
