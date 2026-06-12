@@ -33,6 +33,7 @@ export const useAuthStore = create<AuthState>()(
           user,
           orgs,
           platformAdmin,
+          // keep current active org if still valid, else default to first
           activeOrgId:
             s.activeOrgId && orgs.some((o) => o.id === s.activeOrgId)
               ? s.activeOrgId
@@ -47,12 +48,14 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'snr-auth',
+      // only persist lightweight prefs; session/user are rehydrated from Supabase
       partialize: (s) => ({ activeOrgId: s.activeOrgId, sidebarCollapsed: s.sidebarCollapsed }),
       onRehydrateStorage: () => (state) => state?.setHydrated(),
     }
   )
 );
 
+// Convenience selector: the user's role in the active org.
 export function useActiveOrg() {
   const { orgs, activeOrgId } = useAuthStore();
   return orgs.find((o) => o.id === activeOrgId) ?? null;

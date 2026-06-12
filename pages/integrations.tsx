@@ -82,8 +82,8 @@ export default function IntegrationsPage() {
           ) : groups.map(([c, list]) => (
             <div key={c} className="mb-7">
               <div className="flex items-center gap-2 mb-3">
-                <p className="text-2xs uppercase tracking-wide text-muted2">{c}</p>
-                <span className="text-2xs text-muted2">· {list.length}</span>
+                <p className="text-2xs uppercase tracking-wide text-muted font-medium">{c}</p>
+                <span className="text-2xs text-muted">· {list.length}</span>
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {list.map((it) => {

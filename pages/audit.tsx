@@ -12,7 +12,7 @@ export default function AuditPage() {
   const [q, setQ] = useState('');
 
   if (!can.manageMembers(org)) {
-    return <Layout title="Audit log"><div className="card p-10 text-center text-sm text-neutral-500"><Icon name="ti-lock" className="text-2xl text-neutral-300 block mb-2" />You need admin access to view the audit log.</div></Layout>;
+    return <Layout title="Audit log"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to view the audit log.</div></Layout>;
   }
 
   const filtered = rows.filter((r) => !q || [r.action, r.username, r.entity_type, r.entity_id].some((v) => String(v || '').toLowerCase().includes(q.toLowerCase())));
@@ -23,18 +23,18 @@ export default function AuditPage() {
       {isLoading ? <Spinner /> : (
         <>
           <PageHeader title="Audit log" subtitle="Recent activity across the workspace"
-            action={<div className="flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-white"><Icon name="ti-search" className="text-neutral-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter" className="bg-transparent outline-none text-sm" /></div>} />
+            action={<div className="flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-surface"><Icon name="ti-search" className="text-muted" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter" className="bg-transparent outline-none text-sm text-content placeholder:text-muted" /></div>} />
           <div className="card overflow-hidden">
             <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="text-2xs uppercase tracking-wide text-neutral-400 border-b border-line">
-                <th className="text-left font-medium px-4 py-2.5">When</th><th className="text-left font-medium px-4 py-2.5">Who</th><th className="text-left font-medium px-4 py-2.5">Action</th><th className="text-left font-medium px-4 py-2.5">Entity</th>
+              <thead><tr className="text-2xs uppercase tracking-wide text-muted bg-surface2 border-b border-line">
+                <th className="text-left font-medium px-4 py-3">When</th><th className="text-left font-medium px-4 py-3">Who</th><th className="text-left font-medium px-4 py-3">Action</th><th className="text-left font-medium px-4 py-3">Entity</th>
               </tr></thead>
               <tbody>{pg.pageItems.map((r) => (
-                <tr key={r.id} className="border-b border-line last:border-0">
-                  <td className="px-4 py-2.5 text-neutral-500 whitespace-nowrap">{new Date(r.ts).toLocaleString()}</td>
-                  <td className="px-4 py-2.5">{r.username || '—'}</td>
-                  <td className="px-4 py-2.5"><span className="pill pill-blue">{r.action}</span></td>
-                  <td className="px-4 py-2.5 text-neutral-500">{r.entity_type ? `${r.entity_type}${r.entity_id ? ' · ' + String(r.entity_id).slice(0, 8) : ''}` : '—'}</td>
+                <tr key={r.id} className="border-b border-line last:border-0 hover:bg-surface2/50">
+                  <td className="px-4 py-3 text-muted whitespace-nowrap text-2xs">{new Date(r.ts).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-content">{r.username || '—'}</td>
+                  <td className="px-4 py-3"><span className="pill pill-blue">{r.action}</span></td>
+                  <td className="px-4 py-3 text-muted font-mono text-2xs">{r.entity_type ? `${r.entity_type}${r.entity_id ? ' · ' + String(r.entity_id).slice(0, 8) : ''}` : '—'}</td>
                 </tr>
               ))}</tbody>
             </table></div>
