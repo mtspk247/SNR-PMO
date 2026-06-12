@@ -271,6 +271,7 @@ export interface OnboardingTask {
 // Employee directory row — org users with the extra People-domain fields
 // needed for the directory list and profile header.
 export interface Employee {
+  avatar_url?: string | null;
   id: string; full_name: string; email: string; role: Role;
   department: string | null; status: 'active' | 'suspended';
   reports_to: string | null;
@@ -283,6 +284,7 @@ export interface Employee {
 export interface EmployeeCompensation {
   id: string; org_id?: string; user_id: string;
   base_salary: number; currency: string; pay_schedule: string;
+  pay_type?: 'monthly' | 'hourly'; hourly_rate?: number | null;
   effective_date: string; notes?: string | null;
   created_by?: string | null; created_at?: string;
 }
@@ -297,8 +299,10 @@ export interface PayrollRun {
 export interface Payslip {
   id: string; org_id?: string; run_id: string; user_id: string;
   gross: number; deductions: number; net: number;
+  hours_worked?: number | null; days_worked?: number | null;
+  bonus?: number; bonus_tag?: string | null; bonus_note?: string | null;
   breakdown: Record<string, any>; created_at?: string;
-  users?: { full_name: string | null; email?: string } | null;
+  users?: { full_name: string | null; email?: string; job_title?: string | null; department?: string | null } | null;
 }
 
 // ---- Task custom fields (per-project definitions + per-task values) ----

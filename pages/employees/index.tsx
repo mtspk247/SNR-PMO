@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -6,7 +6,7 @@ import { PageHeader, Spinner, EmptyState, Avatar, Icon, StatCard } from '@/compo
 import { usePagination, Pagination } from '@/components/Pagination';
 import EmployeeModal, { EmployeeFormValues } from '@/components/EmployeeModal';
 import { useEmployees, useOrgCompanies } from '@/lib/queries';
-import { createEmployee } from '@/lib/db';
+import { createEmployee, getAvatarUrl } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -20,6 +20,25 @@ export default function EmployeesPage() {
   const [q, setQ] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // avatar signed-URL cache: path → url
+  const [avatarMap, setAvatarMap] = useState<Map<string, string>>(new Map());
+  const resolvedPaths = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const pending = rows
+      .map((e) => e.avatar_url)
+      .filter((p): p is string => !!p && !resolvedPaths.current.has(p));
+    if (!pending.length) return;
+    pending.forEach((p) => resolvedPaths.current.add(p));
+    Promise.all(pending.map(async (p) => ({ p, url: await getAvatarUrl(p).catch(() => null) }))).then((results) => {
+      setAvatarMap((prev) => {
+        const next = new Map(prev);
+        results.forEach(({ p, url }) => { if (url) next.set(p, url); });
+        return next;
+      });
+    });
+  }, [rows]);
 
   const create = async (v: EmployeeFormValues) => {
     if (!org) return; setBusy(true);
@@ -82,30 +101,38 @@ export default function EmployeesPage() {
               </tr>
             </thead>
             <tbody>
-              {pg.pageItems.map((e) => (
-                <tr key={e.id} className="row border-b border-line last:border-0">
-                  <td className="td">
-                    <Link href={`/employees/${e.id}`} className="inline-flex items-center gap-2.5 hover:text-accentstrong">
-                      <Avatar name={e.full_name || '?'} size={28} />
-                      <span className="min-w-0">
-                        <span className="block font-medium truncate">{e.full_name}</span>
-                        <span className="block text-2xs text-muted2 truncate">{e.email}</span>
-                      </span>
-                    </Link>
-                  </td>
-                  <td className="td capitalize">{(e.role || '').replace('_', ' ')}</td>
-                  <td className="td">{e.department || '—'}</td>
-                  <td className="td">
-                    <span className={`pill ${e.status === 'active' ? 'pill-green' : 'pill-red'}`}>{e.status}</span>
-                  </td>
-                  <td className="td">{e.manager?.full_name || '—'}</td>
-                  <td className="td text-right">
-                    <Link href={`/employees/${e.id}`} className="btn btn-ghost h-7 px-2 text-xs">
-                      View<Icon name="ti-chevron-right" className="text-sm" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {pg.pageItems.map((e) => {
+                const avatarSrc = e.avatar_url ? avatarMap.get(e.avatar_url) : undefined;
+                return (
+                  <tr key={e.id} className="row border-b border-line last:border-0">
+                    <td className="td">
+                      <Link href={`/employees/${e.id}`} className="inline-flex items-center gap-2.5 hover:text-accentstrong">
+                        {avatarSrc ? (
+                          <img src={avatarSrc} alt={e.full_name} width={28} height={28}
+                            style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        ) : (
+                          <Avatar name={e.full_name || '?'} size={28} />
+                        )}
+                        <span className="min-w-0">
+                          <span className="block font-medium truncate">{e.full_name}</span>
+                          <span className="block text-2xs text-muted2 truncate">{e.email}</span>
+                        </span>
+                      </Link>
+                    </td>
+                    <td className="td capitalize">{(e.role || '').replace('_', ' ')}</td>
+                    <td className="td">{e.department || '—'}</td>
+                    <td className="td">
+                      <span className={`pill ${e.status === 'active' ? 'pill-green' : 'pill-red'}`}>{e.status}</span>
+                    </td>
+                    <td className="td">{e.manager?.full_name || '—'}</td>
+                    <td className="td text-right">
+                      <Link href={`/employees/${e.id}`} className="btn btn-ghost h-7 px-2 text-xs">
+                        View<Icon name="ti-chevron-right" className="text-sm" />
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table></div>
           <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />

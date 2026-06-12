@@ -840,6 +840,23 @@ export async function updateEmployeeProfile(id: string, patch: EmployeeProfilePa
 }
 
 // ---- Compensation -----------------------------------------------------------
+// P1: avatars — private bucket; store the storage path on users.avatar_url and
+// resolve a signed URL for rendering.
+export async function uploadAvatar(orgId: string, userId: string, file: File): Promise<string> {
+  const path = `${orgId}/${userId}/${Date.now()}_${file.name.replace(/[^\w.\-]+/g, '_')}`;
+  const { error } = await sb.storage.from('avatars').upload(path, file, { upsert: true });
+  if (error) throw new Error(error.message);
+  const { error: e2 } = await sb.from('users').update({ avatar_url: path }).eq('id', userId);
+  if (e2) throw new Error(e2.message);
+  return path;
+}
+export async function getAvatarUrl(path?: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data, error } = await sb.storage.from('avatars').createSignedUrl(path, 3600);
+  if (error) return null;
+  return data?.signedUrl || null;
+}
+
 export async function getEmployeeCompensation(userId: string): Promise<EmployeeCompensation | null> {
   const { data, error } = await sb.from('employee_compensation').select('*')
     .eq('user_id', userId).order('effective_date', { ascending: false }).limit(1).maybeSingle();
@@ -848,11 +865,13 @@ export async function getEmployeeCompensation(userId: string): Promise<EmployeeC
 export async function setCompensation(p: {
   org_id: string; user_id: string; base_salary: number; currency?: string;
   pay_schedule?: string; effective_date?: string; notes?: string | null; created_by?: string | null;
+  pay_type?: 'monthly' | 'hourly'; hourly_rate?: number | null;
 }): Promise<EmployeeCompensation> {
   const { data, error } = await sb.from('employee_compensation')
     .insert({
       org_id: p.org_id, user_id: p.user_id, base_salary: p.base_salary,
       currency: p.currency || 'USD', pay_schedule: p.pay_schedule || 'Monthly',
+      pay_type: p.pay_type || 'monthly', hourly_rate: p.hourly_rate ?? null,
       effective_date: p.effective_date || today(), notes: p.notes || null, created_by: p.created_by || null,
     })
     .select('*').single();
@@ -887,7 +906,7 @@ export async function deletePayrollRun(id: string): Promise<void> {
 }
 
 // ---- Payslips -------------------------------------------------------------
-const PAYSLIP_SEL = '*, users(full_name, email)';
+const PAYSLIP_SEL = '*, users(full_name, email, job_title, department)';
 export async function getPayslips(runId: string): Promise<Payslip[]> {
   const { data, error } = await sb.from('payslips').select(PAYSLIP_SEL)
     .eq('run_id', runId).order('created_at', { ascending: true });
@@ -908,6 +927,16 @@ export async function createPayslip(p: {
       deductions: p.deductions, net: p.net ?? (p.gross - p.deductions), breakdown: p.breakdown || {},
     })
     .select(PAYSLIP_SEL).single();
+  if (error) throw new Error(error.message); return data as Payslip;
+}
+// P2: load all active employees into a Draft run (hours from time_entries, days from attendance)
+export async function preparePayrollRun(runId: string): Promise<number> {
+  const { data, error } = await sb.rpc('payroll_prepare_run', { p_run: runId });
+  if (error) throw new Error(error.message);
+  return (data as number) ?? 0;
+}
+export async function updatePayslip(id: string, patch: Partial<Payslip>): Promise<Payslip> {
+  const { data, error } = await sb.from('payslips').update(patch).eq('id', id).select(PAYSLIP_SEL).single();
   if (error) throw new Error(error.message); return data as Payslip;
 }
 export async function deletePayslip(id: string): Promise<void> {
