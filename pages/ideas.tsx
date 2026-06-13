@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { Modal, Field } from '@/components/Modal';
 import { useIdeas } from '@/lib/queries';
 import { createIdea, updateIdea, deleteIdea, toggleIdeaVote, convertIdeaToProject, IDEA_STATUSES } from '@/lib/db';
@@ -33,6 +34,8 @@ const STATUS_LABEL: Record<IdeaStatus, string> = {
 type FormState = { title: string; pitch: string; status: IdeaStatus };
 const emptyForm = (): FormState => ({ title: '', pitch: '', status: 'idea' });
 
+const IDEA_COLS: ColDef[] = [{ id: 'votes', label: 'Votes' }, { id: 'title', label: 'Title', locked: true }, { id: 'status', label: 'Status' }, { id: 'project', label: 'Project' }, { id: 'by', label: 'By' }, { id: 'created', label: 'Created' }];
+
 export default function IdeasPage() {
   const org = useActiveOrg();
   const user = useAuthStore((s) => s.user);
@@ -41,8 +44,7 @@ export default function IdeasPage() {
   const { data: ideas = [], isLoading } = useIdeas();
 
   const router = useRouter();
-  const [q, setQ] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | IdeaStatus>('all');
+  const lp = useListPrefs(`snr-ideas-view-${user?.id || 'anon'}`, IDEA_COLS);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Idea | null>(null);
   const [view, setView] = useState<'list' | 'card'>('list');
@@ -58,17 +60,16 @@ export default function IdeasPage() {
   const inProgress = ideas.filter((i) => ['exploring', 'approved', 'building'].includes(i.status)).length;
   const shipped = ideas.filter((i) => i.status === 'shipped').length;
 
+  const FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...IDEA_STATUSES.map((x) => ({ value: x, label: STATUS_LABEL[x] }))] }];
   const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const term = lp.query.trim().toLowerCase();
+    const sf = lp.filters.status;
     return ideas.filter((i) => {
-      if (statusFilter !== 'all' && i.status !== statusFilter) return false;
+      if (sf && sf !== 'all' && i.status !== sf) return false;
       if (!term) return true;
-      return (
-        i.title.toLowerCase().includes(term) ||
-        (i.pitch || '').toLowerCase().includes(term)
-      );
+      return (i.title.toLowerCase().includes(term) || (i.pitch || '').toLowerCase().includes(term));
     });
-  }, [ideas, q, statusFilter]);
+  }, [ideas, lp.query, lp.filters]);
 
   const pg = usePagination(filtered, 25);
 
@@ -155,39 +156,20 @@ export default function IdeasPage() {
         <StatCard label="Total votes" value={String(totalVotes)} hint="Across all ideas" icon="ti-arrow-big-up" />
       </div>
 
-      <div className="bg-surface overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-line">
-          <div className="relative flex-1 max-w-xs">
-            <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2" />
-            <input
-              className="input pl-8 w-full"
-              placeholder="Search ideas…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
-          <select
-            className="input w-auto"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-          >
-            <option value="all">All statuses</option>
-            {IDEA_STATUSES.map((s) => (
-              <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-            ))}
-          </select>
-          <div className="flex items-center rounded-lg border border-line overflow-hidden h-9 sm:ml-auto">
-            {(['list', 'card'] as const).map((v) => (
-              <button key={v} onClick={() => setView(v)} className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === v ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}><Icon name={v === 'list' ? 'ti-list' : 'ti-layout-grid'} className="text-sm" />{v}</button>
-            ))}
-          </div>
+      <ListToolbar prefs={lp} cols={IDEA_COLS} filters={FILTERS} placeholder="Search ideas…">
+        <div className="flex items-center rounded-lg border border-line overflow-hidden h-9">
+          {(['list', 'card'] as const).map((v) => (
+            <button key={v} onClick={() => setView(v)} className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === v ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}><Icon name={v === 'list' ? 'ti-list' : 'ti-layout-grid'} className="text-sm" />{v}</button>
+          ))}
         </div>
+      </ListToolbar>
+      <div className="bg-surface overflow-hidden">
 
         {isLoading ? (
           <div className="p-8"><Spinner /></div>
         ) : filtered.length === 0 ? (
           <div className="p-5">
-            <EmptyState icon="ti-bulb" text={q || statusFilter !== 'all' ? 'No ideas match your filters.' : 'No ideas yet — add the first one.'} />
+            <EmptyState icon="ti-bulb" text={lp.query || lp.activeCount ? 'No ideas match your filters.' : 'No ideas yet — add the first one.'} />
           </div>
         ) : (
           <>
@@ -222,12 +204,7 @@ export default function IdeasPage() {
               <table className="w-full">
                 <thead>
                   <tr>
-                    <th className="th w-16 text-center">Votes</th>
-                    <th className="th">Title</th>
-                    <th className="th">Status</th>
-                    <th className="th">Project</th>
-                    <th className="th">By</th>
-                    <th className="th">Created</th>
+                    {lp.ordered.map((id) => <th key={id} className={`th ${id === 'votes' ? 'w-16 text-center' : ''}`}>{IDEA_COLS.find((c) => c.id === id)?.label}</th>)}
                     <th className="th w-28"></th>
                   </tr>
                 </thead>
@@ -237,65 +214,25 @@ export default function IdeasPage() {
                     const voteCount = idea.votes?.length ?? 0;
                     const isVoting = votingId === idea.id;
                     const isConverting = convertingId === idea.id;
+                    const cell = (id: string) => {
+                      switch (id) {
+                        case 'votes': return (<button className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded transition-colors ${hasVoted ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted hover:text-content hover:bg-surface2'} disabled:opacity-50`} onClick={() => vote(idea)} disabled={isVoting || !user} title={hasVoted ? 'Remove vote' : 'Vote'}><Icon name="ti-arrow-big-up" className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span></button>);
+                        case 'title': return (<><p className="font-medium text-content truncate">{idea.title}</p>{idea.pitch && <p className="text-2xs text-muted truncate mt-0.5">{idea.pitch}</p>}</>);
+                        case 'status': return <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>;
+                        case 'project': return idea.project?.name ? <span className="pill pill-gray">{idea.project.name}</span> : '—';
+                        case 'by': return idea.creator?.full_name || '—';
+                        case 'created': return idea.created_at ? idea.created_at.slice(0, 10) : '—';
+                        default: return null;
+                      }
+                    };
                     return (
                       <tr key={idea.id} className="row">
-                        <td className="td text-center">
-                          <button
-                            className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded transition-colors ${hasVoted ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted hover:text-content hover:bg-surface2'} disabled:opacity-50`}
-                            onClick={() => vote(idea)}
-                            disabled={isVoting || !user}
-                            title={hasVoted ? 'Remove vote' : 'Vote'}
-                          >
-                            <Icon name="ti-arrow-big-up" className="text-base leading-none" />
-                            <span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span>
-                          </button>
-                        </td>
-                        <td className="td max-w-xs">
-                          <p className="font-medium text-content truncate">{idea.title}</p>
-                          {idea.pitch && (
-                            <p className="text-2xs text-muted truncate mt-0.5">{idea.pitch}</p>
-                          )}
-                        </td>
-                        <td className="td">
-                          <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>
-                        </td>
-                        <td className="td text-2xs text-muted">
-                          {idea.project?.name ? (
-                            <span className="pill pill-gray">{idea.project.name}</span>
-                          ) : '—'}
-                        </td>
-                        <td className="td text-2xs text-muted">
-                          {idea.creator?.full_name || '—'}
-                        </td>
-                        <td className="td text-2xs text-muted tabular-nums">
-                          {idea.created_at ? idea.created_at.slice(0, 10) : '—'}
-                        </td>
+                        {lp.ordered.map((id) => <td key={id} className={`td ${id === 'votes' ? 'text-center' : ''} ${id === 'title' ? 'max-w-xs' : ''} ${['project', 'by', 'created'].includes(id) ? 'text-2xs text-muted' : ''} ${id === 'created' ? 'tabular-nums' : ''}`}>{cell(id)}</td>)}
                         <td className="td">
                           <div className="flex items-center justify-end gap-1">
-                            <button
-                              className="btn-ghost p-1.5"
-                              title="Edit"
-                              onClick={() => openEdit(idea)}
-                            >
-                              <Icon name="ti-pencil" />
-                            </button>
-                            {!idea.project_id && (
-                              <button
-                                className="btn-ghost p-1.5 text-accent"
-                                title="Convert to project"
-                                onClick={() => convert(idea)}
-                                disabled={isConverting}
-                              >
-                                <Icon name="ti-rocket" />
-                              </button>
-                            )}
-                            <button
-                              className="btn-ghost p-1.5 text-rose-500"
-                              title="Delete"
-                              onClick={() => remove(idea)}
-                            >
-                              <Icon name="ti-trash" />
-                            </button>
+                            <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEdit(idea)}><Icon name="ti-pencil" /></button>
+                            {!idea.project_id && (<button className="btn-ghost p-1.5 text-accent" title="Convert to project" onClick={() => convert(idea)} disabled={isConverting}><Icon name="ti-rocket" /></button>)}
+                            <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => remove(idea)}><Icon name="ti-trash" /></button>
                           </div>
                         </td>
                       </tr>

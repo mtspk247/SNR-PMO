@@ -13,6 +13,7 @@ import {
 } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { can } from '@/lib/authz';
 import { TrainingDoc, JobDescription, RoleTemplate } from '@/lib/supabase';
 
@@ -34,6 +35,9 @@ const emptyJDForm = (): JDForm => ({
   title: '', department: '', role_template_id: '', summary: '', responsibilities: '', requirements: '',
 });
 
+const TD_COLS: ColDef[] = [{ id: 'title', label: 'Title', locked: true }, { id: 'category', label: 'Category' }, { id: 'department', label: 'Department' }, { id: 'role', label: 'Role' }, { id: 'file', label: 'File / Link' }, { id: 'added', label: 'Added' }];
+const JD_COLS: ColDef[] = [{ id: 'title', label: 'Title', locked: true }, { id: 'department', label: 'Department' }, { id: 'role', label: 'Role' }, { id: 'file', label: 'File' }, { id: 'added', label: 'Added' }];
+
 export default function TrainingPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
@@ -51,16 +55,12 @@ export default function TrainingPage() {
   const [tab, setTab] = useState<TabKey>('training');
 
   // Training doc state
-  const [tdQ, setTdQ] = useState('');
-  const [tdCatFilter, setTdCatFilter] = useState('');
   const [showTdModal, setShowTdModal] = useState(false);
   const [editingTd, setEditingTd] = useState<TrainingDoc | null>(null);
   const [tdForm, setTdForm] = useState<TDocForm>(emptyTDocForm());
   const [tdBusy, setTdBusy] = useState(false);
 
   // JD state
-  const [jdQ, setJdQ] = useState('');
-  const [jdDeptFilter, setJdDeptFilter] = useState('');
   const [showJdModal, setShowJdModal] = useState(false);
   const [editingJd, setEditingJd] = useState<JobDescription | null>(null);
   const [jdForm, setJdForm] = useState<JDForm>(emptyJDForm());
@@ -88,10 +88,15 @@ export default function TrainingPage() {
     return Array.from(s).sort();
   }, [jobDescs]);
 
+  const tdLp = useListPrefs(`snr-training-docs-view-${me?.id || 'anon'}`, TD_COLS);
+  const jdLp = useListPrefs(`snr-training-jd-view-${me?.id || 'anon'}`, JD_COLS);
+  const TD_FILTERS: FilterDef[] = useMemo(() => [{ id: 'category', label: 'Category', options: [{ value: 'all', label: 'All categories' }, ...tdCategories.map((c) => ({ value: c, label: c }))] }], [tdCategories]);
+  const JD_FILTERS: FilterDef[] = useMemo(() => [{ id: 'department', label: 'Department', options: [{ value: 'all', label: 'All departments' }, ...jdDepartments.map((d) => ({ value: d, label: d }))] }], [jdDepartments]);
+
   const filteredTd = useMemo(() => {
-    const term = tdQ.trim().toLowerCase();
+    const term = tdLp.query.trim().toLowerCase();
     return trainingDocs.filter((d) => {
-      if (tdCatFilter && d.category !== tdCatFilter) return false;
+      if (tdLp.filters.category && tdLp.filters.category !== 'all' && d.category !== tdLp.filters.category) return false;
       if (!term) return true;
       return (
         d.title.toLowerCase().includes(term) ||
@@ -100,12 +105,12 @@ export default function TrainingPage() {
         (d.department || '').toLowerCase().includes(term)
       );
     });
-  }, [trainingDocs, tdQ, tdCatFilter]);
+  }, [trainingDocs, tdLp.query, tdLp.filters]);
 
   const filteredJd = useMemo(() => {
-    const term = jdQ.trim().toLowerCase();
+    const term = jdLp.query.trim().toLowerCase();
     return jobDescs.filter((d) => {
-      if (jdDeptFilter && d.department !== jdDeptFilter) return false;
+      if (jdLp.filters.department && jdLp.filters.department !== 'all' && d.department !== jdLp.filters.department) return false;
       if (!term) return true;
       return (
         d.title.toLowerCase().includes(term) ||
@@ -113,7 +118,7 @@ export default function TrainingPage() {
         (d.summary || '').toLowerCase().includes(term)
       );
     });
-  }, [jobDescs, jdQ, jdDeptFilter]);
+  }, [jobDescs, jdLp.query, jdLp.filters]);
 
   const pgTd = usePagination(filteredTd, 25);
   const pgJd = usePagination(filteredJd, 25);
@@ -247,21 +252,14 @@ export default function TrainingPage() {
 
       {tab === 'training' && (
         <div className="card overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-line">
-            <div className="relative flex-1 max-w-xs">
-              <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2" />
-              <input className="input pl-8 w-full" placeholder="Search training docs…" value={tdQ} onChange={(e) => setTdQ(e.target.value)} />
-            </div>
-            <select className="input w-auto" value={tdCatFilter} onChange={(e) => setTdCatFilter(e.target.value)}>
-              <option value="">All categories</option>
-              {tdCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+          <div className="px-4 py-3 border-b border-line">
+            <ListToolbar prefs={tdLp} cols={TD_COLS} filters={TD_FILTERS} placeholder="Search training docs…" />
           </div>
           {isLoading ? (
             <div className="p-8"><Spinner /></div>
           ) : filteredTd.length === 0 ? (
             <div className="p-5">
-              <EmptyState icon="ti-school" text={tdQ || tdCatFilter ? 'No docs match your filters.' : 'No training docs yet — add the first one.'} />
+              <EmptyState icon="ti-school" text={tdLp.query || tdLp.activeCount ? 'No docs match your filters.' : 'No training docs yet — add the first one.'} />
             </div>
           ) : (
             <>
@@ -269,46 +267,37 @@ export default function TrainingPage() {
                 <table className="w-full">
                   <thead>
                     <tr>
-                      <th className="th">Title</th>
-                      <th className="th">Category</th>
-                      <th className="th">Department</th>
-                      <th className="th">Role</th>
-                      <th className="th">File / Link</th>
-                      <th className="th">Added</th>
+                      {tdLp.ordered.map((id) => <th key={id} className="th">{TD_COLS.find((c) => c.id === id)?.label}</th>)}
                       <th className="th w-24"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pgTd.pageItems.map((doc) => (
-                      <tr key={doc.id} className="row">
-                        <td className="td max-w-xs">
-                          <p className="font-medium text-content truncate">{doc.title}</p>
-                          {doc.description && <p className="text-2xs text-muted truncate mt-0.5">{doc.description}</p>}
-                        </td>
-                        <td className="td">
-                          {doc.category ? <span className="pill pill-gray">{doc.category}</span> : <span className="text-muted2">—</span>}
-                        </td>
-                        <td className="td text-sm text-muted">{doc.department || <span className="text-muted2">—</span>}</td>
-                        <td className="td text-sm text-muted">{doc.role_template?.name || <span className="text-muted2">—</span>}</td>
-                        <td className="td">
-                          <HrFileChip
-                            table="training_docs" row={doc} admin={admin}
-                            onUpdated={(updated) =>
-                              qc.setQueryData<TrainingDoc[]>(qk.trainingDocs(org?.id), (prev = []) =>
-                                prev.map((d) => (d.id === updated.id ? (updated as TrainingDoc) : d)))}
-                          />
-                        </td>
-                        <td className="td text-2xs text-muted tabular-nums">{doc.created_at ? doc.created_at.slice(0, 10) : '—'}</td>
-                        <td className="td">
-                          {admin && (
-                            <div className="flex items-center justify-end gap-1">
-                              <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEditTd(doc)}><Icon name="ti-pencil" /></button>
-                              <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => removeTd(doc)}><Icon name="ti-trash" /></button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {pgTd.pageItems.map((doc) => {
+                      const cell = (id: string) => {
+                        switch (id) {
+                          case 'title': return (<><p className="font-medium text-content truncate">{doc.title}</p>{doc.description && <p className="text-2xs text-muted truncate mt-0.5">{doc.description}</p>}</>);
+                          case 'category': return doc.category ? <span className="pill pill-gray">{doc.category}</span> : <span className="text-muted2">—</span>;
+                          case 'department': return <span className="text-sm text-muted">{doc.department || '—'}</span>;
+                          case 'role': return <span className="text-sm text-muted">{doc.role_template?.name || '—'}</span>;
+                          case 'file': return <HrFileChip table="training_docs" row={doc} admin={admin} onUpdated={(updated) => qc.setQueryData<TrainingDoc[]>(qk.trainingDocs(org?.id), (prev = []) => prev.map((d) => (d.id === updated.id ? (updated as TrainingDoc) : d)))} />;
+                          case 'added': return <span className="text-2xs text-muted tabular-nums">{doc.created_at ? doc.created_at.slice(0, 10) : '—'}</span>;
+                          default: return null;
+                        }
+                      };
+                      return (
+                        <tr key={doc.id} className="row">
+                          {tdLp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
+                          <td className="td">
+                            {admin && (
+                              <div className="flex items-center justify-end gap-1">
+                                <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEditTd(doc)}><Icon name="ti-pencil" /></button>
+                                <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => removeTd(doc)}><Icon name="ti-trash" /></button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -320,21 +309,14 @@ export default function TrainingPage() {
 
       {tab === 'jd' && (
         <div className="card overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-line">
-            <div className="relative flex-1 max-w-xs">
-              <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2" />
-              <input className="input pl-8 w-full" placeholder="Search job descriptions…" value={jdQ} onChange={(e) => setJdQ(e.target.value)} />
-            </div>
-            <select className="input w-auto" value={jdDeptFilter} onChange={(e) => setJdDeptFilter(e.target.value)}>
-              <option value="">All departments</option>
-              {jdDepartments.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
+          <div className="px-4 py-3 border-b border-line">
+            <ListToolbar prefs={jdLp} cols={JD_COLS} filters={JD_FILTERS} placeholder="Search job descriptions…" />
           </div>
           {isLoading ? (
             <div className="p-8"><Spinner /></div>
           ) : filteredJd.length === 0 ? (
             <div className="p-5">
-              <EmptyState icon="ti-briefcase" text={jdQ || jdDeptFilter ? 'No JDs match your filters.' : 'No job descriptions yet — add the first one.'} />
+              <EmptyState icon="ti-briefcase" text={jdLp.query || jdLp.activeCount ? 'No JDs match your filters.' : 'No job descriptions yet — add the first one.'} />
             </div>
           ) : (
             <>
@@ -342,11 +324,7 @@ export default function TrainingPage() {
                 <table className="w-full">
                   <thead>
                     <tr>
-                      <th className="th">Title</th>
-                      <th className="th">Department</th>
-                      <th className="th">Role</th>
-                      <th className="th">File</th>
-                      <th className="th">Added</th>
+                      {jdLp.ordered.map((id) => <th key={id} className="th">{JD_COLS.find((c) => c.id === id)?.label}</th>)}
                       <th className="th w-24"></th>
                     </tr>
                   </thead>
@@ -354,23 +332,19 @@ export default function TrainingPage() {
                     {pgJd.pageItems.map((jd) => (
                       <>
                         <tr key={jd.id} className="row cursor-pointer" onClick={() => setExpandedJd(expandedJd === jd.id ? null : jd.id)}>
-                          <td className="td max-w-xs">
-                            <div className="flex items-center gap-1.5">
-                              <Icon name={expandedJd === jd.id ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-muted2 text-xs shrink-0" />
-                              <p className="font-medium text-content truncate">{jd.title}</p>
-                            </div>
-                          </td>
-                          <td className="td text-sm text-muted">{jd.department || <span className="text-muted2">—</span>}</td>
-                          <td className="td text-sm text-muted">{jd.role_template?.name || <span className="text-muted2">—</span>}</td>
-                          <td className="td" onClick={(e) => e.stopPropagation()}>
-                            <HrFileChip
-                              table="job_descriptions" row={jd} admin={admin}
-                              onUpdated={(updated) =>
-                                qc.setQueryData<JobDescription[]>(qk.jobDescriptions(org?.id), (prev = []) =>
-                                  prev.map((d) => (d.id === updated.id ? (updated as JobDescription) : d)))}
-                            />
-                          </td>
-                          <td className="td text-2xs text-muted tabular-nums">{jd.created_at ? jd.created_at.slice(0, 10) : '—'}</td>
+                          {jdLp.ordered.map((id) => {
+                            const cell = () => {
+                              switch (id) {
+                                case 'title': return <div className="flex items-center gap-1.5"><Icon name={expandedJd === jd.id ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-muted2 text-xs shrink-0" /><p className="font-medium text-content truncate">{jd.title}</p></div>;
+                                case 'department': return <span className="text-sm text-muted">{jd.department || '—'}</span>;
+                                case 'role': return <span className="text-sm text-muted">{jd.role_template?.name || '—'}</span>;
+                                case 'file': return <HrFileChip table="job_descriptions" row={jd} admin={admin} onUpdated={(updated) => qc.setQueryData<JobDescription[]>(qk.jobDescriptions(org?.id), (prev = []) => prev.map((d) => (d.id === updated.id ? (updated as JobDescription) : d)))} />;
+                                case 'added': return <span className="text-2xs text-muted tabular-nums">{jd.created_at ? jd.created_at.slice(0, 10) : '—'}</span>;
+                                default: return null;
+                              }
+                            };
+                            return <td key={id} className="td max-w-xs" onClick={id === 'file' ? (e) => e.stopPropagation() : undefined}>{cell()}</td>;
+                          })}
                           <td className="td" onClick={(e) => e.stopPropagation()}>
                             {admin && (
                               <div className="flex items-center justify-end gap-1">
@@ -382,7 +356,7 @@ export default function TrainingPage() {
                         </tr>
                         {expandedJd === jd.id && (
                           <tr key={`${jd.id}-expand`} className="bg-surface2/50">
-                            <td colSpan={6} className="px-8 py-3">
+                            <td colSpan={jdLp.ordered.length + 1} className="px-8 py-3">
                               <div className="grid sm:grid-cols-3 gap-4 text-sm">
                                 {jd.summary && (
                                   <div>
