@@ -129,7 +129,7 @@ export default function CompaniesPage() {
               <div className="flex items-start gap-3">
                 <span className="w-9 h-9 rounded-md bg-neutral-100 grid place-items-center text-neutral-500 shrink-0"><Icon name="ti-building" className="text-lg" /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{c.name}</p>
+                  <Link href={`/companies/${c.id}`} className="text-sm font-medium truncate hover:text-accentstrong block">{c.name}</Link>
                   <p className="text-2xs text-neutral-400">{projectCount(c.id)} projects</p>
                 </div>
                 {canManage(c) && (

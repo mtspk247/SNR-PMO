@@ -136,7 +136,7 @@ export default function PortfoliosPage() {
               <div className="flex items-start gap-3">
                 <span className="w-9 h-9 rounded-md bg-neutral-100 grid place-items-center text-neutral-500 shrink-0"><Icon name="ti-stack-2" className="text-lg" /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{pf.name}</p>
+                  <Link href={`/portfolios/${pf.id}`} className="text-sm font-medium truncate hover:text-accentstrong block">{pf.name}</Link>
                   <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-building" /> {companyName(pf.company_id)}</p>
                 </div>
                 {canManage(pf) && (
