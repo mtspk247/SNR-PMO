@@ -29,13 +29,13 @@ const SECTIONS: Section[] = [
     { href: '/portfolios', label: 'Portfolios', icon: 'ti-stack-2', feature: 'portfolios' },
     { href: '/projects', label: 'Projects', icon: 'ti-folder' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
+    { href: '/workload', label: 'Workload', icon: 'ti-chart-bar' },
     { href: '/ideas', label: 'Ideas', icon: 'ti-bulb' },
     { href: '/roadmap', label: 'Roadmap', icon: 'ti-timeline' },
     { href: '/calendar', label: 'Calendar', icon: 'ti-calendar' },
     { href: '/chat', label: 'Chat', icon: 'ti-messages' },
   ]},
-  { kind: 'menu', key: 'tracking', label: 'Tracking', icon: 'ti-chart-line', items: [
-    { href: '/workload', label: 'Workload', icon: 'ti-chart-bar' },
+  { kind: 'menu', key: 'tracking', label: 'Accounting', icon: 'ti-report-money', items: [
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
     { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
     { href: '/accounting', label: 'Accounting', icon: 'ti-report-money', feature: 'financial' },
