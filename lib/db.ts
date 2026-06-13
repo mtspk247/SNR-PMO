@@ -1212,6 +1212,17 @@ export async function getTrainingDocUrl(path: string): Promise<string> {
 // chat_insert pins sender_id = current_app_user_id() (spoof-proof);
 // chat_delete = own message OR org owner/admin. RETURNING is safe (the sender
 // always passes chat_select on their own new row), so .select() embeds work.
+// ---- W6 Guests ------------------------------------------------------------
+// SECURITY DEFINER RPC: directory row + guest org membership (seat-exempt) +
+// project_members viewer access in one call. Admin-gated server-side.
+export async function createGuest(p: { org_id: string; email: string; name: string; project_id: string }): Promise<string> {
+  const { data, error } = await sb.rpc('create_guest', {
+    p_org: p.org_id, p_email: p.email, p_name: p.name, p_project: p.project_id,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
 import { Team } from './supabase';
 
 // ---- W3 Teams -----------------------------------------------------------------

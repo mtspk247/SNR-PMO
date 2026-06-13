@@ -89,16 +89,20 @@ export default function Layout({ title, children }: { title: string; children: R
 
   // Compose nav: admin section for org admins, platform link for platform admins,
   // then drop any item the active org's plan doesn't entitle (and empty menus).
+  // W6: guests only see project-scoped surfaces
+  const isGuest = activeOrg?.member_role === 'guest';
+  const GUEST_HREFS = ['/', '/projects', '/tasks', '/chat', '/calendar', '/docs'];
+  const guestOk = (href: string) => !isGuest || GUEST_HREFS.includes(href);
   const sections = [
     ...SECTIONS,
     ...(can.manageMembers(activeOrg) ? [ADMIN_SECTION] : []),
     ...(platformAdmin ? [PLATFORM_SECTION] : []),
   ]
     .map((s) => s.kind === 'menu'
-      ? { ...s, items: s.items.filter((i) => hasFeature(activeOrg, i.feature) && roleAllowsFeature(user, i.feature)) }
+      ? { ...s, items: s.items.filter((i) => hasFeature(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href)) }
       : s)
     .filter((s) => s.kind === 'link'
-      ? hasFeature(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature)
+      ? hasFeature(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature) && guestOk(s.item.href)
       : s.items.length > 0);
 
   const [checking, setChecking] = useState(true);

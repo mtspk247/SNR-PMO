@@ -5,6 +5,8 @@ import Layout from '@/components/Layout';
 import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
 import CommentsThread from '@/components/Comments';
 import EntityTags from '@/components/EntityTags';
+import { Modal, Field } from '@/components/Modal';
+import { createGuest } from '@/lib/db';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import {
   getProjectById, getTasks, getRisks, getFinancials, getLedgerEntries,
@@ -20,6 +22,18 @@ export default function ProjectDetail() {
   const router = useRouter();
   const id = typeof router.query.id === 'string' ? router.query.id : '';
   const org = useActiveOrg();
+  const [guestModal, setGuestModal] = useState(false);
+  const [gName, setGName] = useState(''); const [gEmail, setGEmail] = useState(''); const [gBusy, setGBusy] = useState(false);
+  const isOrgAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const inviteGuest = async () => {
+    if (!org || !gName.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gEmail.trim())) return;
+    setGBusy(true);
+    try {
+      await createGuest({ org_id: org.id, email: gEmail.trim(), name: gName.trim(), project_id: String(router.query.id) });
+      setGuestModal(false); setGName(''); setGEmail('');
+      alert('Guest invited — they get access to this project only once they sign in with that email.');
+    } catch (e: any) { alert(e.message); } finally { setGBusy(false); }
+  };
   const me = useAuthStore((s) => s.user);
 
   const [project, setProject] = useState<Project | null>(null);
@@ -156,7 +170,31 @@ export default function ProjectDetail() {
     <Layout title={project.name}>
       <PageHeader title={project.name}
         subtitle={[companyName(project.company_id), portfolioName(project.portfolio_id)].filter(Boolean).join(' · ') || undefined}
-        action={<div className="flex items-center gap-2"><Pill label={health} /><Pill label={project.status} /><Pill label={project.priority} /></div>} />
+        action={<div className="flex items-center gap-2">
+          {isOrgAdmin && (
+            <button onClick={() => setGuestModal(true)} className="btn text-xs"><Icon name="ti-user-plus" />Invite guest</button>
+          )}
+          <Pill label={health} /><Pill label={project.status} /><Pill label={project.priority} /></div>} />
+
+      {guestModal && (
+        <Modal open onClose={() => setGuestModal(false)} title="Invite a guest" icon="ti-user-plus" size="sm"
+          subtitle="External user — sees only this project (tasks, chat, files). Doesn't use a seat."
+          onSubmit={() => !gBusy && inviteGuest()}
+          footer={<>
+            <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to invite</span>
+            <button onClick={() => setGuestModal(false)} className="btn">Cancel</button>
+            <button onClick={inviteGuest} disabled={gBusy || !gName.trim() || !gEmail.trim()} className="btn btn-primary">{gBusy ? 'Inviting…' : 'Invite guest'}</button>
+          </>}>
+          <div className="grid gap-3.5">
+            <Field label="Name" required>
+              <input autoFocus value={gName} onChange={(e) => setGName(e.target.value)} placeholder="e.g. Jane Client" className="input" />
+            </Field>
+            <Field label="Email" required hint="They sign in with this email to get access.">
+              <input type="email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} placeholder="name@client.com" className="input" />
+            </Field>
+          </div>
+        </Modal>
+      )}
 
       {/* Metrics */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
