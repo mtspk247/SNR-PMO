@@ -8,8 +8,17 @@ import EmployeeModal, { EmployeeFormValues } from '@/components/EmployeeModal';
 import { useEmployees, useOrgCompanies } from '@/lib/queries';
 import { createEmployee, getAvatarUrl } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
-import { useActiveOrg } from '@/lib/store';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { can } from '@/lib/authz';
+
+const COLS: ColDef[] = [
+  { id: 'name', label: 'Name', locked: true },
+  { id: 'role', label: 'Role' },
+  { id: 'department', label: 'Department' },
+  { id: 'status', label: 'Status' },
+  { id: 'manager', label: 'Manager' },
+];
 
 export default function EmployeesPage() {
   const org = useActiveOrg();
@@ -17,8 +26,18 @@ export default function EmployeesPage() {
   const isAdmin = can.manageMembers(org);
   const { data: rows = [], isLoading } = useEmployees();
   const { data: companies = [] } = useOrgCompanies();
-  const [q, setQ] = useState('');
+  const me = useAuthStore((s) => s.user);
   const [showNew, setShowNew] = useState(false);
+  const lp = useListPrefs(`snr-employees-view-${me?.id || 'anon'}`, COLS);
+  const FILTERS: FilterDef[] = useMemo(() => {
+    const depts = Array.from(new Set(rows.map((e) => e.department).filter(Boolean))) as string[];
+    const roles = Array.from(new Set(rows.map((e) => e.role).filter(Boolean))) as string[];
+    return [
+      { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'suspended', label: 'Suspended' }] },
+      { id: 'department', label: 'Department', options: [{ value: 'all', label: 'All departments' }, ...depts.map((d) => ({ value: d, label: d }))] },
+      { id: 'role', label: 'Role', options: [{ value: 'all', label: 'All roles' }, ...roles.map((r) => ({ value: r, label: r.replace('_', ' ') }))] },
+    ];
+  }, [rows]);
   const [busy, setBusy] = useState(false);
 
   // avatar signed-URL cache: path → url
@@ -50,15 +69,16 @@ export default function EmployeesPage() {
   };
 
   const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((e) =>
-      e.full_name?.toLowerCase().includes(term) ||
-      e.email?.toLowerCase().includes(term) ||
-      e.department?.toLowerCase().includes(term) ||
-      e.role?.toLowerCase().includes(term)
-    );
-  }, [rows, q]);
+    const term = lp.query.trim().toLowerCase();
+    return rows.filter((e) => {
+      if (term && !(`${e.full_name || ''} ${e.email || ''} ${e.department || ''} ${e.role || ''}`.toLowerCase().includes(term))) return false;
+      const fs = lp.filters;
+      if (fs.status && fs.status !== 'all' && e.status !== fs.status) return false;
+      if (fs.department && fs.department !== 'all' && (e.department || '') !== fs.department) return false;
+      if (fs.role && fs.role !== 'all' && (e.role || '') !== fs.role) return false;
+      return true;
+    });
+  }, [rows, lp.query, lp.filters]);
 
   const pg = usePagination(filtered, 25);
 
@@ -77,13 +97,7 @@ export default function EmployeesPage() {
         <StatCard label="Departments" value={deptCount} icon="ti-building-community" />
       </div>
 
-      <div className="mb-4">
-        <div className="relative max-w-sm">
-          <Icon name="ti-search" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 text-sm" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email, department, role…"
-            className="input pl-9" />
-        </div>
-      </div>
+      <ListToolbar prefs={lp} cols={COLS} filters={FILTERS} placeholder="Search by name, email, department, role…" />
 
       {isLoading ? <Spinner /> : filtered.length === 0 ? (
         <EmptyState icon="ti-users" text={rows.length === 0 ? 'No employees yet' : 'No employees match your search'} />
@@ -92,43 +106,34 @@ export default function EmployeesPage() {
           <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="text-2xs uppercase tracking-wide text-muted border-b border-line">
-                <th className="th text-left">Name</th>
-                <th className="th text-left">Role</th>
-                <th className="th text-left">Department</th>
-                <th className="th text-left">Status</th>
-                <th className="th text-left">Manager</th>
+                {lp.ordered.map((id) => <th key={id} className="th text-left">{COLS.find((c) => c.id === id)?.label}</th>)}
                 <th className="th"></th>
               </tr>
             </thead>
             <tbody>
               {pg.pageItems.map((e) => {
                 const avatarSrc = e.avatar_url ? avatarMap.get(e.avatar_url) : undefined;
-                return (
-                  <tr key={e.id} className="row border-b border-line last:border-0">
-                    <td className="td">
+                const cell = (id: string) => {
+                  switch (id) {
+                    case 'name': return (
                       <Link href={`/employees/${e.id}`} className="inline-flex items-center gap-2.5 hover:text-accentstrong">
                         {avatarSrc ? (
-                          <img src={avatarSrc} alt={e.full_name} width={28} height={28}
-                            style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                        ) : (
-                          <Avatar name={e.full_name || '?'} size={28} />
-                        )}
-                        <span className="min-w-0">
-                          <span className="block font-medium truncate">{e.full_name}</span>
-                          <span className="block text-2xs text-muted2 truncate">{e.email}</span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="td capitalize">{(e.role || '').replace('_', ' ')}</td>
-                    <td className="td">{e.department || '—'}</td>
-                    <td className="td">
-                      <span className={`pill ${e.status === 'active' ? 'pill-green' : 'pill-red'}`}>{e.status}</span>
-                    </td>
-                    <td className="td">{e.manager?.full_name || '—'}</td>
+                          <img src={avatarSrc} alt={e.full_name} width={28} height={28} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        ) : (<Avatar name={e.full_name || '?'} size={28} />)}
+                        <span className="min-w-0"><span className="block font-medium truncate">{e.full_name}</span><span className="block text-2xs text-muted2 truncate">{e.email}</span></span>
+                      </Link>);
+                    case 'role': return <span className="capitalize">{(e.role || '').replace('_', ' ')}</span>;
+                    case 'department': return e.department || '—';
+                    case 'status': return <span className={`pill ${e.status === 'active' ? 'pill-green' : 'pill-red'}`}>{e.status}</span>;
+                    case 'manager': return e.manager?.full_name || '—';
+                    default: return null;
+                  }
+                };
+                return (
+                  <tr key={e.id} className="row border-b border-line last:border-0">
+                    {lp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
                     <td className="td text-right">
-                      <Link href={`/employees/${e.id}`} className="btn btn-ghost h-7 px-2 text-xs">
-                        View<Icon name="ti-chevron-right" className="text-sm" />
-                      </Link>
+                      <Link href={`/employees/${e.id}`} className="btn btn-ghost h-7 px-2 text-xs">View<Icon name="ti-chevron-right" className="text-sm" /></Link>
                     </td>
                   </tr>
                 );

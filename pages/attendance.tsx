@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, StatCard, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useAttendance } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,7 +34,22 @@ export default function AttendancePage() {
   const todayMine = mine.find((r) => r.work_date === new Date().toISOString().slice(0, 10));
   const monthHours = mine.filter((r) => r.work_date.slice(0, 7) === month).reduce((a, r) => a + (Number(r.hours) || 0), 0);
   const visible = isAdmin ? rows : mine;
-  const pg = usePagination(visible, 25);
+  const COLS: ColDef[] = useMemo(() => [
+    ...(isAdmin ? [{ id: 'person', label: 'Person' }] : []),
+    { id: 'date', label: 'Date', locked: true },
+    { id: 'in', label: 'In' }, { id: 'out', label: 'Out' }, { id: 'hours', label: 'Hours' }, { id: 'status', label: 'Status' },
+  ], [isAdmin]);
+  const lp = useListPrefs(`snr-attendance-view-${me?.id || 'anon'}`, COLS);
+  const FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'OPEN', label: 'Open' }, { value: 'CLOSED', label: 'Closed' }, { value: 'AUTO_CHECKOUT', label: 'Auto' }] }];
+  const filtered = useMemo(() => {
+    const term = lp.query.trim().toLowerCase();
+    return visible.filter((r) => {
+      if (term && !(`${r.users?.full_name || ''} ${r.work_date}`.toLowerCase().includes(term))) return false;
+      if (lp.filters.status && lp.filters.status !== 'all' && r.status !== lp.filters.status) return false;
+      return true;
+    });
+  }, [visible, lp.query, lp.filters]);
+  const pg = usePagination(filtered, 25);
 
   const doCheckIn = async () => {
     if (!me || !org) return; setBusy(true);
@@ -60,33 +76,37 @@ export default function AttendancePage() {
             <StatCard label="This month" value={`${Math.round(monthHours * 10) / 10} h`} icon="ti-calendar" />
             <StatCard label="Days logged" value={mine.length} icon="ti-checklist" />
           </div>
+          <ListToolbar prefs={lp} cols={COLS} filters={FILTERS} placeholder="Search attendance…" />
           <div className="card overflow-hidden">
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="text-2xs uppercase tracking-wide text-muted2 border-b border-line">
-                  {isAdmin && <th className="text-left font-medium px-4 py-2.5">Person</th>}
-                  <th className="text-left font-medium px-4 py-2.5">Date</th>
-                  <th className="text-left font-medium px-4 py-2.5">In</th>
-                  <th className="text-left font-medium px-4 py-2.5">Out</th>
-                  <th className="text-left font-medium px-4 py-2.5">Hours</th>
-                  <th className="text-left font-medium px-4 py-2.5">Status</th>
+                  {lp.ordered.map((id) => <th key={id} className="text-left font-medium px-4 py-2.5">{COLS.find((c) => c.id === id)?.label}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {pg.pageItems.map((r) => (
-                  <tr key={r.id} className="border-b border-line last:border-0">
-                    {isAdmin && <td className="px-4 py-2.5"><span className="inline-flex items-center gap-2"><Avatar name={r.users?.full_name || '?'} size={22} />{r.users?.full_name || '—'}</span></td>}
-                    <td className="px-4 py-2.5">{r.work_date}</td>
-                    <td className="px-4 py-2.5">{fmtTime(r.check_in)}</td>
-                    <td className="px-4 py-2.5">{fmtTime(r.check_out)}</td>
-                    <td className="px-4 py-2.5">{r.hours ?? '—'}</td>
-                    <td className="px-4 py-2.5"><span className={`pill ${ATT_PILL[r.status] || 'pill-gray'}`}>{ATT_LABEL[r.status] || r.status}</span></td>
-                  </tr>
-                ))}
+                {pg.pageItems.map((r) => {
+                  const cell = (id: string) => {
+                    switch (id) {
+                      case 'person': return <span className="inline-flex items-center gap-2"><Avatar name={r.users?.full_name || '?'} size={22} />{r.users?.full_name || '—'}</span>;
+                      case 'date': return r.work_date;
+                      case 'in': return fmtTime(r.check_in);
+                      case 'out': return fmtTime(r.check_out);
+                      case 'hours': return r.hours ?? '—';
+                      case 'status': return <span className={`pill ${ATT_PILL[r.status] || 'pill-gray'}`}>{ATT_LABEL[r.status] || r.status}</span>;
+                      default: return null;
+                    }
+                  };
+                  return (
+                    <tr key={r.id} className="border-b border-line last:border-0">
+                      {lp.ordered.map((id) => <td key={id} className="px-4 py-2.5">{cell(id)}</td>)}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table></div>
-            {visible.length === 0 && <EmptyState icon="ti-clock" text="No attendance yet — check in to start" />}
-            {visible.length > 0 && <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />}
+            {filtered.length === 0 && <EmptyState icon="ti-clock" text="No attendance yet — check in to start" />}
+            {filtered.length > 0 && <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />}
           </div>
         </>
       )}

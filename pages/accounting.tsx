@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import CustomFields from '@/components/CustomFields';
 import EntityTags from '@/components/EntityTags';
@@ -93,6 +94,16 @@ const emptyForm = (): FormState => ({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+const LEDGER_COLS: ColDef[] = [
+  { id: 'date', label: 'Date', locked: true },
+  { id: 'type', label: 'Type' },
+  { id: 'category', label: 'Category' },
+  { id: 'project', label: 'Project' },
+  { id: 'company', label: 'Company' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'amount', label: 'Amount' },
+];
+
 export default function AccountingPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
@@ -107,9 +118,6 @@ export default function AccountingPage() {
   const [pageView, setPageView] = useState<'entries' | 'pl'>('entries');
 
   // ── Entries tab state ──
-  const [q, setQ] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
-  const [catFilter, setCatFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<LedgerEntry | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -131,11 +139,18 @@ export default function AccountingPage() {
     return Array.from(s).sort();
   }, [entries]);
 
+  const lp = useListPrefs(`snr-accounting-view-${me?.id || 'anon'}`, LEDGER_COLS);
+  const FILTERS: FilterDef[] = useMemo(() => [
+    { id: 'type', label: 'Type', options: [{ value: 'all', label: 'All types' }, { value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }] },
+    { id: 'category', label: 'Category', options: [{ value: 'all', label: 'All categories' }, ...allCategories.map((c) => ({ value: c, label: c }))] },
+  ], [allCategories]);
+
   const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const term = lp.query.trim().toLowerCase();
+    const fs = lp.filters;
     return entries.filter((e) => {
-      if (typeFilter !== 'all' && e.type !== typeFilter) return false;
-      if (catFilter !== 'all' && e.category !== catFilter) return false;
+      if (fs.type && fs.type !== 'all' && e.type !== fs.type) return false;
+      if (fs.category && fs.category !== 'all' && e.category !== fs.category) return false;
       if (!term) return true;
       return (
         e.category.toLowerCase().includes(term) ||
@@ -144,7 +159,7 @@ export default function AccountingPage() {
         (e.company?.name || '').toLowerCase().includes(term)
       );
     });
-  }, [entries, q, typeFilter, catFilter]);
+  }, [entries, lp.query, lp.filters]);
 
   const pg = usePagination(filtered, 25);
 
@@ -287,20 +302,8 @@ export default function AccountingPage() {
       {/* ── ENTRIES VIEW ─────────────────────────────────────────────────────── */}
       {pageView === 'entries' && (
         <div className="bg-surface overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-line">
-            <div className="relative flex-1 max-w-xs">
-              <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2" />
-              <input className="input pl-8 w-full" placeholder="Search ledger…" value={q} onChange={(e) => setQ(e.target.value)} />
-            </div>
-            <select className="input w-auto" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as any)}>
-              <option value="all">All types</option>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
-            <select className="input w-auto" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
-              <option value="all">All categories</option>
-              {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+          <div className="px-4 py-3 border-b border-line">
+            <ListToolbar prefs={lp} cols={LEDGER_COLS} filters={FILTERS} placeholder="Search ledger…" />
           </div>
 
           {isLoading ? <div className="p-8"><Spinner /></div> : filtered.length === 0 ? (
@@ -311,36 +314,38 @@ export default function AccountingPage() {
                 <table className="w-full">
                   <thead>
                     <tr>
-                      <th className="th">Date</th><th className="th">Type</th><th className="th">Category</th>
-                      <th className="th">Project</th><th className="th">Company</th><th className="th">Notes</th>
-                      <th className="th text-right">Amount</th><th className="th w-20"></th>
+                      {lp.ordered.map((id) => <th key={id} className={`th ${id === 'amount' ? 'text-right' : ''}`}>{LEDGER_COLS.find((c) => c.id === id)?.label}</th>)}
+                      <th className="th w-20"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pg.pageItems.map((e) => (
-                      <tr key={e.id} className="row">
-                        <td className="td text-2xs text-muted tabular-nums">{e.entry_date}</td>
-                        <td className="td"><span className={`pill ${e.type === 'income' ? 'pill-green' : 'pill-red'}`}>{e.type}</span></td>
-                        <td className="td font-medium">
-                          {e.category}
-                          {e.payroll_run_id && <Icon name="ti-lock" className="ml-1 text-2xs text-muted2" />}
-                        </td>
-                        <td className="td text-2xs text-muted">{e.project?.name || '—'}</td>
-                        <td className="td text-2xs text-muted">{e.company?.name || '—'}</td>
-                        <td className="td text-2xs text-muted max-w-[16rem] truncate">{e.notes || '—'}</td>
-                        <td className={`td text-right font-medium tabular-nums ${e.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {e.type === 'income' ? '+' : '−'}{money(e.amount)}
-                        </td>
-                        <td className="td">
-                          <div className="flex items-center justify-end gap-1">
-                            <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEdit(e)}><Icon name="ti-pencil" /></button>
-                            {!e.payroll_run_id && (
-                              <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => remove(e)}><Icon name="ti-trash" /></button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {pg.pageItems.map((e) => {
+                      const cell = (id: string) => {
+                        switch (id) {
+                          case 'date': return <span className="text-2xs text-muted tabular-nums">{e.entry_date}</span>;
+                          case 'type': return <span className={`pill ${e.type === 'income' ? 'pill-green' : 'pill-red'}`}>{e.type}</span>;
+                          case 'category': return <span className="font-medium">{e.category}{e.payroll_run_id && <Icon name="ti-lock" className="ml-1 text-2xs text-muted2" />}</span>;
+                          case 'project': return <span className="text-2xs text-muted">{e.project?.name || '—'}</span>;
+                          case 'company': return <span className="text-2xs text-muted">{e.company?.name || '—'}</span>;
+                          case 'notes': return <span className="text-2xs text-muted block max-w-[16rem] truncate">{e.notes || '—'}</span>;
+                          case 'amount': return <span className={`block text-right font-medium tabular-nums ${e.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>{e.type === 'income' ? '+' : '−'}{money(e.amount)}</span>;
+                          default: return null;
+                        }
+                      };
+                      return (
+                        <tr key={e.id} className="row">
+                          {lp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
+                          <td className="td">
+                            <div className="flex items-center justify-end gap-1">
+                              <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEdit(e)}><Icon name="ti-pencil" /></button>
+                              {!e.payroll_run_id && (
+                                <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => remove(e)}><Icon name="ti-trash" /></button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
