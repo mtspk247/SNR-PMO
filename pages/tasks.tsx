@@ -114,6 +114,7 @@ export default function Tasks() {
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([]);
   const [statusMgr, setStatusMgr] = useState(false);
   const [filterMenu, setFilterMenu] = useState(false);
+  const [dragGroup, setDragGroup] = useState<string | null>(null);
   const taskTabs = useModalTabs('overview');
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -143,6 +144,20 @@ export default function Tasks() {
   const statusColor = (n: string) => taskStatuses.find((x) => x.name === n)?.color;
   const reloadStatuses = () => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id).then(setTaskStatuses).catch(() => {}); };
   const activeFilters = (projectFilter ? 1 : 0) + (priorityFilter ? 1 : 0) + (assigneeFilter ? 1 : 0) + (overdueOnly ? 1 : 0);
+  const reorderStatuses = async (from: string, to: string) => {
+    if (from === to || taskStatuses.length === 0) return;
+    const order = taskStatuses.map((x) => x.name);
+    const fi = order.indexOf(from), ti = order.indexOf(to);
+    if (fi < 0 || ti < 0) return;
+    order.splice(ti, 0, order.splice(fi, 1)[0]);
+    try {
+      await Promise.all(order.map((name, idx) => {
+        const st = taskStatuses.find((x) => x.name === name);
+        return st && st.position !== idx ? updateTaskStatusDef(st.id, { position: idx }) : Promise.resolve();
+      }));
+      reloadStatuses();
+    } catch { /* ignore */ }
+  };
 
   const roots = useMemo(() => tasks.filter((t) => !t.parent_task_id), [tasks]);
   const filtered = useMemo(() => {
@@ -496,7 +511,7 @@ export default function Tasks() {
           </select>
         );
       case 'assignee':
-        return <div key={id} className="flex items-center gap-1.5 min-w-0 text-2xs text-muted">{t.assignee_id ? (<><Avatar name={userName(t.assignee_id)} size={18} /><span className="truncate">{userName(t.assignee_id)}</span></>) : <span className="text-muted2">—</span>}</div>;
+        return <div key={id} className="flex items-center min-w-0">{t.assignee_id ? <span title={userName(t.assignee_id)} className="inline-flex cursor-default"><Avatar name={userName(t.assignee_id)} size={22} /></span> : <span className="text-muted2 text-2xs">—</span>}</div>;
       case 'priority':
         return <div key={id}><Pill label={t.priority} /></div>;
       case 'project':
@@ -662,7 +677,12 @@ export default function Tasks() {
                   const gcol = collapsedGroups.has(label);
                   return (
                   <div key={label}>
-                    <div className="sticky top-0 z-10 px-4 py-2 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-2.5">
+                    <div draggable={groupBy === 'status' && taskStatuses.length > 0}
+                      onDragStart={() => setDragGroup(label)}
+                      onDragOver={(e) => { if (dragGroup && groupBy === 'status') e.preventDefault(); }}
+                      onDrop={() => { if (dragGroup) reorderStatuses(dragGroup, label); setDragGroup(null); }}
+                      onDragEnd={() => setDragGroup(null)}
+                      className={`sticky top-0 z-10 px-4 py-2 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-2.5 ${groupBy === 'status' && taskStatuses.length > 0 ? 'cursor-grab' : ''} ${dragGroup === label ? 'ring-1 ring-inset ring-accent/50' : ''}`}>
                       <button onClick={() => setCollapsedGroups((pr) => { const n = new Set(pr); n.has(label) ? n.delete(label) : n.add(label); return n; })}
                         className="shrink-0 text-muted2 hover:text-content" title={gcol ? 'Expand' : 'Collapse'}>
                         <Icon name={gcol ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" />
