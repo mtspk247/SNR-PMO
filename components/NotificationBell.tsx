@@ -56,7 +56,7 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => { setOpen((o) => !o); if (!open) load(); }} className="btn-ghost p-2 rounded-md text-muted relative">
+      <button onClick={() => { setOpen((o) => !o); if (!open) load(); }} className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition relative">
         <Icon name="ti-bell" className="text-base" />
         {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-[#fff] text-2xs grid place-items-center">{unread > 9 ? '9+' : unread}</span>}
       </button>

@@ -74,7 +74,7 @@ function ThemeToggle() {
   useEffect(() => { setTheme(getTheme()); }, []);
   return (
     <button onClick={() => setTheme(toggleTheme())} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-      className="h-9 w-9 grid place-items-center rounded-md border border-line text-muted hover:text-content hover:bg-surface2 transition">
+      className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">
       <Icon name={theme === 'dark' ? 'ti-sun' : 'ti-moon'} className="text-base" />
     </button>
   );
@@ -281,7 +281,7 @@ export default function Layout({ title, children }: { title: string; children: R
             </div>
             <TimerChip />
             <button onClick={() => setChatOpen(true)} title="Chat"
-              className="h-9 w-9 grid place-items-center rounded-md border border-line text-muted hover:text-content hover:bg-surface2 transition">
+              className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">
               <Icon name="ti-messages" className="text-base" />
             </button>
             <ThemeToggle />
