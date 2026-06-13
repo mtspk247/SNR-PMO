@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
@@ -38,6 +40,7 @@ export default function IdeasPage() {
 
   const { data: ideas = [], isLoading } = useIdeas();
 
+  const router = useRouter();
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | IdeaStatus>('all');
   const [showModal, setShowModal] = useState(false);
@@ -194,14 +197,14 @@ export default function IdeasPage() {
                   const hasVoted = idea.votes?.some((v) => v.user_id === user?.id) ?? false;
                   const voteCount = idea.votes?.length ?? 0;
                   return (
-                    <div key={idea.id} onClick={() => openEdit(idea)} className="card card-interactive p-4 cursor-pointer">
+                    <div key={idea.id} onClick={() => router.push(`/ideas/${idea.id}`)} className="card card-interactive p-4 cursor-pointer">
                       <div className="flex items-start gap-3">
                         <button onClick={(e) => { e.stopPropagation(); vote(idea); }} disabled={!user || votingId === idea.id}
                           className={`shrink-0 inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded ${hasVoted ? 'text-accent bg-accent/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
                           <Icon name="ti-arrow-big-up" className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span>
                         </button>
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-content truncate">{idea.title}</p>
+                          <Link href={`/ideas/${idea.id}`} onClick={(e) => e.stopPropagation()} className="font-medium text-content truncate hover:text-accentstrong block">{idea.title}</Link>
                           {idea.pitch && <p className="text-2xs text-muted mt-0.5" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{idea.pitch}</p>}
                         </div>
                       </div>
