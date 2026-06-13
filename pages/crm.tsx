@@ -477,9 +477,8 @@ function DealModal({ open, companies, contacts, busy, onAddCompany, onClose, onS
     >
       {tabs.tab === 'details' && (
         <div className="space-y-3.5">
-          <Field label="Title" required hint="A short, recognizable name for this deal.">
-            <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Acme — annual license" className="input" />
-          </Field>
+          <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Deal name"
+            className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           <div className="flex gap-3">
             <Field label="Value (USD)" className="flex-1">
               <input value={value} onChange={(e) => setValue(e.target.value)} type="number" min="0" placeholder="0" className="input" />

@@ -78,9 +78,8 @@ export default function EmployeeModal({ initial, people, companies, busy, onClos
     >
       {tabs.tab === 'basics' && (
         <div className="grid sm:grid-cols-2 gap-3.5">
-          <Field label="Full name" required>
-            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aisha Khan" className="input" />
-          </Field>
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name"
+            className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           <Field label="Email" required hint={edit ? undefined : 'Used to link a login later.'}>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className="input" />
           </Field>
