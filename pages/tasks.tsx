@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field, ModalSection } from '@/components/Modal';
 import EntityLink from '@/components/EntityLink';
-import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader } from '@/components/ui';
+import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
 import { getOrgUsers, createTask, updateTask, deleteTask, notify } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -59,7 +59,7 @@ export default function Tasks() {
   const [projectFilter, setProjectFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
-  const [groupBy, setGroupBy] = useState<GroupBy>('none');
+  const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -393,10 +393,7 @@ export default function Tasks() {
           <Pill label={t.priority} />
           <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()}
             onChange={(e) => setStatus(t.id, e.target.value)}
-            className={`pill border-0 cursor-pointer outline-none ${
-              t.status === 'Done' ? 'pill-green' : t.status === 'In Progress' ? 'pill-amber' :
-              t.status === 'Review' ? 'pill-violet' : t.status === 'Cancelled' || t.status === 'On Hold' ? 'pill-red' : 'pill-blue'
-            }`}>
+            className={`rounded-full px-2.5 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <span className={`text-2xs w-16 text-right shrink-0 ${overdueRow ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>
@@ -487,9 +484,17 @@ export default function Tasks() {
               {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
                 groupedPage.map(([label, items]) => (
                   <div key={label}>
-                    <div className="sticky top-0 z-10 px-4 py-1.5 bg-surface2/90 backdrop-blur border-b border-line flex items-center gap-2">
-                      <span className="text-2xs font-semibold uppercase tracking-wide text-muted">{label}</span>
-                      <span className="text-2xs text-muted2">{items.length}</span>
+                    <div className="sticky top-0 z-10 px-4 py-2 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-2.5">
+                      {groupBy === 'status'
+                        ? <StatusBadge status={label} solid />
+                        : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{label}</span>}
+                      <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
+                      {groupBy === 'status' && (
+                        <button onClick={() => { setForm({ ...EMPTY_FORM, status: label }); setModal({ mode: 'create' }); }}
+                          className="ml-auto inline-flex items-center gap-1 text-2xs text-muted2 hover:text-content transition">
+                          <Icon name="ti-plus" className="text-sm" />Add task
+                        </button>
+                      )}
                     </div>
                     {items.map(Row)}
                   </div>

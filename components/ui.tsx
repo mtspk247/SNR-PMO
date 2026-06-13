@@ -158,3 +158,29 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
     return this.props.children;
   }
 }
+
+/** ClickUp-style status colour system — shared across tasks, board, detail, dashboard. */
+export const STATUS_META: Record<string, { dot: string; solid: string; soft: string }> = {
+  'Backlog':     { dot: 'bg-slate-400',   solid: 'bg-slate-500 text-white',   soft: 'bg-slate-500/10 text-slate-600 ring-slate-500/25' },
+  'To Do':       { dot: 'bg-zinc-400',    solid: 'bg-zinc-500 text-white',    soft: 'bg-zinc-500/10 text-zinc-600 ring-zinc-500/25' },
+  'In Progress': { dot: 'bg-indigo-500',  solid: 'bg-indigo-500 text-white',  soft: 'bg-indigo-500/10 text-indigo-600 ring-indigo-500/25' },
+  'Review':      { dot: 'bg-amber-500',   solid: 'bg-amber-500 text-white',   soft: 'bg-amber-500/10 text-amber-600 ring-amber-500/25' },
+  'Done':        { dot: 'bg-emerald-500', solid: 'bg-emerald-500 text-white', soft: 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25' },
+  'On Hold':     { dot: 'bg-orange-500',  solid: 'bg-orange-500 text-white',  soft: 'bg-orange-500/10 text-orange-600 ring-orange-500/25' },
+  'Cancelled':   { dot: 'bg-rose-500',    solid: 'bg-rose-500 text-white',    soft: 'bg-rose-500/10 text-rose-600 ring-rose-500/25' },
+};
+export const statusMeta = (s: string) => STATUS_META[s] || { dot: 'bg-zinc-400', solid: 'bg-zinc-500 text-white', soft: 'bg-zinc-500/10 text-zinc-600 ring-zinc-500/25' };
+
+/** Status badge. `solid` = bold filled pill (group headers); default = soft ringed pill with dot. */
+export const StatusBadge = ({ status, solid = false, className = '' }: { status: string; solid?: boolean; className?: string }) => {
+  const m = statusMeta(status);
+  return solid ? (
+    <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-2xs font-bold uppercase tracking-wide ${m.solid} ${className}`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-white/85" />{status}
+    </span>
+  ) : (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-2xs font-medium ring-1 ring-inset ${m.soft} ${className}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />{status}
+    </span>
+  );
+};
