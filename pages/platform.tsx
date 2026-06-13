@@ -3,11 +3,11 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow } from '@/lib/db';
+import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow } from '@/lib/db';
 import { PlatformOrg, Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'tenants' | 'plans' | 'billing' | 'email' | 'backups';
+type Tab = 'tenants' | 'plans' | 'billing' | 'email' | 'backups' | 'errors';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -309,6 +309,52 @@ function EmailTab() {
   );
 }
 
+function ErrorsTab() {
+  const [rows, setRows] = useState<ErrorRow[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const load = async () => setRows(await listErrors());
+  useEffect(() => { load().catch((e: any) => setMsg(e.message)); }, []);
+  const last24 = rows.filter((r) => Date.now() - new Date(r.created_at).getTime() < 864e5).length;
+  const unresolved = rows.filter((r) => !r.resolved).length;
+  const toggle = async (r: ErrorRow) => { try { await resolveError(r.id, !r.resolved); await load(); } catch (e: any) { alert(e.message); } };
+  const clearAll = async () => { if (!confirm('Clear all logged errors?')) return; setBusy(true); try { await clearErrors(); await load(); } catch (e: any) { alert(e.message); } finally { setBusy(false); } };
+  return (
+    <div className="space-y-4">
+      <div className="card rounded-t-none p-5 flex items-center gap-6 flex-wrap">
+        <div><p className="text-2xs uppercase tracking-wide text-muted2">Total</p><p className="text-2xl font-semibold tabular-nums">{rows.length}</p></div>
+        <div><p className="text-2xs uppercase tracking-wide text-muted2">Last 24h</p><p className="text-2xl font-semibold tabular-nums">{last24}</p></div>
+        <div><p className="text-2xs uppercase tracking-wide text-muted2">Unresolved</p><p className={`text-2xl font-semibold tabular-nums ${unresolved ? 'text-rose-600' : ''}`}>{unresolved}</p></div>
+        <div className="ml-auto flex items-center gap-2">
+          <button className="btn" onClick={() => load()}><Icon name="ti-refresh" />Refresh</button>
+          <button className="btn text-rose-600" disabled={busy || rows.length === 0} onClick={clearAll}><Icon name="ti-trash" />Clear all</button>
+        </div>
+        {msg && <span className="text-2xs text-rose-600 w-full">{msg}</span>}
+      </div>
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto"><table className="w-full text-sm">
+          <thead className="bg-surface2 text-left text-2xs uppercase tracking-wide text-muted"><tr>
+            <th className="px-4 py-3 font-medium">When</th><th className="px-4 py-3 font-medium">Level</th><th className="px-4 py-3 font-medium">Message</th><th className="px-4 py-3 font-medium">Path</th><th className="px-4 py-3 font-medium">Source</th><th className="px-4 py-3"></th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className={`border-t border-line align-top ${r.resolved ? 'opacity-50' : ''}`}>
+                <td className="px-4 py-3 tabular-nums whitespace-nowrap text-2xs text-muted">{new Date(r.created_at).toLocaleString()}</td>
+                <td className="px-4 py-3"><span className={`pill ${r.level === 'error' ? 'pill-red' : 'pill-amber'}`}>{r.level}</span></td>
+                <td className="px-4 py-3 max-w-[28rem]"><p className="font-medium text-content break-words">{r.message}</p>{r.stack && <details className="mt-1"><summary className="text-2xs text-muted2 cursor-pointer">stack</summary><pre className="text-2xs text-muted whitespace-pre-wrap mt-1 max-h-40 overflow-y-auto">{r.stack}</pre></details>}</td>
+                <td className="px-4 py-3 text-2xs text-muted font-mono">{r.path || '—'}</td>
+                <td className="px-4 py-3 text-2xs text-muted">{r.source}</td>
+                <td className="px-4 py-3 text-right"><button className="btn btn-ghost h-7 px-2 text-xs" onClick={() => toggle(r)}>{r.resolved ? 'Reopen' : 'Resolve'}</button></td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted2">No errors logged — all clear.</td></tr>}
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  );
+}
+
 function BackupsTab() {
   const [cfg, setCfg] = useState<BackupConfig | null>(null);
   const [rows, setRows] = useState<BackupRow[]>([]);
@@ -428,7 +474,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['tenants', 'plans', 'billing', 'email', 'backups'] as const).map((t) => (
+            {(['tenants', 'plans', 'billing', 'email', 'backups', 'errors'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -438,7 +484,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : 'Backups'}
+                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : 'Errors'}
               </button>
             ))}
           </div>
@@ -533,8 +579,10 @@ export default function PlatformPage() {
             <BillingTab plans={plans} onReload={load} />
           ) : tab === 'email' ? (
             <EmailTab />
-          ) : (
+          ) : tab === 'backups' ? (
             <BackupsTab />
+          ) : (
+            <ErrorsTab />
           )}
 
           {planModal && (

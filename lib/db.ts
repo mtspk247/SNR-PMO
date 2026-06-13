@@ -1494,3 +1494,19 @@ export async function getBackupDownloadUrl(path: string): Promise<string> {
   if (error) throw error;
   return data.signedUrl;
 }
+
+// --- Error tracking (platform-admin reads; capture via log_error RPC) ---
+export interface ErrorRow { id: string; created_at: string; source: string; level: string; message: string; stack: string | null; path: string | null; user_id: string | null; meta: any; resolved: boolean; }
+export async function listErrors(): Promise<ErrorRow[]> {
+  const { data, error } = await sb.from('error_log').select('*').order('created_at', { ascending: false }).limit(200);
+  if (error) throw error;
+  return (data as ErrorRow[]) || [];
+}
+export async function resolveError(id: string, resolved: boolean): Promise<void> {
+  const { error } = await sb.from('error_log').update({ resolved }).eq('id', id);
+  if (error) throw error;
+}
+export async function clearErrors(): Promise<void> {
+  const { error } = await sb.from('error_log').delete().gt('created_at', '1900-01-01');
+  if (error) throw error;
+}

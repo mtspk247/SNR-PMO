@@ -23,6 +23,19 @@ export default function App({ Component, pageProps }: AppProps) {
     defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },
   }));
 
+  // Capture uncaught client errors + promise rejections into the error log.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const log = (level: string, message: string, stack?: string | null) => {
+      try { sb.rpc('log_error', { p_source: 'client', p_level: level, p_message: message, p_stack: stack || null, p_path: window.location.pathname, p_meta: {} }); } catch { /* ignore */ }
+    };
+    const onErr = (e: ErrorEvent) => log('error', e.message || 'Uncaught error', e.error?.stack);
+    const onRej = (e: PromiseRejectionEvent) => { const r: any = e.reason; log('error', r?.message || String(r) || 'Unhandled rejection', r?.stack); };
+    window.addEventListener('error', onErr);
+    window.addEventListener('unhandledrejection', onRej);
+    return () => { window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onRej); };
+  }, []);
+
   // Apply per-tenant branding from the subdomain (anon RPC, runs before auth).
   useEffect(() => {
     const slug = readCookie('org-slug');

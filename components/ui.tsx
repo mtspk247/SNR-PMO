@@ -1,4 +1,5 @@
 import React from 'react';
+import { sb } from '@/lib/supabase';
 
 export const Icon = ({ name, className = '' }: { name: string; className?: string }) => (
   <i className={`ti ${name} ${className}`} aria-hidden="true" />
@@ -141,7 +142,14 @@ export const ErrorState = ({ text = 'Something went wrong loading this view.', o
 export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   constructor(props: { children: React.ReactNode }) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error) { if (typeof console !== 'undefined') console.error('Render error:', error); }
+  componentDidCatch(error: Error, info: { componentStack?: string }) {
+    if (typeof console !== 'undefined') console.error('Render error:', error);
+    try {
+      sb.rpc('log_error', { p_source: 'client', p_level: 'error', p_message: error?.message || String(error),
+        p_stack: `${error?.stack || ''}\n${info?.componentStack || ''}`,
+        p_path: typeof window !== 'undefined' ? window.location.pathname : null, p_meta: {} });
+    } catch { /* never let logging crash the boundary */ }
+  }
   render() {
     if (this.state.error) {
       return (
