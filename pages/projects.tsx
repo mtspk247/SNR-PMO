@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -8,6 +8,8 @@ import { usePagination, Pagination } from '@/components/Pagination';
 import { useProjects, useOrgCompanies, usePortfolios, useCreateProject, useUpdateProject, useDeleteProject } from '@/lib/queries';
 import { Project } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { ensureTaskStatuses, TaskStatus } from '@/lib/db';
+import StatusManager from '@/components/StatusManager';
 import { can } from '@/lib/authz';
 
 const STATUSES = ['Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'];
@@ -31,6 +33,12 @@ export default function Projects() {
   const [np, setNp] = useState(EMPTY);
   const [editId, setEditId] = useState<string | null>(null);
   const canCreate = can.createProject(activeOrg);
+  const [pstatuses, setPstatuses] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
+  useEffect(() => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id, 'project').then(setPstatuses).catch(() => {}); }, [activeOrg?.id]);
+  const reloadP = () => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id, 'project').then(setPstatuses).catch(() => {}); };
+  const pColor = (n: string) => pstatuses.find((s) => s.name === n)?.color;
+  const pNames = pstatuses.length ? pstatuses.map((s) => s.name) : STATUSES;
 
   const pg = usePagination(projects, 25);
 
@@ -78,7 +86,7 @@ export default function Projects() {
   return (
     <Layout title="Projects">
       <PageHeader title="Projects" subtitle={`${projects.length} projects`}
-        action={canCreate ? <button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New project</button> : undefined} />
+        action={canCreate ? <div className="flex items-center gap-2"><button onClick={() => setStatusMgr(true)} className="btn"><Icon name="ti-flag-3" className="text-sm" />Statuses</button><button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New project</button></div> : undefined} />
       {isLoading ? <Spinner /> : projects.length === 0 ? (
         <EmptyState text={canCreate ? 'No projects yet — create your first one' : 'No projects yet'} />
       ) : (
@@ -96,7 +104,7 @@ export default function Projects() {
                     {portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}
                     {p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}
                   </td>
-                  <td className="td"><StatusBadge status={p.status} /></td>
+                  <td className="td"><StatusBadge status={p.status} color={pColor(p.status)} /></td>
                   <td className="td text-2xs text-muted">{companyName(p.company_id) || '—'}</td>
                   <td className="td"><Pill label={p.priority} /></td>
                   <td className="td text-2xs text-neutral-500">{p.start_date || '—'} → {p.end_date || '—'}</td>
@@ -154,7 +162,7 @@ export default function Projects() {
           </Field>
           <div className="flex gap-3">
             <Field label="Status" className="flex-1">
-              <select value={np.status} onChange={(e) => setNp({ ...np, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+              <select value={np.status} onChange={(e) => setNp({ ...np, status: e.target.value })} className="input">{pNames.map(s => <option key={s}>{s}</option>)}</select>
             </Field>
             <Field label="Priority" className="flex-1">
               <select value={np.priority} onChange={(e) => setNp({ ...np, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
@@ -171,6 +179,7 @@ export default function Projects() {
           {err && <p className="text-sm text-rose-600">{err}</p>}
         </div>
       </Modal>
+      {activeOrg?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={activeOrg.id} scope="project" statuses={pstatuses} onChanged={reloadP} />}
     </Layout>
   );
 }

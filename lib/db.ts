@@ -1440,21 +1440,21 @@ export async function openBillingPortal(orgId: string): Promise<string> {
 }
 
 // ── Custom task statuses (per-org, ClickUp-style) ───────────────────────────
-export interface TaskStatus { id: string; org_id: string; name: string; color: string; category: 'todo' | 'active' | 'done'; position: number; }
+export interface TaskStatus { id: string; org_id: string; name: string; color: string; category: 'todo' | 'active' | 'done'; position: number; scope?: string; }
 
-export async function getTaskStatuses(orgId: string): Promise<TaskStatus[]> {
-  const { data, error } = await sb.from('task_statuses').select('*').eq('org_id', orgId).order('position');
+export async function getTaskStatuses(orgId: string, scope = 'task'): Promise<TaskStatus[]> {
+  const { data, error } = await sb.from('task_statuses').select('*').eq('org_id', orgId).eq('scope', scope).order('position');
   if (error) throw error;
   return (data as TaskStatus[]) || [];
 }
 /** Returns the org's statuses, seeding the 7 defaults the first time. */
-export async function ensureTaskStatuses(orgId: string): Promise<TaskStatus[]> {
-  let list = await getTaskStatuses(orgId);
-  if (list.length === 0) { await sb.rpc('seed_default_task_statuses', { p_org: orgId }); list = await getTaskStatuses(orgId); }
+export async function ensureTaskStatuses(orgId: string, scope = 'task'): Promise<TaskStatus[]> {
+  let list = await getTaskStatuses(orgId, scope);
+  if (list.length === 0) { await sb.rpc('seed_default_statuses', { p_org: orgId, p_scope: scope }); list = await getTaskStatuses(orgId, scope); }
   return list;
 }
-export async function createTaskStatus(p: { org_id: string; name: string; color: string; category: string; position: number }): Promise<void> {
-  const { error } = await sb.from('task_statuses').insert(p); // return=minimal (RETURNING-safe)
+export async function createTaskStatus(p: { org_id: string; name: string; color: string; category: string; position: number; scope?: string }): Promise<void> {
+  const { error } = await sb.from('task_statuses').insert({ ...p, scope: p.scope || 'task' }); // return=minimal (RETURNING-safe)
   if (error) throw error;
 }
 export async function updateTaskStatusDef(id: string, patch: Partial<{ name: string; color: string; category: string; position: number }>): Promise<void> {
