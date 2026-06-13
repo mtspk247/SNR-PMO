@@ -20,6 +20,14 @@ import { createReminder } from '@/lib/db';
 import TaskCustomFields from '@/components/TaskCustomFields';
 
 const STATUSES = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done', 'On Hold', 'Cancelled'];
+const COL_DEFS: { id: string; label: string; w: string }[] = [
+  { id: 'status', label: 'Status', w: '120px' },
+  { id: 'assignee', label: 'Assignee', w: '150px' },
+  { id: 'priority', label: 'Priority', w: '88px' },
+  { id: 'project', label: 'Project', w: '150px' },
+  { id: 'created', label: 'Created', w: '100px' },
+  { id: 'due', label: 'Due', w: '96px' },
+];
 const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low'];
 const PRIORITY_RANK: Record<string, number> = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date(new Date().toDateString());
@@ -63,6 +71,8 @@ export default function Tasks() {
   const [view, setView] = useState<'list' | 'board'>('list');
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(COL_DEFS.map((c) => c.id)));
+  const [colMenu, setColMenu] = useState(false);
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -419,21 +429,50 @@ export default function Tasks() {
     </div>
   );
 
-  const COLS = 'grid grid-cols-[minmax(200px,1fr)_120px_150px_88px_150px_100px_96px_48px] items-center gap-2 px-4';
+  const shownCols = COL_DEFS.filter((c) => visibleCols.has(c.id));
+  const gridStyle = { gridTemplateColumns: `minmax(200px,1fr) ${shownCols.map((c) => c.w).join(' ')} 48px` } as React.CSSProperties;
+  const GRID = 'grid items-center gap-2 px-4';
+
+  const cell = (t: Task, id: string) => {
+    switch (id) {
+      case 'status':
+        return (
+          <select key={id} value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
+            className={`w-full rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
+            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        );
+      case 'assignee':
+        return <div key={id} className="flex items-center gap-1.5 min-w-0 text-2xs text-muted">{t.assignee_id ? (<><Avatar name={userName(t.assignee_id)} size={18} /><span className="truncate">{userName(t.assignee_id)}</span></>) : <span className="text-muted2">—</span>}</div>;
+      case 'priority':
+        return <div key={id}><Pill label={t.priority} /></div>;
+      case 'project':
+        return <span key={id} className="text-2xs text-muted truncate">{t.projects?.name || '—'}</span>;
+      case 'created':
+        return <span key={id} className="text-2xs text-muted2 tnum">{new Date(t.created_at).toLocaleDateString()}</span>;
+      case 'due': {
+        const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
+        return <span key={id} className={`text-2xs tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>;
+      }
+      default:
+        return <span key={id} />;
+    }
+  };
 
   const ColHeader = () => (
-    <div className={`${COLS} py-2 border-b border-line bg-surface2/30 text-2xs font-semibold uppercase tracking-wider text-muted2`}>
-      <span>Name</span><span>Status</span><span>Assignee</span><span>Priority</span><span>Project</span><span>Created</span><span>Due</span><span />
+    <div className={`${GRID} py-2 border-b border-line bg-surface2/30 text-2xs font-semibold uppercase tracking-wider text-muted2`} style={gridStyle}>
+      <span>Name</span>
+      {shownCols.map((c) => <span key={c.id}>{c.label}</span>)}
+      <span />
     </div>
   );
 
   const Row = (t: Task) => {
     const subs = tasks.filter((s) => s.parent_task_id === t.id);
-    const overdueRow = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
     return (
       <div key={t.id}
-        className={`group ${COLS} py-2.5 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}
-        onClick={() => selectTask(t.id)}>
+        className={`group ${GRID} py-2.5 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}
+        style={gridStyle} onClick={() => selectTask(t.id)}>
         <div className="flex items-center gap-2 min-w-0">
           {subs.length > 0 ? (
             <button onClick={(e) => { e.stopPropagation(); setExpanded((pr) => { const n = new Set(pr); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; }); }}
@@ -445,17 +484,7 @@ export default function Tasks() {
           <span className="text-sm font-medium text-content truncate">{t.name}</span>
           {subs.length > 0 && <span className="shrink-0 inline-flex items-center gap-0.5 text-2xs text-muted2"><Icon name="ti-subtask" />{subs.filter((s) => s.status === 'Done').length}/{subs.length}</span>}
         </div>
-        <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
-          className={`w-full rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <div className="flex items-center gap-1.5 min-w-0 text-2xs text-muted">
-          {t.assignee_id ? (<><Avatar name={userName(t.assignee_id)} size={18} /><span className="truncate">{userName(t.assignee_id)}</span></>) : <span className="text-muted2">—</span>}
-        </div>
-        <Pill label={t.priority} />
-        <span className="text-2xs text-muted truncate">{t.projects?.name || '—'}</span>
-        <span className="text-2xs text-muted2 tnum">{new Date(t.created_at).toLocaleDateString()}</span>
-        <span className={`text-2xs tnum ${overdueRow ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>
+        {shownCols.map((c) => cell(t, c.id))}
         <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 transition">
           <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} disabled={busy} title="Edit task" className="p-1 rounded text-muted2 hover:text-content"><Icon name="ti-pencil" className="text-sm" /></button>
           {canDelete && (
@@ -466,30 +495,19 @@ export default function Tasks() {
     );
   };
 
-  const SubRow = (t: Task) => {
-    const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
-    return (
-      <div key={t.id}
-        className={`${COLS} py-2 border-b border-line cursor-pointer ${selectedId === t.id ? 'bg-accent/5' : 'hover:bg-surface2/40'}`}
-        onClick={() => selectTask(t.id)}>
-        <div className="flex items-center gap-2 min-w-0 pl-5">
-          <Icon name="ti-corner-down-right" className="text-muted2 text-sm shrink-0" />
-          <input type="checkbox" checked={t.status === 'Done'} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={() => setStatus(t.id, t.status === 'Done' ? 'To Do' : 'Done')} className="accent-accentstrong shrink-0" />
-          <span className={`text-sm truncate ${t.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{t.name}</span>
-        </div>
-        <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
-          className={`w-full rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <div className="flex items-center gap-1.5 min-w-0 text-2xs text-muted">{t.assignee_id ? (<><Avatar name={userName(t.assignee_id)} size={18} /><span className="truncate">{userName(t.assignee_id)}</span></>) : <span className="text-muted2">—</span>}</div>
-        <Pill label={t.priority} />
-        <span className="text-2xs text-muted truncate">{t.projects?.name || '—'}</span>
-        <span className="text-2xs text-muted2 tnum">{new Date(t.created_at).toLocaleDateString()}</span>
-        <span className={`text-2xs tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>
-        <span />
+  const SubRow = (t: Task) => (
+    <div key={t.id}
+      className={`${GRID} py-2 border-b border-line cursor-pointer ${selectedId === t.id ? 'bg-accent/5' : 'hover:bg-surface2/40'}`}
+      style={gridStyle} onClick={() => selectTask(t.id)}>
+      <div className="flex items-center gap-2 min-w-0 pl-5">
+        <Icon name="ti-corner-down-right" className="text-muted2 text-sm shrink-0" />
+        <input type="checkbox" checked={t.status === 'Done'} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={() => setStatus(t.id, t.status === 'Done' ? 'To Do' : 'Done')} className="accent-accentstrong shrink-0" />
+        <span className={`text-sm truncate ${t.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{t.name}</span>
       </div>
-    );
-  };
+      {shownCols.map((c) => cell(t, c.id))}
+      <span />
+    </div>
+  );
 
   const renderTask = (t: Task) => {
     const subs = tasks.filter((s) => s.parent_task_id === t.id);
@@ -556,6 +574,19 @@ export default function Tasks() {
                     <Icon name={vw === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{vw}
                   </button>
                 ))}
+              </div>
+              <div className="relative">
+                <button onClick={() => setColMenu((v) => !v)} className="btn h-9"><Icon name="ti-columns-3" className="text-sm" />Columns</button>
+                {colMenu && (
+                  <div className="absolute right-0 top-10 z-20 w-44 bg-surface border border-line rounded-lg shadow-lg p-1">
+                    {COL_DEFS.map((c) => (
+                      <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-surface2 cursor-pointer">
+                        <input type="checkbox" checked={visibleCols.has(c.id)} onChange={() => setVisibleCols((pr) => { const n = new Set(pr); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; })} className="accent-accentstrong" />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
               <span className="text-2xs text-muted2 ml-1 hidden sm:inline">Sort</span>
               <div className="flex items-center gap-1">
