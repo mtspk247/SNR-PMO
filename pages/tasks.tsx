@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
-import { Modal, Field, ModalSection } from '@/components/Modal';
+import { Modal, Field, useModalTabs } from '@/components/Modal';
 import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
 import { getOrgUsers, createTask, updateTask, deleteTask, notify, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus } from '@/lib/db';
@@ -114,6 +114,7 @@ export default function Tasks() {
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([]);
   const [statusMgr, setStatusMgr] = useState(false);
   const [filterMenu, setFilterMenu] = useState(false);
+  const taskTabs = useModalTabs('overview');
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -719,51 +720,40 @@ export default function Tasks() {
             <button onClick={submitForm} disabled={busy || !form.name.trim()} className="btn btn-primary min-w-[7.5rem]">{busy ? 'Saving…' : (modal?.mode === 'create' ? 'Create task' : 'Save changes')}</button>
           </>
         }
+        tabs={[{ key: 'overview', label: 'Overview', icon: 'ti-layout-list' }, { key: 'more', label: 'Details', icon: 'ti-align-left' }]}
+        {...taskTabs.bind}
       >
         <div>
-          <ModalSection title="Basics" icon="ti-align-left">
-            <div className="space-y-3.5">
-              <input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" placeholder="Task name" />
-              <Field label="Description" hint="Optional — any extra context.">
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="textarea h-20" placeholder="Optional details" />
-              </Field>
+          <input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-3 mb-1 border-b border-line" placeholder="Task name" />
+          {taskTabs.tab === 'overview' && (
+            <div className="space-y-3.5 mt-4">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Status"><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{statuses.map(s => <option key={s}>{s}</option>)}</select></Field>
+                <Field label="Assignee"><select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className="input"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></Field>
+                <Field label="Priority"><select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select></Field>
+                <Field label="Due date"><input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" /></Field>
+              </div>
               <Field label="Project">
                 <div className="flex items-center gap-2">
                   <select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} className="input"><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
                   {form.project_id && (
-                    <button type="button" title="Open project page" onClick={() => router.push(`/projects/${form.project_id}`)}
-                      className="btn btn-ghost h-9 w-9 px-0 shrink-0 text-muted hover:text-accentstrong"><Icon name="ti-external-link" /></button>
+                    <button type="button" title="Open project page" onClick={() => router.push(`/projects/${form.project_id}`)} className="btn btn-ghost h-9 w-9 px-0 shrink-0 text-muted hover:text-accentstrong"><Icon name="ti-external-link" /></button>
                   )}
                 </div>
               </Field>
             </div>
-          </ModalSection>
-          <ModalSection title="Planning" icon="ti-calendar-stats">
-            <div className="space-y-3.5">
-              <div className="flex gap-3">
-                <Field label="Priority" className="flex-1">
-                  <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
-                </Field>
-                <Field label="Status" className="flex-1">
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{statuses.map(s => <option key={s}>{s}</option>)}</select>
-                </Field>
-              </div>
-              <div className="flex gap-3">
-                <Field label="Due date" className="flex-1">
-                  <input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" />
-                </Field>
-                <Field label="Estimated hours" className="flex-1">
-                  <input type="number" min="0" step="0.5" value={form.estimated_hours} onChange={(e) => setForm({ ...form, estimated_hours: e.target.value })} className="input" placeholder="0" />
-                </Field>
-              </div>
+          )}
+          {taskTabs.tab === 'more' && (
+            <div className="space-y-3.5 mt-4">
+              <Field label="Description" hint="Optional — any extra context.">
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="textarea h-28" placeholder="Optional details" />
+              </Field>
+              <Field label="Estimated hours">
+                <input type="number" min="0" step="0.5" value={form.estimated_hours} onChange={(e) => setForm({ ...form, estimated_hours: e.target.value })} className="input w-40" placeholder="0" />
+              </Field>
             </div>
-          </ModalSection>
-          <ModalSection title="People" icon="ti-users">
-            <Field label="Assignee">
-              <select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className="input"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select>
-            </Field>
-          </ModalSection>
+          )}
         </div>
       </Modal>
     </Layout>
