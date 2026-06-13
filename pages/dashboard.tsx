@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { StatCard, Pill, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
+import { StatCard, Pill, Spinner, EmptyState, Icon, Avatar, StatusBadge } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
 import {
   getProjects, getTasks, getDeals, getLedgerEntries,
@@ -301,7 +301,7 @@ export default function Dashboard() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{p.name}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Pill label={p.status} />
+                          <StatusBadge status={p.status} />
                           <Pill label={p.priority} />
                         </div>
                       </div>
