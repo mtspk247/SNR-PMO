@@ -66,7 +66,7 @@ export default function EmployeesPage() {
   const deptCount = useMemo(() => new Set(rows.map((e) => e.department).filter(Boolean)).size, [rows]);
 
   return (
-    <Layout title="Employees">
+    <Layout flat title="Employees">
       <PageHeader title="Employee directory" subtitle="Everyone in your organization, with role, department and manager"
         action={isAdmin ? <button onClick={() => setShowNew(true)} className="btn btn-primary"><Icon name="ti-user-plus" />New employee</button> : undefined} />
 

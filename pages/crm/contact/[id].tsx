@@ -24,10 +24,10 @@ export default function ContactDetail() {
 
   useSetCrumbs(contact ? [{ label: 'CRM', href: '/crm' }, { label: contact.full_name }] : null);
 
-  if (isLoading) return <Layout title="Contact"><Spinner /></Layout>;
+  if (isLoading) return <Layout flat title="Contact"><Spinner /></Layout>;
   if (!contact) {
     return (
-      <Layout title="Contact">
+      <Layout flat title="Contact">
         <EmptyState icon="ti-user-off" text="Contact not found, or you don’t have access." />
         <div className="mt-4"><Link href="/crm" className="btn"><Icon name="ti-arrow-left" />Back to CRM</Link></div>
       </Layout>
@@ -45,7 +45,7 @@ export default function ContactDetail() {
   ];
 
   return (
-    <Layout title={contact.full_name}>
+    <Layout flat title={contact.full_name}>
       <PageHeader title={contact.full_name}
         subtitle={[contact.title, contact.crm_companies?.name].filter(Boolean).join(' · ') || undefined}
         action={

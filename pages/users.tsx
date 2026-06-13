@@ -119,7 +119,7 @@ export default function UsersPage() {
   }, [org?.id]);
 
   if (!can.manageMembers(org)) {
-    return <Layout title="Users"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to manage users.</div></Layout>;
+    return <Layout flat title="Users"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to manage users.</div></Layout>;
   }
 
   const u = users.find((x) => x.id === sel) || null;
@@ -166,7 +166,7 @@ export default function UsersPage() {
   };
 
   return (
-    <Layout title="Users">
+    <Layout flat title="Users">
       {loading ? <Spinner /> : (
         <>
           <PageHeader title="Users & roles" subtitle="Manage team access and permissions" />

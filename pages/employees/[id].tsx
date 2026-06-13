@@ -315,13 +315,13 @@ export default function EmployeeProfilePage() {
 
   useSetCrumbs(employee ? [{ label: 'Employees', href: '/employees' }, { label: employee.full_name }] : null);
 
-  if (loading) return <Layout title="Employee"><Spinner /></Layout>;
-  if (!employee) return <Layout title="Employee"><EmptyState icon="ti-user-x" text="Employee not found" /></Layout>;
+  if (loading) return <Layout flat title="Employee"><Spinner /></Layout>;
+  if (!employee) return <Layout flat title="Employee"><EmptyState icon="ti-user-x" text="Employee not found" /></Layout>;
 
   const initials = (employee.full_name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <Layout title="Employee profile">
+    <Layout flat title="Employee profile">
       <div className="mb-4">
         <Link href="/employees" className="inline-flex items-center gap-1 text-sm text-muted hover:text-content">
           <Icon name="ti-arrow-left" />Back to directory

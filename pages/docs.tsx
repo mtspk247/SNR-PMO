@@ -402,7 +402,7 @@ export default function DocsPage() {
   const [active, setActive] = useState(SECTIONS[0].id);
 
   return (
-    <Layout title="Docs">
+    <Layout flat title="Docs">
       <PageHeader
         title="System Guide"
         subtitle="Module reference, cross-module connections, and the recommended agency operating workflow."

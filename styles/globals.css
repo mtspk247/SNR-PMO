@@ -82,6 +82,9 @@ h1 { letter-spacing: -0.02em; }
   /* Opt-in hover affordance for clickable/feature cards. */
   .card-interactive { @apply transition-all duration-200 cursor-pointer hover:border-accent/50 hover:-translate-y-0.5; }
   .card-interactive:hover { box-shadow: var(--shadow-lg); }
+  /* Flat detail surfaces (ClickUp-style) — opt-in via Layout `flat` prop. */
+  .flat-surfaces .card, .flat-surfaces .stat { border-radius: 4px; box-shadow: none; }
+  .flat-surfaces .card-interactive:hover { box-shadow: none; transform: none; }
   .stat { @apply bg-surface border border-line rounded-xl p-4 transition-all duration-200; box-shadow: var(--shadow-sm); }
   .stat:hover { @apply border-accent/40 -translate-y-0.5; box-shadow: var(--shadow-md); }
 

@@ -236,7 +236,7 @@ export default function CRM() {
   );
 
   return (
-    <Layout title="CRM">
+    <Layout flat title="CRM">
       <PageHeader title="CRM" subtitle={`${deals.length} deals · ${contacts.length} contacts`}
         action={
           <div className="flex items-center gap-2">

@@ -38,7 +38,7 @@ const SECTIONS: Section[] = [
   { kind: 'menu', key: 'tracking', label: 'Accounting', icon: 'ti-report-money', items: [
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
     { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
-    { href: '/accounting', label: 'Accounting', icon: 'ti-report-money', feature: 'financial' },
+    { href: '/accounting', label: 'Ledger', icon: 'ti-report-money', feature: 'financial' },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
     { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm' },
@@ -81,7 +81,7 @@ function ThemeToggle() {
   );
 }
 
-export default function Layout({ title, children }: { title: string; children: React.ReactNode }) {
+export default function Layout({ title, children, flat = false }: { title: string; children: React.ReactNode; flat?: boolean }) {
   const router = useRouter();
   const { user, orgs, platformAdmin, sidebarCollapsed, toggleSidebar, setActiveOrg, clear } = useAuthStore();
   const activeOrg = useActiveOrg();
@@ -289,7 +289,7 @@ export default function Layout({ title, children }: { title: string; children: R
             <NotificationBell />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className="mx-auto w-full max-w-[1400px]">{children}</div></main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full max-w-[1400px]${flat ? ' flat-surfaces' : ''}`}>{children}</div></main>
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
     </div>

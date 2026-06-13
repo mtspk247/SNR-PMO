@@ -61,7 +61,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <Layout title="Onboarding">
+    <Layout flat title="Onboarding">
       <PageHeader title="Employee Onboarding" subtitle="Checklists for new hires, built from reusable templates"
         action={admin ? (
           <div className="flex gap-2">

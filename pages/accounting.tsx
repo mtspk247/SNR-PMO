@@ -239,7 +239,7 @@ export default function AccountingPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <Layout title="Accounting">
+    <Layout flat title="Accounting">
       <PageHeader
         title="Accounting"
         subtitle="Income & expense ledger across the workspace — payroll posts Salaries here automatically."

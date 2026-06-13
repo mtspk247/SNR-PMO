@@ -15,11 +15,11 @@ export default function AuditPage() {
   const pg = usePagination(filtered, 25);
 
   if (!can.manageMembers(org)) {
-    return <Layout title="Audit log"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to view the audit log.</div></Layout>;
+    return <Layout flat title="Audit log"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to view the audit log.</div></Layout>;
   }
 
   return (
-    <Layout title="Audit log">
+    <Layout flat title="Audit log">
       {isLoading ? <Spinner /> : (
         <>
           <PageHeader title="Audit log" subtitle="Recent activity across the workspace"

@@ -43,7 +43,7 @@ export default function IntegrationsPage() {
   }, [visible]);
 
   return (
-    <Layout title="Integrations">
+    <Layout flat title="Integrations">
       {loading ? <Spinner /> : (
         <>
           <PageHeader title="Integrations" subtitle={admin ? 'Connect the tools your team already uses.' : 'Admins can connect tools for the workspace.'} />

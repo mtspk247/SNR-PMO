@@ -114,8 +114,8 @@ export default function SettingsPage() {
     setAccent(b.accent_color || DEFAULTS.accent);
   }, [org?.id]);
 
-  if (!org) return <Layout title="Settings"><Spinner /></Layout>;
-  if (!admin) return <Layout title="Settings"><EmptyState icon="ti-lock" text="Only org admins can edit branding" /></Layout>;
+  if (!org) return <Layout flat title="Settings"><Spinner /></Layout>;
+  if (!admin) return <Layout flat title="Settings"><EmptyState icon="ti-lock" text="Only org admins can edit branding" /></Layout>;
 
   const save = async () => {
     setSaving(true); setMsg('');
@@ -137,7 +137,7 @@ export default function SettingsPage() {
   const reset = () => { setPrimary(DEFAULTS.primary); setAccent(DEFAULTS.accent); };
 
   return (
-    <Layout title="Settings">
+    <Layout flat title="Settings">
       <PageHeader title="Plan & branding" subtitle="Your subscription, entitlements, and white-label settings" />
       <PlanPanel org={org} />
       <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">

@@ -47,7 +47,7 @@ export default function AttendancePage() {
   };
 
   return (
-    <Layout title="Attendance">
+    <Layout flat title="Attendance">
       {isLoading ? <Spinner /> : (
         <>
           <PageHeader title="Attendance" subtitle={isAdmin ? 'Your time plus the team’s recent activity' : 'Track your working hours'}

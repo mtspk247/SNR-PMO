@@ -29,7 +29,7 @@ export default function RolesPage() {
   }, [org?.id]);
 
   if (!can.manageMembers(org)) {
-    return <Layout title="Roles"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to manage roles.</div></Layout>;
+    return <Layout flat title="Roles"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to manage roles.</div></Layout>;
   }
 
   const openNew = () => { setErr(''); tabs.setTab('basics'); setDraft(emptyDraft()); };
@@ -63,7 +63,7 @@ export default function RolesPage() {
   const permCount = (r: RoleTemplate) => Object.values(r.permissions).filter(Boolean).length;
 
   return (
-    <Layout title="Roles">
+    <Layout flat title="Roles">
       {loading ? <Spinner /> : (
         <>
           <PageHeader title="Roles & permissions" subtitle="Reusable permission templates and module access for your team"

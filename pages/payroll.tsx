@@ -60,7 +60,7 @@ export default function PayrollPage() {
 
   if (!isAdmin) {
     return (
-      <Layout title="Payroll">
+      <Layout flat title="Payroll">
         <div className="card p-10 text-center text-sm text-muted">
           <Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />
           You need admin access to view payroll.
@@ -115,7 +115,7 @@ export default function PayrollPage() {
   }), { gross: 0, bonus: 0, deductions: 0, net: 0 });
 
   return (
-    <Layout title="Payroll">
+    <Layout flat title="Payroll">
       <PageHeader title="Payroll" subtitle="Manage payroll runs and employee payslips"
         action={<button onClick={() => setShowNew(true)} className="btn btn-primary"><Icon name="ti-plus" />New run</button>} />
 

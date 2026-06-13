@@ -82,7 +82,7 @@ export default function LeavePage() {
   );
 
   return (
-    <Layout title="Leave">
+    <Layout flat title="Leave">
       {loading ? <Spinner /> : (
         <>
           <PageHeader title="Leave" subtitle="Request time off and track approvals"

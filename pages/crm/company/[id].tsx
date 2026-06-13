@@ -24,10 +24,10 @@ export default function CompanyDetail() {
 
   useSetCrumbs(company ? [{ label: 'CRM', href: '/crm' }, { label: company.name }] : null);
 
-  if (isLoading) return <Layout title="Company"><Spinner /></Layout>;
+  if (isLoading) return <Layout flat title="Company"><Spinner /></Layout>;
   if (!company) {
     return (
-      <Layout title="Company">
+      <Layout flat title="Company">
         <EmptyState icon="ti-building-off" text="Company not found, or you don’t have access." />
         <div className="mt-4"><Link href="/crm" className="btn"><Icon name="ti-arrow-left" />Back to CRM</Link></div>
       </Layout>
@@ -46,7 +46,7 @@ export default function CompanyDetail() {
   ];
 
   return (
-    <Layout title={company.name}>
+    <Layout flat title={company.name}>
       <PageHeader title={company.name} subtitle={company.industry || undefined}
         action={<span className="w-10 h-10 rounded-lg bg-accent/10 text-accentstrong grid place-items-center"><Icon name="ti-building" className="text-xl" /></span>} />
 

@@ -60,10 +60,10 @@ export default function DealDetail() {
     catch (e: any) { alert(e.message); }
   };
 
-  if (isLoading) return <Layout title="Deal"><Spinner /></Layout>;
+  if (isLoading) return <Layout flat title="Deal"><Spinner /></Layout>;
   if (!deal) {
     return (
-      <Layout title="Deal">
+      <Layout flat title="Deal">
         <EmptyState icon="ti-target-off" text="Deal not found, or you don’t have access." />
         <div className="mt-4"><Link href="/crm" className="btn"><Icon name="ti-arrow-left" />Back to CRM</Link></div>
       </Layout>
@@ -81,7 +81,7 @@ export default function DealDetail() {
   ];
 
   return (
-    <Layout title={deal.title}>
+    <Layout flat title={deal.title}>
       <PageHeader title={deal.title}
         subtitle={deal.crm_companies?.name || undefined}
         action={

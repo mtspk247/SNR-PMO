@@ -207,7 +207,7 @@ export default function TrainingPage() {
   const isLoading = loadingTd || loadingJd;
 
   return (
-    <Layout title="Training & JDs">
+    <Layout flat title="Training & JDs">
       <PageHeader
         title="Training & Job Descriptions"
         subtitle="Manage training materials and job description documents for your organisation."
