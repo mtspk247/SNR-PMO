@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, PageHeader, Icon, StatusBadge } from '@/components/ui';
@@ -18,6 +19,7 @@ export default function Projects() {
   const me = useAuthStore((s) => s.user);
   const { data: projects = [], isLoading } = useProjects();
   const { data: companies = [] } = useOrgCompanies();
+  const router = useRouter();
   const { data: portfolios = [] } = usePortfolios();
   const createM = useCreateProject();
   const updateM = useUpdateProject();
@@ -33,6 +35,7 @@ export default function Projects() {
   const pg = usePagination(projects, 25);
 
   const portfolioName = (id?: string | null) => (id ? portfolios.find((pf) => pf.id === id)?.name : undefined);
+  const companyName = (id?: string | null) => (id ? companies.find((c) => c.id === id)?.name : undefined);
   // Portfolios belong to a company; offer only those under the chosen company.
   const modalPortfolios = portfolios.filter((pf) => pf.company_id === np.company_id);
 
@@ -82,18 +85,19 @@ export default function Projects() {
         <div className="bg-surface overflow-hidden">
           <div className="overflow-x-auto"><table className="w-full">
             <thead><tr>
-              <th className="th">Name</th><th className="th">Status</th><th className="th">Priority</th>
+              <th className="th">Name</th><th className="th">Status</th><th className="th">Company</th><th className="th">Priority</th>
               <th className="th">Timeline</th><th className="th w-44">Progress</th><th className="th w-10"></th>
             </tr></thead>
             <tbody>
               {pg.pageItems.map((p) => (
-                <tr key={p.id} onClick={() => openEdit(p)} className={`row ${canCreate ? 'cursor-pointer' : ''}`}>
+                <tr key={p.id} onClick={() => router.push(`/projects/${p.id}`)} className="row cursor-pointer">
                   <td className="td">
                     <p className="font-medium">{p.name}</p>
                     {portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}
                     {p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}
                   </td>
                   <td className="td"><StatusBadge status={p.status} /></td>
+                  <td className="td text-2xs text-muted">{companyName(p.company_id) || '—'}</td>
                   <td className="td"><Pill label={p.priority} /></td>
                   <td className="td text-2xs text-neutral-500">{p.start_date || '—'} → {p.end_date || '—'}</td>
                   <td className="td">
@@ -103,9 +107,10 @@ export default function Projects() {
                     </div>
                   </td>
                   <td className="td">
-                    <Link href={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-neutral-400 hover:text-ink inline-flex" title="Open project">
-                      <Icon name="ti-arrow-right" />
-                    </Link>
+                    <div className="flex items-center gap-1 justify-end">
+                      {canCreate && <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit project" className="text-muted2 hover:text-content p-1"><Icon name="ti-pencil" className="text-sm" /></button>}
+                      <Link href={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-muted2 hover:text-content inline-flex p-1" title="Open project"><Icon name="ti-arrow-right" /></Link>
+                    </div>
                   </td>
                 </tr>
               ))}
