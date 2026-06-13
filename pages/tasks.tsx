@@ -60,6 +60,7 @@ export default function Tasks() {
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
+  const [view, setView] = useState<'list' | 'board'>('list');
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -263,26 +264,26 @@ export default function Tasks() {
         <button onClick={() => setStatus(selected.id, 'Done')} disabled={busy || selected.status === 'Done'} className="btn btn-primary flex-1 text-xs"><Icon name="ti-check" />Mark done</button>
       </div>
 
-      <dl className="mt-5 space-y-3 text-sm">
+      <dl className="mt-5 pt-4 border-t border-line space-y-2.5 text-sm">
         <div className="flex items-center justify-between gap-2">
-          <dt className="text-muted">Status</dt>
+          <dt className="flex items-center gap-2 text-muted"><Icon name="ti-circle-dot" className="text-base text-muted2 shrink-0" />Status</dt>
           <dd><select value={selected.status} disabled={busy} onChange={(e) => setStatus(selected.id, e.target.value)} className="input h-8 py-0 text-sm">{STATUSES.map(s => <option key={s}>{s}</option>)}</select></dd>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <dt className="text-muted">Assignee</dt>
+          <dt className="flex items-center gap-2 text-muted"><Icon name="ti-user" className="text-base text-muted2 shrink-0" />Assignee</dt>
           <dd><select value={selected.assignee_id || ''} disabled={busy} onChange={(e) => reassign(e.target.value)} className="input h-8 py-0 text-sm max-w-[10rem]"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></dd>
         </div>
-        <div className="flex items-center justify-between"><dt className="text-muted">Project</dt><dd className="font-medium text-content">
+        <div className="flex items-center justify-between"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-folder" className="text-base text-muted2 shrink-0" />Project</dt><dd className="font-medium text-content">
           {selected.project_id && selected.projects?.name ? (
             <EntityLink icon="ti-folder" label={selected.projects.name} href={`/projects/${selected.project_id}`}
               actions={can.write(activeOrg) ? [{ label: 'Edit in Projects', icon: 'ti-pencil', onClick: () => router.push('/projects') }] : []} />
           ) : '—'}
         </dd></div>
-        <div className="flex items-center justify-between"><dt className="text-muted">Due date</dt><dd className={`font-medium ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-content'}`}>{selected.due_date || '—'}</dd></div>
-        <div className="flex items-center justify-between"><dt className="text-muted">Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
+        <div className="flex items-center justify-between"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-calendar" className="text-base text-muted2 shrink-0" />Due date</dt><dd className={`font-medium ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-content'}`}>{selected.due_date || '—'}</dd></div>
+        <div className="flex items-center justify-between"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-clock" className="text-base text-muted2 shrink-0" />Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
         {teams.length > 0 && (
           <div className="flex items-center justify-between gap-2">
-            <dt className="text-muted">Team</dt>
+            <dt className="flex items-center gap-2 text-muted"><Icon name="ti-users-group" className="text-base text-muted2 shrink-0" />Team</dt>
             <dd>
               <select value={selected.team_id || ''} disabled={busy}
                 onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { team_id: e.target.value || null })))}
@@ -294,7 +295,7 @@ export default function Tasks() {
           </div>
         )}
         <div className="flex items-center justify-between gap-2">
-          <dt className="text-muted">Repeat</dt>
+          <dt className="flex items-center gap-2 text-muted"><Icon name="ti-repeat" className="text-base text-muted2 shrink-0" />Repeat</dt>
           <dd>
             <select value={selected.recur_every || ''} disabled={busy}
               onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { recur_every: (e.target.value || null) as Task['recur_every'] })))}
@@ -308,7 +309,7 @@ export default function Tasks() {
           </dd>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <dt className="text-muted">Remind me</dt>
+          <dt className="flex items-center gap-2 text-muted"><Icon name="ti-bell" className="text-base text-muted2 shrink-0" />Remind me</dt>
           <dd>
             <input type="datetime-local" disabled={busy} value="" className="input h-8 py-0 text-sm"
               onChange={(e) => {
@@ -367,6 +368,44 @@ export default function Tasks() {
       <TimeTracking taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
       <EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} />
       <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
+    </div>
+  );
+
+  const BoardView = () => (
+    <div className="flex-1 min-w-0 overflow-x-auto pb-2">
+      <div className="flex gap-3 h-full">
+        {STATUSES.map((st) => {
+          const items = filtered.filter((t) => t.status === st);
+          return (
+            <div key={st} className="w-72 shrink-0 flex flex-col min-h-0">
+              <div className="flex items-center gap-2 mb-2 px-0.5">
+                <StatusBadge status={st} solid />
+                <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
+                <button onClick={() => { setForm({ ...EMPTY_FORM, status: st }); setModal({ mode: 'create' }); }}
+                  title="Add task" className="ml-auto text-muted2 hover:text-content transition"><Icon name="ti-plus" className="text-sm" /></button>
+              </div>
+              <div className="space-y-2 overflow-y-auto pr-1 flex-1">
+                {items.map((t) => {
+                  const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
+                  return (
+                    <button key={t.id} onClick={() => selectTask(t.id)}
+                      className={`card card-interactive w-full text-left p-3 ${selectedId === t.id ? 'border-accent' : ''}`}>
+                      <p className="text-sm font-medium text-content truncate">{t.name}</p>
+                      <p className="text-2xs text-muted truncate mt-1">{t.projects?.name || '—'}</p>
+                      <div className="flex items-center gap-2 mt-2.5">
+                        <Pill label={t.priority} />
+                        {t.due_date && <span className={`text-2xs tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date}</span>}
+                        {t.assignee_id && <span className="ml-auto shrink-0"><Avatar name={userName(t.assignee_id)} size={20} /></span>}
+                      </div>
+                    </button>
+                  );
+                })}
+                {items.length === 0 && <p className="text-2xs text-muted2 px-1 py-6 text-center">No tasks</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 
@@ -456,6 +495,14 @@ export default function Tasks() {
                 <option value="priority">Group: Priority</option>
                 <option value="status">Group: Status</option>
               </select>
+              <div className="flex items-center rounded-lg border border-line overflow-hidden h-9">
+                {(['list', 'board'] as const).map((vw) => (
+                  <button key={vw} onClick={() => setView(vw)}
+                    className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === vw ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
+                    <Icon name={vw === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{vw}
+                  </button>
+                ))}
+              </div>
               <span className="text-2xs text-muted2 ml-1 hidden sm:inline">Sort</span>
               <div className="flex items-center gap-1">
                 {(['priority', 'due', 'name'] as const).map((s) => (
@@ -480,6 +527,7 @@ export default function Tasks() {
           </div>
 
           <div className="flex gap-4 flex-1 min-h-0">
+            {view === 'board' ? <BoardView /> : (
             <div className="card flex-1 min-w-0 overflow-y-auto">
               {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
                 groupedPage.map(([label, items]) => (
@@ -504,6 +552,7 @@ export default function Tasks() {
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}
             </div>
+            )}
 
             {/* Detail sidebar — visible permanently on xl+ */}
             <aside className="w-80 shrink-0 hidden xl:block overflow-y-auto">
