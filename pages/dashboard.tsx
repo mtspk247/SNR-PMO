@@ -417,7 +417,7 @@ export default function Dashboard() {
           {/* ── row 5: pipeline + due soon ── */}
           <div className="grid lg:grid-cols-3 gap-5 mb-5 items-start">
             {/* pipeline by stage — whole card clickable */}
-            <ClickCard href="/crm" className={`card p-5 lg:col-span-2 ${cardHover}`}>
+            <ClickCard href="/crm" className={`card p-5 lg:col-span-1 ${cardHover}`}>
               <div className="flex items-center justify-between mb-5">
                 <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-target-arrow" className="text-base text-muted2" />Pipeline by stage</span>
                 <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">Open CRM →</span>
@@ -446,7 +446,7 @@ export default function Dashboard() {
             </ClickCard>
 
             {/* due soon — task rows clickable individually */}
-            <div className="card overflow-hidden">
+            <div className="card overflow-hidden lg:col-span-2">
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
                 <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-calendar-due" className="text-base text-muted2" />Due soon</span>
                 <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks →</Link>
