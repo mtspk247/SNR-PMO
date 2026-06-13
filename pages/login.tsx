@@ -55,17 +55,30 @@ export default function Login() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-bg">
-      {/* Cosmetic, branding-aware panel */}
-      <div className="side hidden lg:flex flex-col justify-between p-12">
-        <div className="flex items-center gap-2.5 side-fg">
-          <span className="w-8 h-8 rounded-md grid place-items-center font-semibold text-accentfg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>S</span>
-          <span className="font-semibold text-lg">SNR-PMO</span>
+      {/* Branded showcase panel — accent gradient + glow (white-label brand mark) */}
+      <div className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden text-white"
+        style={{ background: 'linear-gradient(160deg, #0d2018 0%, #0b2a1d 52%, #06110c 100%)' }}>
+        <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(62,207,142,.28), transparent 62%)' }} />
+        <div className="pointer-events-none absolute -bottom-32 -right-24 w-[28rem] h-[28rem] rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(111,211,217,.18), transparent 62%)' }} />
+        <div className="relative flex items-center gap-2.5">
+          <span className="w-9 h-9 rounded-lg grid place-items-center font-bold text-accentfg shadow-lg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>S</span>
+          <span className="font-semibold text-lg tracking-tight">SNR-PMO</span>
         </div>
-        <div className="side-fg">
-          <h1 className="text-3xl font-semibold leading-tight">Project management<br />&amp; operations,<br />in one clean workspace.</h1>
-          <p className="side-dim mt-4 max-w-sm">Multi-tenant, white-label PMO — projects, tasks, risk, and financials, scoped securely to your organization.</p>
+        <div className="relative">
+          <h1 className="text-[2.6rem] font-semibold leading-[1.08] tracking-tight">Run your agency<br />in one clean<br />workspace.</h1>
+          <p className="text-white/65 mt-5 max-w-sm text-[15px] leading-relaxed">Projects, tasks, time tracking, CRM, HR and financials — multi-tenant and white-label, scoped securely to your organization.</p>
+          <ul className="mt-8 space-y-3.5 max-w-sm">
+            {[['ti-layout-kanban', 'Projects, tasks, roadmaps & calendar'], ['ti-clock', 'Time tracking, payroll & accounting'], ['ti-target-arrow', 'CRM pipeline & client delivery']].map(([ic, label]) => (
+              <li key={label} className="flex items-center gap-3 text-sm text-white/85">
+                <span className="w-7 h-7 rounded-lg grid place-items-center bg-white/10 ring-1 ring-inset ring-white/15 shrink-0"><Icon name={ic} className="text-base text-[#3ECF8E]" /></span>
+                {label}
+              </li>
+            ))}
+          </ul>
         </div>
-        <p className="text-2xs side-faint">© 2026 SNR-PMO</p>
+        <p className="relative text-2xs text-white/40">© 2026 SNR-PMO · Secure multi-tenant SaaS</p>
       </div>
 
       <div className="flex items-center justify-center p-6">
