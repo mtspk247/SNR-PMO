@@ -280,7 +280,7 @@ export default function Dashboard() {
           </div>
 
           {/* ── row 3: projects list + donut ── */}
-          <div className="grid lg:grid-cols-3 gap-5 mb-5">
+          <div className="grid lg:grid-cols-3 gap-5 mb-5 items-start">
             <div className="card lg:col-span-2 overflow-hidden">
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
                 <div>
@@ -425,7 +425,7 @@ export default function Dashboard() {
           </ClickCard>
 
           {/* ── row 5: pipeline + due soon ── */}
-          <div className="grid lg:grid-cols-3 gap-5 mb-5">
+          <div className="grid lg:grid-cols-3 gap-5 mb-5 items-start">
             {/* pipeline by stage — whole card clickable */}
             <ClickCard href="/crm" className={`card p-5 lg:col-span-2 ${cardHover}`}>
               <div className="flex items-center justify-between mb-5">
@@ -484,7 +484,7 @@ export default function Dashboard() {
           </div>
 
           {/* ── row 6: HR snapshot ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-start">
             {/* headcount + departments — whole card clickable */}
             <ClickCard href="/employees" className={`card p-5 ${cardHover}`}>
               <div className="flex items-center justify-between mb-4">
