@@ -127,10 +127,12 @@ export function TimerChip() {
   };
   return (
     <button onClick={stop} disabled={busy} title="Click to stop the running timer"
-      className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium bg-accent/10 text-accentstrong hover:bg-accent/20 transition-colors">
-      <span className="w-1.5 h-1.5 rounded-full bg-accentstrong animate-pulse" />
+      className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium bg-accent/10 text-accentstrong hover:bg-accent/20 transition-colors max-w-[18rem]">
+      <span className="w-1.5 h-1.5 rounded-full bg-accentstrong animate-pulse shrink-0" />
+      <span className="truncate max-w-[9rem]">{myTimer.task?.name || 'Timer'}</span>
+      <span className="opacity-50 shrink-0">·</span>
       <Elapsed since={myTimer.started_at} />
-      <Icon name="ti-player-stop" className="text-sm" />
+      <Icon name="ti-player-stop" className="text-sm shrink-0" />
     </button>
   );
 }

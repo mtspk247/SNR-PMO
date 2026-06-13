@@ -23,7 +23,7 @@ export default function ChatPage() {
 
   return (
     <Layout title="Chat">
-      <div className="h-full min-h-[24rem] flex gap-4">
+      <div className="h-[calc(100vh-7rem)] min-h-[24rem] flex gap-4">
         {/* Channel rail (≥lg). On smaller screens the header select takes over. */}
         <aside className="hidden lg:flex w-60 shrink-0 flex-col bg-surface border border-line rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-line">

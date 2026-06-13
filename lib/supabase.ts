@@ -392,6 +392,7 @@ export interface TimeEntry {
   duration_minutes: number | null;
   is_manual: boolean;
   notes: string | null;
+  task?: { name: string } | null;
   created_at: string;
   user?: { full_name: string } | null;
 }

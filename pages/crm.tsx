@@ -187,7 +187,7 @@ export default function CRM() {
               <div className="space-y-2 overflow-y-auto px-1 pb-2">
                 {items.map((d) => (
                   <div key={d.id} draggable onDragStart={() => setDragId(d.id)} onDragEnd={() => { setDragId(null); setDragOverCol(null); }} onClick={() => selectDeal(d.id)}
-                    className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selectedId === d.id ? 'border-accent' : ''} ${dragId === d.id ? 'opacity-40' : ''}`}>
+                    className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selectedId === d.id ? 'border-accent' : ''} ${dragId === d.id ? 'opacity-95 shadow-lg ring-2 ring-accent/50 scale-[1.03] rotate-1' : ''}`}>
                     <p className="text-sm font-medium text-content truncate">{d.title}</p>
                     <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>
                     <p className="text-sm font-semibold mt-1.5 tabular-nums">{money(d.value || 0)}</p>
@@ -422,7 +422,7 @@ export default function CRM() {
       {showDetail && selected && view === 'pipeline' && (
         <div className="modal-backdrop fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 overflow-y-auto" onClick={() => setShowDetail(false)}>
           <div className="modal-card w-full max-w-2xl my-2 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <DetailPanel />
+            {DetailPanel()}
           </div>
         </div>
       )}

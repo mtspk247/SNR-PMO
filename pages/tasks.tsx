@@ -475,7 +475,7 @@ export default function Tasks() {
                       onDragStart={(e) => { setDragId(t.id); e.dataTransfer.effectAllowed = 'move'; }}
                       onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
                       onClick={() => selectTask(t.id)}
-                      className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selectedId === t.id ? 'border-accent' : ''} ${dragId === t.id ? 'opacity-40' : ''}`}>
+                      className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selectedId === t.id ? 'border-accent' : ''} ${dragId === t.id ? 'opacity-95 shadow-lg ring-2 ring-accent/50 scale-[1.03] rotate-1' : ''}`}>
                       <p className="text-sm font-medium text-content truncate">{t.name}</p>
                       <p className="text-2xs text-muted truncate mt-1">{t.projects?.name || '—'}</p>
                       <div className="flex items-center gap-2 mt-2.5">
@@ -722,7 +722,7 @@ export default function Tasks() {
       {showDetail && selected && (
         <div className="modal-backdrop fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 overflow-y-auto" onClick={() => setShowDetail(false)}>
           <div className="modal-card w-full max-w-5xl my-2" onClick={(e) => e.stopPropagation()}>
-            <DetailPanel />
+            {DetailPanel()}
           </div>
         </div>
       )}
