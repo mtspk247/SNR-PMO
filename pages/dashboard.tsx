@@ -212,7 +212,7 @@ export default function Dashboard() {
             <div className="card overflow-hidden mb-6">
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">My work</span>
+                  <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-user-check" className="text-base text-muted2" />My work</span>
                   <span className="pill pill-blue">{myTasks.length}</span>
                 </div>
                 <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks →</Link>
@@ -284,7 +284,7 @@ export default function Dashboard() {
             <div className="card lg:col-span-2 overflow-hidden">
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
                 <div>
-                  <span className="text-sm font-semibold">Projects</span>
+                  <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-folder" className="text-base text-muted2" />Projects</span>
                   <span className="ml-2 text-2xs text-muted2">{projects.length} total</span>
                 </div>
                 <Link href="/projects" className="text-xs font-medium text-accentstrong hover:underline">View all →</Link>
@@ -324,7 +324,7 @@ export default function Dashboard() {
             {/* project status donut — clicks to /projects */}
             <ClickCard href="/projects" className={`card p-5 lg:self-start ${cardHover}`}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-semibold">Project status</span>
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-donut-3" className="text-base text-muted2" />Project status</span>
                 <span className="text-xs text-muted2 opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
               </div>
               {projects.length === 0 ? <EmptyState text="No data" icon="ti-chart-donut" /> : (
@@ -358,7 +358,7 @@ export default function Dashboard() {
           {/* ── row 4: income/expense trend chart ── */}
           <ClickCard href="/accounting" className={`card p-5 mb-5 ${cardHover}`}>
             <div className="flex items-center justify-between mb-5">
-              <span className="text-sm font-semibold">Income vs. Expenses — last 6 months</span>
+              <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-bar" className="text-base text-muted2" />Income vs. Expenses — last 6 months</span>
               <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
             </div>
             {!hasLedger ? <EmptyState text="No ledger entries yet" icon="ti-chart-bar" /> : (
@@ -429,7 +429,7 @@ export default function Dashboard() {
             {/* pipeline by stage — whole card clickable */}
             <ClickCard href="/crm" className={`card p-5 lg:col-span-2 ${cardHover}`}>
               <div className="flex items-center justify-between mb-5">
-                <span className="text-sm font-semibold">Pipeline by stage</span>
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-target-arrow" className="text-base text-muted2" />Pipeline by stage</span>
                 <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">Open CRM →</span>
               </div>
               {openDeals.length === 0 ? <EmptyState text="No open deals" icon="ti-target" /> : (
@@ -458,7 +458,7 @@ export default function Dashboard() {
             {/* due soon — task rows clickable individually */}
             <div className="card overflow-hidden">
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
-                <span className="text-sm font-semibold">Due soon</span>
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-calendar-due" className="text-base text-muted2" />Due soon</span>
                 <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks →</Link>
               </div>
               <div className="divide-y divide-line">
@@ -488,7 +488,7 @@ export default function Dashboard() {
             {/* headcount + departments — whole card clickable */}
             <ClickCard href="/employees" className={`card p-5 ${cardHover}`}>
               <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-semibold">Headcount</span>
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-users" className="text-base text-muted2" />Headcount</span>
                 <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">All →</span>
               </div>
               {employees.length === 0 ? <EmptyState text="No employees yet" icon="ti-users" /> : (
@@ -524,7 +524,7 @@ export default function Dashboard() {
             {/* leave requests — whole card clickable */}
             <ClickCard href="/leave" className={`card overflow-hidden ${cardHover}`}>
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
-                <span className="text-sm font-semibold">Leave</span>
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-beach" className="text-base text-muted2" />Leave</span>
                 <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">Manage →</span>
               </div>
               {leaves.length === 0 ? <EmptyState text="No leave requests" icon="ti-calendar-off" /> : (
@@ -561,7 +561,7 @@ export default function Dashboard() {
             {/* onboarding progress — whole card clickable */}
             <ClickCard href="/onboarding" className={`card overflow-hidden sm:col-span-2 lg:col-span-1 ${cardHover}`}>
               <div className="flex items-center justify-between px-5 h-14 border-b border-line">
-                <span className="text-sm font-semibold">Onboarding</span>
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-user-plus" className="text-base text-muted2" />Onboarding</span>
                 <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">View all →</span>
               </div>
               {activeHires.length === 0 ? (
