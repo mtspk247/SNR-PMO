@@ -71,8 +71,19 @@ function ClickCard({ href, className = '', children }: { href: string; className
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-function Kpi({ href, label, value, hint, hintTone = 'muted', icon }:
-  { href: string; label: string; value: React.ReactNode; hint?: string; hintTone?: 'muted' | 'up' | 'down'; icon: string }) {
+function Spark({ data, color }: { data: number[]; color: string }) {
+  if (!data || data.length < 2 || Math.max(...data) <= 0) return null;
+  const max = Math.max(...data, 1), min = Math.min(...data, 0), rng = (max - min) || 1, w = 100, h = 26;
+  const pts = data.map((v, i) => `${((i / (data.length - 1)) * w).toFixed(1)},${(h - ((v - min) / rng) * h).toFixed(1)}`).join(' ');
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-6 mt-3 overflow-visible">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Kpi({ href, label, value, hint, hintTone = 'muted', icon, series, seriesColor = 'var(--accent)' }:
+  { href: string; label: string; value: React.ReactNode; hint?: string; hintTone?: 'muted' | 'up' | 'down'; icon: string; series?: number[]; seriesColor?: string }) {
   const router = useRouter();
   return (
     <button onClick={() => router.push(href)}
@@ -83,6 +94,7 @@ function Kpi({ href, label, value, hint, hintTone = 'muted', icon }:
       </div>
       <p className="text-2xl font-semibold mt-2 text-content tnum leading-none">{value}</p>
       {hint && <p className={`text-2xs mt-2 inline-flex items-center gap-1 font-medium ${hintTone === 'up' ? 'text-emerald-600' : hintTone === 'down' ? 'text-rose-600' : 'text-muted2'}`}>{hintTone === 'up' && <Icon name="ti-trending-up" className="text-xs" />}{hintTone === 'down' && <Icon name="ti-trending-down" className="text-xs" />}{hint}</p>}
+      {series && <Spark data={series} color={seriesColor} />}
     </button>
   );
 }
@@ -217,44 +229,50 @@ export default function Dashboard() {
 
       {loading ? <Spinner /> : (
         <>
-          {/* KPI strip — single-border compact tiles */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          {/* KPI strip — operational counts */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
             <Kpi href="/projects" label="Active projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />
             <Kpi href="/tasks" label="Open tasks" value={openTasks.length} hint={overdue ? `${overdue} overdue` : 'On schedule'} hintTone={overdue ? 'down' : 'up'} icon="ti-checkbox" />
             <Kpi href="/crm" label="Open deals" value={openDeals.length} hint={`${deals.length} total`} icon="ti-target" />
             <Kpi href="/crm" label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />
-            <Kpi href="/accounting" label="Income" value={money(income)} hint="All time" icon="ti-trending-up" />
-            <Kpi href="/accounting" label="Expenses" value={money(expense)} hint="Incl. payroll" icon="ti-trending-down" />
-            <Kpi href="/accounting" label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" />
-            <Kpi href="/accounting" label="Spend / month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" />
+          </div>
+          {/* KPI strip — financial trend (sparklines from the 6-mo ledger) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <Kpi href="/accounting" label="Income" value={money(income)} hint="All time" icon="ti-trending-up" series={trendBuckets.map((b) => b.income)} seriesColor="var(--accent)" />
+            <Kpi href="/accounting" label="Expenses" value={money(expense)} hint="Incl. payroll" icon="ti-trending-down" series={trendBuckets.map((b) => b.expense)} seriesColor="#f43f5e" />
+            <Kpi href="/accounting" label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" series={trendBuckets.map((b) => b.income - b.expense)} seriesColor="var(--accent)" />
+            <Kpi href="/accounting" label="Spend / month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" series={trendBuckets.map((b) => b.expense)} seriesColor="#f43f5e" />
           </div>
 
-          {/* Bento row 1: projects (2/3) + project status (1/3) */}
+          {/* Analytics band: finance trend (2/3) + project status donut (1/3) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-stretch">
-            <div className="card overflow-hidden lg:col-span-2 flex flex-col">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
-                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-folder" className="text-base text-muted2" />Projects<span className="ml-1 text-2xs text-muted2 font-normal">{projects.length} total</span></span>
-                <Link href="/projects" className="text-xs font-medium text-accentstrong hover:underline">View all &rarr;</Link>
+            <ClickCard href="/accounting" className="card p-5 lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-bar" className="text-base text-muted2" />Income vs. Expenses &mdash; last 6 months</span>
+                <span className="text-xs font-medium text-accentstrong">Accounting &rarr;</span>
               </div>
-              {projects.length === 0 ? <EmptyState text="No projects yet" icon="ti-folder" /> : (
-                <div className="divide-y divide-line flex-1">
-                  {projects.slice(0, 5).map((p) => (
-                    <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center gap-4 px-5 py-3 transition hover:bg-surface2/60 group">
-                      <Avatar name={p.name} size={32} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{p.name}</p>
-                        <div className="flex items-center gap-2 mt-1"><StatusBadge status={p.status} /><Pill label={p.priority} /></div>
-                      </div>
-                      <div className="hidden sm:flex items-center gap-2 w-32 shrink-0">
-                        <div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${p.progress || 0}%` }} /></div>
-                        <span className="text-2xs text-muted w-8 text-right tabular-nums">{p.progress || 0}%</span>
-                      </div>
-                      <Icon name="ti-chevron-right" className="text-base text-muted2 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
-                    </Link>
-                  ))}
-                </div>
+              {!hasLedger ? <EmptyState text="No ledger entries yet" icon="ti-chart-bar" /> : (
+                <div className="w-full overflow-x-auto"><div className="min-w-[420px]">
+                  <div className="flex items-end gap-3 h-40 border-b border-line pb-px">
+                    {trendBuckets.map((b) => {
+                      const incH = Math.max(Math.round((b.income / maxTrend) * 100), b.income > 0 ? 2 : 0);
+                      const expH = Math.max(Math.round((b.expense / maxTrend) * 100), b.expense > 0 ? 2 : 0);
+                      return (
+                        <div key={b.month} className="flex-1 h-full flex items-end justify-center gap-1.5">
+                          <div className="w-1/2 max-w-[26px] rounded-t bg-accent transition-all hover:opacity-80" style={{ height: `${incH}%` }} title={`${shortMonth(b.month)} Income: ${money(b.income)}`} />
+                          <div className="w-1/2 max-w-[26px] rounded-t bg-rose-500/70 transition-all hover:opacity-80" style={{ height: `${expH}%` }} title={`${shortMonth(b.month)} Expenses: ${money(b.expense)}`} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-3 mt-2">{trendBuckets.map((b) => (<div key={b.month} className="flex-1 text-center text-2xs text-muted2 tabular-nums">{shortMonth(b.month)}</div>))}</div>
+                  <div className="flex items-center gap-4 mt-3 justify-end">
+                    <span className="flex items-center gap-1.5 text-xs text-contentsoft"><span className="w-3 h-2 rounded-sm bg-accent inline-block" />Income</span>
+                    <span className="flex items-center gap-1.5 text-xs text-contentsoft"><span className="w-3 h-2 rounded-sm bg-rose-500/70 inline-block" />Expenses</span>
+                  </div>
+                </div></div>
               )}
-            </div>
+            </ClickCard>
 
             <ClickCard href="/projects" className="card p-5">
               <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-donut-3" className="text-base text-muted2" />Project status</span>
@@ -264,34 +282,15 @@ export default function Dashboard() {
                     <div className="absolute inset-[13px] rounded-full bg-surface grid place-items-center"><div className="text-center"><p className="text-lg font-semibold leading-none">{projects.length}</p><p className="text-2xs text-muted mt-0.5">total</p></div></div>
                   </div>
                   <div className="flex-1 space-y-2">
-                    {statusEntries.map(([st, c]) => (
-                      <div key={st} className="flex items-center gap-2.5 text-xs"><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: STATUS_COLOR[st] || '#94a3b8' }} /><span className="flex-1 truncate text-contentsoft">{st}</span><span className="font-medium text-content tabular-nums">{c}</span></div>
-                    ))}
+                    {statusEntries.map(([st, c]) => (<div key={st} className="flex items-center gap-2.5 text-xs"><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: STATUS_COLOR[st] || '#94a3b8' }} /><span className="flex-1 truncate text-contentsoft">{st}</span><span className="font-medium text-content tabular-nums">{c}</span></div>))}
                   </div>
                 </div>
               )}
             </ClickCard>
           </div>
 
-          {/* Bento row 2: due soon (2/3) + pipeline (1/3) */}
+          {/* Pipeline funnel (1/3) + Due soon (2/3) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-stretch">
-            <div className="card overflow-hidden lg:col-span-2 flex flex-col">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
-                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-calendar-due" className="text-base text-muted2" />Due soon</span>
-                <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks &rarr;</Link>
-              </div>
-              <div className="divide-y divide-line flex-1">
-                {openTasks.slice(0, 5).map((t) => (
-                  <Link key={t.id} href={`/tasks?task=${t.id}`} className="flex items-center gap-3 px-5 py-3 transition hover:bg-surface2/60">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${isOverdue(t.due_date) ? 'bg-rose-500' : 'bg-accent'}`} />
-                    <div className="min-w-0 flex-1"><p className="text-sm truncate">{t.name}</p><p className="text-2xs text-muted truncate mt-0.5">{t.projects?.name || '—'}</p></div>
-                    <span className={`text-2xs font-medium shrink-0 ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-muted2'}`}>{t.due_date || ''}</span>
-                  </Link>
-                ))}
-                {openTasks.length === 0 && <EmptyState text="All caught up" icon="ti-checks" />}
-              </div>
-            </div>
-
             <ClickCard href="/crm" className="card p-5">
               <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-target-arrow" className="text-base text-muted2" />Pipeline by stage</span>
               {openDeals.length === 0 ? <EmptyState text="No open deals" icon="ti-target" /> : (
@@ -305,41 +304,46 @@ export default function Dashboard() {
                 </div>
               )}
             </ClickCard>
+
+            <div className="card overflow-hidden lg:col-span-2 flex flex-col">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-calendar-due" className="text-base text-muted2" />Due soon</span>
+                <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks &rarr;</Link>
+              </div>
+              <div className="divide-y divide-line flex-1">
+                {openTasks.slice(0, 6).map((t) => (
+                  <Link key={t.id} href={`/tasks?task=${t.id}`} className="flex items-center gap-3 px-5 py-3 transition hover:bg-surface2/60">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isOverdue(t.due_date) ? 'bg-rose-500' : 'bg-accent'}`} />
+                    <div className="min-w-0 flex-1"><p className="text-sm truncate">{t.name}</p><p className="text-2xs text-muted truncate mt-0.5">{t.projects?.name || '—'}</p></div>
+                    <span className={`text-2xs font-medium shrink-0 ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-muted2'}`}>{t.due_date || ''}</span>
+                  </Link>
+                ))}
+                {openTasks.length === 0 && <EmptyState text="All caught up" icon="ti-checks" />}
+              </div>
+            </div>
           </div>
 
-          {/* Finance trend — full width, compact */}
-          <ClickCard href="/accounting" className="card p-5 mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-bar" className="text-base text-muted2" />Income vs. Expenses &mdash; last 6 months</span>
-              <span className="text-xs font-medium text-accentstrong">Accounting &rarr;</span>
+          {/* Projects list (2/3) + Headcount (1/3) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-stretch">
+            <div className="card overflow-hidden lg:col-span-2 flex flex-col">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-folder" className="text-base text-muted2" />Projects<span className="ml-1 text-2xs text-muted2 font-normal">{projects.length} total</span></span>
+                <Link href="/projects" className="text-xs font-medium text-accentstrong hover:underline">View all &rarr;</Link>
+              </div>
+              {projects.length === 0 ? <EmptyState text="No projects yet" icon="ti-folder" /> : (
+                <div className="divide-y divide-line flex-1">
+                  {projects.slice(0, 5).map((p) => (
+                    <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center gap-4 px-5 py-3 transition hover:bg-surface2/60 group">
+                      <Avatar name={p.name} size={32} />
+                      <div className="min-w-0 flex-1"><p className="text-sm font-medium truncate">{p.name}</p><div className="flex items-center gap-2 mt-1"><StatusBadge status={p.status} /><Pill label={p.priority} /></div></div>
+                      <div className="hidden sm:flex items-center gap-2 w-32 shrink-0"><div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${p.progress || 0}%` }} /></div><span className="text-2xs text-muted w-8 text-right tabular-nums">{p.progress || 0}%</span></div>
+                      <Icon name="ti-chevron-right" className="text-base text-muted2 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
-            {!hasLedger ? <EmptyState text="No ledger entries yet" icon="ti-chart-bar" /> : (
-              <div className="w-full overflow-x-auto"><div className="min-w-[420px]">
-                <div className="flex items-end gap-3 h-36 border-b border-line pb-px">
-                  {trendBuckets.map((b) => {
-                    const incH = Math.max(Math.round((b.income / maxTrend) * 100), b.income > 0 ? 2 : 0);
-                    const expH = Math.max(Math.round((b.expense / maxTrend) * 100), b.expense > 0 ? 2 : 0);
-                    return (
-                      <div key={b.month} className="flex-1 h-full flex items-end justify-center gap-1.5">
-                        <div className="w-1/2 max-w-[24px] rounded-t bg-accent transition-all hover:opacity-80" style={{ height: `${incH}%` }} title={`${shortMonth(b.month)} Income: ${money(b.income)}`} />
-                        <div className="w-1/2 max-w-[24px] rounded-t bg-rose-500/70 transition-all hover:opacity-80" style={{ height: `${expH}%` }} title={`${shortMonth(b.month)} Expenses: ${money(b.expense)}`} />
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex gap-3 mt-2">
-                  {trendBuckets.map((b) => (<div key={b.month} className="flex-1 text-center text-2xs text-muted2 tabular-nums">{shortMonth(b.month)}</div>))}
-                </div>
-                <div className="flex items-center gap-4 mt-3 justify-end">
-                  <span className="flex items-center gap-1.5 text-xs text-contentsoft"><span className="w-3 h-2 rounded-sm bg-accent inline-block" />Income</span>
-                  <span className="flex items-center gap-1.5 text-xs text-contentsoft"><span className="w-3 h-2 rounded-sm bg-rose-500/70 inline-block" />Expenses</span>
-                </div>
-              </div></div>
-            )}
-          </ClickCard>
 
-          {/* HR row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
             <ClickCard href="/employees" className="card p-5">
               <span className="text-sm font-semibold inline-flex items-center gap-2 mb-4"><Icon name="ti-users" className="text-base text-muted2" />Headcount</span>
               {employees.length === 0 ? <EmptyState text="No employees yet" icon="ti-users" /> : (
@@ -348,44 +352,33 @@ export default function Dashboard() {
                   {topDepts.length > 0 && (
                     <div className="space-y-2.5">
                       {topDepts.map(([dept, count]) => (
-                        <div key={dept} className="flex items-center gap-2 text-xs">
-                          <div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.round((count / (headcount || 1)) * 100)}%` }} /></div>
-                          <span className="text-contentsoft truncate w-24">{dept}</span>
-                          <span className="font-medium text-content tabular-nums w-4 text-right">{count}</span>
-                        </div>
+                        <div key={dept} className="flex items-center gap-2 text-xs"><div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.round((count / (headcount || 1)) * 100)}%` }} /></div><span className="text-contentsoft truncate w-24">{dept}</span><span className="font-medium text-content tabular-nums w-4 text-right">{count}</span></div>
                       ))}
                     </div>
                   )}
                 </>
               )}
             </ClickCard>
+          </div>
 
+          {/* Leave + Onboarding */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <ClickCard href="/leave" className="card overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
-                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-beach" className="text-base text-muted2" />Leave</span>
-              </div>
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line"><span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-beach" className="text-base text-muted2" />Leave</span></div>
               {leaves.length === 0 ? <EmptyState text="No leave requests" icon="ti-calendar-off" /> : (
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between text-sm"><span className="text-contentsoft">Pending approval</span><span className={`font-semibold tabular-nums ${pendingLeaves > 0 ? 'text-amber-500' : 'text-content'}`}>{pendingLeaves}</span></div>
-                  <div className="border-t border-line pt-3">
-                    <p className="text-xs text-muted mb-2">On leave today</p>
+                  <div className="border-t border-line pt-3"><p className="text-xs text-muted mb-2">On leave today</p>
                     {onLeaveToday.length === 0 ? <p className="text-xs text-muted2">Nobody out today</p> : (
-                      <div className="space-y-1.5">
-                        {onLeaveToday.slice(0, 4).map((l) => (
-                          <div key={l.id} className="flex items-center gap-2 text-xs"><Avatar name={l.requester?.full_name || '?'} size={20} /><span className="text-contentsoft truncate flex-1">{l.requester?.full_name || 'Unknown'}</span><Pill label={l.type} /></div>
-                        ))}
-                        {onLeaveToday.length > 4 && <p className="text-2xs text-muted2">+{onLeaveToday.length - 4} more</p>}
-                      </div>
+                      <div className="space-y-1.5">{onLeaveToday.slice(0, 4).map((l) => (<div key={l.id} className="flex items-center gap-2 text-xs"><Avatar name={l.requester?.full_name || '?'} size={20} /><span className="text-contentsoft truncate flex-1">{l.requester?.full_name || 'Unknown'}</span><Pill label={l.type} /></div>))}{onLeaveToday.length > 4 && <p className="text-2xs text-muted2">+{onLeaveToday.length - 4} more</p>}</div>
                     )}
                   </div>
                 </div>
               )}
             </ClickCard>
 
-            <ClickCard href="/onboarding" className="card overflow-hidden sm:col-span-2 lg:col-span-1">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
-                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-user-plus" className="text-base text-muted2" />Onboarding</span>
-              </div>
+            <ClickCard href="/onboarding" className="card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line"><span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-user-plus" className="text-base text-muted2" />Onboarding</span></div>
               {activeHires.length === 0 ? <EmptyState text="No active onboarding" icon="ti-user-check" /> : (
                 <div className="divide-y divide-line">
                   {activeHires.map((h) => {
@@ -393,9 +386,7 @@ export default function Dashboard() {
                     return (
                       <div key={h.uid} className="flex items-center gap-3 px-5 py-3">
                         <Avatar name={h.name} size={28} />
-                        <div className="min-w-0 flex-1"><p className="text-sm truncate">{h.name}</p>
-                          <div className="flex items-center gap-2 mt-1"><div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} /></div><span className="text-2xs text-muted tabular-nums shrink-0">{h.done}/{h.total}</span></div>
-                        </div>
+                        <div className="min-w-0 flex-1"><p className="text-sm truncate">{h.name}</p><div className="flex items-center gap-2 mt-1"><div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} /></div><span className="text-2xs text-muted tabular-nums shrink-0">{h.done}/{h.total}</span></div></div>
                         <span className="text-2xs font-medium text-muted2 tabular-nums shrink-0">{pct}%</span>
                       </div>
                     );
