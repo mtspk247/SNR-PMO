@@ -4,7 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon, StatusBadge } from '@/components/ui';
-import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity } from '@/lib/db';
+import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity, ensureTaskStatuses, TaskStatus } from '@/lib/db';
+import StatusManager from '@/components/StatusManager';
 import { Deal, Contact, Company, CrmActivity } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useDeals, useContacts, useCrmCompanies } from '@/lib/queries';
@@ -53,6 +54,13 @@ export default function CRM() {
   const [actKind, setActKind] = useState('note');
   const [actBody, setActBody] = useState('');
   const [actBusy, setActBusy] = useState(false);
+  // Custom, editable deal stages (scope='crm_deal') — like Tasks/Projects statuses.
+  const [dstatuses, setDstatuses] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
+  useEffect(() => { if (org?.id) ensureTaskStatuses(org.id, 'crm_deal').then(setDstatuses).catch(() => {}); }, [org?.id]);
+  const reloadStages = () => { if (org?.id) ensureTaskStatuses(org.id, 'crm_deal').then(setDstatuses).catch(() => {}); };
+  const sColor = (n: string) => dstatuses.find((x) => x.name === n)?.color;
+  const stageNames = dstatuses.length ? dstatuses.map((x) => x.name) : STAGES;
 
   // Patch RQ caches in place with the authoritative rows db.ts returns —
   // same data flow as the old local setState, no extra refetch round-trip.
@@ -156,7 +164,7 @@ export default function CRM() {
   ) : (
     <div className="card p-5 sticky top-0">
       <div className="flex items-center gap-2 mb-3">
-        <StatusBadge status={selected.stage} />
+        <StatusBadge status={selected.stage} color={sColor(selected.stage)} />
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => router.push(`/crm/deal/${selected.id}`)} className="btn-ghost p-1.5 rounded text-muted hover:text-accentstrong" title="Open full page"><Icon name="ti-arrow-up-right" /></button>
           <button onClick={() => setEditDeal(selected)} className="btn-ghost p-1.5 rounded text-muted hover:text-content" title="Edit deal"><Icon name="ti-pencil" /></button>
@@ -257,7 +265,7 @@ export default function CRM() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-surface2 border border-line rounded-lg p-1"><Tab id="pipeline" label="Pipeline" /><Tab id="contacts" label="Contacts" /></div>
             {view === 'pipeline'
-              ? <button onClick={() => setShowDeal(true)} className="btn btn-primary"><Icon name="ti-plus" />New deal</button>
+              ? <><button onClick={() => setStatusMgr(true)} className="btn"><Icon name="ti-flag-3" className="text-sm" />Stages</button><button onClick={() => setShowDeal(true)} className="btn btn-primary"><Icon name="ti-plus" />New deal</button></>
               : <button onClick={() => setShowContact(true)} className="btn btn-primary"><Icon name="ti-plus" />New contact</button>}
           </div>
         } />
@@ -284,7 +292,7 @@ export default function CRM() {
           </div>
 
           <div className="lg:hidden flex gap-1.5 overflow-x-auto pb-2 mb-1">
-            {STAGES.map((s) => (
+            {stageNames.map((s) => (
               <button key={s} onClick={() => toggleStage(s)}
                 className={`shrink-0 h-7 px-2.5 rounded-full text-xs border transition ${stageFilter.has(s) ? 'bg-accent text-accentfg border-accent' : 'bg-surface text-muted border-line'}`}>
                 {s}<span className="ml-1 text-2xs opacity-70">{deals.filter(d => d.stage === s).length}</span>
@@ -296,7 +304,7 @@ export default function CRM() {
             <aside className="w-48 shrink-0 hidden lg:block">
               <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Stage</p>
               <div className="space-y-1">
-                {STAGES.map((s) => (
+                {stageNames.map((s) => (
                   <label key={s} className="flex items-center gap-2 text-sm text-muted cursor-pointer">
                     <input type="checkbox" checked={stageFilter.has(s)} onChange={() => toggleStage(s)} className="accent-accentstrong" />
                     {s}<span className="ml-auto text-2xs text-muted2">{deals.filter(d => d.stage === s).length}</span>
@@ -316,7 +324,7 @@ export default function CRM() {
                       <div className="h-full rounded-full bg-accent" style={{ width: `${((d.value || 0) / maxValue) * 100}%` }} />
                     </div>
                   </div>
-                  <StatusBadge status={d.stage} />
+                  <StatusBadge status={d.stage} color={sColor(d.stage)} />
                   <span className="text-sm font-medium w-20 text-right">{money(d.value || 0)}</span>
                   <button onClick={(e) => { e.stopPropagation(); router.push(`/crm/deal/${d.id}`); }}
                     className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong opacity-0 group-hover:opacity-100 shrink-0" title="Open deal">
@@ -385,8 +393,10 @@ export default function CRM() {
         </div>
       )}
 
+      {org && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="crm_deal" statuses={dstatuses} onChanged={reloadStages} />}
+
       {showDeal && org && (
-        <DealModal open={showDeal} companies={companies} contacts={contacts} busy={busy} onAddCompany={addCompany}
+        <DealModal open={showDeal} companies={companies} contacts={contacts} busy={busy} stages={stageNames} onAddCompany={addCompany}
           onClose={() => setShowDeal(false)}
           onSubmit={async (p) => {
             setBusy(true);
@@ -411,7 +421,7 @@ export default function CRM() {
       )}
 
       {editDeal && org && (
-        <DealModal key={editDeal.id} open={!!editDeal} companies={companies} contacts={contacts} busy={busy} onAddCompany={addCompany}
+        <DealModal key={editDeal.id} open={!!editDeal} companies={companies} contacts={contacts} busy={busy} stages={stageNames} onAddCompany={addCompany}
           heading="Edit deal" submitLabel="Save changes"
           initial={{ title: editDeal.title, value: editDeal.value ?? 0, stage: editDeal.stage, company_id: editDeal.company_id, contact_id: editDeal.contact_id, expected_close: editDeal.expected_close, notes: editDeal.notes ?? null }}
           onClose={() => setEditDeal(null)}
@@ -462,8 +472,8 @@ function CompanyField({ companies, value, onChange, onAddCompany }:
 
 type DealForm = { title: string; value: number; stage: string; company_id: string | null; contact_id: string | null; expected_close: string | null; notes: string | null };
 
-function DealModal({ open, companies, contacts, busy, onAddCompany, onClose, onSubmit, initial, heading, submitLabel }:
-  { open: boolean; companies: Company[]; contacts: Contact[]; busy: boolean; onAddCompany: (n: string) => Promise<Company | null>; onClose: () => void; onSubmit: (p: DealForm) => void; initial?: Partial<DealForm>; heading?: string; submitLabel?: string }) {
+function DealModal({ open, companies, contacts, busy, stages, onAddCompany, onClose, onSubmit, initial, heading, submitLabel }:
+  { open: boolean; companies: Company[]; contacts: Contact[]; busy: boolean; stages: string[]; onAddCompany: (n: string) => Promise<Company | null>; onClose: () => void; onSubmit: (p: DealForm) => void; initial?: Partial<DealForm>; heading?: string; submitLabel?: string }) {
   const tabs = useModalTabs('details');
   const [title, setTitle] = useState(initial?.title ?? '');
   const [value, setValue] = useState(initial?.value != null ? String(initial.value) : '');
@@ -509,7 +519,7 @@ function DealModal({ open, companies, contacts, busy, onAddCompany, onClose, onS
             </Field>
             <Field label="Stage" className="flex-1">
               <select value={stage} onChange={(e) => setStage(e.target.value)} className="input">
-                {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {stages.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
           </div>
