@@ -171,6 +171,12 @@ export const STATUS_META: Record<string, { dot: string; solid: string; soft: str
   'Planning':    { dot: 'bg-sky-500',     solid: 'bg-sky-500 text-white',     soft: 'bg-sky-500/10 text-sky-600 ring-sky-500/25' },
   'Active':      { dot: 'bg-emerald-500', solid: 'bg-emerald-500 text-white', soft: 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25' },
   'Completed':   { dot: 'bg-violet-500',  solid: 'bg-violet-500 text-white',  soft: 'bg-violet-500/10 text-violet-600 ring-violet-500/25' },
+  'Lead':        { dot: 'bg-slate-400',   solid: 'bg-slate-500 text-white',   soft: 'bg-slate-500/10 text-slate-600 ring-slate-500/25' },
+  'Qualified':   { dot: 'bg-sky-500',     solid: 'bg-sky-500 text-white',     soft: 'bg-sky-500/10 text-sky-600 ring-sky-500/25' },
+  'Proposal':    { dot: 'bg-indigo-500',  solid: 'bg-indigo-500 text-white',  soft: 'bg-indigo-500/10 text-indigo-600 ring-indigo-500/25' },
+  'Negotiation': { dot: 'bg-amber-500',   solid: 'bg-amber-500 text-white',   soft: 'bg-amber-500/10 text-amber-600 ring-amber-500/25' },
+  'Won':         { dot: 'bg-emerald-500', solid: 'bg-emerald-500 text-white', soft: 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25' },
+  'Lost':        { dot: 'bg-rose-500',    solid: 'bg-rose-500 text-white',    soft: 'bg-rose-500/10 text-rose-600 ring-rose-500/25' },
 };
 export const statusMeta = (s: string) => STATUS_META[s] || { dot: 'bg-zinc-400', solid: 'bg-zinc-500 text-white', soft: 'bg-zinc-500/10 text-zinc-600 ring-zinc-500/25' };
 

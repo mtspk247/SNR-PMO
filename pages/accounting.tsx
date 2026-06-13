@@ -286,7 +286,7 @@ export default function AccountingPage() {
 
       {/* ── ENTRIES VIEW ─────────────────────────────────────────────────────── */}
       {pageView === 'entries' && (
-        <div className="card overflow-hidden">
+        <div className="bg-surface overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-line">
             <div className="relative flex-1 max-w-xs">
               <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2" />

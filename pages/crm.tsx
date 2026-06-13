@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
-import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon } from '@/components/ui';
+import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon, StatusBadge } from '@/components/ui';
 import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity } from '@/lib/db';
 import { Deal, Contact, Company, CrmActivity } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -141,7 +141,7 @@ export default function CRM() {
   ) : (
     <div className="card p-5 sticky top-0">
       <div className="flex items-center gap-2 mb-3">
-        <Pill label={selected.stage} />
+        <StatusBadge status={selected.stage} />
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => router.push(`/crm/deal/${selected.id}`)} className="btn-ghost p-1.5 rounded text-muted hover:text-accentstrong" title="Open full page"><Icon name="ti-arrow-up-right" /></button>
           <button onClick={() => setEditDeal(selected)} className="btn-ghost p-1.5 rounded text-muted hover:text-content" title="Edit deal"><Icon name="ti-pencil" /></button>
@@ -159,7 +159,7 @@ export default function CRM() {
       </div>
       <dl className="mt-5 space-y-3">
         {[
-          ['Stage', <Pill key="s" label={selected.stage} />],
+          ['Stage', <StatusBadge key="s" status={selected.stage} />],
           ['Company', selected.crm_companies?.name || '—'],
           ['Contact', selected.crm_contacts?.full_name || '—'],
           ['Expected close', selected.expected_close || '—'],
@@ -301,7 +301,7 @@ export default function CRM() {
                       <div className="h-full rounded-full bg-accent" style={{ width: `${((d.value || 0) / maxValue) * 100}%` }} />
                     </div>
                   </div>
-                  <Pill label={d.stage} />
+                  <StatusBadge status={d.stage} />
                   <span className="text-sm font-medium w-20 text-right">{money(d.value || 0)}</span>
                   <button onClick={(e) => { e.stopPropagation(); router.push(`/crm/deal/${d.id}`); }}
                     className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong opacity-0 group-hover:opacity-100 shrink-0" title="Open deal">
@@ -318,7 +318,7 @@ export default function CRM() {
         </div>
       ) : (
         contacts.length === 0 ? <EmptyState text="No contacts yet" icon="ti-user" /> : (
-          <div className="card overflow-hidden">
+          <div className="bg-surface overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr>
