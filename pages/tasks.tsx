@@ -141,6 +141,26 @@ export default function Tasks() {
   const patchLocal = (u: Task) => setCache((prev) => prev.map((t) => (t.id === u.id ? u : t)));
 
   useEffect(() => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id).then(setTaskStatuses).catch(() => {}); }, [activeOrg?.id]);
+  // Per-user saved view (auto-persisted to this browser, keyed by user).
+  useEffect(() => {
+    if (!me?.id) return;
+    try {
+      const raw = localStorage.getItem(`snr-tasks-view-${me.id}`);
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (v.groupBy) setGroupBy(v.groupBy);
+        if (v.sort) setSort(v.sort);
+        if (v.view) setView(v.view);
+        if (Array.isArray(v.colOrder)) setColOrder(v.colOrder);
+        if (Array.isArray(v.visibleCols)) setVisibleCols(new Set(v.visibleCols));
+      }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.id]);
+  useEffect(() => {
+    if (!me?.id) return;
+    try { localStorage.setItem(`snr-tasks-view-${me.id}`, JSON.stringify({ groupBy, sort, view, colOrder, visibleCols: [...visibleCols] })); } catch { /* ignore */ }
+  }, [me?.id, groupBy, sort, view, colOrder, visibleCols]);
   const statuses = taskStatuses.length ? taskStatuses.map((x) => x.name) : STATUSES;
   const statusColor = (n: string) => taskStatuses.find((x) => x.name === n)?.color;
   const reloadStatuses = () => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id).then(setTaskStatuses).catch(() => {}); };
