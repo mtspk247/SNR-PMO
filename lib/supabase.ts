@@ -45,7 +45,7 @@ export interface Plan {
   id: string; key: string; name: string; description: string | null;
   pricing_model: PricingModel; price_cents: number; currency: string;
   billing_period: 'monthly' | 'annual'; user_limit: number | null;
-  is_active: boolean; sort_order: number;
+  is_active: boolean; sort_order: number; stripe_price_id?: string | null;
 }
 export interface Feature { key: string; name: string; description: string | null; sort_order: number; }
 export interface PlanFeature { plan_id: string; feature_key: string; enabled: boolean; }

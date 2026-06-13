@@ -1,17 +1,32 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
-import { updateOrgSettings, getOrgPlanInfo } from '@/lib/db';
+import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { FEATURE_LABELS, formatPrice } from '@/lib/entitlements';
-import { OrgPlanInfo, FeatureKey } from '@/lib/supabase';
+import { OrgPlanInfo, FeatureKey, Plan } from '@/lib/supabase';
 
 function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
   const [info, setInfo] = useState<OrgPlanInfo | null>(null);
-  useEffect(() => { getOrgPlanInfo(org.id).then(setInfo).catch(() => {}); }, [org.id]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [busy, setBusy] = useState('');
+  const [billErr, setBillErr] = useState('');
+  useEffect(() => { getOrgPlanInfo(org.id).then(setInfo).catch(() => {}); listPlans().then(setPlans).catch(() => {}); }, [org.id]);
   const features = org.features || [];
+
+  const goCheckout = async (planKey: string) => {
+    setBusy(planKey); setBillErr('');
+    try { const url = await startCheckout(org.id, planKey); window.location.href = url; }
+    catch (e: any) { setBillErr(e?.message || 'Could not start checkout'); setBusy(''); }
+  };
+  const goPortal = async () => {
+    setBusy('portal'); setBillErr('');
+    try { const url = await openBillingPortal(org.id); window.location.href = url; }
+    catch (e: any) { setBillErr(e?.message || 'Could not open billing portal'); setBusy(''); }
+  };
+  const upgradeable = plans.filter((p) => p.is_active && p.key !== 'free' && p.key !== info?.plan?.key);
   const seatLabel = info?.seat_limit == null ? 'Unlimited' : `${info.seat_count} / ${info.seat_limit}`;
   const overSeats = info?.seat_limit != null && info.seat_count >= info.seat_limit;
   return (
@@ -43,7 +58,22 @@ function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
           })}
         </div>
       </div>
-      <p className="text-2xs text-muted mt-4">Plan changes are managed by the platform team. Contact us to upgrade or add seats.</p>
+      {/* Billing actions */}
+      <div className="mt-6 pt-6 border-t border-line">
+        <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Billing</p>
+        {billErr && <p className="text-sm text-rose-600 mb-3">{billErr}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          {upgradeable.map((p) => (
+            <button key={p.id} className="btn btn-primary" disabled={!!busy} onClick={() => goCheckout(p.key)}>
+              {busy === p.key ? 'Redirecting…' : `Upgrade to ${p.name}`}
+            </button>
+          ))}
+          <button className="btn btn-ghost border border-line" disabled={!!busy} onClick={goPortal}>
+            {busy === 'portal' ? 'Opening…' : 'Manage billing'}
+          </button>
+        </div>
+        <p className="text-2xs text-muted mt-3">Upgrades open secure Stripe Checkout. Manage billing opens the Stripe customer portal to change or cancel your plan. Seat counts sync automatically.</p>
+      </div>
     </div>
   );
 }

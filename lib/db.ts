@@ -1372,3 +1372,53 @@ export async function deleteChatMessage(id: string): Promise<void> {
   const { error } = await sb.from('chat_messages').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+
+// ---------------------------------------------------------------------------
+// Billing (Stripe) — platform-admin config + org checkout/portal via edge fns.
+// Secrets live server-side only; these RPCs never return secret values.
+// ---------------------------------------------------------------------------
+export interface BillingStatus { publishable_key: string | null; mode: 'test' | 'live'; has_secret: boolean; has_webhook: boolean; updated_at: string | null; }
+
+export async function billingGetStatus(): Promise<BillingStatus | null> {
+  const { data, error } = await sb.rpc('billing_get_status');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row || null;
+}
+
+export async function billingSetConfig(p: { secret?: string; publishable?: string; webhook?: string; mode?: string }): Promise<void> {
+  const { error } = await sb.rpc('billing_set_config', {
+    p_secret: p.secret ?? '', p_publishable: p.publishable ?? '', p_webhook: p.webhook ?? '', p_mode: p.mode ?? '',
+  });
+  if (error) throw error;
+}
+
+export async function billingSetPlanPrice(planId: string, priceId: string): Promise<void> {
+  const { error } = await sb.rpc('billing_set_plan_price', { p_plan_id: planId, p_price_id: priceId });
+  if (error) throw error;
+}
+
+/** Start a Stripe Checkout session for an org+plan; returns the redirect URL. */
+export async function startCheckout(orgId: string, planKey: string): Promise<string> {
+  const { data, error } = await sb.functions.invoke('stripe-checkout', { body: { org_id: orgId, plan_key: planKey } });
+  if (error) {
+    let msg = error.message;
+    try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* noop */ }
+    throw new Error(msg);
+  }
+  if (!data?.url) throw new Error('No checkout URL returned');
+  return data.url as string;
+}
+
+/** Open the Stripe billing portal for an org; returns the redirect URL. */
+export async function openBillingPortal(orgId: string): Promise<string> {
+  const { data, error } = await sb.functions.invoke('stripe-portal', { body: { org_id: orgId } });
+  if (error) {
+    let msg = error.message;
+    try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* noop */ }
+    throw new Error(msg);
+  }
+  if (!data?.url) throw new Error('No portal URL returned');
+  return data.url as string;
+}

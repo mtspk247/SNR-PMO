@@ -3,11 +3,11 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch } from '@/lib/db';
+import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus } from '@/lib/db';
 import { PlatformOrg, Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'tenants' | 'plans';
+type Tab = 'tenants' | 'plans' | 'billing';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -126,6 +126,117 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
   );
 }
 
+const WEBHOOK_URL = 'https://dkjdtyzjdkumnpdyezbs.supabase.co/functions/v1/stripe-webhook';
+
+// Billing (Stripe) config — platform admin only. Secrets are write-only from here;
+// the status RPC never returns secret values, only whether they are set.
+function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promise<void> }) {
+  const [status, setStatus] = useState<BillingStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [secret, setSecret] = useState('');
+  const [publishable, setPublishable] = useState('');
+  const [webhook, setWebhook] = useState('');
+  const [mode, setMode] = useState('test');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [prices, setPrices] = useState<Record<string, string>>({});
+
+  const loadStatus = async () => {
+    setLoading(true);
+    try {
+      const st = await billingGetStatus();
+      setStatus(st);
+      if (st?.mode) setMode(st.mode);
+    } catch (e: any) { setErr(e?.message || 'Failed to load billing status'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { loadStatus(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { setPrices(Object.fromEntries(plans.map((p) => [p.id, p.stripe_price_id || '']))); }, [plans]);
+
+  const saveConfig = async () => {
+    setSaving(true); setErr(''); setMsg('');
+    try {
+      await billingSetConfig({ secret, publishable, webhook, mode });
+      setSecret(''); setWebhook(''); // clear sensitive inputs after save
+      setMsg('Saved. Stripe configuration updated.');
+      await loadStatus();
+    } catch (e: any) { setErr(e?.message || 'Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  const savePrice = async (planId: string) => {
+    setErr(''); setMsg('');
+    try { await billingSetPlanPrice(planId, prices[planId] || ''); setMsg('Price ID saved.'); await onReload(); }
+    catch (e: any) { setErr(e?.message || 'Failed to save price'); }
+  };
+
+  if (loading) return <div className="card rounded-t-none p-6"><Spinner /></div>;
+
+  return (
+    <div className="card rounded-t-none p-5 sm:p-6 space-y-7">
+      {/* Connection status */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`pill ${status?.has_secret ? 'pill-green' : 'pill-red'}`}>
+          {status?.has_secret ? 'Connected' : 'Not connected'}
+        </span>
+        <span className="pill pill-gray">Mode: {status?.mode || 'test'}</span>
+        <span className={`pill ${status?.has_webhook ? 'pill-green' : 'pill-amber'}`}>
+          {status?.has_webhook ? 'Webhook set' : 'Webhook missing'}
+        </span>
+        {status?.updated_at && <span className="text-2xs text-muted">Updated {new Date(status.updated_at).toLocaleString()}</span>}
+      </div>
+
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+
+      {/* Keys form */}
+      <div className="space-y-4 max-w-xl">
+        <h3 className="text-sm font-semibold text-content">Stripe API keys</h3>
+        <p className="text-2xs text-muted">Paste your keys from the Stripe dashboard. Secret values are stored server-side and are never shown back here — leave a field blank to keep its current value.</p>
+        <Field label="Secret key" hint={status?.has_secret ? 'A secret key is already set — leave blank to keep it.' : 'sk_test_… or sk_live_…'}>
+          <input type="password" className="input" autoComplete="off" placeholder={status?.has_secret ? '•••••••• (unchanged)' : 'sk_test_…'} value={secret} onChange={(e) => setSecret(e.target.value)} />
+        </Field>
+        <Field label="Publishable key" hint="pk_test_… or pk_live_… (safe to display)">
+          <input className="input" placeholder={status?.publishable_key || 'pk_test_…'} value={publishable} onChange={(e) => setPublishable(e.target.value)} />
+        </Field>
+        <Field label="Webhook signing secret" hint={status?.has_webhook ? 'Already set — leave blank to keep it.' : 'whsec_… (from the webhook endpoint you create in Stripe)'}>
+          <input type="password" className="input" autoComplete="off" placeholder={status?.has_webhook ? '•••••••• (unchanged)' : 'whsec_…'} value={webhook} onChange={(e) => setWebhook(e.target.value)} />
+        </Field>
+        <Field label="Mode">
+          <select className="input" value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option value="test">Test</option>
+            <option value="live">Live</option>
+          </select>
+        </Field>
+        <button className="btn btn-primary" disabled={saving} onClick={saveConfig}>
+          {saving ? 'Saving…' : 'Save Stripe configuration'}
+        </button>
+      </div>
+
+      {/* Webhook endpoint */}
+      <div className="space-y-2 max-w-xl">
+        <h3 className="text-sm font-semibold text-content">Webhook endpoint</h3>
+        <p className="text-2xs text-muted">In Stripe → Developers → Webhooks, add an endpoint pointing here and subscribe to <span className="font-mono">checkout.session.completed</span>, <span className="font-mono">customer.subscription.updated</span>, <span className="font-mono">customer.subscription.deleted</span>. Then paste its signing secret above.</p>
+        <code className="block text-xs bg-surface2 border border-line rounded-md px-3 py-2 break-all">{WEBHOOK_URL}</code>
+      </div>
+
+      {/* Per-plan price IDs */}
+      <div className="space-y-3 max-w-xl">
+        <h3 className="text-sm font-semibold text-content">Plan → Stripe Price ID</h3>
+        <p className="text-2xs text-muted">Create a recurring Price for each paid plan in Stripe and paste its Price ID (price_…) here. Plans without a Price ID can't be checked out.</p>
+        {plans.filter((p) => p.key !== 'free').map((p) => (
+          <div key={p.id} className="flex items-center gap-2">
+            <span className="w-28 shrink-0 text-sm text-content">{p.name}</span>
+            <input className="input flex-1" placeholder="price_…" value={prices[p.id] ?? ''} onChange={(e) => setPrices((s) => ({ ...s, [p.id]: e.target.value }))} />
+            <button className="btn btn-ghost border border-line" onClick={() => savePrice(p.id)}>Save</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function PlatformPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
   const [orgs, setOrgs] = useState<PlatformOrg[]>([]);
@@ -180,7 +291,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['tenants', 'plans'] as const).map((t) => (
+            {(['tenants', 'plans', 'billing'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -190,7 +301,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'tenants' ? 'Tenants' : 'Plans & features'}
+                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : 'Billing (Stripe)'}
               </button>
             ))}
           </div>
@@ -239,7 +350,7 @@ export default function PlatformPage() {
                 </tbody>
               </table></div>
             </div>
-          ) : (
+          ) : tab === 'plans' ? (
             <div className="card overflow-x-auto rounded-t-none">
               <div className="overflow-x-auto"><table className="w-full text-sm">
                 <thead className="bg-surface2 text-left">
@@ -281,6 +392,8 @@ export default function PlatformPage() {
               </table></div>
               <div className="px-4 py-3 text-2xs text-muted border-t border-line">Changes apply immediately to every tenant on that plan (enforced server-side via RLS).</div>
             </div>
+          ) : (
+            <BillingTab plans={plans} onReload={load} />
           )}
 
           {planModal && (
