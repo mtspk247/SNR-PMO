@@ -1510,3 +1510,13 @@ export async function clearErrors(): Promise<void> {
   const { error } = await sb.from('error_log').delete().gt('created_at', '1900-01-01');
   if (error) throw error;
 }
+
+export async function deletePlan(id: string): Promise<void> {
+  const { error } = await sb.from('plans').delete().eq('id', id);
+  if (error) {
+    if (error.code === '23503' || /foreign key|violates|referenced/i.test(error.message || '')) {
+      throw new Error('This plan is assigned to one or more tenants. Reassign them to another plan first, then delete it.');
+    }
+    throw error;
+  }
+}

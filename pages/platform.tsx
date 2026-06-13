@@ -3,7 +3,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow } from '@/lib/db';
+import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow } from '@/lib/db';
 import { PlatformOrg, Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
@@ -58,6 +58,14 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
     } catch (e: any) { setErr(e.message); } finally { setSaving(false); }
   };
 
+  const del = async () => {
+    if (!plan || saving) return;
+    if (!confirm(`Delete the "${plan.name}" plan? This cannot be undone.`)) return;
+    setSaving(true); setErr('');
+    try { await deletePlan(plan.id); await onSaved(); onClose(); }
+    catch (e: any) { setErr(e.message); } finally { setSaving(false); }
+  };
+
   return (
     <Modal open onClose={onClose} onSubmit={submit} size="lg" icon="ti-license"
       title={editing ? `Edit plan — ${plan!.name}` : 'New plan'}
@@ -69,7 +77,8 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
       {...tabs.bind}
       footer={(
         <div className="flex items-center justify-end gap-2">
-          <span className="hidden sm:block text-2xs text-muted2 mr-auto">↵ to save</span>
+          {editing && <button className="btn text-rose-600 mr-auto" onClick={del} disabled={saving} title="Delete plan"><Icon name="ti-trash" />Delete</button>}
+          <span className="hidden sm:block text-2xs text-muted2">↵ to save</span>
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
             {saving ? 'Saving…' : editing ? 'Save changes' : 'Create plan'}
