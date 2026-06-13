@@ -61,6 +61,8 @@ export default function Tasks() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [view, setView] = useState<'list' | 'board'>('list');
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -379,7 +381,10 @@ export default function Tasks() {
         {STATUSES.map((st) => {
           const items = filtered.filter((t) => t.status === st);
           return (
-            <div key={st} className="w-72 shrink-0 flex flex-col min-h-0">
+            <div key={st}
+              onDragOver={(e) => { e.preventDefault(); if (dragOverCol !== st) setDragOverCol(st); }}
+              onDrop={() => { if (dragId) { const tk = tasks.find((x) => x.id === dragId); if (tk && tk.status !== st) setStatus(dragId, st); } setDragId(null); setDragOverCol(null); }}
+              className={`w-72 shrink-0 flex flex-col min-h-0 rounded-xl p-1 transition ${dragOverCol === st ? 'ring-2 ring-inset ring-accent/50 bg-accent/5' : ''}`}>
               <div className="flex items-center gap-2 mb-2 px-0.5">
                 <StatusBadge status={st} solid />
                 <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
@@ -390,8 +395,11 @@ export default function Tasks() {
                 {items.map((t) => {
                   const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
                   return (
-                    <button key={t.id} onClick={() => selectTask(t.id)}
-                      className={`card card-interactive w-full text-left p-3 ${selectedId === t.id ? 'border-accent' : ''}`}>
+                    <button key={t.id} draggable
+                      onDragStart={(e) => { setDragId(t.id); e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
+                      onClick={() => selectTask(t.id)}
+                      className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selectedId === t.id ? 'border-accent' : ''} ${dragId === t.id ? 'opacity-40' : ''}`}>
                       <p className="text-sm font-medium text-content truncate">{t.name}</p>
                       <p className="text-2xs text-muted truncate mt-1">{t.projects?.name || '—'}</p>
                       <div className="flex items-center gap-2 mt-2.5">
