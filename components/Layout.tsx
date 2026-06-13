@@ -35,6 +35,7 @@ const SECTIONS: Section[] = [
     { href: '/chat', label: 'Chat', icon: 'ti-messages' },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Tracking', icon: 'ti-chart-line', items: [
+    { href: '/workload', label: 'Workload', icon: 'ti-chart-bar' },
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
     { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
     { href: '/accounting', label: 'Accounting', icon: 'ti-report-money', feature: 'financial' },
