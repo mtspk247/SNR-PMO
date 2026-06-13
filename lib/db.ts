@@ -1465,3 +1465,32 @@ export async function deleteTaskStatusDef(id: string): Promise<void> {
   const { error } = await sb.from('task_statuses').delete().eq('id', id);
   if (error) throw error;
 }
+
+// --- Backups (platform-admin) ---
+export interface BackupConfig { id: number; enabled: boolean; frequency: 'daily' | 'weekly' | 'monthly'; retention_count: number; last_run_at: string | null; updated_at: string; }
+export interface BackupRow { id: string; created_at: string; kind: string; status: string; file_path: string | null; size_bytes: number | null; table_count: number | null; row_count: number | null; note: string | null; }
+export async function backupGetConfig(): Promise<BackupConfig | null> {
+  const { data, error } = await sb.rpc('backup_get_config');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as BackupConfig) || null;
+}
+export async function backupSetConfig(p: { enabled: boolean; frequency: string; retention: number }): Promise<void> {
+  const { error } = await sb.rpc('backup_set_config', { p_enabled: p.enabled, p_frequency: p.frequency, p_retention: p.retention });
+  if (error) throw error;
+}
+export async function listBackups(): Promise<BackupRow[]> {
+  const { data, error } = await sb.from('backups').select('*').order('created_at', { ascending: false }).limit(100);
+  if (error) throw error;
+  return (data as BackupRow[]) || [];
+}
+export async function runBackupNow(): Promise<{ ok?: boolean; tableCount?: number; rowCount?: number; error?: string }> {
+  const { data, error } = await sb.functions.invoke('run-backup', { body: { force: true } });
+  if (error) throw error;
+  return data as any;
+}
+export async function getBackupDownloadUrl(path: string): Promise<string> {
+  const { data, error } = await sb.storage.from('backups').createSignedUrl(path, 120);
+  if (error) throw error;
+  return data.signedUrl;
+}

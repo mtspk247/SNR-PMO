@@ -3,11 +3,11 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus } from '@/lib/db';
+import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow } from '@/lib/db';
 import { PlatformOrg, Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'tenants' | 'plans' | 'billing' | 'email';
+type Tab = 'tenants' | 'plans' | 'billing' | 'email' | 'backups';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -309,6 +309,71 @@ function EmailTab() {
   );
 }
 
+function BackupsTab() {
+  const [cfg, setCfg] = useState<BackupConfig | null>(null);
+  const [rows, setRows] = useState<BackupRow[]>([]);
+  const [enabled, setEnabled] = useState(false);
+  const [frequency, setFrequency] = useState('weekly');
+  const [retention, setRetention] = useState(10);
+  const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [msg, setMsg] = useState('');
+  const load = async () => {
+    const c = await backupGetConfig();
+    if (c) { setCfg(c); setEnabled(c.enabled); setFrequency(c.frequency); setRetention(c.retention_count); }
+    setRows(await listBackups());
+  };
+  useEffect(() => { load().catch((e: any) => setMsg(e.message)); }, []);
+  const save = async () => { setSaving(true); setMsg(''); try { await backupSetConfig({ enabled, frequency, retention }); await load(); setMsg('Settings saved.'); } catch (e: any) { setMsg(e.message); } finally { setSaving(false); } };
+  const runNow = async () => { setRunning(true); setMsg(''); try { const r = await runBackupNow(); await load(); setMsg(r?.ok ? `Backup created — ${r.tableCount} tables, ${r.rowCount} rows.` : (r?.error || 'Done.')); } catch (e: any) { setMsg(e.message); } finally { setRunning(false); } };
+  const download = async (path: string) => { try { const u = await getBackupDownloadUrl(path); window.open(u, '_blank'); } catch (e: any) { alert(e.message); } };
+  const fmtBytes = (n: number | null) => n == null ? '—' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+  return (
+    <div className="space-y-4">
+      <div className="card rounded-t-none p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-database-export" className="text-base text-muted2" />Automatic backups</h3>
+            <p className="text-2xs text-muted mt-1">Scheduled full-database snapshots, stored securely. {cfg?.last_run_at ? `Last run ${new Date(cfg.last_run_at).toLocaleString()}.` : 'Not run yet.'}</p>
+          </div>
+          <button className="btn btn-primary shrink-0" disabled={running} onClick={runNow}><Icon name="ti-player-play" />{running ? 'Backing up…' : 'Back up now'}</button>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <Field label="Frequency"><select className="input" value={frequency} onChange={(e) => setFrequency(e.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></Field>
+          <Field label="Keep last (retention)"><input type="number" min={1} max={100} className="input" value={retention} onChange={(e) => setRetention(parseInt(e.target.value) || 1)} /></Field>
+          <div className="flex items-end"><label className="flex items-center gap-2 text-sm h-9 cursor-pointer"><input type="checkbox" className="accent-accent w-4 h-4" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /><span className={enabled ? 'text-content' : 'text-muted'}>{enabled ? 'Auto-backup on' : 'Auto-backup off'}</span></label></div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save schedule'}</button>
+          {msg && <span className="text-2xs text-muted">{msg}</span>}
+        </div>
+        <p className="text-2xs text-muted2">Email, Google Drive and S3 delivery are coming next — this stores backups in-app for download.</p>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto"><table className="w-full text-sm">
+          <thead className="bg-surface2 text-left text-2xs uppercase tracking-wide text-muted"><tr>
+            <th className="px-4 py-3 font-medium">Created</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Size</th><th className="px-4 py-3 font-medium">Tables / rows</th><th className="px-4 py-3"></th>
+          </tr></thead>
+          <tbody>
+            {rows.map((b) => (
+              <tr key={b.id} className="border-t border-line hover:bg-surface2/50">
+                <td className="px-4 py-3 tabular-nums">{new Date(b.created_at).toLocaleString()}</td>
+                <td className="px-4 py-3 capitalize">{b.kind}</td>
+                <td className="px-4 py-3"><span className={`pill ${b.status === 'completed' ? 'pill-green' : b.status === 'failed' ? 'pill-red' : 'pill-amber'}`}>{b.status}</span></td>
+                <td className="px-4 py-3 tabular-nums">{fmtBytes(b.size_bytes)}</td>
+                <td className="px-4 py-3 tabular-nums text-muted">{b.table_count ?? '—'} / {b.row_count ?? '—'}</td>
+                <td className="px-4 py-3 text-right">{b.file_path && b.status === 'completed' ? <button className="btn btn-ghost h-7 px-2 text-xs" onClick={() => download(b.file_path!)}><Icon name="ti-download" />Download</button> : (b.note ? <span className="text-2xs text-rose-500 truncate max-w-[12rem] inline-block" title={b.note}>{b.note}</span> : null)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted2">No backups yet — run one above.</td></tr>}
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  );
+}
+
 export default function PlatformPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
   const [orgs, setOrgs] = useState<PlatformOrg[]>([]);
@@ -363,7 +428,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['tenants', 'plans', 'billing', 'email'] as const).map((t) => (
+            {(['tenants', 'plans', 'billing', 'email', 'backups'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -373,7 +438,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : 'Email'}
+                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : 'Backups'}
               </button>
             ))}
           </div>
@@ -466,8 +531,10 @@ export default function PlatformPage() {
             </div>
           ) : tab === 'billing' ? (
             <BillingTab plans={plans} onReload={load} />
-          ) : (
+          ) : tab === 'email' ? (
             <EmailTab />
+          ) : (
+            <BackupsTab />
           )}
 
           {planModal && (
