@@ -42,6 +42,7 @@ export default function IdeasPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | IdeaStatus>('all');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Idea | null>(null);
+  const [view, setView] = useState<'list' | 'card'>('list');
   const [form, setForm] = useState<FormState>(emptyForm());
   const [busy, setBusy] = useState(false);
   const [votingId, setVotingId] = useState<string | null>(null);
@@ -172,6 +173,11 @@ export default function IdeasPage() {
               <option key={s} value={s}>{STATUS_LABEL[s]}</option>
             ))}
           </select>
+          <div className="flex items-center rounded-lg border border-line overflow-hidden h-9 sm:ml-auto">
+            {(['list', 'card'] as const).map((v) => (
+              <button key={v} onClick={() => setView(v)} className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === v ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}><Icon name={v === 'list' ? 'ti-list' : 'ti-layout-grid'} className="text-sm" />{v}</button>
+            ))}
+          </div>
         </div>
 
         {isLoading ? (
@@ -182,6 +188,33 @@ export default function IdeasPage() {
           </div>
         ) : (
           <>
+            {view === 'card' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
+                {pg.pageItems.map((idea) => {
+                  const hasVoted = idea.votes?.some((v) => v.user_id === user?.id) ?? false;
+                  const voteCount = idea.votes?.length ?? 0;
+                  return (
+                    <div key={idea.id} onClick={() => openEdit(idea)} className="card card-interactive p-4 cursor-pointer">
+                      <div className="flex items-start gap-3">
+                        <button onClick={(e) => { e.stopPropagation(); vote(idea); }} disabled={!user || votingId === idea.id}
+                          className={`shrink-0 inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded ${hasVoted ? 'text-accent bg-accent/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
+                          <Icon name="ti-arrow-big-up" className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span>
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-content truncate">{idea.title}</p>
+                          {idea.pitch && <p className="text-2xs text-muted mt-0.5" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{idea.pitch}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3">
+                        <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>
+                        {idea.project?.name && <span className="pill pill-gray truncate max-w-[8rem]">{idea.project.name}</span>}
+                        <span className="ml-auto text-2xs text-muted2 truncate">{idea.creator?.full_name || ''}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -268,6 +301,7 @@ export default function IdeasPage() {
                 </tbody>
               </table>
             </div>
+            )}
             <Pagination
               page={pg.page}
               pageCount={pg.pageCount}
