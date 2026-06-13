@@ -21,6 +21,7 @@ Every data row is scoped to `org_id`. Row-Level Security enforces isolation — 
 | Company | `manager` · `member` |
 | Portfolio | `manager` · `member` |
 | Project | `manager` · `contributor` · `viewer` |
+| Guest | external, project-scoped, **seat-exempt** |
 
 Feature entitlements (CRM, HR, Risk, Financial, Portfolios, Integrations, Audit) are controlled per plan via the `platform` layer. Modules not in the plan are hidden from nav automatically.
 
@@ -39,9 +40,11 @@ Feature entitlements (CRM, HR, Risk, Financial, Portfolios, Integrations, Audit)
 | **Companies** | Client/vendor registry. Linked from Projects and CRM. |
 | **Portfolios** | Group projects for programme-level tracking. Optional per project. |
 | **Projects** | Core delivery unit. Detail page: Tasks, Risks, Financials, Ledger, Discussion. Linked to Company and Portfolio. |
-| **Tasks** | Subtasks, followers, @mention comments, tags. Assignable across project members. |
+| **Tasks** | Subtasks, followers, @mention comments, color tags, **checklists**, **time tracking** (live timer + manual log), **recurring schedules** (daily/weekly/biweekly/monthly), **reminders**, and **team assignment**. Assignable across project members. |
 | **Ideas** | Pitch board with voting. Any org member can submit; managers convert winning ideas to Projects. |
-| **Chat** | Org-wide General channel + auto-created per-project channel. 12s polling. No external dependency. |
+| **Chat** | Org-wide General channel + auto-created per-project channel. **@mention** people, **#link** tasks/projects, **/remind**. 12s polling. No external dependency. |
+| **Calendar** | Month grid of task due-dates + approved/pending leave; click an item to open it. |
+| **Roadmap** | Gantt timeline of projects grouped by portfolio, with progress overlay, today line, and an Unscheduled bucket. |
 
 ### Tracking
 
@@ -49,7 +52,7 @@ Feature entitlements (CRM, HR, Risk, Financial, Portfolios, Integrations, Audit)
 |---|---|
 | **Risk Analysis** | Project-level risk register (probability × impact matrix). Feature-gated: `risk`. |
 | **Financial Data** | Per-project budget lines and actuals. Feature-gated: `financial`. |
-| **Accounting** | Org-wide ledger: income and expense entries. Payroll runs auto-post Salary entries on Processed/Paid. Feature-gated: `financial`. |
+| **Accounting** | Org-wide ledger: income and expense entries, plus a **P&L tab** (6-month category × month matrix, CSV export). Payroll runs auto-post Salary entries on Processed/Paid. Feature-gated: `financial`. |
 
 ### CRM
 
@@ -62,9 +65,9 @@ Feature entitlements (CRM, HR, Risk, Financial, Portfolios, Integrations, Audit)
 | Module | Key capabilities |
 |---|---|
 | **Onboarding** | Templates with day-offset tasks + required docs + linked Training Docs. Per-hire checklists generated from template. |
-| **Employees** | Profiles, compensation history, custom fields. Linked to org members. |
+| **Employees** | Profiles with **avatars**, **lifecycle stage**, a **30-day KPI tab** (tasks/hours/attendance/leave), compensation history (**monthly or hourly**), custom fields. Linked to org members. |
 | **Training & JDs** | Training library (file/link, category, department, role template link). Job descriptions (summary, responsibilities, requirements). |
-| **Payroll** | Pay runs → per-employee payslips. On status Processed/Paid: auto-posts Salary entry to Accounting ledger (idempotent via `payroll_run_id`). |
+| **Payroll** | Pay runs → **"Load active employees"** auto-builds payslips for all active staff (hours from time tracking, days from attendance, gross by pay type; idempotent). Tagged bonuses + custom disbursements per slip. On Processed/Paid: auto-posts **net** Salary entry to the Accounting ledger (idempotent via `payroll_run_id`). |
 | **Attendance** | Clock in/out per employee. Auto-checkout at 00:05 UTC daily. |
 | **Leave** | Balances (annual/sick/casual). Requests → delegated approver approval → server-enforced balance decrement. |
 
@@ -72,7 +75,7 @@ Feature entitlements (CRM, HR, Risk, Financial, Portfolios, Integrations, Audit)
 
 | Module | Key capabilities |
 |---|---|
-| **Users** | Assign org roles; toggle per-user capability flags (`can_*`). |
+| **Users** | Assign org roles; toggle per-user capability flags (`can_*`). **Teams** tab: group members for task assignment + visibility. |
 | **Roles** | Role templates. Editing a template propagates permission changes to all users on that role. |
 | **Integrations** | Catalog of third-party connectors. Feature-gated: `integrations`. |
 | **Audit Log** | DB-trigger-captured event stream for 16 tables. Immutable. Feature-gated: `audit`. |
@@ -98,6 +101,10 @@ These are the wiring points that make the system a unified platform rather than 
 | **Role templates** | **User permissions** | Roles are templates. Changing a role template's permission set immediately affects all users assigned that role. Per-user `can_*` flags override role defaults. |
 | **Plan features** | **Nav visibility** | Feature keys (`crm`, `hr`, `risk`, `financial`, `portfolios`, `integrations`, `audit`) gate entire nav sections. Modules not in the org's plan are invisible, not just disabled. |
 | **Settings branding** | **Entire UI** | Logo + primary color saved in Settings emit CSS custom properties consumed by Tailwind tokens throughout the app. White-labeling is live — no rebuild needed. |
+| **Recurring task** (marked Done) | **Next task instance** | Completing a recurring task spawns the next occurrence; the repeat rule moves to the new clone. |
+| **Time tracking + Attendance** | **Payroll** | "Load active employees" pulls logged hours and attendance days into each payslip. |
+| **Reminders + @mentions** | **Notification bell** | Due reminders (cron, every 15 min) and chat @mentions create notifications; clicking one deep-links to the task/leave/deal/employee. |
+| **Guest invite** | **Project membership** | Inviting a guest from a project creates a seat-exempt external user added as a project viewer, fenced from directory/HR/finance. |
 
 ---
 
