@@ -365,26 +365,16 @@ export default function Dashboard() {
               <div className="w-full overflow-x-auto">
                 <div className="min-w-[420px]">
                   {/* bar grid */}
-                  <div className="flex items-end gap-2 h-36">
+                  <div className="flex items-end gap-3 h-44 border-b border-line pb-px">
                     {trendBuckets.map((b) => {
-                      const incH = Math.round((b.income / maxTrend) * 100);
-                      const expH = Math.round((b.expense / maxTrend) * 100);
+                      const incH = Math.max(Math.round((b.income / maxTrend) * 100), b.income > 0 ? 2 : 0);
+                      const expH = Math.max(Math.round((b.expense / maxTrend) * 100), b.expense > 0 ? 2 : 0);
                       return (
-                        <div key={b.month} className="flex-1 flex flex-col items-center gap-0.5">
-                          <div className="w-full flex items-end justify-center gap-1" style={{ height: '100%' }}>
-                            {/* income bar */}
-                            <div
-                              className="flex-1 rounded-t bg-accent transition-all hover:opacity-80"
-                              style={{ height: `${incH}%`, minHeight: b.income > 0 ? 3 : 0 }}
-                              title={`${shortMonth(b.month)} Income: ${money(b.income)}`}
-                            />
-                            {/* expense bar */}
-                            <div
-                              className="flex-1 rounded-t bg-rose-500/70 transition-all hover:opacity-80"
-                              style={{ height: `${expH}%`, minHeight: b.expense > 0 ? 3 : 0 }}
-                              title={`${shortMonth(b.month)} Expenses: ${money(b.expense)}`}
-                            />
-                          </div>
+                        <div key={b.month} className="flex-1 h-full flex items-end justify-center gap-1.5">
+                          <div className="w-1/2 max-w-[26px] rounded-t bg-accent transition-all hover:opacity-80"
+                            style={{ height: `${incH}%` }} title={`${shortMonth(b.month)} Income: ${money(b.income)}`} />
+                          <div className="w-1/2 max-w-[26px] rounded-t bg-rose-500/70 transition-all hover:opacity-80"
+                            style={{ height: `${expH}%` }} title={`${shortMonth(b.month)} Expenses: ${money(b.expense)}`} />
                         </div>
                       );
                     })}
