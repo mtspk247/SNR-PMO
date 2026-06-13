@@ -110,6 +110,7 @@ export default function Tasks() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(COL_DEFS.map((c) => c.id)));
+  const [colOrder, setColOrder] = useState<string[]>(COL_DEFS.map((c) => c.id));
   const [colMenu, setColMenu] = useState(false);
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([]);
   const [statusMgr, setStatusMgr] = useState(false);
@@ -497,7 +498,8 @@ export default function Tasks() {
     </div>
   );
 
-  const shownCols = COL_DEFS.filter((c) => visibleCols.has(c.id));
+  const shownCols = colOrder.map((id) => COL_DEFS.find((c) => c.id === id)!).filter((c) => c && visibleCols.has(c.id));
+  const moveCol = (id: string, dir: number) => setColOrder((o) => { const i = o.indexOf(id); const j = i + dir; if (j < 0 || j >= o.length) return o; const n = [...o]; [n[i], n[j]] = [n[j], n[i]]; return n; });
   const gridStyle = { gridTemplateColumns: `minmax(200px,1fr) ${shownCols.map((c) => c.w).join(' ')} 48px` } as React.CSSProperties;
   const GRID = 'grid items-center gap-2 px-4';
 
@@ -653,13 +655,18 @@ export default function Tasks() {
             <div className="relative">
               <button onClick={() => setColMenu((v) => !v)} className="btn h-9"><Icon name="ti-columns-3" className="text-sm" /><span className="hidden md:inline">Columns</span></button>
               {colMenu && (
-                <div className="absolute right-0 top-10 z-20 w-44 bg-surface border border-line rounded-lg shadow-lg p-1">
-                  {COL_DEFS.map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-surface2 cursor-pointer">
-                      <input type="checkbox" checked={visibleCols.has(c.id)} onChange={() => setVisibleCols((pr) => { const n = new Set(pr); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; })} className="accent-accentstrong" />
-                      {c.label}
-                    </label>
-                  ))}
+                <div className="absolute right-0 top-10 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-1">
+                  <p className="px-2 py-1 text-2xs text-muted2">Show &amp; reorder columns</p>
+                  {colOrder.map((cid, idx) => { const c = COL_DEFS.find((x) => x.id === cid)!; return (
+                    <div key={cid} className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface2">
+                      <label className="flex items-center gap-2 text-sm flex-1 cursor-pointer">
+                        <input type="checkbox" checked={visibleCols.has(cid)} onChange={() => setVisibleCols((pr) => { const n = new Set(pr); n.has(cid) ? n.delete(cid) : n.add(cid); return n; })} className="accent-accentstrong" />
+                        {c.label}
+                      </label>
+                      <button onClick={() => moveCol(cid, -1)} disabled={idx === 0} title="Move up" className="text-muted2 hover:text-content disabled:opacity-25"><Icon name="ti-chevron-up" className="text-sm" /></button>
+                      <button onClick={() => moveCol(cid, 1)} disabled={idx === colOrder.length - 1} title="Move down" className="text-muted2 hover:text-content disabled:opacity-25"><Icon name="ti-chevron-down" className="text-sm" /></button>
+                    </div>
+                  ); })}
                 </div>
               )}
             </div>
