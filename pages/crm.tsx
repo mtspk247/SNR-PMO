@@ -39,6 +39,8 @@ export default function CRM() {
 
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Set<string>>(new Set());
+  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
+  const [newDealStage, setNewDealStage] = useState('');
   const [sort, setSort] = useState<'value' | 'stage' | 'close'>('value');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -265,7 +267,7 @@ export default function CRM() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-surface2 border border-line rounded-lg p-1"><Tab id="pipeline" label="Pipeline" /><Tab id="contacts" label="Contacts" /></div>
             {view === 'pipeline'
-              ? <><button onClick={() => setStatusMgr(true)} className="btn"><Icon name="ti-flag-3" className="text-sm" />Stages</button><button onClick={() => setShowDeal(true)} className="btn btn-primary"><Icon name="ti-plus" />New deal</button></>
+              ? <><button onClick={() => setStatusMgr(true)} className="btn"><Icon name="ti-flag-3" className="text-sm" />Stages</button><button onClick={() => { setNewDealStage(''); setShowDeal(true); }} className="btn btn-primary"><Icon name="ti-plus" />New deal</button></>
               : <button onClick={() => setShowContact(true)} className="btn btn-primary"><Icon name="ti-plus" />New contact</button>}
           </div>
         } />
@@ -291,47 +293,37 @@ export default function CRM() {
             ))}
           </div>
 
-          <div className="lg:hidden flex gap-1.5 overflow-x-auto pb-2 mb-1">
-            {stageNames.map((s) => (
-              <button key={s} onClick={() => toggleStage(s)}
-                className={`shrink-0 h-7 px-2.5 rounded-full text-xs border transition ${stageFilter.has(s) ? 'bg-accent text-accentfg border-accent' : 'bg-surface text-muted border-line'}`}>
-                {s}<span className="ml-1 text-2xs opacity-70">{deals.filter(d => d.stage === s).length}</span>
-              </button>
-            ))}
-          </div>
-
           <div className="flex gap-4 flex-1 min-h-0">
-            <aside className="w-48 shrink-0 hidden lg:block">
-              <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Stage</p>
-              <div className="space-y-1">
-                {stageNames.map((s) => (
-                  <label key={s} className="flex items-center gap-2 text-sm text-muted cursor-pointer">
-                    <input type="checkbox" checked={stageFilter.has(s)} onChange={() => toggleStage(s)} className="accent-accentstrong" />
-                    {s}<span className="ml-auto text-2xs text-muted2">{deals.filter(d => d.stage === s).length}</span>
-                  </label>
-                ))}
-              </div>
-            </aside>
-
             <div className="card flex-1 min-w-0 overflow-y-auto">
-              {filtered.length === 0 ? <EmptyState text="No deals match" icon="ti-target" /> : filtered.map((d) => (
-                <div key={d.id} onClick={() => selectDeal(d.id)}
-                  className={`group w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line cursor-pointer transition ${selectedId === d.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-content truncate">{d.title}</p>
-                    <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>
-                    <div className="h-1 rounded-full bg-surface2 mt-1.5 max-w-[160px] overflow-hidden">
-                      <div className="h-full rounded-full bg-accent" style={{ width: `${((d.value || 0) / maxValue) * 100}%` }} />
+              {filtered.length === 0 ? <EmptyState text="No deals match" icon="ti-target" /> : stageNames.map((stage) => {
+                const items = filtered.filter((d) => d.stage === stage);
+                if (items.length === 0) return null;
+                const collapsed = collapsedStages.has(stage);
+                const total = items.reduce((a, d) => a + (d.value || 0), 0);
+                return (
+                  <div key={stage}>
+                    <div className="sticky top-0 z-10 px-4 py-2 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-2.5">
+                      <button onClick={() => setCollapsedStages((pr) => { const n = new Set(pr); n.has(stage) ? n.delete(stage) : n.add(stage); return n; })} className="text-muted2 hover:text-content"><Icon name={collapsed ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" /></button>
+                      <StatusBadge status={stage} color={sColor(stage)} />
+                      <span className="text-2xs text-muted2">{items.length}</span>
+                      <span className="ml-auto text-xs font-semibold tabular-nums text-content">{money(total)}</span>
+                      <button onClick={() => { setNewDealStage(stage); setShowDeal(true); }} className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong" title={`Add deal to ${stage}`}><Icon name="ti-plus" /></button>
                     </div>
+                    {!collapsed && items.map((d) => (
+                      <div key={d.id} onClick={() => selectDeal(d.id)}
+                        className={`group w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line cursor-pointer transition ${selectedId === d.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-content truncate">{d.title}</p>
+                          <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>
+                          <div className="h-1 rounded-full bg-surface2 mt-1.5 max-w-[160px] overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${((d.value || 0) / maxValue) * 100}%` }} /></div>
+                        </div>
+                        <span className="text-sm font-medium w-20 text-right">{money(d.value || 0)}</span>
+                        <button onClick={(e) => { e.stopPropagation(); router.push(`/crm/deal/${d.id}`); }} className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong opacity-0 group-hover:opacity-100 shrink-0" title="Open deal"><Icon name="ti-arrow-up-right" /></button>
+                      </div>
+                    ))}
                   </div>
-                  <StatusBadge status={d.stage} color={sColor(d.stage)} />
-                  <span className="text-sm font-medium w-20 text-right">{money(d.value || 0)}</span>
-                  <button onClick={(e) => { e.stopPropagation(); router.push(`/crm/deal/${d.id}`); }}
-                    className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong opacity-0 group-hover:opacity-100 shrink-0" title="Open deal">
-                    <Icon name="ti-arrow-up-right" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <aside className="w-80 shrink-0 hidden xl:block overflow-y-auto">
@@ -396,8 +388,8 @@ export default function CRM() {
       {org && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="crm_deal" statuses={dstatuses} onChanged={reloadStages} />}
 
       {showDeal && org && (
-        <DealModal open={showDeal} companies={companies} contacts={contacts} busy={busy} stages={stageNames} onAddCompany={addCompany}
-          onClose={() => setShowDeal(false)}
+        <DealModal open={showDeal} companies={companies} contacts={contacts} busy={busy} stages={stageNames} initial={newDealStage ? { stage: newDealStage } : undefined} onAddCompany={addCompany}
+          onClose={() => { setShowDeal(false); setNewDealStage(''); }}
           onSubmit={async (p) => {
             setBusy(true);
             try {
