@@ -3,11 +3,11 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus } from '@/lib/db';
+import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus } from '@/lib/db';
 import { PlatformOrg, Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'tenants' | 'plans' | 'billing';
+type Tab = 'tenants' | 'plans' | 'billing' | 'email';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -237,6 +237,78 @@ function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promis
   );
 }
 
+// Transactional email (Resend) config — platform admin only. The API key is write-only;
+// status never returns it. In-app notifications are emailed via a server-side outbox + cron drain.
+function EmailTab() {
+  const [status, setStatus] = useState<EmailStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [apiKey, setApiKey] = useState('');
+  const [from, setFrom] = useState('');
+  const [replyTo, setReplyTo] = useState('');
+  const [enabled, setEnabled] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const loadStatus = async () => {
+    setLoading(true);
+    try {
+      const st = await emailGetStatus();
+      setStatus(st);
+      if (st) { setEnabled(st.enabled); setFrom(st.from_email || ''); setReplyTo(st.reply_to || ''); }
+    } catch (e: any) { setErr(e?.message || 'Failed to load email status'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { loadStatus(); /* eslint-disable-next-line */ }, []);
+
+  const save = async () => {
+    setSaving(true); setErr(''); setMsg('');
+    try {
+      await emailSetConfig({ apiKey, from, replyTo, enabled });
+      setApiKey('');
+      setMsg('Saved. Email configuration updated.');
+      await loadStatus();
+    } catch (e: any) { setErr(e?.message || 'Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  if (loading) return <div className="card rounded-t-none p-6"><Spinner /></div>;
+
+  return (
+    <div className="card rounded-t-none p-5 sm:p-6 space-y-7">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`pill ${status?.has_key ? 'pill-green' : 'pill-red'}`}>{status?.has_key ? 'Connected' : 'Not connected'}</span>
+        <span className={`pill ${status?.enabled ? 'pill-green' : 'pill-gray'}`}>{status?.enabled ? 'Sending enabled' : 'Sending paused'}</span>
+        <span className="pill pill-gray">Pending: {status?.pending_count ?? 0}</span>
+        <span className="pill pill-gray">Sent: {status?.sent_count ?? 0}</span>
+        {status?.updated_at && <span className="text-2xs text-muted">Updated {new Date(status.updated_at).toLocaleString()}</span>}
+      </div>
+
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+
+      <div className="space-y-4 max-w-xl">
+        <h3 className="text-sm font-semibold text-content">Resend</h3>
+        <p className="text-2xs text-muted">Paste a Resend API key and a verified sender. The key is stored server-side and never shown back — leave it blank to keep the current one. In-app notifications are emailed automatically via a server-side queue (drained every minute).</p>
+        <Field label="API key" hint={status?.has_key ? 'A key is already set — leave blank to keep it.' : 're_…'}>
+          <input type="password" className="input" autoComplete="off" placeholder={status?.has_key ? '•••••••• (unchanged)' : 're_…'} value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+        </Field>
+        <Field label="From address" hint='Must use a verified Resend domain, e.g. "SNR-PMO <noreply@yourdomain.com>"'>
+          <input className="input" placeholder="SNR-PMO <noreply@yourdomain.com>" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </Field>
+        <Field label="Reply-to" hint="Optional">
+          <input className="input" placeholder="support@yourdomain.com" value={replyTo} onChange={(e) => setReplyTo(e.target.value)} />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-accent w-4 h-4" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          <span className={enabled ? 'text-content' : 'text-muted'}>{enabled ? 'Sending enabled' : 'Sending paused (queue held until re-enabled)'}</span>
+        </label>
+        <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save email configuration'}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function PlatformPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
   const [orgs, setOrgs] = useState<PlatformOrg[]>([]);
@@ -291,7 +363,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['tenants', 'plans', 'billing'] as const).map((t) => (
+            {(['tenants', 'plans', 'billing', 'email'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -301,7 +373,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : 'Billing (Stripe)'}
+                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : 'Email'}
               </button>
             ))}
           </div>
@@ -392,8 +464,10 @@ export default function PlatformPage() {
               </table></div>
               <div className="px-4 py-3 text-2xs text-muted border-t border-line">Changes apply immediately to every tenant on that plan (enforced server-side via RLS).</div>
             </div>
-          ) : (
+          ) : tab === 'billing' ? (
             <BillingTab plans={plans} onReload={load} />
+          ) : (
+            <EmailTab />
           )}
 
           {planModal && (

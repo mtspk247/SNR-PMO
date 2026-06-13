@@ -1399,6 +1399,22 @@ export async function billingSetPlanPrice(planId: string, priceId: string): Prom
   if (error) throw error;
 }
 
+export interface EmailStatus { from_email: string | null; reply_to: string | null; enabled: boolean; has_key: boolean; pending_count: number; sent_count: number; updated_at: string | null; }
+
+export async function emailGetStatus(): Promise<EmailStatus | null> {
+  const { data, error } = await sb.rpc('email_get_status');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row || null;
+}
+
+export async function emailSetConfig(p: { apiKey?: string; from?: string; replyTo?: string; enabled?: boolean }): Promise<void> {
+  const { error } = await sb.rpc('email_set_config', {
+    p_api_key: p.apiKey ?? '', p_from: p.from ?? '', p_reply_to: p.replyTo ?? '', p_enabled: p.enabled ?? null,
+  });
+  if (error) throw error;
+}
+
 /** Start a Stripe Checkout session for an org+plan; returns the redirect URL. */
 export async function startCheckout(orgId: string, planKey: string): Promise<string> {
   const { data, error } = await sb.functions.invoke('stripe-checkout', { body: { org_id: orgId, plan_key: planKey } });

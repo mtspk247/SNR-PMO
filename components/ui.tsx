@@ -107,3 +107,39 @@ export const Phase2 = ({ name, icon }: { name: string; icon: string }) => (
     <span className="pill pill-gray mt-4">Coming soon</span>
   </div>
 );
+
+/** Inline error card for a failed data load (use with react-query's `error`/`refetch`). */
+export const ErrorState = ({ text = 'Something went wrong loading this view.', onRetry }: { text?: string; onRetry?: () => void }) => (
+  <div className="flex flex-col items-center justify-center py-16 text-center">
+    <Icon name="ti-alert-triangle" className="text-3xl mb-2 text-rose-500" />
+    <p className="text-sm text-muted max-w-sm">{text}</p>
+    {onRetry && (
+      <button className="btn btn-ghost border border-line mt-4" onClick={onRetry}>
+        <Icon name="ti-refresh" className="text-base" /> Try again
+      </button>
+    )}
+  </div>
+);
+
+/** App-wide error boundary: catches uncaught render errors so a single bad page
+ *  shows a friendly card instead of a blank white screen. */
+export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error) { if (typeof console !== 'undefined') console.error('Render error:', error); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+          <Icon name="ti-alert-triangle" className="text-4xl text-rose-500 mb-3" />
+          <h1 className="text-lg font-semibold text-content">This page hit an unexpected error</h1>
+          <p className="text-sm text-muted mt-1 max-w-md">Try reloading. If it keeps happening, the team has been notified via the console log.</p>
+          <button className="btn btn-primary mt-5" onClick={() => { if (typeof window !== 'undefined') window.location.reload(); }}>
+            <Icon name="ti-refresh" className="text-base" /> Reload page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}

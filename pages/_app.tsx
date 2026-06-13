@@ -6,6 +6,7 @@ import { sb } from '@/lib/supabase';
 import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgFeatures, isPlatformAdmin } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
+import { ErrorBoundary } from '@/components/ui';
 
 function readCookie(name: string): string {
   if (typeof document === 'undefined') return '';
@@ -52,7 +53,9 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Component {...pageProps} />
+      <ErrorBoundary>
+        <Component {...pageProps} />
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }
