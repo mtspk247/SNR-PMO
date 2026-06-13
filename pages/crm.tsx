@@ -41,6 +41,9 @@ export default function CRM() {
   const [stageFilter, setStageFilter] = useState<Set<string>>(new Set());
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
   const [newDealStage, setNewDealStage] = useState('');
+  const [pipeView, setPipeView] = useState<'list' | 'board'>('list');
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [sort, setSort] = useState<'value' | 'stage' | 'close'>('value');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -161,17 +164,55 @@ export default function CRM() {
   const cpg = usePagination(contactsFiltered, 25);
 
   // ----- shared detail panel: sidebar on xl+, overlay drawer below -----
+  const moveDealStage = (id: string, stage: string) => {
+    setDealsCache((p) => p.map((x) => (x.id === id ? { ...x, stage } : x)));
+    updateDeal(id, { stage }).then((r) => setDealsCache((p) => p.map((x) => (x.id === r.id ? r : x)))).catch((e: any) => alert(e.message));
+  };
+
+  const BoardView = () => (
+    <div className="flex-1 min-w-0 overflow-x-auto pb-2">
+      <div className="flex gap-3 h-full">
+        {stageNames.map((stage) => {
+          const items = filtered.filter((d) => d.stage === stage);
+          return (
+            <div key={stage} onDragOver={(e) => { e.preventDefault(); setDragOverCol(stage); }} onDragLeave={() => setDragOverCol((c) => (c === stage ? null : c))}
+              onDrop={() => { if (dragId) { const d = deals.find((x) => x.id === dragId); if (d && d.stage !== stage) moveDealStage(dragId, stage); } setDragId(null); setDragOverCol(null); }}
+              className={`w-72 shrink-0 flex flex-col min-h-0 rounded p-1 transition ${dragOverCol === stage ? 'ring-2 ring-inset ring-accent/50 bg-accent/5' : ''}`}>
+              <div className="flex items-center gap-2 px-2 py-2">
+                <StatusBadge status={stage} color={sColor(stage)} />
+                <span className="text-2xs text-muted2">{items.length}</span>
+                <span className="ml-auto text-2xs font-medium tabular-nums text-content">{money(items.reduce((a, d) => a + (d.value || 0), 0))}</span>
+                <button onClick={() => { setNewDealStage(stage); setShowDeal(true); }} className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong" title="Add deal"><Icon name="ti-plus" className="text-sm" /></button>
+              </div>
+              <div className="space-y-2 overflow-y-auto px-1 pb-2">
+                {items.map((d) => (
+                  <div key={d.id} draggable onDragStart={() => setDragId(d.id)} onDragEnd={() => { setDragId(null); setDragOverCol(null); }} onClick={() => selectDeal(d.id)}
+                    className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selectedId === d.id ? 'border-accent' : ''} ${dragId === d.id ? 'opacity-40' : ''}`}>
+                    <p className="text-sm font-medium text-content truncate">{d.title}</p>
+                    <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>
+                    <p className="text-sm font-semibold mt-1.5 tabular-nums">{money(d.value || 0)}</p>
+                  </div>
+                ))}
+                {items.length === 0 && <p className="text-2xs text-muted2 px-2 py-3 text-center">No deals</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const DetailPanel = () => !selected ? (
-    <div className="card p-5 text-sm text-muted2">Select a deal</div>
+    <div className="p-5 text-sm text-muted2">Select a deal</div>
   ) : (
-    <div className="card p-5 sticky top-0">
+    <div className="p-5">
       <div className="flex items-center gap-2 mb-3">
         <StatusBadge status={selected.stage} color={sColor(selected.stage)} />
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => router.push(`/crm/deal/${selected.id}`)} className="btn-ghost p-1.5 rounded text-muted hover:text-accentstrong" title="Open full page"><Icon name="ti-arrow-up-right" /></button>
           <button onClick={() => setEditDeal(selected)} className="btn-ghost p-1.5 rounded text-muted hover:text-content" title="Edit deal"><Icon name="ti-pencil" /></button>
           <button onClick={() => removeDeal(selected)} disabled={busy} className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500" title="Delete deal"><Icon name="ti-trash" /></button>
-          <button onClick={() => setShowDetail(false)} className="btn-ghost p-1.5 rounded text-muted hover:text-content xl:hidden" title="Close"><Icon name="ti-x" /></button>
+          <button onClick={() => setShowDetail(false)} className="btn-ghost p-1.5 rounded text-muted hover:text-content" title="Close"><Icon name="ti-x" /></button>
         </div>
       </div>
       <h3 className="text-base font-semibold leading-snug">{selected.title}</h3>
@@ -291,9 +332,14 @@ export default function CRM() {
               <button key={s} onClick={() => setSort(s)}
                 className={`h-8 px-2.5 rounded-md text-xs capitalize ${sort === s ? 'bg-surface border border-line text-content' : 'text-muted'}`}>{s}</button>
             ))}
+            <div className="flex items-center rounded-md border border-line overflow-hidden h-8 shrink-0 ml-auto">
+              {(['list', 'board'] as const).map((v) => (
+                <button key={v} onClick={() => setPipeView(v)} className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${pipeView === v ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}><Icon name={v === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{v}</button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex gap-4 flex-1 min-h-0">
+          {pipeView === 'board' ? <BoardView /> : (
             <div className="card flex-1 min-w-0 overflow-y-auto">
               {filtered.length === 0 ? <EmptyState text="No deals match" icon="ti-target" /> : stageNames.map((stage) => {
                 const items = filtered.filter((d) => d.stage === stage);
@@ -301,8 +347,8 @@ export default function CRM() {
                 const collapsed = collapsedStages.has(stage);
                 const total = items.reduce((a, d) => a + (d.value || 0), 0);
                 return (
-                  <div key={stage}>
-                    <div className="sticky top-0 z-10 px-4 py-2 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-2.5">
+                  <div key={stage} className="mt-2 first:mt-0">
+                    <div className="sticky top-0 z-10 px-4 py-2.5 bg-surface2 border-y border-line flex items-center gap-2.5">
                       <button onClick={() => setCollapsedStages((pr) => { const n = new Set(pr); n.has(stage) ? n.delete(stage) : n.add(stage); return n; })} className="text-muted2 hover:text-content"><Icon name={collapsed ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" /></button>
                       <StatusBadge status={stage} color={sColor(stage)} />
                       <span className="text-2xs text-muted2">{items.length}</span>
@@ -325,11 +371,7 @@ export default function CRM() {
                 );
               })}
             </div>
-
-            <aside className="w-80 shrink-0 hidden xl:block overflow-y-auto">
-              <DetailPanel />
-            </aside>
-          </div>
+          )}
         </div>
       ) : (
         contacts.length === 0 ? <EmptyState text="No contacts yet" icon="ti-user" /> : (
@@ -378,8 +420,8 @@ export default function CRM() {
       )}
 
       {showDetail && selected && view === 'pipeline' && (
-        <div className="fixed inset-0 z-30 bg-black/30 flex items-stretch justify-end xl:hidden" onClick={() => setShowDetail(false)}>
-          <div className="bg-surface w-full max-w-sm h-full overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 overflow-y-auto" onClick={() => setShowDetail(false)}>
+          <div className="modal-card w-full max-w-2xl my-2 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <DetailPanel />
           </div>
         </div>

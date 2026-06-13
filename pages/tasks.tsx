@@ -680,13 +680,13 @@ export default function Tasks() {
                 groupedPage.map(([label, items]) => {
                   const gcol = collapsedGroups.has(label);
                   return (
-                  <div key={label}>
+                  <div key={label} className="mt-2 first:mt-0">
                     <div draggable={groupBy === 'status' && taskStatuses.length > 0}
                       onDragStart={() => setDragGroup(label)}
                       onDragOver={(e) => { if (dragGroup && groupBy === 'status') e.preventDefault(); }}
                       onDrop={() => { if (dragGroup) reorderStatuses(dragGroup, label); setDragGroup(null); }}
                       onDragEnd={() => setDragGroup(null)}
-                      className={`sticky top-0 z-10 px-4 py-2 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-2.5 ${groupBy === 'status' && taskStatuses.length > 0 ? 'cursor-grab' : ''} ${dragGroup === label ? 'ring-1 ring-inset ring-accent/50' : ''}`}>
+                      className={`sticky top-0 z-10 px-4 py-2.5 bg-surface2 border-y border-line flex items-center gap-2.5 ${groupBy === 'status' && taskStatuses.length > 0 ? 'cursor-grab' : ''} ${dragGroup === label ? 'ring-1 ring-inset ring-accent/50' : ''}`}>
                       <button onClick={() => setCollapsedGroups((pr) => { const n = new Set(pr); n.has(label) ? n.delete(label) : n.add(label); return n; })}
                         className="shrink-0 text-muted2 hover:text-content" title={gcol ? 'Expand' : 'Collapse'}>
                         <Icon name={gcol ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" />
