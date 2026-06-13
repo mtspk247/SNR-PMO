@@ -807,19 +807,19 @@ export default function LandingPage() {
               <div>
                 <h4 className="text-xs font-semibold tracking-widest text-white/40 uppercase">Company</h4>
                 <ul className="mt-4 space-y-3 text-sm">
-                  <li><a href="#" className="text-white/60 hover:text-white transition-colors">About</a></li>
-                  <li><a href="#" className="text-white/60 hover:text-white transition-colors">Careers</a></li>
-                  <li><a href="#" className="text-white/60 hover:text-white transition-colors">Contact</a></li>
-                  <li><a href="#" className="text-white/60 hover:text-white transition-colors">Blog</a></li>
+                  <li><a href="#features" className="text-white/60 hover:text-white transition-colors">About</a></li>
+                  <li><Link href="/contact" className="text-white/60 hover:text-white transition-colors">Careers</Link></li>
+                  <li><Link href="/contact" className="text-white/60 hover:text-white transition-colors">Contact</Link></li>
+                  <li><Link href="/docs" className="text-white/60 hover:text-white transition-colors">Docs</Link></li>
                 </ul>
               </div>
 
               <div>
                 <h4 className="text-xs font-semibold tracking-widest text-white/40 uppercase">Legal</h4>
                 <ul className="mt-4 space-y-3 text-sm">
-                  <li><a href="#" className="text-white/60 hover:text-white transition-colors">Privacy policy</a></li>
-                  <li><a href="#" className="text-white/60 hover:text-white transition-colors">Terms of service</a></li>
-                  <li><a href="#" className="text-white/60 hover:text-white transition-colors">Security</a></li>
+                  <li><Link href="/legal/privacy" className="text-white/60 hover:text-white transition-colors">Privacy policy</Link></li>
+                  <li><Link href="/legal/terms" className="text-white/60 hover:text-white transition-colors">Terms of service</Link></li>
+                  <li><Link href="/legal/security" className="text-white/60 hover:text-white transition-colors">Security</Link></li>
                 </ul>
               </div>
             </div>
