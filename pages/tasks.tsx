@@ -307,7 +307,8 @@ export default function Tasks() {
   const DetailPanel = () => !selected ? (
     <div className="card p-5 text-sm text-muted">Select a task to see details</div>
   ) : (
-    <div className="card p-5">
+    <div className="card flex flex-col lg:flex-row max-h-[85vh] overflow-hidden">
+      <div className="flex-1 min-w-0 overflow-y-auto p-5">
       <div className="flex items-center gap-2 mb-3">
         <Bars level={PRIORITY_RANK[selected.priority] || 1} />
         <Pill label={selected.priority} />
@@ -428,7 +429,11 @@ export default function Tasks() {
       <Checklist taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
       <TimeTracking taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
       <EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} />
-      <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
+      </div>
+      <div className="lg:w-[22rem] shrink-0 border-t lg:border-t-0 lg:border-l border-line overflow-y-auto p-5 bg-surface2/20">
+        <p className="section-label mb-3 flex items-center gap-2"><Icon name="ti-activity" className="text-base text-muted2" />Activity</p>
+        <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
+      </div>
     </div>
   );
 
@@ -691,7 +696,7 @@ export default function Tasks() {
       {/* Task detail — centered modal (ClickUp-style) */}
       {showDetail && selected && (
         <div className="modal-backdrop fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 overflow-y-auto" onClick={() => setShowDetail(false)}>
-          <div className="modal-card w-full max-w-3xl my-2" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card w-full max-w-5xl my-2" onClick={(e) => e.stopPropagation()}>
             <DetailPanel />
           </div>
         </div>
