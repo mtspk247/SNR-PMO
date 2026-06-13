@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
-import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
+import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs, StatusBadge } from '@/components/ui';
 import CommentsThread from '@/components/Comments';
 import EntityTags from '@/components/EntityTags';
 import { Modal, Field } from '@/components/Modal';
@@ -154,7 +154,7 @@ export default function ProjectDetail() {
             {shownTasks.map((t) => (
               <tr key={t.id} className="row">
                 <td className="td font-medium">{t.name}</td>
-                <td className="td"><Pill label={t.status} /></td>
+                <td className="td"><StatusBadge status={t.status} /></td>
                 <td className="td"><Pill label={t.priority} /></td>
                 <td className="td text-2xs text-muted">{userName(t.assignee_id)}</td>
                 <td className="td text-2xs text-muted">{t.due_date || '—'}</td>

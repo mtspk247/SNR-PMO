@@ -249,14 +249,14 @@ export default function Tasks() {
       <div className="flex items-center gap-2 mb-3">
         <Bars level={PRIORITY_RANK[selected.priority] || 1} />
         <Pill label={selected.priority} />
-        <Pill label={selected.status} />
+        <StatusBadge status={selected.status} />
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => openEdit(selected)} disabled={busy} title="Edit task" className="btn-ghost p-1.5 rounded text-muted hover:text-content"><Icon name="ti-pencil" /></button>
           {canDelete && <button onClick={() => removeTask(selected.id, selected.name)} disabled={busy} title="Delete task" className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500"><Icon name="ti-trash" /></button>}
           <button onClick={() => setShowDetail(false)} title="Close" className="btn-ghost p-1.5 rounded text-muted hover:text-content xl:hidden"><Icon name="ti-x" /></button>
         </div>
       </div>
-      <h3 className="text-base font-semibold leading-snug text-content">{selected.name}</h3>
+      <h3 className="text-lg font-semibold leading-snug tracking-tight text-content">{selected.name}</h3>
       {selected.description && <p className="text-sm text-contentsoft mt-2 whitespace-pre-wrap">{selected.description}</p>}
 
       <div className="flex gap-2 mt-4">
