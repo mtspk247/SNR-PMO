@@ -71,6 +71,22 @@ function ClickCard({ href, className = '', children }: { href: string; className
 
 // ── component ─────────────────────────────────────────────────────────────────
 
+function Kpi({ href, label, value, hint, hintTone = 'muted', icon }:
+  { href: string; label: string; value: React.ReactNode; hint?: string; hintTone?: 'muted' | 'up' | 'down'; icon: string }) {
+  const router = useRouter();
+  return (
+    <button onClick={() => router.push(href)}
+      className="group text-left bg-surface border border-line rounded p-4 transition hover:border-borderstrong hover:bg-surface2/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-2xs uppercase tracking-wide text-muted2 font-medium truncate">{label}</p>
+        <span className="w-7 h-7 rounded-md grid place-items-center bg-accent/10 text-accentstrong shrink-0"><Icon name={icon} className="text-sm" /></span>
+      </div>
+      <p className="text-2xl font-semibold mt-2 text-content tnum leading-none">{value}</p>
+      {hint && <p className={`text-2xs mt-2 inline-flex items-center gap-1 font-medium ${hintTone === 'up' ? 'text-emerald-600' : hintTone === 'down' ? 'text-rose-600' : 'text-muted2'}`}>{hintTone === 'up' && <Icon name="ti-trending-up" className="text-xs" />}{hintTone === 'down' && <Icon name="ti-trending-down" className="text-xs" />}{hint}</p>}
+    </button>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuthStore();
   const router = useRouter();
@@ -191,122 +207,46 @@ export default function Dashboard() {
 
   return (
     <Layout flat title="Dashboard">
-      {/* ── header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
         <div>
           <p className="section-label mb-1.5">{todayLabel}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {greeting}, {user?.full_name?.split(' ')[0] || 'there'}
-          </h1>
-          <p className="text-sm text-muted mt-1">Here's what's happening across the workspace.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{greeting}, {user?.full_name?.split(' ')[0] || 'there'}</h1>
         </div>
-        <Link href="/tasks" className="btn btn-primary self-start sm:self-auto">
-          <Icon name="ti-checkbox" className="text-base" />View my tasks
-        </Link>
+        <Link href="/tasks" className="btn btn-primary self-start sm:self-auto"><Icon name="ti-checkbox" className="text-base" />View my tasks</Link>
       </div>
 
       {loading ? <Spinner /> : (
         <>
-          {/* ── row 0: My work (shown only when user has assigned tasks) ── */}
-          {myTasks.length > 0 && (
-            <div className="card overflow-hidden mb-6">
-              <div className="flex items-center justify-between px-5 h-14 border-b border-line">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-user-check" className="text-base text-muted2" />My work</span>
-                  <span className="pill pill-blue">{myTasks.length}</span>
-                </div>
-                <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks →</Link>
-              </div>
-              <div className="divide-y divide-line">
-                {myTasks.slice(0, 3).map((t) => (
-                  <Link
-                    key={t.id}
-                    href={`/tasks?task=${t.id}`}
-                    className="flex items-center gap-3 px-5 py-3 transition hover:bg-surface2/60 group"
-                  >
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${isOverdue(t.due_date) ? 'bg-rose-500' : 'bg-accent'}`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm truncate">{t.name}</p>
-                      <p className="text-2xs text-muted truncate mt-0.5">{t.projects?.name || '—'}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Pill label={t.priority} />
-                      {t.due_date && (
-                        <span className={`text-2xs font-medium ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-muted2'}`}>
-                          {t.due_date}
-                        </span>
-                      )}
-                      <Icon name="ti-chevron-right" className="text-base text-muted2 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── row 1: PMO stats ── */}
-          <p className="section-label mb-2.5">Overview</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <ClickCard href="/projects" className={`stat ${cardHover}`}>
-              <StatCard label="Active projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />
-              <span className="sr-only">View projects</span>
-            </ClickCard>
-            <ClickCard href="/tasks" className={`stat ${cardHover}`}>
-              <StatCard label="Open tasks" value={openTasks.length} hint={overdue ? `${overdue} overdue` : 'On schedule'} hintTone={overdue ? 'down' : 'up'} icon="ti-checkbox" />
-            </ClickCard>
-            <ClickCard href="/crm" className={`stat ${cardHover}`}>
-              <StatCard label="Open deals" value={openDeals.length} hint={`${deals.length} total`} icon="ti-target" />
-            </ClickCard>
-            <ClickCard href="/crm" className={`stat ${cardHover}`}>
-              <StatCard label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />
-            </ClickCard>
-            <ClickCard href="/accounting" className={`stat ${cardHover}`}>
-              <StatCard label="Income" value={money(income)} hint="Ledger, all time" icon="ti-trending-up" />
-            </ClickCard>
-            <ClickCard href="/accounting" className={`stat ${cardHover}`}>
-              <StatCard label="Expenses" value={money(expense)} hint="Ledger incl. payroll" icon="ti-trending-down" />
-            </ClickCard>
-            <ClickCard href="/accounting" className={`stat ${cardHover}`}>
-              <StatCard label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Running negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" />
-            </ClickCard>
-            <ClickCard href="/accounting" className={`stat ${cardHover}`}>
-              <StatCard label="Spend this month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" />
-            </ClickCard>
+          {/* KPI strip — single-border compact tiles */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <Kpi href="/projects" label="Active projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />
+            <Kpi href="/tasks" label="Open tasks" value={openTasks.length} hint={overdue ? `${overdue} overdue` : 'On schedule'} hintTone={overdue ? 'down' : 'up'} icon="ti-checkbox" />
+            <Kpi href="/crm" label="Open deals" value={openDeals.length} hint={`${deals.length} total`} icon="ti-target" />
+            <Kpi href="/crm" label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />
+            <Kpi href="/accounting" label="Income" value={money(income)} hint="All time" icon="ti-trending-up" />
+            <Kpi href="/accounting" label="Expenses" value={money(expense)} hint="Incl. payroll" icon="ti-trending-down" />
+            <Kpi href="/accounting" label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" />
+            <Kpi href="/accounting" label="Spend / month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" />
           </div>
 
-          {/* ── row 3: projects list + donut ── */}
-          <div className="grid lg:grid-cols-3 gap-5 mb-5 items-start">
-            <div className="card lg:col-span-2 overflow-hidden">
-              <div className="flex items-center justify-between px-5 h-14 border-b border-line">
-                <div>
-                  <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-folder" className="text-base text-muted2" />Projects</span>
-                  <span className="ml-2 text-2xs text-muted2">{projects.length} total</span>
-                </div>
-                <Link href="/projects" className="text-xs font-medium text-accentstrong hover:underline">View all →</Link>
+          {/* Bento row 1: projects (2/3) + project status (1/3) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-stretch">
+            <div className="card overflow-hidden lg:col-span-2 flex flex-col">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
+                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-folder" className="text-base text-muted2" />Projects<span className="ml-1 text-2xs text-muted2 font-normal">{projects.length} total</span></span>
+                <Link href="/projects" className="text-xs font-medium text-accentstrong hover:underline">View all &rarr;</Link>
               </div>
               {projects.length === 0 ? <EmptyState text="No projects yet" icon="ti-folder" /> : (
-                <div className="divide-y divide-line">
-                  {projects.slice(0, 6).map((p) => (
-                    <Link
-                      key={p.id}
-                      href={`/projects/${p.id}`}
-                      className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-surface2/60 group"
-                    >
-                      <Avatar name={p.name} size={34} />
+                <div className="divide-y divide-line flex-1">
+                  {projects.slice(0, 5).map((p) => (
+                    <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center gap-4 px-5 py-3 transition hover:bg-surface2/60 group">
+                      <Avatar name={p.name} size={32} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{p.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <StatusBadge status={p.status} />
-                          <Pill label={p.priority} />
-                        </div>
+                        <div className="flex items-center gap-2 mt-1"><StatusBadge status={p.status} /><Pill label={p.priority} /></div>
                       </div>
                       <div className="hidden sm:flex items-center gap-2 w-32 shrink-0">
-                        <div
-                          className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"
-                          title={`Progress: ${p.progress || 0}%`}
-                        >
-                          <div className="h-full rounded-full bg-accent" style={{ width: `${p.progress || 0}%` }} />
-                        </div>
+                        <div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${p.progress || 0}%` }} /></div>
                         <span className="text-2xs text-muted w-8 text-right tabular-nums">{p.progress || 0}%</span>
                       </div>
                       <Icon name="ti-chevron-right" className="text-base text-muted2 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
@@ -316,33 +256,16 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* project status donut — clicks to /projects */}
-            <ClickCard href="/projects" className={`card p-5 lg:self-start ${cardHover}`}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-donut-3" className="text-base text-muted2" />Project status</span>
-                <span className="text-xs text-muted2 opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
-              </div>
+            <ClickCard href="/projects" className="card p-5">
+              <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-donut-3" className="text-base text-muted2" />Project status</span>
               {projects.length === 0 ? <EmptyState text="No data" icon="ti-chart-donut" /> : (
-                <div className="flex items-center gap-6 mt-4">
-                  <div
-                    className="relative w-28 h-28 shrink-0 rounded-full"
-                    style={{ background: `conic-gradient(${gradient})` }}
-                    title={`${projects.length} projects total`}
-                  >
-                    <div className="absolute inset-[14px] rounded-full bg-surface grid place-items-center">
-                      <div className="text-center">
-                        <p className="text-xl font-semibold leading-none">{projects.length}</p>
-                        <p className="text-2xs text-muted mt-1">total</p>
-                      </div>
-                    </div>
+                <div className="flex items-center gap-5 mt-4">
+                  <div className="relative w-24 h-24 shrink-0 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
+                    <div className="absolute inset-[13px] rounded-full bg-surface grid place-items-center"><div className="text-center"><p className="text-lg font-semibold leading-none">{projects.length}</p><p className="text-2xs text-muted mt-0.5">total</p></div></div>
                   </div>
-                  <div className="flex-1 space-y-2.5">
-                    {statusEntries.map(([s, c]) => (
-                      <div key={s} className="flex items-center gap-2.5 text-xs" title={`${s}: ${c} project${c === 1 ? '' : 's'}`}>
-                        <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: STATUS_COLOR[s] || '#94a3b8' }} />
-                        <span className="flex-1 truncate text-contentsoft">{s}</span>
-                        <span className="font-medium text-content tabular-nums">{c}</span>
-                      </div>
+                  <div className="flex-1 space-y-2">
+                    {statusEntries.map(([st, c]) => (
+                      <div key={st} className="flex items-center gap-2.5 text-xs"><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: STATUS_COLOR[st] || '#94a3b8' }} /><span className="flex-1 truncate text-contentsoft">{st}</span><span className="font-medium text-content tabular-nums">{c}</span></div>
                     ))}
                   </div>
                 </div>
@@ -350,152 +273,83 @@ export default function Dashboard() {
             </ClickCard>
           </div>
 
-          {/* ── row 4: income/expense trend chart ── */}
-          <ClickCard href="/accounting" className={`card p-5 mb-5 ${cardHover}`}>
-            <div className="flex items-center justify-between mb-5">
-              <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-bar" className="text-base text-muted2" />Income vs. Expenses — last 6 months</span>
-              <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
-            </div>
-            {!hasLedger ? <EmptyState text="No ledger entries yet" icon="ti-chart-bar" /> : (
-              <div className="w-full overflow-x-auto">
-                <div className="min-w-[420px]">
-                  {/* bar grid */}
-                  <div className="flex items-end gap-3 h-44 border-b border-line pb-px">
-                    {trendBuckets.map((b) => {
-                      const incH = Math.max(Math.round((b.income / maxTrend) * 100), b.income > 0 ? 2 : 0);
-                      const expH = Math.max(Math.round((b.expense / maxTrend) * 100), b.expense > 0 ? 2 : 0);
-                      return (
-                        <div key={b.month} className="flex-1 h-full flex items-end justify-center gap-1.5">
-                          <div className="w-1/2 max-w-[26px] rounded-t bg-accent transition-all hover:opacity-80"
-                            style={{ height: `${incH}%` }} title={`${shortMonth(b.month)} Income: ${money(b.income)}`} />
-                          <div className="w-1/2 max-w-[26px] rounded-t bg-rose-500/70 transition-all hover:opacity-80"
-                            style={{ height: `${expH}%` }} title={`${shortMonth(b.month)} Expenses: ${money(b.expense)}`} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {/* month labels */}
-                  <div className="flex gap-2 mt-2">
-                    {trendBuckets.map((b) => (
-                      <div key={b.month} className="flex-1 text-center text-2xs text-muted2 tabular-nums">
-                        {shortMonth(b.month)}
-                      </div>
-                    ))}
-                  </div>
-                  {/* amounts row */}
-                  <div className="flex gap-2 mt-1">
-                    {trendBuckets.map((b) => (
-                      <div key={b.month} className="flex-1 flex flex-col items-center gap-0.5">
-                        {b.income > 0 && (
-                          <span className="text-2xs tabular-nums text-accent font-medium truncate w-full text-center">{money(b.income)}</span>
-                        )}
-                        {b.expense > 0 && (
-                          <span className="text-2xs tabular-nums text-rose-500 truncate w-full text-center">{money(b.expense)}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {/* legend */}
-                  <div className="flex items-center gap-4 mt-3 justify-end">
-                    <span className="flex items-center gap-1.5 text-xs text-contentsoft">
-                      <span className="w-3 h-2 rounded-sm bg-accent inline-block" />Income
-                    </span>
-                    <span className="flex items-center gap-1.5 text-xs text-contentsoft">
-                      <span className="w-3 h-2 rounded-sm bg-rose-500/70 inline-block" />Expenses
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </ClickCard>
-
-          {/* ── row 5: pipeline + due soon ── */}
-          <div className="grid lg:grid-cols-3 gap-5 mb-5 items-start">
-            {/* pipeline by stage — whole card clickable */}
-            <ClickCard href="/crm" className={`card p-5 lg:col-span-1 ${cardHover}`}>
-              <div className="flex items-center justify-between mb-5">
-                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-target-arrow" className="text-base text-muted2" />Pipeline by stage</span>
-                <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">Open CRM →</span>
-              </div>
-              {openDeals.length === 0 ? <EmptyState text="No open deals" icon="ti-target" /> : (
-                <div className="space-y-4">
-                  {stageTotals.map((s) => (
-                    <div key={s.stage} title={`${s.stage}: ${s.count} deal${s.count === 1 ? '' : 's'} — ${money(s.value)}`}>
-                      <div className="flex items-center justify-between mb-1.5 text-xs">
-                        <span className="flex items-center gap-2">
-                          <Pill label={s.stage} />
-                          <span className="text-muted2">{s.count} deal{s.count === 1 ? '' : 's'}</span>
-                        </span>
-                        <span className="font-semibold text-content tabular-nums">{money(s.value)}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-surface2 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-accent transition-all"
-                          style={{ width: `${(s.value / maxStage) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ClickCard>
-
-            {/* due soon — task rows clickable individually */}
-            <div className="card overflow-hidden lg:col-span-2">
-              <div className="flex items-center justify-between px-5 h-14 border-b border-line">
+          {/* Bento row 2: due soon (2/3) + pipeline (1/3) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-stretch">
+            <div className="card overflow-hidden lg:col-span-2 flex flex-col">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
                 <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-calendar-due" className="text-base text-muted2" />Due soon</span>
-                <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks →</Link>
+                <Link href="/tasks" className="text-xs font-medium text-accentstrong hover:underline">All tasks &rarr;</Link>
               </div>
-              <div className="divide-y divide-line">
-                {openTasks.slice(0, 6).map((t) => (
-                  <Link
-                    key={t.id}
-                    href={`/tasks?task=${t.id}`}
-                    className="flex items-center gap-3 px-5 py-3 transition hover:bg-surface2/60 group"
-                  >
+              <div className="divide-y divide-line flex-1">
+                {openTasks.slice(0, 5).map((t) => (
+                  <Link key={t.id} href={`/tasks?task=${t.id}`} className="flex items-center gap-3 px-5 py-3 transition hover:bg-surface2/60">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${isOverdue(t.due_date) ? 'bg-rose-500' : 'bg-accent'}`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm truncate">{t.name}</p>
-                      <p className="text-2xs text-muted truncate mt-0.5">{t.projects?.name || '—'}</p>
-                    </div>
-                    <span className={`text-2xs font-medium shrink-0 ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-muted2'}`}>
-                      {t.due_date || ''}
-                    </span>
+                    <div className="min-w-0 flex-1"><p className="text-sm truncate">{t.name}</p><p className="text-2xs text-muted truncate mt-0.5">{t.projects?.name || '—'}</p></div>
+                    <span className={`text-2xs font-medium shrink-0 ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-muted2'}`}>{t.due_date || ''}</span>
                   </Link>
                 ))}
                 {openTasks.length === 0 && <EmptyState text="All caught up" icon="ti-checks" />}
               </div>
             </div>
+
+            <ClickCard href="/crm" className="card p-5">
+              <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-target-arrow" className="text-base text-muted2" />Pipeline by stage</span>
+              {openDeals.length === 0 ? <EmptyState text="No open deals" icon="ti-target" /> : (
+                <div className="space-y-3.5 mt-4">
+                  {stageTotals.map((s) => (
+                    <div key={s.stage}>
+                      <div className="flex items-center justify-between mb-1.5 text-xs"><span className="flex items-center gap-2"><Pill label={s.stage} /><span className="text-muted2">{s.count}</span></span><span className="font-semibold text-content tabular-nums">{money(s.value)}</span></div>
+                      <div className="h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(s.value / maxStage) * 100}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ClickCard>
           </div>
 
-          {/* ── row 6: HR snapshot ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-start">
-            {/* headcount + departments — whole card clickable */}
-            <ClickCard href="/employees" className={`card p-5 ${cardHover}`}>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-users" className="text-base text-muted2" />Headcount</span>
-                <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">All →</span>
-              </div>
+          {/* Finance trend — full width, compact */}
+          <ClickCard href="/accounting" className="card p-5 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-bar" className="text-base text-muted2" />Income vs. Expenses &mdash; last 6 months</span>
+              <span className="text-xs font-medium text-accentstrong">Accounting &rarr;</span>
+            </div>
+            {!hasLedger ? <EmptyState text="No ledger entries yet" icon="ti-chart-bar" /> : (
+              <div className="w-full overflow-x-auto"><div className="min-w-[420px]">
+                <div className="flex items-end gap-3 h-36 border-b border-line pb-px">
+                  {trendBuckets.map((b) => {
+                    const incH = Math.max(Math.round((b.income / maxTrend) * 100), b.income > 0 ? 2 : 0);
+                    const expH = Math.max(Math.round((b.expense / maxTrend) * 100), b.expense > 0 ? 2 : 0);
+                    return (
+                      <div key={b.month} className="flex-1 h-full flex items-end justify-center gap-1.5">
+                        <div className="w-1/2 max-w-[24px] rounded-t bg-accent transition-all hover:opacity-80" style={{ height: `${incH}%` }} title={`${shortMonth(b.month)} Income: ${money(b.income)}`} />
+                        <div className="w-1/2 max-w-[24px] rounded-t bg-rose-500/70 transition-all hover:opacity-80" style={{ height: `${expH}%` }} title={`${shortMonth(b.month)} Expenses: ${money(b.expense)}`} />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-3 mt-2">
+                  {trendBuckets.map((b) => (<div key={b.month} className="flex-1 text-center text-2xs text-muted2 tabular-nums">{shortMonth(b.month)}</div>))}
+                </div>
+                <div className="flex items-center gap-4 mt-3 justify-end">
+                  <span className="flex items-center gap-1.5 text-xs text-contentsoft"><span className="w-3 h-2 rounded-sm bg-accent inline-block" />Income</span>
+                  <span className="flex items-center gap-1.5 text-xs text-contentsoft"><span className="w-3 h-2 rounded-sm bg-rose-500/70 inline-block" />Expenses</span>
+                </div>
+              </div></div>
+            )}
+          </ClickCard>
+
+          {/* HR row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+            <ClickCard href="/employees" className="card p-5">
+              <span className="text-sm font-semibold inline-flex items-center gap-2 mb-4"><Icon name="ti-users" className="text-base text-muted2" />Headcount</span>
               {employees.length === 0 ? <EmptyState text="No employees yet" icon="ti-users" /> : (
                 <>
-                  <div className="flex items-end gap-2 mb-4" title={`${headcount} active employees`}>
-                    <p className="text-3xl font-semibold text-content tabular-nums">{headcount}</p>
-                    <p className="text-sm text-muted mb-1">active</p>
-                  </div>
+                  <div className="flex items-end gap-2 mb-4"><p className="text-3xl font-semibold text-content tabular-nums">{headcount}</p><p className="text-sm text-muted mb-1">active</p></div>
                   {topDepts.length > 0 && (
                     <div className="space-y-2.5">
                       {topDepts.map(([dept, count]) => (
-                        <div
-                          key={dept}
-                          className="flex items-center gap-2 text-xs"
-                          title={`${dept}: ${count} employee${count === 1 ? '' : 's'}`}
-                        >
-                          <div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-accent"
-                              style={{ width: `${Math.round((count / (headcount || 1)) * 100)}%` }}
-                            />
-                          </div>
+                        <div key={dept} className="flex items-center gap-2 text-xs">
+                          <div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.round((count / (headcount || 1)) * 100)}%` }} /></div>
                           <span className="text-contentsoft truncate w-24">{dept}</span>
                           <span className="font-medium text-content tabular-nums w-4 text-right">{count}</span>
                         </div>
@@ -506,36 +360,21 @@ export default function Dashboard() {
               )}
             </ClickCard>
 
-            {/* leave requests — whole card clickable */}
-            <ClickCard href="/leave" className={`card overflow-hidden ${cardHover}`}>
-              <div className="flex items-center justify-between px-5 h-14 border-b border-line">
+            <ClickCard href="/leave" className="card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
                 <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-beach" className="text-base text-muted2" />Leave</span>
-                <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">Manage →</span>
               </div>
               {leaves.length === 0 ? <EmptyState text="No leave requests" icon="ti-calendar-off" /> : (
                 <div className="p-5 space-y-3">
-                  <div className="flex items-center justify-between text-sm" title={`${pendingLeaves} pending leave requests`}>
-                    <span className="text-contentsoft">Pending approval</span>
-                    <span className={`font-semibold tabular-nums ${pendingLeaves > 0 ? 'text-amber-500' : 'text-content'}`}>
-                      {pendingLeaves}
-                    </span>
-                  </div>
+                  <div className="flex items-center justify-between text-sm"><span className="text-contentsoft">Pending approval</span><span className={`font-semibold tabular-nums ${pendingLeaves > 0 ? 'text-amber-500' : 'text-content'}`}>{pendingLeaves}</span></div>
                   <div className="border-t border-line pt-3">
                     <p className="text-xs text-muted mb-2">On leave today</p>
-                    {onLeaveToday.length === 0 ? (
-                      <p className="text-xs text-muted2">Nobody out today</p>
-                    ) : (
+                    {onLeaveToday.length === 0 ? <p className="text-xs text-muted2">Nobody out today</p> : (
                       <div className="space-y-1.5">
                         {onLeaveToday.slice(0, 4).map((l) => (
-                          <div key={l.id} className="flex items-center gap-2 text-xs">
-                            <Avatar name={l.requester?.full_name || '?'} size={20} />
-                            <span className="text-contentsoft truncate flex-1">{l.requester?.full_name || 'Unknown'}</span>
-                            <Pill label={l.type} />
-                          </div>
+                          <div key={l.id} className="flex items-center gap-2 text-xs"><Avatar name={l.requester?.full_name || '?'} size={20} /><span className="text-contentsoft truncate flex-1">{l.requester?.full_name || 'Unknown'}</span><Pill label={l.type} /></div>
                         ))}
-                        {onLeaveToday.length > 4 && (
-                          <p className="text-2xs text-muted2">+{onLeaveToday.length - 4} more</p>
-                        )}
+                        {onLeaveToday.length > 4 && <p className="text-2xs text-muted2">+{onLeaveToday.length - 4} more</p>}
                       </div>
                     )}
                   </div>
@@ -543,33 +382,19 @@ export default function Dashboard() {
               )}
             </ClickCard>
 
-            {/* onboarding progress — whole card clickable */}
-            <ClickCard href="/onboarding" className={`card overflow-hidden sm:col-span-2 lg:col-span-1 ${cardHover}`}>
-              <div className="flex items-center justify-between px-5 h-14 border-b border-line">
+            <ClickCard href="/onboarding" className="card overflow-hidden sm:col-span-2 lg:col-span-1">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
                 <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-user-plus" className="text-base text-muted2" />Onboarding</span>
-                <span className="text-xs font-medium text-accentstrong opacity-0 group-hover:opacity-100 transition-opacity">View all →</span>
               </div>
-              {activeHires.length === 0 ? (
-                <EmptyState text="No active onboarding" icon="ti-user-check" />
-              ) : (
+              {activeHires.length === 0 ? <EmptyState text="No active onboarding" icon="ti-user-check" /> : (
                 <div className="divide-y divide-line">
                   {activeHires.map((h) => {
                     const pct = h.total > 0 ? Math.round((h.done / h.total) * 100) : 0;
                     return (
-                      <div
-                        key={h.uid}
-                        className="flex items-center gap-3 px-5 py-3"
-                        title={`${h.name}: ${h.done}/${h.total} tasks (${pct}%)`}
-                      >
+                      <div key={h.uid} className="flex items-center gap-3 px-5 py-3">
                         <Avatar name={h.name} size={28} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm truncate">{h.name}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden">
-                              <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className="text-2xs text-muted tabular-nums shrink-0">{h.done}/{h.total}</span>
-                          </div>
+                        <div className="min-w-0 flex-1"><p className="text-sm truncate">{h.name}</p>
+                          <div className="flex items-center gap-2 mt-1"><div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} /></div><span className="text-2xs text-muted tabular-nums shrink-0">{h.done}/{h.total}</span></div>
                         </div>
                         <span className="text-2xs font-medium text-muted2 tabular-nums shrink-0">{pct}%</span>
                       </div>
