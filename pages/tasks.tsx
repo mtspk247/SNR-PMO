@@ -411,64 +411,77 @@ export default function Tasks() {
     </div>
   );
 
+  const COLS = 'grid grid-cols-[minmax(200px,1fr)_120px_150px_88px_150px_100px_96px_48px] items-center gap-2 px-4';
+
+  const ColHeader = () => (
+    <div className={`${COLS} py-2 border-b border-line bg-surface2/30 text-2xs font-semibold uppercase tracking-wider text-muted2`}>
+      <span>Name</span><span>Status</span><span>Assignee</span><span>Priority</span><span>Project</span><span>Created</span><span>Due</span><span />
+    </div>
+  );
+
   const Row = (t: Task) => {
     const subs = tasks.filter((s) => s.parent_task_id === t.id);
     const overdueRow = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
     return (
       <div key={t.id}
-        className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}
+        className={`group ${COLS} py-2.5 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}
         onClick={() => selectTask(t.id)}>
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-2 min-w-0">
           {subs.length > 0 ? (
-            <button onClick={(e) => { e.stopPropagation(); setExpanded((p) => { const n = new Set(p); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; }); }}
+            <button onClick={(e) => { e.stopPropagation(); setExpanded((pr) => { const n = new Set(pr); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; }); }}
               className="shrink-0 -ml-1 text-muted2 hover:text-content" title={expanded.has(t.id) ? 'Collapse subtasks' : 'Expand subtasks'}>
               <Icon name="ti-chevron-right" className={`text-sm transition-transform ${expanded.has(t.id) ? 'rotate-90' : ''}`} />
             </button>
           ) : <span className="w-4 shrink-0" />}
           <Bars level={PRIORITY_RANK[t.priority] || 1} />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-content truncate">{t.name}</p>
-            <p className="text-2xs text-muted truncate flex items-center gap-2 mt-0.5">
-              <span className="truncate">{t.projects?.name || '—'}</span>
-              {t.assignee_id && <span className="inline-flex items-center gap-1 shrink-0"><Avatar name={userName(t.assignee_id)} size={14} />{userName(t.assignee_id)}</span>}
-              {subs.length > 0 && <span className="inline-flex items-center gap-0.5 shrink-0"><Icon name="ti-subtask" />{subs.filter(s => s.status === 'Done').length}/{subs.length}</span>}
-              {(t.followers?.length || 0) > 0 && <span className="inline-flex items-center gap-0.5 shrink-0"><Icon name="ti-eye" />{t.followers!.length}</span>}
-            </p>
-          </div>
+          <span className="text-sm font-medium text-content truncate">{t.name}</span>
+          {subs.length > 0 && <span className="shrink-0 inline-flex items-center gap-0.5 text-2xs text-muted2"><Icon name="ti-subtask" />{subs.filter((s) => s.status === 'Done').length}/{subs.length}</span>}
         </div>
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0 pl-7 sm:pl-0">
-          <Pill label={t.priority} />
-          <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()}
-            onChange={(e) => setStatus(t.id, e.target.value)}
-            className={`rounded-full px-2.5 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
-            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <span className={`text-2xs w-16 text-right shrink-0 ${overdueRow ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>
-          <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} disabled={busy} title="Edit task"
-            className="btn-ghost p-1.5 rounded text-muted2 hover:text-content"><Icon name="ti-pencil" className="text-sm" /></button>
+        <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
+          className={`w-full rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <div className="flex items-center gap-1.5 min-w-0 text-2xs text-muted">
+          {t.assignee_id ? (<><Avatar name={userName(t.assignee_id)} size={18} /><span className="truncate">{userName(t.assignee_id)}</span></>) : <span className="text-muted2">—</span>}
+        </div>
+        <Pill label={t.priority} />
+        <span className="text-2xs text-muted truncate">{t.projects?.name || '—'}</span>
+        <span className="text-2xs text-muted2 tnum">{new Date(t.created_at).toLocaleDateString()}</span>
+        <span className={`text-2xs tnum ${overdueRow ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>
+        <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 transition">
+          <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} disabled={busy} title="Edit task" className="p-1 rounded text-muted2 hover:text-content"><Icon name="ti-pencil" className="text-sm" /></button>
           {canDelete && (
-            <button onClick={(e) => { e.stopPropagation(); removeTask(t.id, t.name); }} disabled={busy} title="Delete task"
-              className="btn-ghost p-1.5 rounded text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>
+            <button onClick={(e) => { e.stopPropagation(); removeTask(t.id, t.name); }} disabled={busy} title="Delete task" className="p-1 rounded text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>
           )}
         </div>
       </div>
     );
   };
 
-  const SubRow = (t: Task) => (
-    <div key={t.id}
-      className={`flex items-center gap-2.5 pl-11 pr-4 py-2.5 border-b border-line cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/40 border-l-2 border-l-transparent'}`}
-      onClick={() => selectTask(t.id)}>
-      <Icon name="ti-corner-down-right" className="text-muted2 text-sm shrink-0" />
-      <input type="checkbox" checked={t.status === 'Done'} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={() => setStatus(t.id, t.status === 'Done' ? 'To Do' : 'Done')} className="accent-accentstrong shrink-0" />
-      <span className={`text-sm flex-1 truncate ${t.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{t.name}</span>
-      {t.assignee_id && <span className="shrink-0"><Avatar name={userName(t.assignee_id)} size={18} /></span>}
-      <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
-        className={`rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
-        {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-      </select>
-    </div>
-  );
+  const SubRow = (t: Task) => {
+    const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
+    return (
+      <div key={t.id}
+        className={`${COLS} py-2 border-b border-line cursor-pointer ${selectedId === t.id ? 'bg-accent/5' : 'hover:bg-surface2/40'}`}
+        onClick={() => selectTask(t.id)}>
+        <div className="flex items-center gap-2 min-w-0 pl-5">
+          <Icon name="ti-corner-down-right" className="text-muted2 text-sm shrink-0" />
+          <input type="checkbox" checked={t.status === 'Done'} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={() => setStatus(t.id, t.status === 'Done' ? 'To Do' : 'Done')} className="accent-accentstrong shrink-0" />
+          <span className={`text-sm truncate ${t.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{t.name}</span>
+        </div>
+        <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
+          className={`w-full rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <div className="flex items-center gap-1.5 min-w-0 text-2xs text-muted">{t.assignee_id ? (<><Avatar name={userName(t.assignee_id)} size={18} /><span className="truncate">{userName(t.assignee_id)}</span></>) : <span className="text-muted2">—</span>}</div>
+        <Pill label={t.priority} />
+        <span className="text-2xs text-muted truncate">{t.projects?.name || '—'}</span>
+        <span className="text-2xs text-muted2 tnum">{new Date(t.created_at).toLocaleDateString()}</span>
+        <span className={`text-2xs tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>
+        <span />
+      </div>
+    );
+  };
 
   const renderTask = (t: Task) => {
     const subs = tasks.filter((s) => s.parent_task_id === t.id);
@@ -561,7 +574,8 @@ export default function Tasks() {
 
           <div className="flex-1 min-h-0">
             {view === 'board' ? <BoardView /> : (
-            <div className="card h-full overflow-y-auto">
+            <div className="card h-full overflow-auto">
+              <div className="min-w-[960px]">
               {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
                 groupedPage.map(([label, items]) => {
                   const gcol = collapsedGroups.has(label);
@@ -583,14 +597,16 @@ export default function Tasks() {
                         </button>
                       )}
                     </div>
+                    {!gcol && <ColHeader />}
                     {!gcol && items.map(renderTask)}
                   </div>
                   );
                 })
-              ) : pg.pageItems.map(renderTask)}
+              ) : (<><ColHeader />{pg.pageItems.map(renderTask)}</>)}
               {filtered.length > 0 && (
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}
+              </div>
             </div>
             )}
           </div>
