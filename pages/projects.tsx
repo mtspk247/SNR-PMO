@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
-import { Pill, Spinner, EmptyState, PageHeader, Icon } from '@/components/ui';
+import { Pill, Spinner, EmptyState, PageHeader, Icon, StatusBadge } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { useProjects, useOrgCompanies, usePortfolios, useCreateProject, useUpdateProject, useDeleteProject } from '@/lib/queries';
@@ -79,7 +79,7 @@ export default function Projects() {
       {isLoading ? <Spinner /> : projects.length === 0 ? (
         <EmptyState text={canCreate ? 'No projects yet — create your first one' : 'No projects yet'} />
       ) : (
-        <div className="card overflow-hidden">
+        <div className="bg-surface overflow-hidden">
           <div className="overflow-x-auto"><table className="w-full">
             <thead><tr>
               <th className="th">Name</th><th className="th">Status</th><th className="th">Priority</th>
@@ -93,7 +93,7 @@ export default function Projects() {
                     {portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}
                     {p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}
                   </td>
-                  <td className="td"><Pill label={p.status} /></td>
+                  <td className="td"><StatusBadge status={p.status} /></td>
                   <td className="td"><Pill label={p.priority} /></td>
                   <td className="td text-2xs text-neutral-500">{p.start_date || '—'} → {p.end_date || '—'}</td>
                   <td className="td">
@@ -132,9 +132,8 @@ export default function Projects() {
         }
       >
         <div className="space-y-3.5">
-          <Field label="Name" required hint="A short, recognizable name for this project.">
-            <input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} className="input" placeholder="e.g. Website redesign" />
-          </Field>
+          <input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} placeholder="Project name"
+            className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           {companies.length > 0 && (
             <Field label="Company">
               <select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value, portfolio_id: '' })} className="input"><option value="">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
