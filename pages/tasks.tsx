@@ -64,6 +64,7 @@ export default function Tasks() {
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(false);
   const [subInput, setSubInput] = useState('');
 
@@ -255,7 +256,7 @@ export default function Tasks() {
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => openEdit(selected)} disabled={busy} title="Edit task" className="btn-ghost p-1.5 rounded text-muted hover:text-content"><Icon name="ti-pencil" /></button>
           {canDelete && <button onClick={() => removeTask(selected.id, selected.name)} disabled={busy} title="Delete task" className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500"><Icon name="ti-trash" /></button>}
-          <button onClick={() => setShowDetail(false)} title="Close" className="btn-ghost p-1.5 rounded text-muted hover:text-content xl:hidden"><Icon name="ti-x" /></button>
+          <button onClick={() => setShowDetail(false)} title="Close" className="btn-ghost p-1.5 rounded text-muted hover:text-content"><Icon name="ti-x" /></button>
         </div>
       </div>
       <h3 className="text-lg font-semibold leading-snug tracking-tight text-content">{selected.name}</h3>
@@ -558,13 +559,19 @@ export default function Tasks() {
             </div>
           </div>
 
-          <div className="flex gap-4 flex-1 min-h-0">
+          <div className="flex-1 min-h-0">
             {view === 'board' ? <BoardView /> : (
-            <div className="card flex-1 min-w-0 overflow-y-auto">
+            <div className="card h-full overflow-y-auto">
               {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
-                groupedPage.map(([label, items]) => (
+                groupedPage.map(([label, items]) => {
+                  const gcol = collapsedGroups.has(label);
+                  return (
                   <div key={label}>
                     <div className="sticky top-0 z-10 px-4 py-2 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-2.5">
+                      <button onClick={() => setCollapsedGroups((pr) => { const n = new Set(pr); n.has(label) ? n.delete(label) : n.add(label); return n; })}
+                        className="shrink-0 text-muted2 hover:text-content" title={gcol ? 'Expand' : 'Collapse'}>
+                        <Icon name="ti-chevron-right" className={`text-sm transition-transform ${gcol ? '' : 'rotate-90'}`} />
+                      </button>
                       {groupBy === 'status'
                         ? <StatusBadge status={label} solid />
                         : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{label}</span>}
@@ -576,28 +583,24 @@ export default function Tasks() {
                         </button>
                       )}
                     </div>
-                    {items.map(renderTask)}
+                    {!gcol && items.map(renderTask)}
                   </div>
-                ))
+                  );
+                })
               ) : pg.pageItems.map(renderTask)}
               {filtered.length > 0 && (
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}
             </div>
             )}
-
-            {/* Detail sidebar — visible permanently on xl+ */}
-            <aside className="w-80 shrink-0 hidden xl:block overflow-y-auto">
-              <DetailPanel />
-            </aside>
           </div>
         </div>
       )}
 
-      {/* Detail drawer — overlay on screens below xl */}
+      {/* Task detail — centered modal (ClickUp-style) */}
       {showDetail && selected && (
-        <div className="fixed inset-0 z-30 bg-black/30 flex items-stretch justify-end xl:hidden" onClick={() => setShowDetail(false)}>
-          <div className="bg-surface w-full max-w-sm h-full overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 overflow-y-auto" onClick={() => setShowDetail(false)}>
+          <div className="modal-card w-full max-w-3xl my-2" onClick={(e) => e.stopPropagation()}>
             <DetailPanel />
           </div>
         </div>
