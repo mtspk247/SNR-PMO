@@ -63,6 +63,7 @@ export default function Tasks() {
   const [view, setView] = useState<'list' | 'board'>('list');
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(false);
   const [subInput, setSubInput] = useState('');
 
@@ -417,6 +418,12 @@ export default function Tasks() {
         className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}
         onClick={() => selectTask(t.id)}>
         <div className="flex items-center gap-3 min-w-0 flex-1">
+          {subs.length > 0 ? (
+            <button onClick={(e) => { e.stopPropagation(); setExpanded((p) => { const n = new Set(p); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; }); }}
+              className="shrink-0 -ml-1 text-muted2 hover:text-content" title={expanded.has(t.id) ? 'Collapse subtasks' : 'Expand subtasks'}>
+              <Icon name="ti-chevron-right" className={`text-sm transition-transform ${expanded.has(t.id) ? 'rotate-90' : ''}`} />
+            </button>
+          ) : <span className="w-4 shrink-0" />}
           <Bars level={PRIORITY_RANK[t.priority] || 1} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-content truncate">{t.name}</p>
@@ -443,6 +450,31 @@ export default function Tasks() {
               className="btn-ghost p-1.5 rounded text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>
           )}
         </div>
+      </div>
+    );
+  };
+
+  const SubRow = (t: Task) => (
+    <div key={t.id}
+      className={`flex items-center gap-2.5 pl-11 pr-4 py-2.5 border-b border-line cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/40 border-l-2 border-l-transparent'}`}
+      onClick={() => selectTask(t.id)}>
+      <Icon name="ti-corner-down-right" className="text-muted2 text-sm shrink-0" />
+      <input type="checkbox" checked={t.status === 'Done'} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={() => setStatus(t.id, t.status === 'Done' ? 'To Do' : 'Done')} className="accent-accentstrong shrink-0" />
+      <span className={`text-sm flex-1 truncate ${t.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{t.name}</span>
+      {t.assignee_id && <span className="shrink-0"><Avatar name={userName(t.assignee_id)} size={18} /></span>}
+      <select value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
+        className={`rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
+        {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+      </select>
+    </div>
+  );
+
+  const renderTask = (t: Task) => {
+    const subs = tasks.filter((s) => s.parent_task_id === t.id);
+    return (
+      <div key={t.id}>
+        {Row(t)}
+        {expanded.has(t.id) && subs.map((st) => SubRow(st))}
       </div>
     );
   };
@@ -544,10 +576,10 @@ export default function Tasks() {
                         </button>
                       )}
                     </div>
-                    {items.map(Row)}
+                    {items.map(renderTask)}
                   </div>
                 ))
-              ) : pg.pageItems.map(Row)}
+              ) : pg.pageItems.map(renderTask)}
               {filtered.length > 0 && (
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}
@@ -590,9 +622,8 @@ export default function Tasks() {
         <div>
           <ModalSection title="Basics" icon="ti-align-left">
             <div className="space-y-3.5">
-              <Field label="Name" required hint="What needs doing?">
-                <input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" placeholder="What needs doing?" />
-              </Field>
+              <input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" placeholder="Task name" />
               <Field label="Description" hint="Optional — any extra context.">
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="textarea h-20" placeholder="Optional details" />
               </Field>

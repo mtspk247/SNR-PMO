@@ -67,7 +67,7 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
         className={`modal-card card w-full ${WIDTH[size]} max-h-[90vh] flex flex-col overflow-hidden shadow-xl`}
       >
-        <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-line">
+        <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-line">
           {icon && (
             <span className="w-9 h-9 shrink-0 rounded-lg grid place-items-center bg-accent/10 text-accentstrong">
               <Icon name={icon} className="text-lg" />
@@ -75,7 +75,7 @@ export function Modal({
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 min-w-0">
-              <h3 className="text-base font-semibold text-content leading-tight truncate">{title}</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-content leading-tight truncate">{title}</h3>
               {headerExtra}
             </div>
             {subtitle && <p className="text-xs text-muted mt-0.5">{subtitle}</p>}
@@ -91,7 +91,7 @@ export function Modal({
         </div>
 
         {tabs && tabs.length > 0 && (
-          <div className="px-5 border-b border-line bg-surface2/30 flex items-center gap-1 overflow-x-auto" role="tablist">
+          <div className="px-6 border-b border-line bg-surface2/30 flex items-center gap-1 overflow-x-auto" role="tablist">
             {tabs.map((t) => {
               const active = t.key === tab;
               return (
@@ -115,10 +115,10 @@ export function Modal({
             })}
           </div>
         )}
-        <div className="px-5 py-4 overflow-y-auto">{children}</div>
+        <div className="px-6 py-5 overflow-y-auto">{children}</div>
 
         {footer && (
-          <div className="px-5 py-3.5 border-t border-line bg-surface2/40 flex items-center gap-2">{footer}</div>
+          <div className="px-6 py-4 border-t border-line bg-surface2/40 flex items-center gap-2">{footer}</div>
         )}
       </div>
     </div>
