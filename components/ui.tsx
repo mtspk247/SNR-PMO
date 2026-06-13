@@ -172,8 +172,21 @@ export const STATUS_META: Record<string, { dot: string; solid: string; soft: str
 export const statusMeta = (s: string) => STATUS_META[s] || { dot: 'bg-zinc-400', solid: 'bg-zinc-500 text-white', soft: 'bg-zinc-500/10 text-zinc-600 ring-zinc-500/25' };
 
 /** Status badge. `solid` = bold filled pill (group headers); default = soft ringed pill with dot. */
-export const StatusBadge = ({ status, solid = false, className = '' }: { status: string; solid?: boolean; className?: string }) => {
+export const StatusBadge = ({ status, solid = false, color, className = '' }: { status: string; solid?: boolean; color?: string; className?: string }) => {
   const m = statusMeta(status);
+  if (color) {
+    // Custom (per-org) status colour via hex — inline-styled.
+    return solid ? (
+      <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-2xs font-bold uppercase tracking-wide text-white ${className}`} style={{ backgroundColor: color }}>
+        <span className="w-1.5 h-1.5 rounded-full bg-white/85" />{status}
+      </span>
+    ) : (
+      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-2xs font-medium ${className}`}
+        style={{ backgroundColor: color + '1a', color, boxShadow: `inset 0 0 0 1px ${color}40` }}>
+        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />{status}
+      </span>
+    );
+  }
   return solid ? (
     <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-2xs font-bold uppercase tracking-wide ${m.solid} ${className}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-white/85" />{status}

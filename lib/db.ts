@@ -1438,3 +1438,30 @@ export async function openBillingPortal(orgId: string): Promise<string> {
   if (!data?.url) throw new Error('No portal URL returned');
   return data.url as string;
 }
+
+// ── Custom task statuses (per-org, ClickUp-style) ───────────────────────────
+export interface TaskStatus { id: string; org_id: string; name: string; color: string; category: 'todo' | 'active' | 'done'; position: number; }
+
+export async function getTaskStatuses(orgId: string): Promise<TaskStatus[]> {
+  const { data, error } = await sb.from('task_statuses').select('*').eq('org_id', orgId).order('position');
+  if (error) throw error;
+  return (data as TaskStatus[]) || [];
+}
+/** Returns the org's statuses, seeding the 7 defaults the first time. */
+export async function ensureTaskStatuses(orgId: string): Promise<TaskStatus[]> {
+  let list = await getTaskStatuses(orgId);
+  if (list.length === 0) { await sb.rpc('seed_default_task_statuses', { p_org: orgId }); list = await getTaskStatuses(orgId); }
+  return list;
+}
+export async function createTaskStatus(p: { org_id: string; name: string; color: string; category: string; position: number }): Promise<void> {
+  const { error } = await sb.from('task_statuses').insert(p); // return=minimal (RETURNING-safe)
+  if (error) throw error;
+}
+export async function updateTaskStatusDef(id: string, patch: Partial<{ name: string; color: string; category: string; position: number }>): Promise<void> {
+  const { error } = await sb.from('task_statuses').update(patch).eq('id', id);
+  if (error) throw error;
+}
+export async function deleteTaskStatusDef(id: string): Promise<void> {
+  const { error } = await sb.from('task_statuses').delete().eq('id', id);
+  if (error) throw error;
+}

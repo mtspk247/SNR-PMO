@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import { Modal, Field, ModalSection } from '@/components/Modal';
 import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
-import { getOrgUsers, createTask, updateTask, deleteTask, notify } from '@/lib/db';
+import { getOrgUsers, createTask, updateTask, deleteTask, notify, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useTasks, useProjects, useTeams } from '@/lib/queries';
@@ -49,6 +49,44 @@ const EMPTY_FORM: TaskForm = { name: '', description: '', project_id: '', assign
 
 type GroupBy = 'none' | 'project' | 'priority' | 'status';
 
+function StatusManager({ open, onClose, orgId, statuses, onChanged }: { open: boolean; onClose: () => void; orgId: string; statuses: TaskStatus[]; onChanged: () => void }) {
+  const [name, setName] = useState('');
+  const [color, setColor] = useState('#6366f1');
+  const [cat, setCat] = useState('active');
+  const [busy, setBusy] = useState(false);
+  const add = async () => {
+    if (!name.trim()) return; setBusy(true);
+    try { await createTaskStatus({ org_id: orgId, name: name.trim(), color, category: cat, position: statuses.length ? Math.max(...statuses.map((s) => s.position)) + 1 : 0 }); setName(''); onChanged(); }
+    catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+  const patch = async (id: string, pa: Partial<{ name: string; color: string; category: string }>) => { try { await updateTaskStatusDef(id, pa); onChanged(); } catch (e: any) { alert(e.message); } };
+  const del = async (id: string) => { if (!confirm('Delete this status? Tasks keep their current value.')) return; try { await deleteTaskStatusDef(id); onChanged(); } catch (e: any) { alert(e.message); } };
+  return (
+    <Modal open={open} onClose={onClose} title="Manage statuses" subtitle="Customize the workflow statuses for this workspace." icon="ti-flag-3" size="md"
+      footer={<><span className="text-2xs text-muted2 mr-auto hidden sm:block">Applies to everyone in the workspace.</span><button onClick={onClose} className="btn">Done</button></>}>
+      <div className="space-y-2">
+        {statuses.map((st) => (
+          <div key={st.id} className="flex items-center gap-2">
+            <input type="color" value={st.color} onChange={(e) => patch(st.id, { color: e.target.value })} className="w-8 h-8 rounded-md border border-line bg-surface cursor-pointer shrink-0 p-0.5" title="Colour" />
+            <input defaultValue={st.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== st.name) patch(st.id, { name: v }); }} className="input flex-1" />
+            <select value={st.category} onChange={(e) => patch(st.id, { category: e.target.value })} className="input h-9 w-24 shrink-0">
+              <option value="todo">To-do</option><option value="active">Active</option><option value="done">Done</option>
+            </select>
+            <button onClick={() => del(st.id)} title="Delete" className="btn-ghost p-1.5 rounded text-muted2 hover:text-rose-500 shrink-0"><Icon name="ti-trash" className="text-sm" /></button>
+          </div>
+        ))}
+        {statuses.length === 0 && <p className="text-sm text-muted2 py-2">No statuses yet — add one below.</p>}
+      </div>
+      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-line">
+        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-8 rounded-md border border-line bg-surface cursor-pointer shrink-0 p-0.5" />
+        <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="New status name" className="input flex-1" />
+        <select value={cat} onChange={(e) => setCat(e.target.value)} className="input h-9 w-24 shrink-0"><option value="todo">To-do</option><option value="active">Active</option><option value="done">Done</option></select>
+        <button onClick={add} disabled={busy || !name.trim()} className="btn btn-primary shrink-0"><Icon name="ti-plus" />Add</button>
+      </div>
+    </Modal>
+  );
+}
+
 export default function Tasks() {
   const router = useRouter();
   const activeOrg = useActiveOrg();
@@ -73,6 +111,8 @@ export default function Tasks() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(COL_DEFS.map((c) => c.id)));
   const [colMenu, setColMenu] = useState(false);
+  const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -95,6 +135,11 @@ export default function Tasks() {
   const setCache = (fn: (prev: Task[]) => Task[]) =>
     qc.setQueryData<Task[]>(qk.tasks(activeOrg?.id), (prev) => fn(prev ?? []));
   const patchLocal = (u: Task) => setCache((prev) => prev.map((t) => (t.id === u.id ? u : t)));
+
+  useEffect(() => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id).then(setTaskStatuses).catch(() => {}); }, [activeOrg?.id]);
+  const statuses = taskStatuses.length ? taskStatuses.map((x) => x.name) : STATUSES;
+  const statusColor = (n: string) => taskStatuses.find((x) => x.name === n)?.color;
+  const reloadStatuses = () => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id).then(setTaskStatuses).catch(() => {}); };
 
   const roots = useMemo(() => tasks.filter((t) => !t.parent_task_id), [tasks]);
   const filtered = useMemo(() => {
@@ -121,7 +166,7 @@ export default function Tasks() {
       groupBy === 'priority' ? (t.priority || 'None') : (t.status || 'None');
     const m = new Map<string, Task[]>();
     pg.pageItems.forEach((t) => { const k = keyOf(t); m.set(k, [...(m.get(k) || []), t]); });
-    const rank = groupBy === 'priority' ? PRIORITIES : groupBy === 'status' ? STATUSES : null;
+    const rank = groupBy === 'priority' ? PRIORITIES : groupBy === 'status' ? statuses : null;
     return Array.from(m.entries()).sort(([a], [b]) =>
       rank ? rank.indexOf(a) - rank.indexOf(b) : a.localeCompare(b));
   }, [pg.pageItems, groupBy]);
@@ -281,7 +326,7 @@ export default function Tasks() {
       <dl className="mt-5 pt-4 border-t border-line space-y-2.5 text-sm">
         <div className="flex items-center justify-between gap-2">
           <dt className="flex items-center gap-2 text-muted"><Icon name="ti-circle-dot" className="text-base text-muted2 shrink-0" />Status</dt>
-          <dd><select value={selected.status} disabled={busy} onChange={(e) => setStatus(selected.id, e.target.value)} className="input h-8 py-0 text-sm">{STATUSES.map(s => <option key={s}>{s}</option>)}</select></dd>
+          <dd><select value={selected.status} disabled={busy} onChange={(e) => setStatus(selected.id, e.target.value)} className="input h-8 py-0 text-sm">{statuses.map(s => <option key={s}>{s}</option>)}</select></dd>
         </div>
         <div className="flex items-center justify-between gap-2">
           <dt className="flex items-center gap-2 text-muted"><Icon name="ti-user" className="text-base text-muted2 shrink-0" />Assignee</dt>
@@ -388,7 +433,7 @@ export default function Tasks() {
   const BoardView = () => (
     <div className="flex-1 min-w-0 overflow-x-auto pb-2">
       <div className="flex gap-3 h-full">
-        {STATUSES.map((st) => {
+        {statuses.map((st) => {
           const items = filtered.filter((t) => t.status === st);
           return (
             <div key={st}
@@ -396,7 +441,7 @@ export default function Tasks() {
               onDrop={() => { if (dragId) { const tk = tasks.find((x) => x.id === dragId); if (tk && tk.status !== st) setStatus(dragId, st); } setDragId(null); setDragOverCol(null); }}
               className={`w-72 shrink-0 flex flex-col min-h-0 rounded-xl p-1 transition ${dragOverCol === st ? 'ring-2 ring-inset ring-accent/50 bg-accent/5' : ''}`}>
               <div className="flex items-center gap-2 mb-2 px-0.5">
-                <StatusBadge status={st} solid />
+                <StatusBadge status={st} solid color={statusColor(st)} />
                 <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
                 <button onClick={() => { setForm({ ...EMPTY_FORM, status: st }); setModal({ mode: 'create' }); }}
                   title="Add task" className="ml-auto text-muted2 hover:text-content transition"><Icon name="ti-plus" className="text-sm" /></button>
@@ -439,7 +484,7 @@ export default function Tasks() {
         return (
           <select key={id} value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
             className={`w-full rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         );
       case 'assignee':
@@ -588,6 +633,9 @@ export default function Tasks() {
                   </div>
                 )}
               </div>
+              {canDelete && (
+                <button onClick={() => setStatusMgr(true)} className="btn h-9"><Icon name="ti-flag-3" className="text-sm" />Statuses</button>
+              )}
               <span className="text-2xs text-muted2 ml-1 hidden sm:inline">Sort</span>
               <div className="flex items-center gap-1">
                 {(['priority', 'due', 'name'] as const).map((s) => (
@@ -599,7 +647,7 @@ export default function Tasks() {
 
             {/* Status filter pills — horizontal, wraps on small screens */}
             <div className="flex flex-wrap items-center gap-1.5">
-              {STATUSES.map((s) => (
+              {statuses.map((s) => (
                 <button key={s} onClick={() => toggleStatus(s)}
                   className={`pill cursor-pointer transition ${statusFilter.has(s) ? 'bg-accent text-accentfg' : 'bg-surface2 text-muted hover:text-content'}`}>
                   {s}<span className="ml-1 opacity-70">{roots.filter(t => t.status === s).length}</span>
@@ -613,7 +661,7 @@ export default function Tasks() {
 
           <div className="flex-1 min-h-0">
             {view === 'board' ? <BoardView /> : (
-            <div className="card h-full overflow-auto">
+            <div className="h-full overflow-auto">
               <div className="min-w-[960px]">
               {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
                 groupedPage.map(([label, items]) => {
@@ -626,7 +674,7 @@ export default function Tasks() {
                         <Icon name="ti-chevron-right" className={`text-sm transition-transform ${gcol ? '' : 'rotate-90'}`} />
                       </button>
                       {groupBy === 'status'
-                        ? <StatusBadge status={label} solid />
+                        ? <StatusBadge status={label} solid color={statusColor(label)} />
                         : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{label}</span>}
                       <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
                       {groupBy === 'status' && (
@@ -660,6 +708,8 @@ export default function Tasks() {
           </div>
         </div>
       )}
+
+      {activeOrg?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={activeOrg.id} statuses={taskStatuses} onChanged={reloadStatuses} />}
 
       {/* Create / edit modal */}
       <Modal
@@ -703,7 +753,7 @@ export default function Tasks() {
                   <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
                 </Field>
                 <Field label="Status" className="flex-1">
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{statuses.map(s => <option key={s}>{s}</option>)}</select>
                 </Field>
               </div>
               <div className="flex gap-3">
