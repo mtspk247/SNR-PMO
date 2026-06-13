@@ -323,10 +323,10 @@ export default function RoadmapPage() {
   // ── Today marker pct
   const todayPct = pct(new Date(), rangeStart, rangeEnd);
 
-  if (isLoading) return <Layout title="Roadmap"><Spinner /></Layout>;
+  if (isLoading) return <Layout flat title="Roadmap"><Spinner /></Layout>;
 
   return (
-    <Layout title="Roadmap">
+    <Layout flat title="Roadmap">
       <PageHeader
         title="Roadmap"
         subtitle="Project timeline — visualise schedules and track progress across the portfolio."

@@ -190,7 +190,7 @@ export default function Dashboard() {
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
-    <Layout title="Dashboard">
+    <Layout flat title="Dashboard">
       {/* ── header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
@@ -245,7 +245,7 @@ export default function Dashboard() {
           )}
 
           {/* ── row 1: PMO stats ── */}
-          <p className="section-label mb-2.5">Delivery &amp; sales</p>
+          <p className="section-label mb-2.5">Overview</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <ClickCard href="/projects" className={`stat ${cardHover}`}>
               <StatCard label="Active projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />
@@ -260,11 +260,6 @@ export default function Dashboard() {
             <ClickCard href="/crm" className={`stat ${cardHover}`}>
               <StatCard label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />
             </ClickCard>
-          </div>
-
-          {/* ── row 2: finance stats ── */}
-          <p className="section-label mb-2.5">Finances</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <ClickCard href="/accounting" className={`stat ${cardHover}`}>
               <StatCard label="Income" value={money(income)} hint="Ledger, all time" icon="ti-trending-up" />
             </ClickCard>

@@ -54,7 +54,7 @@ export default function Workload() {
   const totalOverdue = rows.reduce((s, r) => s + r.overdue, 0);
 
   return (
-    <Layout title="Workload">
+    <Layout flat title="Workload">
       <PageHeader title="Workload" subtitle="Open work distribution across people, teams and projects" icon="ti-chart-bar" />
       {isLoading ? <Spinner /> : (
         <>

@@ -118,7 +118,7 @@ export default function CompaniesPage() {
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
 
   return (
-    <Layout title="Companies">
+    <Layout flat title="Companies">
       <PageHeader title="Companies" subtitle={`${companies.length} companies`}
         action={admin ? <button onClick={() => { setErr(''); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New company</button> : undefined} />
       {loading ? <Spinner /> : companies.length === 0 ? (

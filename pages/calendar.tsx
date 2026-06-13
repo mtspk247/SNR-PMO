@@ -308,7 +308,7 @@ export default function CalendarPage() {
   }, [router]);
 
   return (
-    <Layout title="Calendar">
+    <Layout flat title="Calendar">
       <PageHeader
         title="Calendar"
         subtitle="Tasks and leave at a glance."

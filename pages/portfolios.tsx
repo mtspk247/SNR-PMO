@@ -125,7 +125,7 @@ export default function PortfoliosPage() {
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
 
   return (
-    <Layout title="Portfolios">
+    <Layout flat title="Portfolios">
       <PageHeader title="Portfolios" subtitle={`${portfolios.length} portfolios`}
         action={canCreate ? <button onClick={() => { setErr(''); setNp({ name: '', company_id: createableCompanies[0]?.id || '', description: '' }); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New portfolio</button> : undefined} />
       {loading ? <Spinner /> : portfolios.length === 0 ? (
