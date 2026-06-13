@@ -185,16 +185,24 @@ export default function Dashboard() {
   // Shared hover-ring class for stat cards
   const cardHover = 'hover:ring-2 hover:ring-accent/30 transition-shadow';
 
+  const _hr = new Date().getHours();
+  const greeting = _hr < 12 ? 'Good morning' : _hr < 18 ? 'Good afternoon' : 'Good evening';
+  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
   return (
     <Layout title="Dashboard">
       {/* ── header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            Welcome back, {user?.full_name?.split(' ')[0]}
+          <p className="section-label mb-1.5">{todayLabel}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {greeting}, {user?.full_name?.split(' ')[0] || 'there'}
           </h1>
           <p className="text-sm text-muted mt-1">Here's what's happening across the workspace.</p>
         </div>
+        <Link href="/tasks" className="btn btn-primary self-start sm:self-auto">
+          <Icon name="ti-checkbox" className="text-base" />View my tasks
+        </Link>
       </div>
 
       {loading ? <Spinner /> : (

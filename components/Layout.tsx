@@ -276,8 +276,8 @@ export default function Layout({ title, children }: { title: string; children: R
             <Breadcrumbs fallback={defaultCrumbs} />
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm text-muted2">
-              <Icon name="ti-search" />Search
+            <div className="hidden sm:flex items-center gap-2 h-9 pl-3 pr-2 rounded-lg border border-line text-sm text-muted2 hover:border-borderstrong transition cursor-default">
+              <Icon name="ti-search" /><span>Search</span><span className="kbd ml-1.5">/</span>
             </div>
             <TimerChip />
             <button onClick={() => setChatOpen(true)} title="Chat"
@@ -288,7 +288,7 @@ export default function Layout({ title, children }: { title: string; children: R
             <NotificationBell />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div key={router.pathname} className="animate-in mx-auto w-full max-w-[1400px]">{children}</div></main>
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
     </div>

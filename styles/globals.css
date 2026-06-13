@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,17 +10,26 @@ html, body, #__next { height: 100%; }
    Light is the default (:root). Dark overrides via [data-theme="dark"].
    Per-tenant white-label still overrides --brand-* (hex) at runtime. */
 :root {
-  --bg: 249 249 248;
+  --bg: 250 250 249;
   --surface: 255 255 255;
-  --surface-2: 244 244 242;
+  --surface-2: 245 245 243;
+  --surface-3: 238 238 235;
   --border: 230 229 225;
-  --content: 28 27 25;
-  --content-soft: 64 62 58;
-  --muted: 115 113 108;
-  --muted-2: 160 158 152;
+  --border-strong: 214 213 208;
+  --content: 24 24 22;
+  --content-soft: 63 61 57;
+  --muted: 112 110 105;
+  --muted-2: 156 154 148;
   --accent: 62 207 142;          /* Supabase green #3ECF8E */
-  --accent-strong: 13 132 89;    /* readable green for text/links on light */
-  --accent-fg: 6 30 20;          /* dark text on green fills */
+  --accent-strong: 12 122 82;    /* readable green for text/links on light */
+  --accent-fg: 5 28 18;          /* dark text on green fills */
+
+  /* Elevation -- soft, layered shadows tuned for light surfaces. */
+  --shadow-sm: 0 1px 2px 0 rgb(17 24 28 / .05);
+  --shadow: 0 1px 2px 0 rgb(17 24 28 / .05), 0 1px 3px 0 rgb(17 24 28 / .04);
+  --shadow-md: 0 4px 12px -2px rgb(17 24 28 / .08), 0 2px 6px -3px rgb(17 24 28 / .05);
+  --shadow-lg: 0 14px 32px -8px rgb(17 24 28 / .14), 0 6px 14px -8px rgb(17 24 28 / .08);
+  --ring: 62 207 142;
 
   /* White-label brand tokens (hex; overridden from org.branding) */
   --brand-primary: #3ECF8E;
@@ -28,89 +37,114 @@ html, body, #__next { height: 100%; }
   --brand-ink: #171717;          /* sidebar/login dark surface */
 }
 [data-theme="dark"] {
-  --bg: 23 23 23;
-  --surface: 30 30 30;
-  --surface-2: 38 38 37;
-  --border: 48 48 46;
-  --content: 237 237 235;
-  --content-soft: 201 201 198;
-  --muted: 150 150 146;
-  --muted-2: 117 117 113;
+  --bg: 22 22 21;
+  --surface: 30 31 29;
+  --surface-2: 38 39 37;
+  --surface-3: 47 48 45;
+  --border: 47 48 45;
+  --border-strong: 64 65 61;
+  --content: 237 237 234;
+  --content-soft: 198 198 194;
+  --muted: 148 148 143;
+  --muted-2: 112 112 107;
   --accent: 62 207 142;
-  --accent-strong: 62 207 142;
-  --accent-fg: 6 30 20;
+  --accent-strong: 75 219 154;
+  --accent-fg: 5 28 18;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .4);
+  --shadow: 0 1px 2px 0 rgb(0 0 0 / .4);
+  --shadow-md: 0 6px 16px -4px rgb(0 0 0 / .5);
+  --shadow-lg: 0 18px 40px -10px rgb(0 0 0 / .6);
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: rgb(var(--content));
   background: rgb(var(--bg));
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv11', 'ss01';
+  font-optical-sizing: auto;
+}
+
+/* Crisp, tight headings -- premium SaaS feel. */
+h1, h2, h3, h4 { letter-spacing: -0.014em; }
+h1 { letter-spacing: -0.02em; }
+
+@layer base {
+  /* Global visible focus ring for keyboard users (accessibility + polish). */
+  :focus-visible { outline: 2px solid rgb(var(--accent) / .6); outline-offset: 2px; border-radius: 4px; }
+  ::selection { background: rgb(var(--accent) / .22); }
 }
 
 @layer components {
-  .card { @apply bg-surface border border-line rounded-xl shadow-sm; }
+  .card { @apply bg-surface border border-line rounded-xl; box-shadow: var(--shadow); }
   /* Opt-in hover affordance for clickable/feature cards. */
-  .card-interactive { @apply transition duration-200 hover:border-accent/40 hover:shadow-lg hover:-translate-y-0.5; }
-  .stat { @apply bg-surface border border-line rounded-lg p-4 transition duration-200 hover:border-accent/40 hover:shadow-md; }
+  .card-interactive { @apply transition-all duration-200 cursor-pointer hover:border-accent/50 hover:-translate-y-0.5; }
+  .card-interactive:hover { box-shadow: var(--shadow-lg); }
+  .stat { @apply bg-surface border border-line rounded-xl p-4 transition-all duration-200; box-shadow: var(--shadow-sm); }
+  .stat:hover { @apply border-accent/40 -translate-y-0.5; box-shadow: var(--shadow-md); }
 
-  .btn { @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-md text-sm font-medium border border-line bg-surface text-content transition hover:bg-bg active:scale-[.99] disabled:opacity-50; }
-  .btn-primary { @apply bg-accent border-transparent text-accentfg hover:opacity-90 hover:bg-accent; }
-  .btn-ghost { @apply border-transparent bg-transparent hover:bg-surface2; }
+  .btn { @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-lg text-sm font-medium border border-line bg-surface text-content transition-all duration-150 hover:bg-surface2 hover:border-borderstrong active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-primary { @apply bg-accent border-transparent text-accentfg hover:bg-accent hover:brightness-[1.04]; box-shadow: 0 1px 2px rgb(6 78 52 / .25), inset 0 1px 0 rgb(255 255 255 / .15); }
+  .btn-primary:hover { box-shadow: 0 4px 12px -2px rgb(16 160 100 / .35), inset 0 1px 0 rgb(255 255 255 / .18); }
+  .btn-ghost { @apply border-transparent bg-transparent hover:bg-surface2; box-shadow: none; }
   .btn-danger { @apply border-transparent bg-rose-500 text-[#fff] hover:bg-rose-600; }
 
-  .input { @apply h-9 w-full px-3 rounded-md border border-line bg-surface text-sm text-content placeholder:text-muted2 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30; }
-  .textarea { @apply w-full px-3 py-2 rounded-md border border-line bg-surface text-sm text-content placeholder:text-muted2 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 resize-none; }
-  .label { @apply block text-xs font-medium text-muted mb-1; }
+  .input { @apply h-9 w-full px-3 rounded-lg border border-line bg-surface text-sm text-content placeholder:text-muted2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25 hover:border-borderstrong; }
+  .textarea { @apply w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-content placeholder:text-muted2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25 resize-none; }
+  .label { @apply block text-xs font-medium text-contentsoft mb-1.5; }
 
-  .pill { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-2xs font-medium leading-5; }
-  .pill-green { @apply bg-emerald-500/15 text-emerald-600; }
-  .pill-amber { @apply bg-amber-500/15 text-amber-600; }
-  .pill-blue  { @apply bg-sky-500/15 text-sky-600; }
-  .pill-red   { @apply bg-rose-500/15 text-rose-600; }
-  .pill-gray  { @apply bg-muted/15 text-muted; }
-  .pill-violet{ @apply bg-violet-500/15 text-violet-600; }
+  .pill { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-2xs font-medium leading-5 ring-1 ring-inset; }
+  .pill-green { @apply bg-emerald-500/10 text-emerald-600 ring-emerald-500/20; }
+  .pill-amber { @apply bg-amber-500/10 text-amber-600 ring-amber-500/20; }
+  .pill-blue  { @apply bg-sky-500/10 text-sky-600 ring-sky-500/20; }
+  .pill-red   { @apply bg-rose-500/10 text-rose-600 ring-rose-500/20; }
+  .pill-gray  { @apply bg-muted/10 text-muted ring-muted/20; }
+  .pill-violet{ @apply bg-violet-500/10 text-violet-600 ring-violet-500/20; }
 
-  /* Sidebar + login panel — token-driven (light in light theme, follows dark theme).
-     No hardcoded dark surface; reads --surface/--content so it themes automatically. */
+  /* Small uppercase section label + key/data helpers (premium dashboard feel). */
+  .section-label { @apply text-2xs font-semibold uppercase tracking-wider text-muted2; }
+  .chip { @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium bg-surface2 text-contentsoft ring-1 ring-inset ring-line; }
+  .kbd { @apply inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded border border-line bg-surface2 text-2xs font-medium text-muted; }
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  /* Sidebar + login panel -- token-driven (light in light theme, follows dark theme). */
   .side { background: rgb(var(--surface)); color: rgb(var(--content)); border-right: 1px solid rgb(var(--border)); }
   .side-fg { color: rgb(var(--content)); }
   .side-dim { color: rgb(var(--muted)); }
   .side-faint { color: rgb(var(--muted-2)); }
-  .sb-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition cursor-pointer; color: rgb(var(--content-soft)); }
+  .sb-item { @apply flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-150 cursor-pointer; color: rgb(var(--content-soft)); }
   .sb-item:hover { background: rgb(var(--surface-2)); color: rgb(var(--content)); }
-  .sb-item-active { background: rgb(var(--accent) / .12); color: rgb(var(--accent-strong)); box-shadow: inset 2px 0 0 rgb(var(--accent)); font-weight: 500; }
+  .sb-item-active { background: rgb(var(--accent) / .12); color: rgb(var(--accent-strong)); box-shadow: inset 2px 0 0 rgb(var(--accent)); font-weight: 600; }
   .sb-item-active:hover { background: rgb(var(--accent) / .16); color: rgb(var(--accent-strong)); }
-  /* Sidebar internal dividers/borders that were white-on-dark → token border. */
   .side-divider { background: rgb(var(--border)); }
 
-  .th { @apply text-left font-normal text-muted2 text-xs px-3 py-2; }
-  .td { @apply px-3 py-2.5 text-sm align-middle; }
-  .row { @apply border-t border-line hover:bg-surface2/60; }
+  .th { @apply text-left font-semibold text-muted2 text-2xs uppercase tracking-wider px-3 py-2.5; }
+  .td { @apply px-3 py-2.5 text-sm align-middle; font-variant-numeric: tabular-nums; }
+  .row { @apply border-t border-line transition-colors hover:bg-surface2/60; }
 }
 
-/* ---- Modal entrance: subtle backdrop fade + card pop ---- */
+/* ---- Motion ---- */
 @keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes modalPop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
-.modal-backdrop { animation: modalFade .12s ease-out; }
-.modal-card { animation: modalPop .14s ease-out; }
+@keyframes modalPop { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.modal-backdrop { animation: modalFade .14s ease-out; }
+.modal-card { animation: modalPop .18s cubic-bezier(.16,1,.3,1); }
+.animate-in { animation: fadeInUp .28s cubic-bezier(.16,1,.3,1) both; }
 @media (prefers-reduced-motion: reduce) {
-  .modal-backdrop, .modal-card { animation: none; }
+  .modal-backdrop, .modal-card, .animate-in { animation: none; }
 }
 
-/* ---- Scrollbars: thin, unobtrusive, theme-aware ----
-   Firefox uses scrollbar-width/color; WebKit uses the pseudo-elements.
-   The padding-box + transparent border trick insets the thumb so it reads
-   as a slim pill rather than a chunky bar. */
-* { scrollbar-width: thin; scrollbar-color: rgb(var(--muted-2) / .55) transparent; }
+/* ---- Scrollbars: thin, unobtrusive, theme-aware ---- */
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--muted-2) / .5) transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--muted-2) / .45);
+  background: rgb(var(--muted-2) / .4);
   border-radius: 9999px;
   border: 3px solid transparent;
   background-clip: padding-box;
 }
-::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-2) / .8); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-2) / .75); background-clip: padding-box; }
 ::-webkit-scrollbar-corner { background: transparent; }

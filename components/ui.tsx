@@ -46,35 +46,50 @@ export const StatCard = ({ label, value, hint, hintTone = 'muted', icon }:
   { label: string; value: React.ReactNode; hint?: string; hintTone?: 'muted' | 'up' | 'down'; icon?: string }) => (
   <div className="stat group">
     <div className="flex items-start justify-between gap-2">
-      <p className="text-xs text-muted">{label}</p>
+      <p className="section-label">{label}</p>
       {icon && (
         <span className="w-8 h-8 -mt-0.5 -mr-0.5 rounded-lg grid place-items-center bg-accent/10 text-accentstrong shrink-0 transition group-hover:bg-accent group-hover:text-accentfg">
           <Icon name={icon} className="text-base" />
         </span>
       )}
     </div>
-    <p className="text-2xl font-semibold mt-1.5 text-content">{value}</p>
+    <p className="text-[1.7rem] leading-tight font-semibold mt-2 text-content tnum">{value}</p>
     {hint && (
-      <p className={`text-2xs mt-1 ${hintTone === 'up' ? 'text-emerald-600' : hintTone === 'down' ? 'text-rose-600' : 'text-muted2'}`}>{hint}</p>
+      <p className={`text-2xs mt-1.5 inline-flex items-center gap-1 font-medium ${hintTone === 'up' ? 'text-emerald-600' : hintTone === 'down' ? 'text-rose-600' : 'text-muted2'}`}>
+        {hintTone === 'up' && <Icon name="ti-trending-up" className="text-sm" />}
+        {hintTone === 'down' && <Icon name="ti-trending-down" className="text-sm" />}
+        {hint}
+      </p>
     )}
   </div>
 );
 
-export const PageHeader = ({ title, subtitle, action }:
-  { title: string; subtitle?: string; action?: React.ReactNode }) => (
-  <div className="flex items-end justify-between mb-5">
-    <div>
-      <h1 className="text-lg font-semibold">{title}</h1>
-      {subtitle && <p className="text-sm text-muted mt-0.5">{subtitle}</p>}
+export const PageHeader = ({ title, subtitle, action, icon }:
+  { title: string; subtitle?: string; action?: React.ReactNode; icon?: string }) => (
+  <div className="flex items-start justify-between gap-3 mb-5">
+    <div className="flex items-start gap-3 min-w-0">
+      {icon && (
+        <span className="w-10 h-10 shrink-0 rounded-xl grid place-items-center bg-accent/10 text-accentstrong ring-1 ring-inset ring-accent/15">
+          <Icon name={icon} className="text-xl" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <h1 className="text-xl font-semibold tracking-tight truncate">{title}</h1>
+        {subtitle && <p className="text-sm text-muted mt-0.5">{subtitle}</p>}
+      </div>
     </div>
-    {action}
+    {action && <div className="shrink-0">{action}</div>}
   </div>
 );
 
-export const EmptyState = ({ icon = 'ti-inbox', text }: { icon?: string; text: string }) => (
-  <div className="flex flex-col items-center justify-center py-16 text-muted2">
-    <Icon name={icon} className="text-3xl mb-2" />
-    <p className="text-sm">{text}</p>
+export const EmptyState = ({ icon = 'ti-inbox', title, text, action }: { icon?: string; title?: string; text: string; action?: React.ReactNode }) => (
+  <div className="flex flex-col items-center justify-center text-center py-16 px-6">
+    <span className="w-12 h-12 rounded-2xl grid place-items-center bg-surface2 text-muted2 ring-1 ring-inset ring-line mb-3">
+      <Icon name={icon} className="text-2xl" />
+    </span>
+    {title && <p className="text-sm font-semibold text-content">{title}</p>}
+    <p className="text-sm text-muted2 max-w-xs mt-0.5">{text}</p>
+    {action && <div className="mt-4">{action}</div>}
   </div>
 );
 
