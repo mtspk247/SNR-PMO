@@ -183,7 +183,7 @@ export default function PortfoliosPage() {
               {createableCompanies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
-          <Field label="Name" required hint="A short, recognizable name."><input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} className="input" placeholder="Portfolio name" /></Field>
+          <input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} placeholder="Portfolio name" className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           <Field label="Description" hint="Optional."><textarea value={np.description} onChange={(e) => setNp({ ...np, description: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
           {err && <p className="text-sm text-rose-600">{err}</p>}
         </div>
@@ -205,7 +205,7 @@ export default function PortfoliosPage() {
         }
       >
         <div className="space-y-3.5">
-          <Field label="Name" required hint="A short, recognizable name."><input autoFocus value={ep.name} onChange={(e) => setEp({ ...ep, name: e.target.value })} className="input" placeholder="Portfolio name" /></Field>
+          <input autoFocus value={ep.name} onChange={(e) => setEp({ ...ep, name: e.target.value })} placeholder="Portfolio name" className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           <Field label="Description" hint="Optional."><textarea value={ep.description} onChange={(e) => setEp({ ...ep, description: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
           {editErr && <p className="text-sm text-rose-600">{editErr}</p>}
         </div>

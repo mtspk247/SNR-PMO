@@ -170,7 +170,7 @@ export default function CompaniesPage() {
         }
       >
         <div className="space-y-3.5">
-          <Field label="Name" required hint="A short, recognizable name."><input autoFocus value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} className="input" placeholder="Company name" /></Field>
+          <input autoFocus value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} placeholder="Company name" className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           <Field label="Description" hint="Optional."><textarea value={nc.description} onChange={(e) => setNc({ ...nc, description: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
           {err && <p className="text-sm text-rose-600">{err}</p>}
         </div>
@@ -192,7 +192,7 @@ export default function CompaniesPage() {
         }
       >
         <div className="space-y-3.5">
-          <Field label="Name" required hint="A short, recognizable name."><input autoFocus value={ec.name} onChange={(e) => setEc({ ...ec, name: e.target.value })} className="input" placeholder="Company name" /></Field>
+          <input autoFocus value={ec.name} onChange={(e) => setEc({ ...ec, name: e.target.value })} placeholder="Company name" className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           <Field label="Description" hint="Optional."><textarea value={ec.description} onChange={(e) => setEc({ ...ec, description: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
           {editErr && <p className="text-sm text-rose-600">{editErr}</p>}
         </div>
