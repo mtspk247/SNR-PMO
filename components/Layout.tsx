@@ -288,7 +288,7 @@ export default function Layout({ title, children }: { title: string; children: R
             <NotificationBell />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div key={router.pathname} className="animate-in mx-auto w-full max-w-[1400px]">{children}</div></main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className="mx-auto w-full max-w-[1400px]">{children}</div></main>
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
     </div>
