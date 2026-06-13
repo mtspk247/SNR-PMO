@@ -193,35 +193,6 @@ export default function Layout({ title, children }: { title: string; children: R
     <div className="flex h-screen bg-bg text-content">
       {/* Mobile drawer backdrop */}
       {mobileOpen && <div onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-black/40 lg:hidden" aria-hidden />}
-      {/* ClickUp-style dark icon rail (desktop only; mobile uses the drawer) */}
-      <nav className="hidden lg:flex w-14 shrink-0 flex-col items-center gap-1 py-3 z-40"
-        style={{ background: '#0b100d', borderRight: '1px solid rgba(255,255,255,.06)' }}>
-        <Link href="/dashboard" title={activeOrg?.name || 'SNR-PMO'}
-          className="w-9 h-9 rounded-lg grid place-items-center font-bold text-accentfg mb-2 shrink-0 shadow-lg"
-          style={{ background: 'var(--brand-primary, #3ECF8E)' }}>
-          {(activeOrg?.name || 'S').charAt(0).toUpperCase()}
-        </Link>
-        {[
-          { href: '/dashboard', icon: 'ti-layout-dashboard', label: 'Home' },
-          { href: '/tasks', icon: 'ti-checkbox', label: 'My work' },
-          { href: '/projects', icon: 'ti-folder', label: 'Projects' },
-          { href: '/calendar', icon: 'ti-calendar', label: 'Calendar' },
-          { href: '/docs', icon: 'ti-book-2', label: 'Docs' },
-        ].filter((i) => guestOk(i.href)).map((i) => (
-          <Link key={i.href} href={i.href} title={i.label}
-            className={`w-10 h-10 rounded-lg grid place-items-center transition ${isActive(i.href) ? 'bg-white/[.12] text-white' : 'text-white/55 hover:text-white hover:bg-white/[.06]'}`}>
-            <Icon name={i.icon} className="text-lg" />
-          </Link>
-        ))}
-        <button onClick={() => setChatOpen(true)} title="Chat"
-          className="w-10 h-10 rounded-lg grid place-items-center text-white/55 hover:text-white hover:bg-white/[.06] transition">
-          <Icon name="ti-messages" className="text-lg" />
-        </button>
-        <button onClick={logout} title="Sign out"
-          className="mt-auto w-10 h-10 rounded-lg grid place-items-center text-white/55 hover:text-white hover:bg-white/[.06] transition">
-          <Icon name="ti-logout" className="text-lg" />
-        </button>
-      </nav>
       <aside className={`side shrink-0 flex flex-col z-40 fixed inset-y-0 left-0 w-60 transition-transform duration-200
         lg:relative lg:z-auto lg:transition-[width] ${collapsed ? 'lg:w-16' : 'lg:w-60'}
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>

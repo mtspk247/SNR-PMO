@@ -61,7 +61,7 @@ export default function NotificationBell() {
         {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-[#fff] text-2xs grid place-items-center">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 top-11 z-30 w-80 bg-surface border border-line rounded-lg shadow-xl">
+        <div className="absolute right-0 top-11 z-30 w-80 bg-surface border border-line rounded-xl shadow-lg overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
             <span className="text-sm font-medium">Notifications</span>
             {unread > 0 && <button onClick={allRead} className="text-2xs text-accentstrong hover:underline">Mark all read</button>}
@@ -74,8 +74,8 @@ export default function NotificationBell() {
                 <span className={`w-7 h-7 rounded-md grid place-items-center shrink-0 ${n.urgent ? 'bg-rose-500/10 text-rose-500' : 'bg-surface2 text-muted'}`}><Icon name={ICON[n.type] || 'ti-bell'} className="text-sm" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium truncate">{n.title}</span>
-                  {n.body && <span className="block text-2xs text-muted line-clamp-2">{n.body}</span>}
-                  <span className="block text-2xs text-muted2 mt-0.5">{new Date(n.created_at).toLocaleString()}</span>
+                  {n.body && <span className="block text-2xs text-muted mt-0.5" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</span>}
+                  <span className="block text-2xs text-muted2 mt-1">{new Date(n.created_at).toLocaleString()}</span>
                 </span>
                 {!n.is_read && <span className="w-2 h-2 rounded-full bg-accentstrong shrink-0 mt-1" />}
               </button>
