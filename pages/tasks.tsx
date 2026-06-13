@@ -113,6 +113,7 @@ export default function Tasks() {
   const [colMenu, setColMenu] = useState(false);
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([]);
   const [statusMgr, setStatusMgr] = useState(false);
+  const [filterMenu, setFilterMenu] = useState(false);
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -140,6 +141,7 @@ export default function Tasks() {
   const statuses = taskStatuses.length ? taskStatuses.map((x) => x.name) : STATUSES;
   const statusColor = (n: string) => taskStatuses.find((x) => x.name === n)?.color;
   const reloadStatuses = () => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id).then(setTaskStatuses).catch(() => {}); };
+  const activeFilters = (projectFilter ? 1 : 0) + (priorityFilter ? 1 : 0) + (assigneeFilter ? 1 : 0) + (overdueOnly ? 1 : 0);
 
   const roots = useMemo(() => tasks.filter((t) => !t.parent_task_id), [tasks]);
   const filtered = useMemo(() => {
@@ -522,7 +524,7 @@ export default function Tasks() {
           {subs.length > 0 ? (
             <button onClick={(e) => { e.stopPropagation(); setExpanded((pr) => { const n = new Set(pr); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; }); }}
               className="shrink-0 -ml-1 text-muted2 hover:text-content" title={expanded.has(t.id) ? 'Collapse subtasks' : 'Expand subtasks'}>
-              <Icon name="ti-chevron-right" className={`text-sm transition-transform ${expanded.has(t.id) ? 'rotate-90' : ''}`} />
+              <Icon name={expanded.has(t.id) ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-sm" />
             </button>
           ) : <span className="w-4 shrink-0" />}
           <Bars level={PRIORITY_RANK[t.priority] || 1} />
@@ -580,88 +582,74 @@ export default function Tasks() {
               a={['Cancelled', String(roots.filter(t => t.status === 'Cancelled').length)]} b={['Backlog', String(roots.filter(t => t.status === 'Backlog').length)]} />
           </div>
 
-          {/* Toolbar: search, filters, grouping, sort */}
-          <div className="flex flex-col gap-3 mb-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-surface flex-1 min-w-[10rem] max-w-xs">
-                <Icon name="ti-search" className="text-muted2" />
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks"
-                  className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
-              </div>
-              <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="input h-9 w-auto">
-                <option value="">All projects</option>
-                <option value="none">No project</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="input h-9 w-auto">
-                <option value="">All priorities</option>
-                {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
-              </select>
-              <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input h-9 w-auto">
-                <option value="">All assignees</option>
-                <option value="unassigned">Unassigned</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
-              <button onClick={() => setOverdueOnly((v) => !v)}
-                className={`pill cursor-pointer transition h-9 px-3 ${overdueOnly ? 'bg-rose-500/15 text-rose-600 font-medium' : 'bg-surface2 text-muted hover:text-content'}`}>
-                <Icon name="ti-alarm" className="mr-1" />Overdue
-              </button>
-              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} className="input h-9 w-auto">
-                <option value="none">No grouping</option>
-                <option value="project">Group: Project</option>
-                <option value="priority">Group: Priority</option>
-                <option value="status">Group: Status</option>
-              </select>
-              <div className="flex items-center rounded-lg border border-line overflow-hidden h-9">
-                {(['list', 'board'] as const).map((vw) => (
-                  <button key={vw} onClick={() => setView(vw)}
-                    className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === vw ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
-                    <Icon name={vw === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{vw}
-                  </button>
-                ))}
-              </div>
-              <div className="relative">
-                <button onClick={() => setColMenu((v) => !v)} className="btn h-9"><Icon name="ti-columns-3" className="text-sm" />Columns</button>
-                {colMenu && (
-                  <div className="absolute right-0 top-10 z-20 w-44 bg-surface border border-line rounded-lg shadow-lg p-1">
-                    {COL_DEFS.map((c) => (
-                      <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-surface2 cursor-pointer">
-                        <input type="checkbox" checked={visibleCols.has(c.id)} onChange={() => setVisibleCols((pr) => { const n = new Set(pr); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; })} className="accent-accentstrong" />
-                        {c.label}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {canDelete && (
-                <button onClick={() => setStatusMgr(true)} className="btn h-9"><Icon name="ti-flag-3" className="text-sm" />Statuses</button>
-              )}
-              <span className="text-2xs text-muted2 ml-1 hidden sm:inline">Sort</span>
-              <div className="flex items-center gap-1">
-                {(['priority', 'due', 'name'] as const).map((s) => (
-                  <button key={s} onClick={() => setSort(s)}
-                    className={`h-8 px-2.5 rounded-md text-xs capitalize ${sort === s ? 'bg-surface border border-line text-content' : 'text-muted hover:text-content'}`}>{s}</button>
-                ))}
-              </div>
+          {/* Toolbar — clean, ClickUp-style */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-line bg-surface w-full sm:w-72">
+              <Icon name="ti-search" className="text-muted2" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks"
+                className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
             </div>
-
-            {/* Status filter pills — horizontal, wraps on small screens */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {statuses.map((s) => (
-                <button key={s} onClick={() => toggleStatus(s)}
-                  className={`pill cursor-pointer transition ${statusFilter.has(s) ? 'bg-accent text-accentfg' : 'bg-surface2 text-muted hover:text-content'}`}>
-                  {s}<span className="ml-1 opacity-70">{roots.filter(t => t.status === s).length}</span>
+            <div className="hidden sm:block flex-1" />
+            <div className="relative">
+              <button onClick={() => setFilterMenu((v) => !v)} className={`btn h-9 ${activeFilters ? 'border-accent text-accentstrong' : ''}`}>
+                <Icon name="ti-filter" className="text-sm" />Filter{activeFilters > 0 && <span className="ml-0.5 text-2xs bg-accent/15 text-accentstrong rounded-full px-1.5">{activeFilters}</span>}
+              </button>
+              {filterMenu && (
+                <div className="absolute right-0 top-10 z-20 w-64 bg-surface border border-line rounded-lg shadow-lg p-3 space-y-3">
+                  <div><label className="label">Project</label>
+                    <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="input h-9 w-full">
+                      <option value="">All projects</option><option value="none">No project</option>
+                      {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select></div>
+                  <div><label className="label">Priority</label>
+                    <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="input h-9 w-full">
+                      <option value="">All priorities</option>{PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+                    </select></div>
+                  <div><label className="label">Assignee</label>
+                    <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input h-9 w-full">
+                      <option value="">All assignees</option><option value="unassigned">Unassigned</option>
+                      {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                    </select></div>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={overdueOnly} onChange={() => setOverdueOnly((v) => !v)} className="accent-accentstrong" />Overdue only</label>
+                  {activeFilters > 0 && <button onClick={() => { setProjectFilter(''); setPriorityFilter(''); setAssigneeFilter(''); setOverdueOnly(false); }} className="text-2xs text-muted hover:text-content underline">Clear all filters</button>}
+                </div>
+              )}
+            </div>
+            <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} className="input h-9 w-auto">
+              <option value="none">No grouping</option><option value="project">Group: Project</option><option value="priority">Group: Priority</option><option value="status">Group: Status</option>
+            </select>
+            <select value={sort} onChange={(e) => setSort(e.target.value as 'due' | 'priority' | 'name')} className="input h-9 w-auto">
+              <option value="priority">Sort: Priority</option><option value="due">Sort: Due date</option><option value="name">Sort: Name</option>
+            </select>
+            <div className="flex items-center rounded-lg border border-line overflow-hidden h-9 shrink-0">
+              {(['list', 'board'] as const).map((vw) => (
+                <button key={vw} onClick={() => setView(vw)}
+                  className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === vw ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
+                  <Icon name={vw === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{vw}
                 </button>
               ))}
-              {statusFilter.size > 0 && (
-                <button onClick={() => setStatusFilter(new Set())} className="text-2xs text-muted hover:text-content underline ml-1">Clear</button>
+            </div>
+            <div className="relative">
+              <button onClick={() => setColMenu((v) => !v)} className="btn h-9"><Icon name="ti-columns-3" className="text-sm" /><span className="hidden md:inline">Columns</span></button>
+              {colMenu && (
+                <div className="absolute right-0 top-10 z-20 w-44 bg-surface border border-line rounded-lg shadow-lg p-1">
+                  {COL_DEFS.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-surface2 cursor-pointer">
+                      <input type="checkbox" checked={visibleCols.has(c.id)} onChange={() => setVisibleCols((pr) => { const n = new Set(pr); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; })} className="accent-accentstrong" />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
               )}
             </div>
+            {canDelete && (
+              <button onClick={() => setStatusMgr(true)} className="btn h-9"><Icon name="ti-flag-3" className="text-sm" /><span className="hidden md:inline">Statuses</span></button>
+            )}
           </div>
 
           <div className="flex-1 min-h-0">
             {view === 'board' ? <BoardView /> : (
-            <div className="h-full overflow-auto">
+            <div className="h-full overflow-auto bg-surface">
               <div className="min-w-[960px]">
               {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
                 groupedPage.map(([label, items]) => {
@@ -671,7 +659,7 @@ export default function Tasks() {
                     <div className="sticky top-0 z-10 px-4 py-2 bg-surface/95 backdrop-blur border-b border-line flex items-center gap-2.5">
                       <button onClick={() => setCollapsedGroups((pr) => { const n = new Set(pr); n.has(label) ? n.delete(label) : n.add(label); return n; })}
                         className="shrink-0 text-muted2 hover:text-content" title={gcol ? 'Expand' : 'Collapse'}>
-                        <Icon name="ti-chevron-right" className={`text-sm transition-transform ${gcol ? '' : 'rotate-90'}`} />
+                        <Icon name={gcol ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" />
                       </button>
                       {groupBy === 'status'
                         ? <StatusBadge status={label} solid color={statusColor(label)} />
