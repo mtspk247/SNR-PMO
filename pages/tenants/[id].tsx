@@ -217,14 +217,22 @@ export default function TenantDetail() {
           </div>
           <div className="lg:col-span-2">
             <div className="card p-5">
-              <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Feature overrides</p>
+              <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Features</p>
+              <p className="text-2xs text-muted mb-2">Each feature defaults to the tenant\u2019s plan ({info.plan || '—'}). “Default” follows the plan; use On/Off to override just this tenant.</p>
               <div className="divide-y divide-line">
                 {Object.entries(FEATURE_LABELS).map(([key, label]) => {
                   const ov = info.features[key];
+                  const planDefault = !!info.defaults?.[key];
+                  const effective = ov === undefined ? planDefault : ov;
                   return (
                     <div key={key} className="flex items-center gap-2 py-2">
-                      <span className="text-sm text-content flex-1">{label}</span>
-                      <div className="flex items-center rounded-lg border border-line overflow-hidden text-2xs">
+                      <span className="text-sm text-content flex-1 flex items-center gap-2 min-w-0">
+                        <span className="truncate">{label}</span>
+                        <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${effective ? 'bg-emerald-500/10 text-emerald-600' : 'bg-surface2 text-muted2'}`}>{effective ? 'ON' : 'OFF'}</span>
+                        {ov !== undefined && <span className="shrink-0 text-[10px] text-amber-600" title={`Plan default is ${planDefault ? 'on' : 'off'}`}>overridden</span>}
+                      </span>
+                      <span className="hidden sm:inline text-[10px] text-muted2 shrink-0">plan: {planDefault ? 'on' : 'off'}</span>
+                      <div className="flex items-center rounded-lg border border-line overflow-hidden text-2xs shrink-0">
                         {([['default', undefined], ['on', true], ['off', false]] as const).map(([lab, val]) => {
                           const activeSel = ov === val;
                           return <button key={lab} disabled={busy} onClick={() => ask('Change feature access?', `Set "${label}" to ${lab} for ${tenant.org_name}?`, () => setFeature(key, (val as boolean | undefined) ?? null))}

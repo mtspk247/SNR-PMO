@@ -1008,7 +1008,7 @@ export async function unreadNoticeCount(): Promise<number> {
 }
 
 // ---- Tenant management (platform admin) ----
-export interface TenantInfo { active: boolean; plan: string | null; features: Record<string, boolean>; limits: Record<string, number>; }
+export interface TenantInfo { active: boolean; plan: string | null; features: Record<string, boolean>; defaults?: Record<string, boolean>; limits: Record<string, number>; }
 export async function listTenants(): Promise<any[]> {
   const { data, error } = await sb.rpc('platform_list_orgs');
   if (error) throw new Error(error.message); return (data as any[]) || [];

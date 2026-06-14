@@ -35,11 +35,13 @@ export default function Login() {
         await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/update-password` });
         setInfo('If an account exists for that email, a password reset link is on its way.');
       } else {
-        const slug = slugify(orgName);
-        if (!slug) throw new Error('Enter a workspace name.');
-        const res = await signUpNewTenant({ email: email.trim(), password, fullName: fullName.trim(), orgName: orgName.trim(), orgSlug: slug });
-        if (res.session) router.replace('/dashboard');
-        else setInfo('Check your email to confirm your account, then sign in.');
+        const { data, error: se } = await sb.auth.signUp({
+          email: email.trim(), password,
+          options: { data: { full_name: fullName.trim() }, emailRedirectTo: `${window.location.origin}/dashboard` },
+        });
+        if (se) throw new Error(se.message);
+        if (data.session) router.replace('/dashboard');
+        else setInfo(`Almost there — we sent a verification link to ${email.trim()}. Open it to activate your account, and your workspace will be ready.`);
       }
     } catch (err: any) { setError(err.message || 'Something went wrong.'); }
     finally { setLoading(false); }
@@ -50,10 +52,10 @@ export default function Login() {
     try { await signInWithGoogle(); } catch (err: any) { setError(err.message); }
   };
 
-  const heading = mode === 'signin' ? 'Welcome back' : mode === 'reset' ? 'Reset your password' : 'Create your workspace';
+  const heading = mode === 'signin' ? 'Welcome back' : mode === 'reset' ? 'Reset your password' : 'Create your account';
   const sub = mode === 'signin' ? 'Sign in to your workspace.'
     : mode === 'reset' ? "Enter your email and we'll send a reset link."
-    : 'Start a new organization in seconds.';
+    : "Sign up with your email — we'll send a verification link, then set up your workspace.";
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-bg">
@@ -113,17 +115,10 @@ export default function Login() {
               </div>
             )}
             {mode === 'signup' && (
-              <>
-                <div>
-                  <label className="label">Your name</label>
-                  <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" disabled={loading} />
-                </div>
-                <div>
-                  <label className="label">Workspace name</label>
-                  <input className="input" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Acme Inc" disabled={loading} />
-                  {orgName && <p className="text-2xs text-muted2 mt-1">URL: {slugify(orgName) || '…'}.app.com</p>}
-                </div>
-              </>
+              <div>
+                <label className="label">Your name</label>
+                <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" disabled={loading} />
+              </div>
             )}
             <div>
               <label className="label">Email</label>
@@ -143,7 +138,7 @@ export default function Login() {
             )}
             <button className="btn btn-primary w-full" disabled={loading}>
               {loading ? <Icon name="ti-loader-2" className="animate-spin" />
-                : mode === 'signin' ? 'Sign in' : mode === 'reset' ? 'Send reset link' : 'Create workspace'}
+                : mode === 'signin' ? 'Sign in' : mode === 'reset' ? 'Send reset link' : 'Create account'}
             </button>
           </form>
 
@@ -154,8 +149,11 @@ export default function Login() {
               </button>
             ) : (
               <>
-                <span className="text-muted">Workspaces are by invitation.</span>{' '}
-                <span className="text-muted2">Check your invite email for a secure signup link.</span>
+                {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+                <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setInfo(''); }}
+                  className="font-medium text-content hover:underline">
+                  {mode === 'signin' ? 'Create one' : 'Sign in'}
+                </button>
               </>
             )}
           </p>
