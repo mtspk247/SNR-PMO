@@ -8,7 +8,7 @@ import CommentsThread from '@/components/Comments';
 import { useIdeas } from '@/lib/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { qk } from '@/lib/queryKeys';
-import { toggleIdeaVote, getOrgUsers, getIdeaPoll, createIdeaPoll, voteIdeaPoll, closeIdeaPoll, IdeaPoll } from '@/lib/db';
+import { setIdeaVote, removeIdeaVote, getOrgUsers, getIdeaPoll, createIdeaPoll, voteIdeaPoll, closeIdeaPoll, IdeaPoll } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 
@@ -28,6 +28,7 @@ export default function IdeaDetail() {
   const idea = ideas.find((i) => i.id === id) || null;
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState('');
 
   const [poll, setPoll] = useState<IdeaPoll | null | undefined>(undefined);
   const [showPoll, setShowPoll] = useState(false);
@@ -37,17 +38,25 @@ export default function IdeaDetail() {
   useEffect(() => { if (org?.id) getOrgUsers(org.id).then(setUsers).catch(() => {}); }, [org?.id]);
   const loadPoll = () => { if (id) getIdeaPoll(id).then(setPoll).catch(() => setPoll(null)); };
   useEffect(() => { loadPoll(); /* eslint-disable-next-line */ }, [id]);
+  useEffect(() => { if (router.query.poll === '1') setShowPoll(true); }, [router.query.poll]);
 
   const isOrgAdmin = ['owner', 'admin'].includes(org?.member_role || '');
   const canStartPoll = !!me && (idea?.created_by === me.id || isOrgAdmin);
 
-  const hasVoted = idea?.votes?.some((v) => v.user_id === me?.id) ?? false;
-  const voteCount = idea?.votes?.length ?? 0;
-  const voters = idea?.votes || [];
-  const vote = async () => {
-    if (!idea || !me) return; setBusy(true);
-    try { await toggleIdeaVote(idea, me.id); qc.invalidateQueries({ queryKey: qk.ideas(org?.id) }); }
-    catch { /* ignore */ } finally { setBusy(false); }
+  const votes = idea?.votes || [];
+  const up = votes.filter((v) => (v.value ?? 1) === 1);
+  const down = votes.filter((v) => v.value === -1);
+  const myVote = votes.find((v) => v.user_id === me?.id) || null;
+
+  const castVote = async (value: 1 | -1) => {
+    if (!idea || !me || busy) return; setBusy(true);
+    try { await setIdeaVote(idea.id, me.id, value, reason.trim() || null); setReason(''); qc.invalidateQueries({ queryKey: qk.ideas(org?.id) }); }
+    catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+  const clearVote = async () => {
+    if (!idea || !me || busy) return; setBusy(true);
+    try { await removeIdeaVote(idea.id, me.id); qc.invalidateQueries({ queryKey: qk.ideas(org?.id) }); }
+    catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
   const submitPoll = async () => {
@@ -58,7 +67,7 @@ export default function IdeaDetail() {
     try { await createIdeaPoll(idea.id, question, ids); setShowPoll(false); setPicks({}); loadPoll(); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
-  const castVote = async (choice: 'yes' | 'no' | 'abstain') => {
+  const castPoll = async (choice: 'yes' | 'no' | 'abstain') => {
     if (!poll || busy) return; setBusy(true);
     try { await voteIdeaPoll(poll.id, choice); loadPoll(); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
@@ -83,25 +92,37 @@ export default function IdeaDetail() {
       <div className="grid lg:grid-cols-3 gap-5 items-start">
         <div className="lg:col-span-2 space-y-5">
           <div className="card p-5">
-            <div className="flex items-center gap-3 flex-wrap">
-              <button onClick={vote} disabled={busy || !me}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition ${hasVoted ? 'border-accent text-accentstrong bg-accent/10' : 'border-line text-muted hover:text-content hover:bg-surface2'}`}>
-                <Icon name="ti-arrow-big-up" className="text-base" /><span className="text-sm font-medium tabular-nums">{voteCount}</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={() => castVote(1)} disabled={busy || !me} title="Thumbs up"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition ${myVote?.value === 1 ? 'border-emerald-500 text-emerald-600 bg-emerald-500/10' : 'border-line text-muted hover:text-content hover:bg-surface2'}`}>
+                <Icon name="ti-thumb-up" className="text-base" /><span className="text-sm font-medium tabular-nums">{up.length}</span>
               </button>
-              <span className={`pill ${SP[idea.status] || 'pill-gray'}`}>{SL[idea.status] || idea.status}</span>
+              <button onClick={() => castVote(-1)} disabled={busy || !me} title="Thumbs down"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition ${myVote?.value === -1 ? 'border-rose-500 text-rose-600 bg-rose-500/10' : 'border-line text-muted hover:text-content hover:bg-surface2'}`}>
+                <Icon name="ti-thumb-down" className="text-base" /><span className="text-sm font-medium tabular-nums">{down.length}</span>
+              </button>
+              {myVote && <button onClick={clearVote} disabled={busy} className="btn-ghost h-8 px-2 text-2xs text-muted">Remove</button>}
+              <span className={`pill ${SP[idea.status] || 'pill-gray'} ml-1`}>{SL[idea.status] || idea.status}</span>
               {idea.project?.name && <Link href="/projects" className="pill pill-gray inline-flex items-center gap-1"><Icon name="ti-folder" />{idea.project.name}</Link>}
               <span className="ml-auto text-2xs text-muted2 inline-flex items-center gap-1.5"><Avatar name={idea.creator?.full_name || 'U'} size={20} />{idea.creator?.full_name || '—'}</span>
             </div>
 
-            {voters.length > 0 && (
-              <div className="mt-3 flex items-center gap-2 flex-wrap">
-                <span className="text-2xs uppercase tracking-wide text-muted2">Upvoted by</span>
-                {voters.slice(0, 8).map((v) => (
-                  <span key={v.user_id} className="inline-flex items-center gap-1 text-2xs text-muted">
-                    <Avatar name={v.voter?.full_name || 'U'} size={18} />{v.voter?.full_name || 'Someone'}
-                  </span>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Add a reason for your vote (optional)"
+              className="input h-8 text-xs mt-3 w-full max-w-md" />
+
+            {(up.length + down.length) > 0 && (
+              <div className="mt-3 space-y-1">
+                <p className="text-2xs uppercase tracking-wide text-muted2">Votes</p>
+                {[...up, ...down].map((v) => (
+                  <div key={v.user_id} className="flex items-start gap-2 text-sm">
+                    <Icon name={(v.value ?? 1) === 1 ? 'ti-thumb-up' : 'ti-thumb-down'} className={`text-sm mt-0.5 ${(v.value ?? 1) === 1 ? 'text-emerald-600' : 'text-rose-600'}`} />
+                    <Avatar name={v.voter?.full_name || 'U'} size={18} />
+                    <span className="min-w-0">
+                      <span className="text-content">{v.voter?.full_name || 'Someone'}</span>
+                      {v.reason && <span className="text-2xs text-muted"> — {v.reason}</span>}
+                    </span>
+                  </div>
                 ))}
-                {voters.length > 8 && <span className="text-2xs text-muted2">+{voters.length - 8} more</span>}
               </div>
             )}
 
@@ -130,7 +151,6 @@ export default function IdeaDetail() {
             ) : (
               <div className="space-y-4">
                 <p className="text-sm font-medium text-content">{poll.question}</p>
-
                 <div>
                   <div className="flex h-2 rounded-full overflow-hidden bg-surface2">
                     <div className="bg-emerald-500" style={{ width: `${pct(poll.counts.yes)}%` }} />
@@ -144,17 +164,15 @@ export default function IdeaDetail() {
                     <span className="ml-auto">{poll.counts.pending} pending</span>
                   </div>
                 </div>
-
                 {poll.can_vote && (
                   <div className="flex items-center gap-2">
                     <span className="text-2xs text-muted2 mr-1">Your vote:</span>
                     {(['yes', 'no', 'abstain'] as const).map((c) => (
-                      <button key={c} onClick={() => castVote(c)} disabled={busy}
+                      <button key={c} onClick={() => castPoll(c)} disabled={busy}
                         className={`btn h-8 px-3 text-xs capitalize ${poll.my_choice === c ? 'btn-primary' : ''}`}>{CHOICE_META[c].label}</button>
                     ))}
                   </div>
                 )}
-
                 <div className="space-y-1.5">
                   <p className="text-2xs uppercase tracking-wide text-muted2">Stakeholders</p>
                   {poll.stakeholders.length === 0 ? <p className="text-2xs text-muted2">No stakeholders.</p> : poll.stakeholders.map((s) => (

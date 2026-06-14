@@ -13,6 +13,7 @@ import RequestsBell from '@/components/RequestsBell';
 import GlobalSearch from '@/components/GlobalSearch';
 import ChatPanel from '@/components/ChatPanel';
 import { TimerChip } from '@/components/TimeTracking';
+import RunningTimers from '@/components/RunningTimers';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
@@ -292,6 +293,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <GlobalSearch />
             <TimerChip />
+            <RunningTimers />
             <button onClick={() => setChatOpen(true)} title="Chat"
               className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">
               <Icon name="ti-messages" className="text-base" />

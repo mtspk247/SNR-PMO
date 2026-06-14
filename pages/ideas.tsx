@@ -52,6 +52,7 @@ export default function IdeasPage() {
   const [busy, setBusy] = useState(false);
   const [votingId, setVotingId] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [pollAfter, setPollAfter] = useState(false);
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -73,7 +74,7 @@ export default function IdeasPage() {
 
   const pg = usePagination(filtered, 25);
 
-  const openNew = () => { setEditing(null); setForm(emptyForm()); setShowModal(true); };
+  const openNew = () => { setEditing(null); setForm(emptyForm()); setPollAfter(false); setShowModal(true); };
   const openEdit = (idea: Idea) => {
     setEditing(idea);
     setForm({ title: idea.title, pitch: idea.pitch || '', status: idea.status });
@@ -102,6 +103,7 @@ export default function IdeasPage() {
           created_by: user?.id || null,
         });
         qc.setQueryData<Idea[]>(qk.ideas(org.id), (prev = []) => [created, ...prev]);
+        if (pollAfter) { setShowModal(false); router.push(`/ideas/${created.id}?poll=1`); return; }
       }
       setShowModal(false);
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
@@ -176,8 +178,8 @@ export default function IdeasPage() {
             {view === 'card' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
                 {pg.pageItems.map((idea) => {
-                  const hasVoted = idea.votes?.some((v) => v.user_id === user?.id) ?? false;
-                  const voteCount = idea.votes?.length ?? 0;
+                  const hasVoted = idea.votes?.some((v) => v.user_id === user?.id && (v.value ?? 1) === 1) ?? false;
+                  const voteCount = idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0;
                   return (
                     <div key={idea.id} onClick={() => router.push(`/ideas/${idea.id}`)} className="card card-interactive p-4 cursor-pointer">
                       <div className="flex items-start gap-3">
@@ -210,8 +212,8 @@ export default function IdeasPage() {
                 </thead>
                 <tbody>
                   {pg.pageItems.map((idea) => {
-                    const hasVoted = idea.votes?.some((v) => v.user_id === user?.id) ?? false;
-                    const voteCount = idea.votes?.length ?? 0;
+                    const hasVoted = idea.votes?.some((v) => v.user_id === user?.id && (v.value ?? 1) === 1) ?? false;
+                    const voteCount = idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0;
                     const isVoting = votingId === idea.id;
                     const isConverting = convertingId === idea.id;
                     const cell = (id: string) => {
@@ -290,6 +292,12 @@ export default function IdeasPage() {
               onChange={(e) => set({ pitch: e.target.value })}
             />
           </Field>
+          {!editing && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" className="accent-accent w-4 h-4" checked={pollAfter} onChange={(e) => setPollAfter(e.target.checked)} />
+              <span className="text-content">Start a stakeholder poll after creating</span>
+            </label>
+          )}
           {editing && (
             <Field label="Status" required>
               <select

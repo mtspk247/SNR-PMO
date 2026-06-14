@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/components/ui';
 import { startTimer, stopTimer, addManualTime, deleteTimeEntry } from '@/lib/db';
@@ -113,8 +114,9 @@ export default function TimeTracking({ taskId, orgId, projectId }: {
   );
 }
 
-/** Compact running-timer chip for the app header — task + project, with pause / stop / resume / dismiss. */
+/** Compact running-timer chip for the app header — clickable task + project, with pause / stop / hide; resume when paused. */
 const PKEY = (uid?: string) => `snr-paused-timer-${uid || 'anon'}`;
+const HKEY = (uid?: string) => `snr-hidden-timer-${uid || 'anon'}`;
 type Paused = { taskId: string; projectId: string | null; orgId: string; taskName: string; projectName: string | null };
 
 export function TimerChip() {
@@ -123,15 +125,20 @@ export function TimerChip() {
   const { data: myTimer } = useMyOpenTimer(me?.id);
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState<Paused | null>(null);
+  const [hidden, setHidden] = useState<string | null>(null);
 
   useEffect(() => {
     try { const raw = localStorage.getItem(PKEY(me?.id)); setPaused(raw ? JSON.parse(raw) : null); } catch { /* ignore */ }
+    try { setHidden(localStorage.getItem(HKEY(me?.id))); } catch { /* ignore */ }
   }, [me?.id]);
   const savePaused = (p: Paused | null) => {
     setPaused(p);
     try { if (p) localStorage.setItem(PKEY(me?.id), JSON.stringify(p)); else localStorage.removeItem(PKEY(me?.id)); } catch { /* ignore */ }
   };
-  // A live server-side timer always wins over a stale paused marker.
+  const saveHidden = (idv: string | null) => {
+    setHidden(idv);
+    try { if (idv) localStorage.setItem(HKEY(me?.id), idv); else localStorage.removeItem(HKEY(me?.id)); } catch { /* ignore */ }
+  };
   useEffect(() => { if (myTimer && paused) savePaused(null); /* eslint-disable-next-line */ }, [myTimer?.id]);
 
   const invalidate = () => { qc.invalidateQueries({ queryKey: ['myTimer'] }); if (myTimer) qc.invalidateQueries({ queryKey: qk.taskTime(myTimer.task_id) }); };
@@ -146,27 +153,29 @@ export function TimerChip() {
   };
   const onStop = async () => {
     if (!myTimer) return; setBusy(true);
-    try { await stopTimer(myTimer); savePaused(null); invalidate(); }
+    try { await stopTimer(myTimer); savePaused(null); saveHidden(null); invalidate(); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const onResume = async () => {
     if (!me || !paused) return; setBusy(true);
-    try { await startTimer({ org_id: paused.orgId, task_id: paused.taskId, project_id: paused.projectId, user_id: me.id }); savePaused(null); qc.invalidateQueries({ queryKey: ['myTimer'] }); }
+    try { await startTimer({ org_id: paused.orgId, task_id: paused.taskId, project_id: paused.projectId, user_id: me.id }); savePaused(null); saveHidden(null); qc.invalidateQueries({ queryKey: ['myTimer'] }); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
   const running = !!myTimer;
+  if (running && hidden === myTimer!.id) return null;  // hidden by user; still running, visible in Active timers
   if (!running && !paused) return null;
+  const taskId = running ? myTimer!.task_id : paused!.taskId;
   const taskName = running ? (myTimer!.task?.name || 'Timer') : paused!.taskName;
   const projectName = running ? (myTimer!.project?.name ?? null) : paused!.projectName;
 
   return (
     <div className={`hidden sm:flex items-center gap-2 h-9 pl-2.5 pr-1 rounded-md text-xs font-medium max-w-[22rem] ${running ? 'bg-accent/10 text-accentstrong' : 'bg-amber-500/10 text-amber-600'}`}>
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${running ? 'bg-accentstrong animate-pulse' : 'bg-amber-500'}`} />
-      <span className="min-w-0 leading-tight">
+      <Link href={`/tasks?task=${taskId}`} className="min-w-0 leading-tight hover:underline" title="Open task">
         <span className="block truncate max-w-[10rem]">{taskName}</span>
         <span className="block truncate max-w-[10rem] text-2xs opacity-70 font-normal">{projectName || 'No project'}{running ? '' : ' · paused'}</span>
-      </span>
+      </Link>
       <span className="opacity-50 shrink-0">·</span>
       {running ? <Elapsed since={myTimer!.started_at} /> : <span className="tabular-nums font-mono">paused</span>}
       <span className="flex items-center gap-0.5 shrink-0">
@@ -174,6 +183,7 @@ export function TimerChip() {
           <>
             <button onClick={onPause} disabled={busy} title="Pause (stops this entry)" className="h-7 w-7 grid place-items-center rounded hover:bg-accent/20"><Icon name="ti-player-pause" className="text-sm" /></button>
             <button onClick={onStop} disabled={busy} title="Stop" className="h-7 w-7 grid place-items-center rounded text-rose-500 hover:bg-rose-500/20"><Icon name="ti-player-stop" className="text-sm" /></button>
+            <button onClick={() => saveHidden(myTimer!.id)} disabled={busy} title="Hide (timer keeps running)" className="h-7 w-7 grid place-items-center rounded text-muted hover:bg-surface2"><Icon name="ti-x" className="text-sm" /></button>
           </>
         ) : (
           <>

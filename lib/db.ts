@@ -1078,7 +1078,7 @@ export async function deleteLedgerEntry(id: string): Promise<void> {
 import { Idea, IdeaStatus } from './supabase';
 
 export const IDEA_STATUSES: IdeaStatus[] = ['idea', 'exploring', 'approved', 'building', 'shipped', 'parked'];
-const IDEA_SEL = '*, votes:idea_votes(user_id, voter:users(full_name)), project:projects(name), creator:users!ideas_created_by_fkey(full_name)';
+const IDEA_SEL = '*, votes:idea_votes(user_id, value, reason, voter:users(full_name)), project:projects(name), creator:users!ideas_created_by_fkey(full_name)';
 
 export async function getIdeas(): Promise<Idea[]> {
   const { data, error } = await sb.from('ideas').select(IDEA_SEL)
@@ -1102,16 +1102,27 @@ export async function deleteIdea(id: string): Promise<void> {
   const { error } = await sb.from('ideas').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
-// Toggle the current user's vote. RLS pins idea_votes.user_id to the caller.
-export async function toggleIdeaVote(idea: Idea, userId: string): Promise<void> {
-  const voted = (idea.votes || []).some((v) => v.user_id === userId);
-  if (voted) {
-    const { error } = await sb.from('idea_votes').delete().eq('idea_id', idea.id).eq('user_id', userId);
-    if (error) throw new Error(error.message);
-  } else {
-    const { error } = await sb.from('idea_votes').insert({ idea_id: idea.id, user_id: userId });
-    if (error) throw new Error(error.message);
+// Set the caller's idea vote: value 1 (up) or -1 (down) + optional reason. RLS pins user_id.
+export async function setIdeaVote(ideaId: string, userId: string, value: 1 | -1, reason?: string | null): Promise<void> {
+  const { data: existing, error: selErr } = await sb.from('idea_votes').select('value').eq('idea_id', ideaId).eq('user_id', userId).maybeSingle();
+  if (selErr) throw new Error(selErr.message);
+  // clicking the same direction with no reason toggles the vote off
+  if (existing && (existing as any).value === value && reason === undefined) {
+    const { error } = await sb.from('idea_votes').delete().eq('idea_id', ideaId).eq('user_id', userId);
+    if (error) throw new Error(error.message); return;
   }
+  const row: any = { idea_id: ideaId, user_id: userId, value };
+  if (reason !== undefined) row.reason = reason ?? null;
+  const { error } = await sb.from('idea_votes').upsert(row, { onConflict: 'idea_id,user_id' });
+  if (error) throw new Error(error.message);
+}
+export async function removeIdeaVote(ideaId: string, userId: string): Promise<void> {
+  const { error } = await sb.from('idea_votes').delete().eq('idea_id', ideaId).eq('user_id', userId);
+  if (error) throw new Error(error.message);
+}
+// Quick thumbs-up toggle (used in list/card views). RLS pins idea_votes.user_id to the caller.
+export async function toggleIdeaVote(idea: Idea, userId: string): Promise<void> {
+  return setIdeaVote(idea.id, userId, 1);
 }
 // Convert an idea into a real project (status -> building, link kept on the idea).
 // Reuses createProject (return=minimal + refetch, the projects RLS-safe path),
@@ -1350,6 +1361,12 @@ export async function getTaskTimeEntries(taskId: string): Promise<TimeEntry[]> {
   const { data, error } = await sb.from('time_entries').select(TIME_SEL)
     .eq('task_id', taskId).order('started_at', { ascending: false });
   if (error) throw error; return (data as TimeEntry[]) || [];
+}
+export interface RunningTimer { id: string; user_id: string; user_name: string | null; task_id: string | null; task_name: string | null; project_id: string | null; project_name: string | null; started_at: string; }
+export async function getRunningTimers(orgId: string): Promise<RunningTimer[]> {
+  const { data, error } = await sb.rpc('running_timers', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  return (data as RunningTimer[]) || [];
 }
 export async function getMyOpenTimer(userId: string): Promise<TimeEntry | null> {
   const { data, error } = await sb.from('time_entries').select(TIME_SEL)
