@@ -2191,6 +2191,13 @@ export async function verifyCustomDomain(orgId: string): Promise<void> {
   const { error } = await sb.rpc('verify_custom_domain', { p_org: orgId }); if (error) throw new Error(error.message);
 }
 
+export async function requestDomainVerification(orgId: string): Promise<void> {
+  const { error } = await sb.rpc('request_domain_verification', { p_org: orgId }); if (error) throw new Error(error.message);
+}
+export async function checkDomainVerification(orgId: string): Promise<{ state: string }> {
+  const { data, error } = await sb.rpc('check_domain_verification', { p_org: orgId }); if (error) throw new Error(error.message); return data as { state: string };
+}
+
 export interface TenantUsage {
   created_at: string | null; active: boolean; plan: string | null; owner: string | null;
   seat_count: number; seat_limit: number | null; guests: number;

@@ -4,7 +4,7 @@ import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
-import { listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride, listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getTenantUsage, getOrgActivity, TenantUsage, ActivityItem, listOrgInvites, createOrgInvite, revokeOrgInvite, getTenantDomain, setCustomDomain, verifyCustomDomain, TenantDomain } from '@/lib/db';
+import { listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride, listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getTenantUsage, getOrgActivity, TenantUsage, ActivityItem, listOrgInvites, createOrgInvite, revokeOrgInvite, getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain } from '@/lib/db';
 import { Plan, OrgInvite } from '@/lib/supabase';
 
 function UsageBar({ label, used, limit }: { label: string; used: number; limit: number | null }) {
@@ -45,10 +45,24 @@ export default function TenantsPage() {
   };
   const doRevoke = async (id: string) => { if (!confirm('Revoke this invitation? The link will stop working.')) return; try { await revokeOrgInvite(id); loadInvites(); } catch (e: any) { setErr(e.message); } };
   const [dom, setDom] = useState<TenantDomain | null>(null);
-  const [domInput, setDomInput] = useState(''); const [domBusy, setDomBusy] = useState(false);
-  const loadDomain = (orgId: string) => getTenantDomain(orgId).then((d) => { setDom(d); setDomInput(d.custom_domain || ''); }).catch(() => setDom(null));
+  const [domInput, setDomInput] = useState(''); const [domBusy, setDomBusy] = useState(false); const [domMsg, setDomMsg] = useState('');
+  const loadDomain = (orgId: string) => { setDomMsg(''); return getTenantDomain(orgId).then((d) => { setDom(d); setDomInput(d.custom_domain || ''); }).catch(() => setDom(null)); };
   const saveDomain = async () => { if (!sel) return; setDomBusy(true); setErr(''); try { const d = await setCustomDomain(sel.org_id, domInput.trim()); setDom(d); setDomInput(d.custom_domain || ''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
-  const verifyDomain = async () => { if (!sel) return; setDomBusy(true); setErr(''); try { await verifyCustomDomain(sel.org_id); await loadDomain(sel.org_id); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
+  const verifyDomain = async () => {
+    if (!sel) return; setDomBusy(true); setErr(''); setDomMsg('Checking DNS…');
+    try {
+      await requestDomainVerification(sel.org_id);
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const { state } = await checkDomainVerification(sel.org_id);
+        if (state === 'verified') { await loadDomain(sel.org_id); setDomMsg('Domain verified.'); setDomBusy(false); return; }
+        if (state === 'error') { setDomMsg('DNS lookup failed — check the domain and try again.'); setDomBusy(false); return; }
+        if (state === 'not_found') { setDomMsg('No matching _snr-verify TXT record found yet — DNS can take a few minutes to propagate. Try again shortly.'); setDomBusy(false); return; }
+      }
+      setDomMsg('Still checking — DNS may not have propagated yet. Try again in a few minutes.');
+    } catch (e: any) { setErr(e.message); }
+    finally { setDomBusy(false); }
+  };
   const removeDomain = async () => { if (!sel) return; setDomBusy(true); setErr(''); try { const d = await setCustomDomain(sel.org_id, ''); setDom(d); setDomInput(''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
 
   const load = () => { listTenants().then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
@@ -232,14 +246,15 @@ export default function TenantsPage() {
                   <div className="mt-3 space-y-2">
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium ${dom.verified ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>{dom.verified ? 'Verified' : 'Pending verification'}</span>
-                      {!dom.verified && <button className="btn-ghost text-2xs" disabled={domBusy} onClick={verifyDomain}><Icon name="ti-check" />Mark verified</button>}
+                      {!dom.verified && <button className="btn-ghost text-2xs" disabled={domBusy} onClick={verifyDomain}><Icon name="ti-refresh" />{domBusy ? 'Checking…' : 'Verify domain'}</button>}
                     </div>
+                    {domMsg && <p className="text-2xs text-muted">{domMsg}</p>}
                     {!dom.verified && (
                       <div className="rounded-md bg-surface2 p-2.5 text-2xs text-muted space-y-1.5">
                         <p className="font-medium text-content">Add these DNS records, then add the domain to the Vercel project:</p>
                         <p>1. <span className="font-mono text-content">CNAME</span> <span className="font-mono text-content">{dom.custom_domain}</span> → <span className="font-mono">cname.vercel-dns.com</span></p>
                         <p>2. <span className="font-mono text-content">TXT</span> <span className="font-mono text-content">_snr-verify.{dom.custom_domain}</span> → <span className="font-mono break-all text-content">{dom.token}</span></p>
-                        <p className="text-muted2">Once DNS resolves and the domain is added in Vercel, click “Mark verified”.</p>
+                        <p className="text-muted2">Add the records, then click “Verify domain” — we check the TXT automatically. (Also add the domain to the Vercel project.)</p>
                       </div>
                     )}
                   </div>
