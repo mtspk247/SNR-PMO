@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import {
   getOrgCompanies, createOrgCompany, updateOrgCompany, deleteOrgCompany, getProjects, getOrgUsers,
   getMyCompanyManagerships, listCompanyMembers, addCompanyMember,
@@ -107,12 +108,6 @@ export default function CompaniesPage() {
     finally { setMemBusy(false); }
   };
 
-  const removeCompany = async (c: OrgCompany) => {
-    if (projectCount(c.id) > 0) { alert('Reassign or remove this company’s projects first.'); return; }
-    if (!confirm(`Delete company “${c.name}”? Its portfolios and memberships are removed too.`)) return;
-    try { await deleteOrgCompany(c.id); setCompanies((p) => p.filter((x) => x.id !== c.id)); }
-    catch (e: any) { alert(e.message || 'Could not delete company.'); }
-  };
 
   const memberIds = new Set(members.map((m) => m.user_id));
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
@@ -143,11 +138,15 @@ export default function CompaniesPage() {
                     <Icon name="ti-pencil" />
                   </button>
                 )}
-                {admin && (
-                  <button onClick={() => removeCompany(c)} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete company">
+                {admin && (projectCount(c.id) > 0 ? (
+                  <button onClick={() => alert('Reassign or remove this company\u2019s projects first.')} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete company">
                     <Icon name="ti-trash" />
                   </button>
-                )}
+                ) : (
+                  <ConfirmDelete entityType="company" id={c.id} name={c.name} iconOnly
+                    className="text-neutral-300 hover:text-rose-600 shrink-0"
+                    onDeleted={() => setCompanies((p) => p.filter((x) => x.id !== c.id))} />
+                ))}
               </div>
               {c.description && <p className="text-2xs text-neutral-500 mt-2 line-clamp-2">{c.description}</p>}
             </div>
