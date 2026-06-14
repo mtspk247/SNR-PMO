@@ -27,7 +27,8 @@ async function runSearch(raw: string, mods: string[]): Promise<Hit[]> {
 export default function GlobalSearch() {
   const router = useRouter();
   const pageMod = pageModuleFor(router.pathname);
-  const [scope, setScope] = useState<Scope>('all');
+  const [selMods, setSelMods] = useState<string[]>([]);   // empty = search everything
+  const [scopeFilter, setScopeFilter] = useState('');
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<Hit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,16 +41,11 @@ export default function GlobalSearch() {
   const mInputRef = useRef<HTMLInputElement>(null);
   const reqId = useRef(0);
 
-  // If we're not on a module page, fall back any lingering 'page' scope to All.
-  useEffect(() => { if (scope === 'page' && !pageMod) setScope('all'); }, [pageMod, scope]);
+  const allKeys = useMemo(() => MODS.map((m) => m.key), []);
+  const effectiveMods = useMemo<string[]>(() => (selMods.length ? selMods : allKeys), [selMods, allKeys]);
+  const toggleMod = (k: string) => setSelMods((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
 
-  const effectiveMods = useMemo<string[]>(() => {
-    if (scope === 'all') return MODS.map((m) => m.key);
-    if (scope === 'page') return pageMod ? [pageMod] : MODS.map((m) => m.key);
-    return [scope];
-  }, [scope, pageMod]);
-
-  const scopeLabel = scope === 'all' ? 'All' : scope === 'page' ? 'This page' : MOD_LABEL[scope];
+  const scopeLabel = selMods.length === 0 ? 'All' : selMods.length === 1 ? MOD_LABEL[selMods[0]] : `${selMods.length} selected`;
 
   // Global hotkeys: "/" or Cmd/Ctrl-K focus the search (no modal).
   useEffect(() => {
@@ -100,14 +96,34 @@ export default function GlobalSearch() {
   };
 
   const scopeMenu = (
-    <div className="absolute left-0 top-[2.6rem] z-[70] w-44 bg-surface border border-line rounded-lg shadow-lg py-1">
-      {(['all', ...MODS.map((m) => m.key), ...(pageMod ? ['page'] : [])] as Scope[]).map((s) => (
-        <button key={s} onMouseDown={(e) => { e.preventDefault(); setScope(s); setScopeOpen(false); }}
-          className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-surface2 ${scope === s ? 'text-accentstrong font-medium' : 'text-content'}`}>
-          <Icon name={s === 'all' ? 'ti-world-search' : s === 'page' ? 'ti-file-search' : MODS.find((m) => m.key === s)!.icon} className="text-sm text-muted2" />
-          {s === 'all' ? 'Everything' : s === 'page' ? `This page${pageMod ? ` (${MOD_LABEL[pageMod]})` : ''}` : MOD_LABEL[s as string]}
+    <div className="absolute left-0 top-[2.6rem] z-[70] w-56 bg-surface border border-line rounded-lg shadow-lg flex flex-col max-h-80">
+      <div className="p-2 border-b border-line">
+        <input value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} placeholder="Filter modules…"
+          className="w-full h-8 px-2 rounded-md border border-line bg-surface text-sm text-content outline-none focus:border-accent placeholder:text-muted2" />
+      </div>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-line">
+        <button onMouseDown={(e) => { e.preventDefault(); setSelMods([]); }}
+          className={`flex items-center gap-2 text-sm ${selMods.length === 0 ? 'text-accentstrong font-medium' : 'text-content'}`}>
+          <Icon name="ti-world-search" className="text-sm text-muted2" />Everything
         </button>
-      ))}
+        {pageMod && <button onMouseDown={(e) => { e.preventDefault(); setSelMods([pageMod]); }} className="text-2xs text-muted hover:text-content">This page</button>}
+      </div>
+      <div className="flex-1 overflow-y-auto py-1">
+        {MODS.filter((m) => m.label.toLowerCase().includes(scopeFilter.toLowerCase())).map((m) => {
+          const on = selMods.includes(m.key);
+          return (
+            <button key={m.key} onMouseDown={(e) => { e.preventDefault(); toggleMod(m.key); }}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-surface2 ${on ? 'text-accentstrong' : 'text-content'}`}>
+              <span className={`w-4 h-4 rounded border grid place-items-center shrink-0 ${on ? 'bg-accent border-accent text-[#fff]' : 'border-line'}`}>{on && <Icon name="ti-check" className="text-[0.6rem]" />}</span>
+              <Icon name={m.icon} className="text-sm text-muted2 shrink-0" />
+              <span className="truncate">{m.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {selMods.length > 0 && (
+        <button onMouseDown={(e) => { e.preventDefault(); setSelMods([]); }} className="text-2xs text-muted hover:text-content border-t border-line py-2">Clear selection ({selMods.length})</button>
+      )}
     </div>
   );
 
@@ -150,7 +166,7 @@ export default function GlobalSearch() {
       <input ref={mobile ? mInputRef : inputRef} value={q}
         onChange={(e) => { setQ(e.target.value); setResultsOpen(true); }}
         onFocus={() => setResultsOpen(true)} onKeyDown={onInputKey}
-        placeholder={`Search ${scope === 'all' ? 'everything' : scopeLabel.toLowerCase()}…`}
+        placeholder={`Search ${selMods.length === 0 ? 'everything' : scopeLabel.toLowerCase()}…`}
         className="flex-1 min-w-0 bg-transparent outline-none text-sm px-2 text-content placeholder:text-muted2" />
       {loading && <Icon name="ti-loader-2" className="text-muted2 animate-spin text-sm mr-1 shrink-0" />}
       {q && !loading && <button onMouseDown={(e) => { e.preventDefault(); setQ(''); (mobile ? mInputRef : inputRef).current?.focus(); }} className="mr-1.5 text-muted2 hover:text-content shrink-0"><Icon name="ti-x" className="text-sm" /></button>}

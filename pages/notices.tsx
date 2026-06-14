@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -33,6 +34,13 @@ export default function NoticesPage() {
   const audienceLabel = (n: Notice) => n.audience_type === 'org' ? 'Everyone' : n.audience_type === 'guests' ? 'Guests' : n.audience_type === 'department' ? (n.department || 'Department') : n.audience_type === 'team' ? `${n.audience_ids.length} team(s)` : `${n.audience_ids.length} people`;
 
   const open = (n: Notice) => { setDetail(n); if (isUnread(n)) noticeMarkRead(n.id).then(() => setRows((p) => (p || []).map((x) => (x.id === n.id ? { ...x, mine: [{ read_at: new Date().toISOString() }] } : x)))).catch(() => {}); };
+  const router = useRouter();
+  const opened = useRef<string | null>(null);
+  useEffect(() => {
+    const id = router.query.notice as string | undefined;
+    if (id && rows && opened.current !== id) { const n = rows.find((x) => x.id === id); if (n) { opened.current = id; open(n); } }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.query.notice, rows]);
 
   const submit = async () => {
     if (!org || !compose || !compose.title.trim() || busy) return;
