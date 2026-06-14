@@ -7,6 +7,7 @@ import { useActiveOrg } from '@/lib/store';
 const WINDOW_MS = 10 * 60 * 1000;   // show events from the last ~10 minutes
 const VERB: Record<string, string> = { INSERT: 'created', UPDATE: 'updated', DELETE: 'deleted' };
 const niceEntity = (t: string | null) => (t || 'item').replace(/_/g, ' ');
+const firstName = (u: string | null) => (u || 'Someone').trim().split(/\s+/)[0];
 
 function hrefFor(a: ActivityItem): string | null {
   const t = a.entity_type, id = a.entity_id;
@@ -83,7 +84,7 @@ export default function ActivityTicker() {
         ) : (
           <button onClick={() => href && router.push(href)} disabled={!href}
             className={`block truncate text-2xs transition-opacity duration-200 ${vis ? 'opacity-100' : 'opacity-0'} ${href ? 'text-content hover:text-accentstrong cursor-pointer' : 'text-muted cursor-default'}`}>
-            <span className="font-medium">{cur?.username || 'Someone'}</span>{' '}
+            <span className="font-medium">{firstName(cur?.username ?? null)}</span>{' '}
             {VERB[cur?.action || ''] || (cur?.action || '').toLowerCase()}{' '}
             <span className="text-muted">{niceEntity(cur?.entity_type ?? null)}</span>
             <span className="text-muted2"> · {new Date(cur!.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
