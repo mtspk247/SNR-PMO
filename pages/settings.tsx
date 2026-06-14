@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
-import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
+import { updateOrgSettings, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { FEATURE_LABELS, formatPrice } from '@/lib/entitlements';
-import { OrgPlanInfo, FeatureKey, Plan } from '@/lib/supabase';
+import { OrgPlanInfo, FeatureKey, Plan, PlanFeature } from '@/lib/supabase';
 
 function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
   const [info, setInfo] = useState<OrgPlanInfo | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [pf, setPf] = useState<PlanFeature[]>([]);
   const [busy, setBusy] = useState('');
   const [billErr, setBillErr] = useState('');
-  useEffect(() => { getOrgPlanInfo(org.id).then(setInfo).catch(() => {}); listPlans().then(setPlans).catch(() => {}); }, [org.id]);
+  useEffect(() => { getOrgPlanInfo(org.id).then(setInfo).catch(() => {}); listPlans().then(setPlans).catch(() => {}); listPlanFeatures().then(setPf).catch(() => {}); }, [org.id]);
   const features = org.features || [];
 
   const goCheckout = async (planKey: string) => {
@@ -58,6 +60,40 @@ function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
           })}
         </div>
       </div>
+      {plans.length > 1 && (
+        <div className="mt-6 pt-6 border-t border-line">
+          <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Compare plans</p>
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-left px-3 py-2 font-medium text-muted text-2xs uppercase tracking-wide">Feature</th>
+                {plans.filter((p) => p.is_active).sort((a, b) => a.sort_order - b.sort_order).map((p) => (
+                  <th key={p.id} className={`px-3 py-2 text-center ${p.key === info?.plan?.key ? 'text-accentstrong' : 'text-content'}`}>
+                    <span className="font-semibold block">{p.name}</span>
+                    {p.key === info?.plan?.key ? <span className="block text-2xs text-accentstrong">Current</span>
+                      : <span className="block text-2xs text-muted font-normal">{formatPrice(p.price_cents, p.pricing_model)}</span>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(Object.keys(FEATURE_LABELS) as FeatureKey[]).map((fk) => (
+                <tr key={fk} className="border-t border-line">
+                  <td className="px-3 py-2 text-content">{FEATURE_LABELS[fk]}</td>
+                  {plans.filter((p) => p.is_active).sort((a, b) => a.sort_order - b.sort_order).map((p) => (
+                    <td key={p.id} className={`px-3 py-2 text-center ${p.key === info?.plan?.key ? 'bg-accent/5' : ''}`}>
+                      {pf.some((x) => x.plan_id === p.id && x.feature_key === fk && x.enabled)
+                        ? <Icon name="ti-check" className="text-emerald-600" />
+                        : <Icon name="ti-minus" className="text-muted2" />}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        </div>
+      )}
+
       {/* Billing actions */}
       <div className="mt-6 pt-6 border-t border-line">
         <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Billing</p>
@@ -231,6 +267,8 @@ export default function SettingsPage() {
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
   const [tab, setTab] = useState<'notifications' | 'billing' | 'branding' | 'danger'>('notifications');
+  const router = useRouter();
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string' && ['notifications', 'billing', 'branding', 'danger'].includes(q)) setTab(q as 'notifications' | 'billing' | 'branding' | 'danger'); }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');

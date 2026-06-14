@@ -19,7 +19,7 @@ export default function UpgradeScreen({ feature, canManage }: { feature: Feature
         <h1 className="text-xl font-semibold text-content">Unlock {label}</h1>
         <p className="text-sm text-muted">{label} isn’t included in your current plan. Upgrade to turn it on for your whole workspace.</p>
         {canManage
-          ? <Link href="/settings" className="btn btn-primary w-full"><Icon name="ti-rocket" />View plans &amp; upgrade</Link>
+          ? <Link href="/settings?tab=billing" className="btn btn-primary w-full"><Icon name="ti-rocket" />View plans &amp; upgrade</Link>
           : <p className="text-sm text-muted2">Ask your workspace owner to upgrade the plan to enable this.</p>}
         <Link href="/dashboard" className="text-2xs text-muted hover:text-content">← Back to dashboard</Link>
       </div>
