@@ -51,6 +51,8 @@ const SECTIONS: Section[] = [
     { href: '/domains', label: 'Domains', icon: 'ti-world-www', feature: 'financial' },
     { href: '/assets', label: 'Assets', icon: 'ti-building-warehouse', feature: 'financial' },
     { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial' },
+    { href: '/invoicing', label: 'Invoicing', icon: 'ti-file-invoice', feature: 'financial' },
+    { href: '/credit-notes', label: 'Credit notes', icon: 'ti-receipt-refund', feature: 'financial' },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
     { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm' },

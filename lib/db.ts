@@ -849,6 +849,39 @@ export const createBankAccount = (row: Partial<BankAccount> & { org_id: string; 
 export const updateBankAccount = (id: string, patch: Partial<BankAccount>) => _update('bank_accounts', id, patch);
 export const deleteBankAccount = (id: string) => _del('bank_accounts', id);
 
+// ---- Accounting billing (invoices / lines / payments / credit notes) ----
+export interface Invoice { id: string; org_id: string; invoice_number: string; client_name: string | null; client_email: string | null; issue_date: string | null; due_date: string | null; currency: string; tax_rate: number; subtotal: number; tax: number; total: number; amount_paid: number; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface InvoiceLine { id: string; org_id: string; invoice_id: string; description: string; qty: number; unit_price: number; amount: number; sort: number; }
+export interface Payment { id: string; org_id: string; invoice_id: string | null; amount: number; paid_on: string; method: string | null; reference: string | null; notes: string | null; created_at: string; }
+export interface CreditNote { id: string; org_id: string; credit_number: string; invoice_id: string | null; client_name: string | null; amount: number; issue_date: string | null; reason: string | null; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+
+export const listInvoices = (orgId: string) => _list<Invoice>('invoices', orgId);
+export const createInvoice = (row: Partial<Invoice> & { org_id: string; invoice_number: string; created_by: string }) => _create<Invoice>('invoices', row);
+export const updateInvoice = (id: string, patch: Partial<Invoice>) => _update('invoices', id, patch);
+export const deleteInvoice = (id: string) => _del('invoices', id);
+export async function getInvoice(id: string): Promise<Invoice | null> {
+  const { data, error } = await sb.from('invoices').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message); return (data as Invoice) || null;
+}
+export async function listInvoiceLines(invoiceId: string): Promise<InvoiceLine[]> {
+  const { data, error } = await sb.from('invoice_lines').select('*').eq('invoice_id', invoiceId).order('sort').order('created_at');
+  if (error) throw new Error(error.message); return (data as InvoiceLine[]) || [];
+}
+export const addInvoiceLine = (row: { org_id: string; invoice_id: string; description: string; qty: number; unit_price: number; created_by: string }) => _create<InvoiceLine>('invoice_lines', row);
+export const updateInvoiceLine = (id: string, patch: Partial<InvoiceLine>) => _update('invoice_lines', id, patch);
+export const deleteInvoiceLine = (id: string) => _del('invoice_lines', id);
+export async function listPayments(invoiceId: string): Promise<Payment[]> {
+  const { data, error } = await sb.from('payments').select('*').eq('invoice_id', invoiceId).order('paid_on', { ascending: false });
+  if (error) throw new Error(error.message); return (data as Payment[]) || [];
+}
+export const addPayment = (row: { org_id: string; invoice_id: string; amount: number; paid_on: string; method?: string; reference?: string; notes?: string; created_by: string }) => _create<Payment>('payments', row);
+export const deletePayment = (id: string) => _del('payments', id);
+
+export const listCreditNotes = (orgId: string) => _list<CreditNote>('credit_notes', orgId);
+export const createCreditNote = (row: Partial<CreditNote> & { org_id: string; credit_number: string; created_by: string }) => _create<CreditNote>('credit_notes', row);
+export const updateCreditNote = (id: string, patch: Partial<CreditNote>) => _update('credit_notes', id, patch);
+export const deleteCreditNote = (id: string) => _del('credit_notes', id);
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')
