@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -158,6 +158,7 @@ export default function SettingsPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
+  const [tab, setTab] = useState<'notifications' | 'billing' | 'branding'>('notifications');
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -199,9 +200,16 @@ export default function SettingsPage() {
   return (
     <Layout flat title="Settings">
       <PageHeader title="Settings" subtitle="Your preferences, subscription, and white-label settings" />
-      <NotificationPrefs />
-      {admin && <PlanPanel org={org} />}
-      {admin && <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">
+      {admin && (
+        <Tabs tabs={[
+          { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
+          { key: 'billing', label: 'Plan & billing', icon: 'ti-credit-card' },
+          { key: 'branding', label: 'Branding', icon: 'ti-palette' },
+        ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'branding')} />
+      )}
+      {(!admin || tab === 'notifications') && <NotificationPrefs />}
+      {admin && tab === 'billing' && <PlanPanel org={org} />}
+      {admin && tab === 'branding' && <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">
         {/* Form */}
         <div className="lg:col-span-2 card p-6 space-y-5">
           <div>

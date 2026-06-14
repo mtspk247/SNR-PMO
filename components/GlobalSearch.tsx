@@ -1,55 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { sb } from '@/lib/supabase';
 import { Icon, Avatar } from '@/components/ui';
+import { SEARCH_SPECS, pageModuleFor, SearchHit } from '@/lib/nav';
 
 // Inline header search with a scope picker (All / a module / This page) + live
 // results dropdown. No modal. "/" or Cmd/Ctrl-K focuses the input.
-type ModKey = 'task' | 'project' | 'deal' | 'company' | 'employee';
-type Scope = 'all' | ModKey | 'page';
-type Hit = { id: string; type: ModKey; title: string; subtitle?: string; href: string; icon: string; avatar?: boolean };
+// Searchable modules come from the central nav manifest (lib/nav.ts): add a
+// `search` spec to a nav item there and it shows up here automatically.
+type Scope = 'all' | 'page' | string;   // a module key, or 'all' / 'page'
+type Hit = SearchHit;
 
-const MODS: { key: ModKey; label: string; icon: string }[] = [
-  { key: 'task', label: 'Tasks', icon: 'ti-checkbox' },
-  { key: 'project', label: 'Projects', icon: 'ti-folder' },
-  { key: 'deal', label: 'Deals', icon: 'ti-target-arrow' },
-  { key: 'company', label: 'Companies', icon: 'ti-building' },
-  { key: 'employee', label: 'People', icon: 'ti-id-badge' },
-];
-const MOD_LABEL: Record<ModKey, string> = Object.fromEntries(MODS.map((m) => [m.key, m.label])) as Record<ModKey, string>;
+const MODS = SEARCH_SPECS.map((s) => ({ key: s.key, label: s.label, icon: s.icon }));
+const MOD_LABEL: Record<string, string> = Object.fromEntries(SEARCH_SPECS.map((s) => [s.key, s.label]));
+const SPEC = new Map(SEARCH_SPECS.map((s) => [s.key, s]));
 
-// Map the current route to the module it represents (for the "This page" scope).
-function pageModuleFor(path: string): ModKey | null {
-  if (path.startsWith('/tasks')) return 'task';
-  if (path.startsWith('/projects')) return 'project';
-  if (path.startsWith('/crm')) return 'deal';
-  if (path.startsWith('/companies')) return 'company';
-  if (path.startsWith('/employees')) return 'employee';
-  return null;
-}
-
-async function queryMod(key: ModKey, like: string, safe: string): Promise<Hit[]> {
-  const grab = (p: any) => p.then((r: any) => r.data || []).then((d: any) => d, () => []);
-  if (key === 'task') return (await grab(sb.from('tasks').select('id, name, projects(name)').ilike('name', like).limit(8)))
-    .map((t: any) => ({ id: t.id, type: 'task' as const, title: t.name, subtitle: t.projects?.name, href: `/tasks?task=${t.id}`, icon: 'ti-checkbox' }));
-  if (key === 'project') return (await grab(sb.from('projects').select('id, name, status').ilike('name', like).limit(8)))
-    .map((p: any) => ({ id: p.id, type: 'project' as const, title: p.name, subtitle: p.status, href: `/projects/${p.id}`, icon: 'ti-folder' }));
-  if (key === 'deal') return (await grab(sb.from('crm_deals').select('id, title, stage').ilike('title', like).limit(8)))
-    .map((d: any) => ({ id: d.id, type: 'deal' as const, title: d.title, subtitle: d.stage, href: `/crm/deal/${d.id}`, icon: 'ti-target-arrow' }));
-  if (key === 'company') return (await grab(sb.from('companies').select('id, name').ilike('name', like).limit(8)))
-    .map((c: any) => ({ id: c.id, type: 'company' as const, title: c.name, href: `/companies/${c.id}`, icon: 'ti-building' }));
-  return (await grab(sb.from('users').select('id, full_name, email').or(`full_name.ilike.*${safe}*,email.ilike.*${safe}*`).limit(8)))
-    .map((u: any) => ({ id: u.id, type: 'employee' as const, title: u.full_name || u.email, subtitle: u.full_name ? u.email : undefined, href: `/employees/${u.id}`, icon: 'ti-id-badge', avatar: true }));
-}
-
-async function runSearch(raw: string, mods: ModKey[]): Promise<Hit[]> {
+async function runSearch(raw: string, mods: string[]): Promise<Hit[]> {
   const q = raw.trim();
   const like = `%${q}%`;
   const safe = q.replace(/[,()*%]/g, ' ').trim();
-  const groups = await Promise.all(mods.map((m) => queryMod(m, like, safe)));
-  // Keep canonical MODS order regardless of resolution order.
+  const groups = await Promise.all(mods.map((k) => SPEC.get(k)!.run(like, safe)));
+  // Keep canonical MODS (nav) order regardless of resolution order.
   const order = new Map(MODS.map((m, i) => [m.key, i]));
-  return groups.flat().sort((a, b) => (order.get(a.type)! - order.get(b.type)!));
+  return groups.flat().sort((a, b) => (order.get(a.key)! - order.get(b.key)!));
 }
 
 export default function GlobalSearch() {
@@ -71,7 +43,7 @@ export default function GlobalSearch() {
   // If we're not on a module page, fall back any lingering 'page' scope to All.
   useEffect(() => { if (scope === 'page' && !pageMod) setScope('all'); }, [pageMod, scope]);
 
-  const effectiveMods = useMemo<ModKey[]>(() => {
+  const effectiveMods = useMemo<string[]>(() => {
     if (scope === 'all') return MODS.map((m) => m.key);
     if (scope === 'page') return pageMod ? [pageMod] : MODS.map((m) => m.key);
     return [scope];
@@ -133,7 +105,7 @@ export default function GlobalSearch() {
         <button key={s} onMouseDown={(e) => { e.preventDefault(); setScope(s); setScopeOpen(false); }}
           className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-surface2 ${scope === s ? 'text-accentstrong font-medium' : 'text-content'}`}>
           <Icon name={s === 'all' ? 'ti-world-search' : s === 'page' ? 'ti-file-search' : MODS.find((m) => m.key === s)!.icon} className="text-sm text-muted2" />
-          {s === 'all' ? 'Everything' : s === 'page' ? `This page${pageMod ? ` (${MOD_LABEL[pageMod]})` : ''}` : MOD_LABEL[s as ModKey]}
+          {s === 'all' ? 'Everything' : s === 'page' ? `This page${pageMod ? ` (${MOD_LABEL[pageMod]})` : ''}` : MOD_LABEL[s as string]}
         </button>
       ))}
     </div>
@@ -147,10 +119,10 @@ export default function GlobalSearch() {
         ) : !loading && hits.length === 0 ? (
           <p className="px-4 py-5 text-center text-sm text-muted2">No matches for “{q.trim()}”.</p>
         ) : (() => { let last = ''; return hits.map((h, i) => {
-          const head = h.type !== last ? (last = h.type) : null;
+          const head = h.key !== last ? (last = h.key) : null;
           return (
-            <div key={h.type + h.id}>
-              {head && <p className="px-4 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{MOD_LABEL[h.type]}</p>}
+            <div key={h.key + h.id}>
+              {head && <p className="px-4 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{MOD_LABEL[h.key]}</p>}
               <button onMouseDown={(e) => { e.preventDefault(); go(h); }} onMouseEnter={() => setActive(i)}
                 className={`w-full flex items-center gap-3 px-4 py-2 text-left transition ${i === active ? 'bg-surface2' : 'hover:bg-surface2'}`}>
                 {h.avatar ? <Avatar name={h.title} size={24} />

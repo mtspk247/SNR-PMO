@@ -6,7 +6,7 @@ import { signOut, recordGuestActivity } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
 import { hasFeature, roleAllowsFeature } from '@/lib/entitlements';
-import { FeatureKey } from '@/lib/supabase';
+import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, ROUTE_LABELS } from '@/lib/nav';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
 import RequestsBell from '@/components/RequestsBell';
@@ -20,86 +20,6 @@ import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
 
-// `feature` gates the item behind the active org's plan entitlement (3.3).
-// Items without a feature are core and always shown.
-type Item = { href: string; label: string; icon: string; feature?: FeatureKey; adminOnly?: boolean };
-type Section =
-  | { kind: 'link'; item: Item }
-  | { kind: 'menu'; key: string; label: string; icon: string; items: Item[] };
-
-const SECTIONS: Section[] = [
-  { kind: 'link', item: { href: '/dashboard', label: 'Dashboard', icon: 'ti-layout-dashboard' } },
-  { kind: 'menu', key: 'work', label: 'Work', icon: 'ti-briefcase', items: [
-    { href: '/companies', label: 'Companies', icon: 'ti-building' },
-    { href: '/portfolios', label: 'Portfolios', icon: 'ti-stack-2', feature: 'portfolios' },
-    { href: '/projects', label: 'Projects', icon: 'ti-folder' },
-    { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
-    { href: '/ideas', label: 'Ideas', icon: 'ti-bulb' },
-    { href: '/roadmap', label: 'Roadmap', icon: 'ti-timeline' },
-    { href: '/chat', label: 'Chat', icon: 'ti-messages' },
-  ]},
-  { kind: 'menu', key: 'people', label: 'People', icon: 'ti-users', items: [
-    { href: '/teams', label: 'Teams', icon: 'ti-users-group' },
-    { href: '/workload', label: 'Workload', icon: 'ti-chart-bar' },
-    { href: '/calendar', label: 'Calendar', icon: 'ti-calendar' },
-    { href: '/guests', label: 'Guests', icon: 'ti-user-question', adminOnly: true },
-  ]},
-  { kind: 'menu', key: 'tracking', label: 'Accounting', icon: 'ti-report-money', items: [
-    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
-    { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
-    { href: '/accounting', label: 'Ledger', icon: 'ti-report-money', feature: 'financial' },
-    { href: '/subscriptions', label: 'Subscriptions', icon: 'ti-credit-card', feature: 'subscriptions' },
-    { href: '/recurring', label: 'Recurring', icon: 'ti-repeat', feature: 'financial' },
-    { href: '/domains', label: 'Domains', icon: 'ti-world-www', feature: 'financial' },
-    { href: '/assets', label: 'Assets', icon: 'ti-building-warehouse', feature: 'financial' },
-    { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial' },
-    { href: '/invoicing', label: 'Invoicing', icon: 'ti-file-invoice', feature: 'financial' },
-    { href: '/credit-notes', label: 'Credit notes', icon: 'ti-receipt-refund', feature: 'financial' },
-  ]},
-  { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
-    { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm' },
-    { href: '/leads', label: 'Leads', icon: 'ti-filter', feature: 'crm' },
-    { href: '/clients', label: 'Clients', icon: 'ti-friends', feature: 'crm' },
-    { href: '/proposals', label: 'Proposals', icon: 'ti-file-description', feature: 'crm' },
-    { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm' },
-  ]},
-  { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
-    { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
-    { href: '/jobs', label: 'Jobs', icon: 'ti-briefcase-2', feature: 'hr' },
-    { href: '/applications', label: 'Applications', icon: 'ti-files', feature: 'hr' },
-    { href: '/interviews', label: 'Interviews', icon: 'ti-calendar-event', feature: 'hr' },
-    { href: '/offers', label: 'Offer letters', icon: 'ti-mail-check', feature: 'hr' },
-    { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr' },
-    { href: '/training', label: 'Training & JDs', icon: 'ti-school', feature: 'hr' },
-    { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
-    { href: '/attendance', label: 'Attendance', icon: 'ti-clock' },
-    { href: '/leave', label: 'Leave', icon: 'ti-beach' },
-  ]},
-  { kind: 'link', item: { href: '/drives', label: 'Drives', icon: 'ti-cloud', feature: 'drives' } },
-  { kind: 'link', item: { href: '/support', label: 'Support', icon: 'ti-lifebuoy', feature: 'support' } },
-  { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } },
-];
-const ADMIN_SECTION: Section = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
-  { href: '/users', label: 'Users', icon: 'ti-user-shield' },
-  { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
-  { href: '/admin/notifications', label: 'Notifications', icon: 'ti-bell-cog' },
-  { href: '/approvals', label: 'Approvals', icon: 'ti-checks' },
-  { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
-  { href: '/audit', label: 'Audit log', icon: 'ti-history', feature: 'audit' },
-  { href: '/settings', label: 'Settings', icon: 'ti-settings' },
-]};
-// Super-super-admin (cross-tenant) — gated by platformAdmin, not a plan feature.
-const PLATFORM_SECTION: Section = { kind: 'menu', key: 'platform', label: 'Platform', icon: 'ti-building-skyscraper', items: [
-  { href: '/platform', label: 'Console', icon: 'ti-dashboard' },
-  { href: '/tenants', label: 'Tenants', icon: 'ti-building-community' },
-] };
-
-// Flat label lookup for route-derived breadcrumbs.
-const ROUTE_LABELS: Record<string, string> = {};
-for (const s of [...SECTIONS, ADMIN_SECTION, PLATFORM_SECTION]) {
-  if (s.kind === 'link') ROUTE_LABELS[s.item.href] = s.item.label;
-  else for (const i of s.items) ROUTE_LABELS[i.href] = i.label;
-}
 
 function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('light');

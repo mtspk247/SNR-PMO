@@ -3,11 +3,11 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow } from '@/lib/db';
-import { PlatformOrg, Plan, Feature, PlanFeature } from '@/lib/supabase';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow } from '@/lib/db';
+import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'tenants' | 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners';
+type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -521,19 +521,18 @@ function OwnersTab() {
 
 export default function PlatformPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
-  const [orgs, setOrgs] = useState<PlatformOrg[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [pf, setPf] = useState<PlanFeature[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>('tenants');
+  const [tab, setTab] = useState<Tab>('plans');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [planModal, setPlanModal] = useState<Plan | 'new' | null>(null);
 
   const load = async () => {
-    const [o, p, f, m] = await Promise.all([listPlatformOrgs(), listPlans(), listFeatures(), listPlanFeatures()]);
-    setOrgs(o); setPlans(p); setFeatures(f); setPf(m);
+    const [p, f, m] = await Promise.all([listPlans(), listFeatures(), listPlanFeatures()]);
+    setPlans(p); setFeatures(f); setPf(m);
   };
   useEffect(() => { if (platformAdmin) load().catch((e) => setErr(e.message)).finally(() => setLoading(false)); else setLoading(false); }, [platformAdmin]);
 
@@ -554,17 +553,12 @@ export default function PlatformPage() {
     finally { setBusy(false); }
   };
 
-  const changePlan = async (orgId: string, planId: string) => {
-    setBusy(true); setErr('');
-    try { await setOrgPlan(orgId, planId); await load(); } catch (e: any) { setErr(e.message); }
-    finally { setBusy(false); }
-  };
 
   return (
     <Layout title="Platform">
       {loading ? <Spinner /> : (
         <>
-          <PageHeader title="Tenants & plans" subtitle="Cross-tenant administration — subscriptions, seats and feature entitlements"
+          <PageHeader title="Plans & billing" subtitle="Cross-tenant administration — plans, seats, features, billing and ops. Manage individual tenants under Tenants."
             action={tab === 'plans' ? (
               <button className="btn btn-primary" onClick={() => setPlanModal('new')}>
                 <Icon name="ti-plus" className="text-base" /> New plan
@@ -573,7 +567,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['tenants', 'plans', 'billing', 'email', 'backups', 'errors', 'owners'] as const).map((t) => (
+            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -583,56 +577,14 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : 'Co-owners'}
+                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : 'Co-owners'}
               </button>
             ))}
           </div>
 
           {err && <p className="text-sm text-rose-600 mb-3 px-4 pt-4 card rounded-t-none">{err}</p>}
 
-          {tab === 'tenants' ? (
-            <div className="card overflow-hidden rounded-t-none">
-              <div className="overflow-x-auto"><table className="w-full text-sm">
-                <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Tenant</th>
-                    <th className="px-4 py-3 font-medium">Plan</th>
-                    <th className="px-4 py-3 font-medium">Seats</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orgs.map((o) => {
-                    const overSeats = o.seat_limit != null && o.member_count >= o.seat_limit;
-                    return (
-                      <tr key={o.org_id} className="border-t border-line hover:bg-surface2/50">
-                        <td className="px-4 py-3">
-                          <span className="block font-medium text-content">{o.org_name}</span>
-                          <span className="block text-2xs text-muted font-mono">{o.slug}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <select className="input h-8 py-0" disabled={busy}
-                            value={plans.find((p) => p.key === o.plan_key)?.id || ''}
-                            onChange={(e) => changePlan(o.org_id, e.target.value)}>
-                            {!o.plan_key && <option value="">— none —</option>}
-                            {plans.filter((p) => p.is_active || p.key === o.plan_key).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </td>
-                        <td className={`px-4 py-3 ${overSeats ? 'text-rose-600 font-medium' : ''}`}>
-                          {o.member_count}{o.seat_limit == null ? ' / ∞' : ` / ${o.seat_limit}`}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`pill ${o.sub_status === 'active' ? 'pill-green' : o.sub_status ? 'pill-amber' : 'pill-red'}`}>
-                            {o.sub_status || 'none'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table></div>
-            </div>
-          ) : tab === 'plans' ? (
+          {tab === 'plans' ? (
             <div className="card overflow-x-auto rounded-t-none">
               <div className="overflow-x-auto"><table className="w-full text-sm">
                 <thead className="bg-surface2 text-left">
