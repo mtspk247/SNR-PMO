@@ -582,6 +582,13 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
     .update({ is_read: true, read_at: new Date().toISOString() }).eq('user_id', userId).eq('is_read', false);
   if (error) throw new Error(error.message);
 }
+export async function getRecentSystemNotifications(userId: string, sinceIso: string): Promise<AppNotification[]> {
+  const { data, error } = await sb.from('notifications').select('*')
+    .eq('user_id', userId).eq('type', 'SYSTEM').eq('is_read', false)
+    .gt('created_at', sinceIso)
+    .order('created_at', { ascending: true }).limit(5);
+  if (error) throw error; return (data as AppNotification[]) || [];
+}
 // Cross-user notify via SECURITY DEFINER RPC (notif RLS blocks direct peer inserts).
 export async function notify(p: {
   org_id: string; user_id: string; type: string; title: string;

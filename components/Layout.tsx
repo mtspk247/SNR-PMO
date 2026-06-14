@@ -17,6 +17,7 @@ import ActivityTicker from '@/components/ActivityTicker';
 import ChatPanel from '@/components/ChatPanel';
 import { TimerChip } from '@/components/TimeTracking';
 import RunningTimers from '@/components/RunningTimers';
+import Toaster from '@/components/Toaster';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
@@ -260,6 +261,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
       <StickyNotesFab />
+      <Toaster />
     </div>
   );
 }
