@@ -12,6 +12,7 @@ import {
   getProjectById, getTasks, getRisks, getFinancials, getLedgerEntries,
   getOrgUsers, getOrgCompanies, getPortfolios,
   createTask, listGuestRequests, createGuestRequest, decideGuestRequest, GuestRequest,
+  listGuestDocuments, uploadGuestDocument, guestDocumentUrl, deleteGuestDocument, GuestDocument,
 } from '@/lib/db';
 import { Project, Task, Risk, Financial, LedgerEntry, OrgUser, OrgCompany, Portfolio } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -223,6 +224,7 @@ export default function ProjectDetail() {
         { key: 'risks', label: 'Risks', icon: 'ti-alert-triangle', count: risks.length },
         { key: 'financials', label: 'Financials', icon: 'ti-cash', count: financials.length + ledger.length },
         { key: 'requests', label: 'Requests', icon: 'ti-inbox' },
+        { key: 'documents', label: 'Documents', icon: 'ti-paperclip' },
         { key: 'discussion', label: 'Discussion', icon: 'ti-messages' },
       ]} />
 
@@ -357,6 +359,8 @@ export default function ProjectDetail() {
 
       {tab === 'requests' && <RequestsPanel projectId={id} orgId={org?.id} meId={me?.id} isOrgAdmin={isOrgAdmin} isGuest={org?.member_role === 'guest'} />}
 
+      {tab === 'documents' && <DocumentsPanel projectId={id} orgId={org?.id} meId={me?.id} isOrgAdmin={isOrgAdmin} />}
+
       {tab === 'discussion' && (
         <div className="card p-5 max-w-2xl">
           <p className="text-sm font-semibold mb-3">Discussion</p>
@@ -445,6 +449,62 @@ function RequestsPanel({ projectId, orgId, meId, isOrgAdmin, isGuest }: { projec
             )}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+
+function DocumentsPanel({ projectId, orgId, meId, isOrgAdmin }: { projectId: string; orgId?: string; meId?: string; isOrgAdmin: boolean }) {
+  const [rows, setRows] = useState<GuestDocument[] | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const load = async () => { try { setRows(await listGuestDocuments(projectId)); } catch (e: any) { setErr(e?.message || 'Failed to load documents'); setRows([]); } };
+  useEffect(() => { if (projectId) load(); /* eslint-disable-next-line */ }, [projectId]);
+  const upload = async () => {
+    if (!file || !orgId || !meId || busy) return;
+    setBusy(true); setErr('');
+    try { await uploadGuestDocument({ org_id: orgId, project_id: projectId, uploaded_by: meId, file, note: note.trim() || undefined }); setFile(null); setNote(''); await load(); }
+    catch (e: any) { setErr(e?.message || 'Upload failed'); } finally { setBusy(false); }
+  };
+  const openDoc = async (d: GuestDocument) => { try { const url = await guestDocumentUrl(d.file_path); window.open(url, '_blank'); } catch (e: any) { setErr(e?.message || 'Could not open file'); } };
+  const del = async (d: GuestDocument) => { if (!confirm(`Delete ${d.file_name}?`)) return; setBusy(true); setErr(''); try { await deleteGuestDocument(d.id, d.file_path); await load(); } catch (e: any) { setErr(e?.message || 'Delete failed'); } finally { setBusy(false); } };
+
+  return (
+    <div className="grid lg:grid-cols-3 gap-4">
+      <div className="lg:col-span-1"><div className="card p-4">
+        <p className="text-sm font-semibold text-content mb-3">Submit a document</p>
+        {err && <p className="text-sm text-rose-600 mb-2">{err}</p>}
+        <div className="space-y-2.5">
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block w-full text-sm text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-line file:bg-surface2 file:text-content file:text-sm" />
+          <input className="input" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <button className="btn btn-primary w-full" disabled={busy || !file} onClick={upload}><Icon name="ti-upload" />{busy ? 'Uploading…' : 'Upload'}</button>
+          <p className="text-2xs text-muted2">Files are private to this project&rsquo;s team and guests.</p>
+        </div>
+      </div></div>
+      <div className="lg:col-span-2">
+        {rows === null ? <Spinner /> : rows.length === 0 ? (
+          <div className="card p-8"><EmptyState icon="ti-paperclip" text="No documents yet." /></div>
+        ) : (
+          <div className="card overflow-hidden"><div className="divide-y divide-line">
+            {rows.map((d) => {
+              const canDel = d.uploaded_by === meId || isOrgAdmin;
+              return (
+                <div key={d.id} className="flex items-center gap-3 px-4 py-3">
+                  <Icon name="ti-file" className="text-muted2 text-lg shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <button onClick={() => openDoc(d)} className="block text-sm text-content hover:text-accent truncate text-left">{d.file_name}</button>
+                    <p className="text-2xs text-muted2 truncate">{d.uploader?.full_name || 'Guest'} · {new Date(d.created_at).toLocaleDateString()}{d.note ? ` · ${d.note}` : ''}</p>
+                  </div>
+                  <button onClick={() => openDoc(d)} className="btn btn-ghost h-8 py-0" title="Download"><Icon name="ti-download" className="text-sm" /></button>
+                  {canDel && <button onClick={() => del(d)} disabled={busy} className="btn btn-ghost h-8 py-0 text-rose-500" title="Delete"><Icon name="ti-trash" className="text-sm" /></button>}
+                </div>
+              );
+            })}
+          </div></div>
+        )}
       </div>
     </div>
   );

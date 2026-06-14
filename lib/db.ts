@@ -1579,3 +1579,29 @@ export async function decideGuestRequest(id: string, status: 'approved' | 'rejec
   const { error } = await sb.from('guest_requests').update({ status, decision_note: note || null, decided_by: deciderId, decided_at: new Date().toISOString() }).eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ---- Guest document submission (slice 3; bucket guest-uploads + guest_documents) ----
+export interface GuestDocument { id: string; org_id: string; project_id: string; uploaded_by: string; file_path: string; file_name: string; note: string | null; created_at: string; uploader?: { full_name: string | null } | null; }
+const GDOC_SEL = '*, uploader:users!guest_documents_uploaded_by_fkey(full_name)';
+export async function listGuestDocuments(projectId: string): Promise<GuestDocument[]> {
+  const { data, error } = await sb.from('guest_documents').select(GDOC_SEL).eq('project_id', projectId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data as GuestDocument[]) || [];
+}
+export async function uploadGuestDocument(p: { org_id: string; project_id: string; uploaded_by: string; file: File; note?: string }): Promise<void> {
+  const safe = p.file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
+  const path = `${p.org_id}/${p.project_id}/${crypto.randomUUID()}_${safe}`;
+  const { error: upErr } = await sb.storage.from('guest-uploads').upload(path, p.file, { upsert: false });
+  if (upErr) throw new Error(upErr.message);
+  const { error } = await sb.from('guest_documents').insert({ org_id: p.org_id, project_id: p.project_id, uploaded_by: p.uploaded_by, file_path: path, file_name: p.file.name, note: p.note || null });
+  if (error) throw new Error(error.message);
+}
+export async function guestDocumentUrl(path: string): Promise<string> {
+  const { data, error } = await sb.storage.from('guest-uploads').createSignedUrl(path, 3600);
+  if (error) throw new Error(error.message); return data.signedUrl;
+}
+export async function deleteGuestDocument(id: string, path: string): Promise<void> {
+  await sb.storage.from('guest-uploads').remove([path]);
+  const { error } = await sb.from('guest_documents').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
