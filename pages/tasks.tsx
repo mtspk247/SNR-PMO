@@ -6,7 +6,7 @@ import { Modal, Field, useModalTabs } from '@/components/Modal';
 import StatusManager from '@/components/StatusManager';
 import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
-import { getOrgUsers, createTask, updateTask, deleteTask, notify, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus } from '@/lib/db';
+import { getOrgUsers, createTask, updateTask, deleteTask, notify, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useTasks, useProjects, useTeams } from '@/lib/queries';
@@ -53,6 +53,8 @@ type GroupBy = 'none' | 'project' | 'priority' | 'status';
 export default function Tasks() {
   const router = useRouter();
   const activeOrg = useActiveOrg();
+  const [priorities, setPriorities] = useState<string[]>(PRIORITIES);
+  useEffect(() => { if (!activeOrg) return; getOrgOptions(activeOrg.id, 'task_priority').then((o) => { const a = o.filter((x) => x.active).map((x) => x.label); if (a.length) setPriorities(a); }).catch(() => {}); }, [activeOrg?.id]);
   const me = useAuthStore((s) => s.user);
   const canDelete = can.write(activeOrg);
   const qc = useQueryClient();
@@ -173,7 +175,7 @@ export default function Tasks() {
       groupBy === 'priority' ? (t.priority || 'None') : (t.status || 'None');
     const m = new Map<string, Task[]>();
     pg.pageItems.forEach((t) => { const k = keyOf(t); m.set(k, [...(m.get(k) || []), t]); });
-    const rank = groupBy === 'priority' ? PRIORITIES : groupBy === 'status' ? statuses : null;
+    const rank = groupBy === 'priority' ? priorities : groupBy === 'status' ? statuses : null;
     return Array.from(m.entries()).sort(([a], [b]) =>
       rank ? rank.indexOf(a) - rank.indexOf(b) : a.localeCompare(b));
   }, [pg.pageItems, groupBy]);
@@ -650,7 +652,7 @@ export default function Tasks() {
                     </select></div>
                   <div><label className="label">Priority</label>
                     <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="input h-9 w-full">
-                      <option value="">All priorities</option>{PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+                      <option value="">All priorities</option>{priorities.map((p) => <option key={p}>{p}</option>)}
                     </select></div>
                   <div><label className="label">Assignee</label>
                     <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input h-9 w-full">
@@ -804,7 +806,7 @@ export default function Tasks() {
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Status"><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{statuses.map(s => <option key={s}>{s}</option>)}</select></Field>
                 <Field label="Assignee"><select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className="input"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></Field>
-                <Field label="Priority"><select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select></Field>
+                <Field label="Priority"><select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{priorities.map((p) => <option key={p}>{p}</option>)}</select></Field>
                 <Field label="Due date"><input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" /></Field>
               </div>
               <Field label="Project">

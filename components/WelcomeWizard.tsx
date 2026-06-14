@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { saveOnboarding } from '@/lib/db';
+import { saveOnboarding, getOrgOptions } from '@/lib/db';
 
 const TEAM = ['Just me', '2–10', '11–50', '50+'];
 const INDUSTRY = ['Agency', 'SaaS / Software', 'Consulting', 'E-commerce', 'Construction / Real estate', 'Healthcare', 'Education', 'Other'];
@@ -26,6 +26,13 @@ export default function WelcomeWizard() {
   const [err, setErr] = useState('');
 
   useEffect(() => { if (org) setName((n) => n || org.name || ''); }, [org?.id]);
+  const [industries, setIndustries] = useState<string[]>(INDUSTRY);
+  const [useCases, setUseCases] = useState<string[]>(USECASE);
+  useEffect(() => {
+    if (!org) return;
+    getOrgOptions(org.id, 'industry').then((o) => { const a = o.filter((x) => x.active).map((x) => x.label); if (a.length) setIndustries(a); }).catch(() => {});
+    getOrgOptions(org.id, 'use_case').then((o) => { const a = o.filter((x) => x.active).map((x) => x.label); if (a.length) setUseCases(a); }).catch(() => {});
+  }, [org?.id]);
 
   const key = org ? `snr_onboard_skip_${org.id}` : '';
   const skipped = typeof window !== 'undefined' && key ? window.localStorage.getItem(key) === '1' : false;
@@ -58,11 +65,11 @@ export default function WelcomeWizard() {
             <select className="input" value={teamSize} onChange={(e) => setTeamSize(e.target.value)}><option value="">Select…</option>{TEAM.map((t) => <option key={t} value={t}>{t}</option>)}</select>
           </Field>
           <Field label="Industry">
-            <select className="input" value={industry} onChange={(e) => setIndustry(e.target.value)}><option value="">Select…</option>{INDUSTRY.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+            <select className="input" value={industry} onChange={(e) => setIndustry(e.target.value)}><option value="">Select…</option>{industries.map((t) => <option key={t} value={t}>{t}</option>)}</select>
           </Field>
         </div>
         <Field label="What will you mainly use it for?">
-          <select className="input" value={useCase} onChange={(e) => setUseCase(e.target.value)}><option value="">Select…</option>{USECASE.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+          <select className="input" value={useCase} onChange={(e) => setUseCase(e.target.value)}><option value="">Select…</option>{useCases.map((t) => <option key={t} value={t}>{t}</option>)}</select>
         </Field>
         <Field label="Your role" hint="e.g. Founder, Project Manager">
           <input className="input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Founder" />

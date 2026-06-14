@@ -145,6 +145,23 @@ export async function updateMyProfile(userId: string, patch: Partial<Omit<MyProf
   const { error } = await sb.from('users').update(patch).eq('id', userId);
   if (error) throw new Error(error.message);
 }
+export interface OrgOption { id: string; label: string; sort_order: number; active: boolean; }
+export async function getOrgOptions(orgId: string, key: string): Promise<OrgOption[]> {
+  const { data, error } = await sb.rpc('options_list', { p_org: orgId, p_key: key });
+  if (error) throw new Error(error.message); return (data as OrgOption[]) || [];
+}
+export async function addOption(orgId: string, key: string, label: string): Promise<void> {
+  const { error } = await sb.rpc('option_add', { p_org: orgId, p_key: key, p_label: label }); if (error) throw new Error(error.message);
+}
+export async function updateOption(id: string, label: string, active: boolean): Promise<void> {
+  const { error } = await sb.rpc('option_update', { p_id: id, p_label: label, p_active: active }); if (error) throw new Error(error.message);
+}
+export async function deleteOption(id: string): Promise<void> {
+  const { error } = await sb.rpc('option_delete', { p_id: id }); if (error) throw new Error(error.message);
+}
+export async function reorderOptions(ids: string[]): Promise<void> {
+  const { error } = await sb.rpc('option_reorder', { p_ids: ids }); if (error) throw new Error(error.message);
+}
 export async function getOrgPlanFeatures(orgId: string): Promise<string[]> {
   const { data: sub } = await sb.from('subscriptions').select('plan_id, status').eq('org_id', orgId).maybeSingle();
   let planId = sub?.plan_id as string | undefined;

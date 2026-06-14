@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
@@ -8,7 +8,7 @@ import { Modal, Field, useModalTabs } from '@/components/Modal';
 import CustomFields from '@/components/CustomFields';
 import EntityTags from '@/components/EntityTags';
 import { useLedgerEntries, useProjects, useOrgCompanies } from '@/lib/queries';
-import { createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, LEDGER_CATEGORIES } from '@/lib/db';
+import { createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, LEDGER_CATEGORIES, getOrgOptions } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { LedgerEntry } from '@/lib/supabase';
@@ -106,6 +106,15 @@ const LEDGER_COLS: ColDef[] = [
 
 export default function AccountingPage() {
   const org = useActiveOrg();
+  const [cats, setCats] = useState<{ income: string[]; expense: string[] }>(LEDGER_CATEGORIES);
+  useEffect(() => {
+    if (!org) return;
+    Promise.all([getOrgOptions(org.id, 'ledger_income'), getOrgOptions(org.id, 'ledger_expense')])
+      .then(([inc, exp]) => setCats({
+        income: inc.filter((x) => x.active).map((x) => x.label).length ? inc.filter((x) => x.active).map((x) => x.label) : LEDGER_CATEGORIES.income,
+        expense: exp.filter((x) => x.active).map((x) => x.label).length ? exp.filter((x) => x.active).map((x) => x.label) : LEDGER_CATEGORIES.expense,
+      })).catch(() => {});
+  }, [org?.id]);
   const me = useAuthStore((s) => s.user);
   const qc = useQueryClient();
   const isAdmin = org?.member_role === 'owner' || org?.member_role === 'admin';
@@ -134,7 +143,7 @@ export default function AccountingPage() {
 
   // Category options: curated lists + anything already used (covers payroll-posted rows).
   const allCategories = useMemo(() => {
-    const s = new Set<string>([...LEDGER_CATEGORIES.income, ...LEDGER_CATEGORIES.expense]);
+    const s = new Set<string>([...cats.income, ...cats.expense]);
     entries.forEach((e) => s.add(e.category));
     return Array.from(s).sort();
   }, [entries]);
@@ -573,7 +582,7 @@ export default function AccountingPage() {
               <select className="input w-full" value={form.type}
                 onChange={(e) => {
                   const t = e.target.value as 'income' | 'expense';
-                  set({ type: t, category: LEDGER_CATEGORIES[t].includes(form.category) ? form.category : LEDGER_CATEGORIES[t][0] });
+                  set({ type: t, category: cats[t].includes(form.category) ? form.category : cats[t][0] });
                 }}>
                 <option value="income">Income</option>
                 <option value="expense">Expense</option>
@@ -581,8 +590,8 @@ export default function AccountingPage() {
             </Field>
             <Field label="Category" required>
               <select className="input w-full" value={form.category} onChange={(e) => set({ category: e.target.value })}>
-                {LEDGER_CATEGORIES[form.type].map((c) => <option key={c} value={c}>{c}</option>)}
-                {!LEDGER_CATEGORIES[form.type].includes(form.category) && <option value={form.category}>{form.category}</option>}
+                {cats[form.type].map((c) => <option key={c} value={c}>{c}</option>)}
+                {!cats[form.type].includes(form.category) && <option value={form.category}>{form.category}</option>}
               </select>
             </Field>
             <Field label="Amount (USD)" required>
