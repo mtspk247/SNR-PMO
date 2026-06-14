@@ -13,6 +13,7 @@ import RequestsBell from '@/components/RequestsBell';
 import NoticeBoardIcon from '@/components/NoticeBoardIcon';
 import StickyNotesFab from '@/components/StickyNotesFab';
 import GlobalSearch from '@/components/GlobalSearch';
+import ActivityTicker from '@/components/ActivityTicker';
 import ChatPanel from '@/components/ChatPanel';
 import { TimerChip } from '@/components/TimeTracking';
 import RunningTimers from '@/components/RunningTimers';
@@ -236,6 +237,11 @@ export default function Layout({ title, children, flat = false }: { title: strin
             </button>
             <Breadcrumbs fallback={defaultCrumbs} />
           </div>
+          {can.manageMembers(activeOrg) && (
+            <div className="hidden md:flex flex-1 min-w-0 items-center px-4">
+              <ActivityTicker />
+            </div>
+          )}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <GlobalSearch />
             <TimerChip />

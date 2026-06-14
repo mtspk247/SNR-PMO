@@ -2133,3 +2133,12 @@ export async function listTenantSnapshots(orgId: string): Promise<TenantSnapshot
 export async function restoreTenantSnapshot(id: string): Promise<void> {
   const { error } = await sb.rpc('tenant_restore_snapshot', { p_id: id }); if (error) throw new Error(error.message);
 }
+
+// ---- Live activity ticker (header) — recent audit-log events ----
+export interface ActivityItem { id: number; ts: string; username: string | null; action: string; entity_type: string | null; entity_id: string | null; }
+export async function getRecentActivity(): Promise<ActivityItem[]> {
+  const { data, error } = await sb.from('audit_log')
+    .select('id, ts, username, action, entity_type, entity_id')
+    .order('ts', { ascending: false }).limit(20);
+  if (error) throw new Error(error.message); return (data as ActivityItem[]) || [];
+}
