@@ -807,6 +807,48 @@ export async function deleteReconciliation(id: string): Promise<void> {
   const { error } = await sb.from('vendor_sub_reconciliations').delete().eq('id', id); if (error) throw new Error(error.message);
 }
 
+// ---- Accounting registers (recurring expenses / domains / assets / bank accounts) ----
+export interface RecurringExpense { id: string; org_id: string; name: string; category: string | null; amount: number; currency: string; cycle: string; next_due: string | null; vendor: string | null; payment_method: string | null; paid_by_company: string | null; status: string; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface Domain { id: string; org_id: string; domain: string; registrar: string | null; owner_id: string | null; purchased_on: string | null; expires_on: string | null; auto_renew: boolean; cost: number; currency: string; total_spending: number; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface Asset { id: string; org_id: string; name: string; asset_type: string; category: string | null; owner_id: string | null; acquired_on: string | null; value: number; revenue: number; currency: string; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface BankAccount { id: string; org_id: string; label: string; bank_name: string | null; account_type: string; last4: string | null; currency: string; balance: number; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+
+async function _list<T>(table: string, orgId: string, orderBy = 'created_at', asc = false): Promise<T[]> {
+  const { data, error } = await sb.from(table).select('*').eq('org_id', orgId).order(orderBy, { ascending: asc });
+  if (error) throw new Error(error.message); return (data as T[]) || [];
+}
+async function _create<T>(table: string, row: any): Promise<T> {
+  const { data, error } = await sb.from(table).insert(row).select('*').single();
+  if (error) throw new Error(error.message); return data as T;
+}
+async function _update(table: string, id: string, patch: any): Promise<void> {
+  const { error } = await sb.from(table).update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+async function _del(table: string, id: string): Promise<void> {
+  const { error } = await sb.from(table).delete().eq('id', id); if (error) throw new Error(error.message);
+}
+
+export const listRecurringExpenses = (orgId: string) => _list<RecurringExpense>('recurring_expenses', orgId);
+export const createRecurringExpense = (row: Partial<RecurringExpense> & { org_id: string; name: string; created_by: string }) => _create<RecurringExpense>('recurring_expenses', row);
+export const updateRecurringExpense = (id: string, patch: Partial<RecurringExpense>) => _update('recurring_expenses', id, patch);
+export const deleteRecurringExpense = (id: string) => _del('recurring_expenses', id);
+
+export const listDomains = (orgId: string) => _list<Domain>('domains', orgId);
+export const createDomain = (row: Partial<Domain> & { org_id: string; domain: string; created_by: string }) => _create<Domain>('domains', row);
+export const updateDomain = (id: string, patch: Partial<Domain>) => _update('domains', id, patch);
+export const deleteDomain = (id: string) => _del('domains', id);
+
+export const listAssets = (orgId: string) => _list<Asset>('assets', orgId);
+export const createAsset = (row: Partial<Asset> & { org_id: string; name: string; created_by: string }) => _create<Asset>('assets', row);
+export const updateAsset = (id: string, patch: Partial<Asset>) => _update('assets', id, patch);
+export const deleteAsset = (id: string) => _del('assets', id);
+
+export const listBankAccounts = (orgId: string) => _list<BankAccount>('bank_accounts', orgId);
+export const createBankAccount = (row: Partial<BankAccount> & { org_id: string; label: string; created_by: string }) => _create<BankAccount>('bank_accounts', row);
+export const updateBankAccount = (id: string, patch: Partial<BankAccount>) => _update('bank_accounts', id, patch);
+export const deleteBankAccount = (id: string) => _del('bank_accounts', id);
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')

@@ -47,6 +47,10 @@ const SECTIONS: Section[] = [
     { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
     { href: '/accounting', label: 'Ledger', icon: 'ti-report-money', feature: 'financial' },
     { href: '/subscriptions', label: 'Subscriptions', icon: 'ti-credit-card', feature: 'subscriptions' },
+    { href: '/recurring', label: 'Recurring', icon: 'ti-repeat', feature: 'financial' },
+    { href: '/domains', label: 'Domains', icon: 'ti-world-www', feature: 'financial' },
+    { href: '/assets', label: 'Assets', icon: 'ti-building-warehouse', feature: 'financial' },
+    { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial' },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
     { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm' },
