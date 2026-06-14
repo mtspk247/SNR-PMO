@@ -114,9 +114,8 @@ export default function TimeTracking({ taskId, orgId, projectId }: {
   );
 }
 
-/** Compact running-timer chip for the app header — clickable task + project, with pause / stop / hide; resume when paused. */
+/** Compact running-timer chip for the app header — clickable task + project; Start/Stop toggle + X close. */
 const PKEY = (uid?: string) => `snr-paused-timer-${uid || 'anon'}`;
-const HKEY = (uid?: string) => `snr-hidden-timer-${uid || 'anon'}`;
 type Paused = { taskId: string; projectId: string | null; orgId: string; taskName: string; projectName: string | null };
 
 export function TimerChip() {
@@ -125,45 +124,40 @@ export function TimerChip() {
   const { data: myTimer } = useMyOpenTimer(me?.id);
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState<Paused | null>(null);
-  const [hidden, setHidden] = useState<string | null>(null);
 
   useEffect(() => {
     try { const raw = localStorage.getItem(PKEY(me?.id)); setPaused(raw ? JSON.parse(raw) : null); } catch { /* ignore */ }
-    try { setHidden(localStorage.getItem(HKEY(me?.id))); } catch { /* ignore */ }
   }, [me?.id]);
   const savePaused = (p: Paused | null) => {
     setPaused(p);
     try { if (p) localStorage.setItem(PKEY(me?.id), JSON.stringify(p)); else localStorage.removeItem(PKEY(me?.id)); } catch { /* ignore */ }
   };
-  const saveHidden = (idv: string | null) => {
-    setHidden(idv);
-    try { if (idv) localStorage.setItem(HKEY(me?.id), idv); else localStorage.removeItem(HKEY(me?.id)); } catch { /* ignore */ }
-  };
   useEffect(() => { if (myTimer && paused) savePaused(null); /* eslint-disable-next-line */ }, [myTimer?.id]);
 
   const invalidate = () => { qc.invalidateQueries({ queryKey: ['myTimer'] }); if (myTimer) qc.invalidateQueries({ queryKey: qk.taskTime(myTimer.task_id) }); };
 
-  const onPause = async () => {
-    if (!myTimer) return; setBusy(true);
+  // Toggle: when running -> Stop (save the entry, keep the chip so it can be restarted); when stopped -> Start a new entry.
+  const onToggle = async () => {
+    if (busy) return; setBusy(true);
     try {
-      await stopTimer(myTimer);
-      savePaused({ taskId: myTimer.task_id, projectId: myTimer.project_id ?? null, orgId: myTimer.org_id, taskName: myTimer.task?.name || 'Task', projectName: myTimer.project?.name ?? null });
-      invalidate();
+      if (myTimer) {
+        await stopTimer(myTimer);
+        savePaused({ taskId: myTimer.task_id, projectId: myTimer.project_id ?? null, orgId: myTimer.org_id, taskName: myTimer.task?.name || 'Task', projectName: myTimer.project?.name ?? null });
+        invalidate();
+      } else if (me && paused) {
+        await startTimer({ org_id: paused.orgId, task_id: paused.taskId, project_id: paused.projectId, user_id: me.id });
+        savePaused(null); qc.invalidateQueries({ queryKey: ['myTimer'] });
+      }
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
-  const onStop = async () => {
-    if (!myTimer) return; setBusy(true);
-    try { await stopTimer(myTimer); savePaused(null); saveHidden(null); invalidate(); }
-    catch (e: any) { alert(e.message); } finally { setBusy(false); }
-  };
-  const onResume = async () => {
-    if (!me || !paused) return; setBusy(true);
-    try { await startTimer({ org_id: paused.orgId, task_id: paused.taskId, project_id: paused.projectId, user_id: me.id }); savePaused(null); saveHidden(null); qc.invalidateQueries({ queryKey: ['myTimer'] }); }
+  // X: close the chip entirely (stop the timer first if it is running).
+  const onClose = async () => {
+    if (busy) return; setBusy(true);
+    try { if (myTimer) await stopTimer(myTimer); savePaused(null); invalidate(); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
   const running = !!myTimer;
-  if (running && hidden === myTimer!.id) return null;  // hidden by user; still running, visible in Active timers
   if (!running && !paused) return null;
   const taskId = running ? myTimer!.task_id : paused!.taskId;
   const taskName = running ? (myTimer!.task?.name || 'Timer') : paused!.taskName;
@@ -174,23 +168,16 @@ export function TimerChip() {
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${running ? 'bg-accentstrong animate-pulse' : 'bg-amber-500'}`} />
       <Link href={`/tasks?task=${taskId}`} className="min-w-0 leading-tight hover:underline" title="Open task">
         <span className="block truncate max-w-[10rem]">{taskName}</span>
-        <span className="block truncate max-w-[10rem] text-2xs opacity-70 font-normal">{projectName || 'No project'}{running ? '' : ' · paused'}</span>
+        <span className="block truncate max-w-[10rem] text-2xs opacity-70 font-normal">{projectName || 'No project'}{running ? '' : ' · stopped'}</span>
       </Link>
       <span className="opacity-50 shrink-0">·</span>
-      {running ? <Elapsed since={myTimer!.started_at} /> : <span className="tabular-nums font-mono">paused</span>}
+      {running ? <Elapsed since={myTimer!.started_at} /> : <span className="tabular-nums font-mono">stopped</span>}
       <span className="flex items-center gap-0.5 shrink-0">
-        {running ? (
-          <>
-            <button onClick={onPause} disabled={busy} title="Pause (stops this entry)" className="h-7 w-7 grid place-items-center rounded hover:bg-accent/20"><Icon name="ti-player-pause" className="text-sm" /></button>
-            <button onClick={onStop} disabled={busy} title="Stop" className="h-7 w-7 grid place-items-center rounded text-rose-500 hover:bg-rose-500/20"><Icon name="ti-player-stop" className="text-sm" /></button>
-            <button onClick={() => saveHidden(myTimer!.id)} disabled={busy} title="Hide (timer keeps running)" className="h-7 w-7 grid place-items-center rounded text-muted hover:bg-surface2"><Icon name="ti-x" className="text-sm" /></button>
-          </>
-        ) : (
-          <>
-            <button onClick={onResume} disabled={busy} title="Resume (starts a new entry)" className="h-7 w-7 grid place-items-center rounded text-accentstrong hover:bg-accent/20"><Icon name="ti-player-play" className="text-sm" /></button>
-            <button onClick={() => savePaused(null)} disabled={busy} title="Dismiss" className="h-7 w-7 grid place-items-center rounded text-muted hover:bg-surface2"><Icon name="ti-x" className="text-sm" /></button>
-          </>
-        )}
+        <button onClick={onToggle} disabled={busy} title={running ? 'Stop (keeps it so you can restart)' : 'Start again'}
+          className={`h-7 w-7 grid place-items-center rounded ${running ? 'text-rose-500 hover:bg-rose-500/20' : 'text-accentstrong hover:bg-accent/20'}`}>
+          <Icon name={running ? 'ti-player-stop' : 'ti-player-play'} className="text-sm" />
+        </button>
+        <button onClick={onClose} disabled={busy} title="Close" className="h-7 w-7 grid place-items-center rounded text-muted hover:bg-surface2"><Icon name="ti-x" className="text-sm" /></button>
       </span>
     </div>
   );
