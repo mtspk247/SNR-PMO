@@ -243,7 +243,7 @@ export default function TenantDetail() {
       {tab === 'domain' && (
         <div className="card p-5 max-w-2xl">
           <p className="text-sm font-semibold text-content mb-1">Custom domain</p>
-          <p className="text-2xs text-muted mb-3">Serve this tenant on its own domain. Their logo, colors and name load automatically once the domain is verified.</p>
+          <p className="text-2xs text-muted mb-3">Serve this tenant on its own domain — its logo, colors and name load automatically once verified. Requires DNS changes and adding the domain in Vercel (steps appear after you save).</p>
           <div className="flex items-center gap-2">
             <input className="input flex-1" value={domInput} onChange={(e) => setDomInput(e.target.value)} placeholder="pm.acme.com" disabled={domBusy} />
             <button className="btn btn-primary shrink-0" disabled={domBusy} onClick={() => ask('Save custom domain?', `Set ${tenant.org_name}'s custom domain to "${domInput.trim()}"? It must be verified before it serves their branding.`, saveDomain)}>{domBusy ? '…' : 'Save'}</button>
@@ -256,14 +256,36 @@ export default function TenantDetail() {
                 {!dom.verified && <button className="btn-ghost text-2xs" disabled={domBusy} onClick={verifyDomain}><Icon name="ti-refresh" />{domBusy ? 'Checking…' : 'Verify domain'}</button>}
               </div>
               {domMsg && <p className="text-2xs text-muted">{domMsg}</p>}
-              {!dom.verified && (
-                <div className="rounded-md bg-surface2 p-2.5 text-2xs text-muted space-y-1.5">
-                  <p className="font-medium text-content">Add these DNS records, then add the domain to the Vercel project:</p>
-                  <p>1. <span className="font-mono text-content">CNAME</span> <span className="font-mono text-content">{dom.custom_domain}</span> → <span className="font-mono">cname.vercel-dns.com</span></p>
-                  <p>2. <span className="font-mono text-content">TXT</span> <span className="font-mono text-content">_snr-verify.{dom.custom_domain}</span> → <span className="font-mono break-all text-content">{dom.token}</span></p>
-                  <p className="text-muted2">Add the records, then click “Verify domain” — we check the TXT automatically. (Also add the domain to the Vercel project.)</p>
-                </div>
-              )}
+              {!dom.verified && (() => {
+                const labels = (dom.custom_domain || '').split('.');
+                const isApex = labels.length <= 2;
+                const sub = labels[0];
+                const badge = 'shrink-0 w-4 h-4 rounded-full bg-accent/15 text-accentstrong grid place-items-center text-[10px] font-semibold mt-0.5';
+                return (
+                  <div className="rounded-md bg-surface2 p-3 text-2xs text-muted space-y-2.5">
+                    <p className="font-medium text-content">Make this domain live in 3 steps. The values below are the usual Vercel ones — when you add the domain in Vercel it shows the exact records to use.</p>
+                    <div className="flex gap-2">
+                      <span className={badge}>1</span>
+                      <div><span className="font-medium text-content">Add it to Vercel.</span> In the Vercel project (snr-pmo) → Settings → Domains, add <span className="font-mono text-content">{dom.custom_domain}</span>. This is what actually makes the domain serve the app — it can&rsquo;t be automated from here.</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className={badge}>2</span>
+                      <div><span className="font-medium text-content">Point DNS at Vercel</span> at your registrar:
+                        {isApex
+                          ? <div className="mt-1"><span className="font-mono text-content">A</span> <span className="font-mono text-content">@</span> &rarr; <span className="font-mono text-content">76.76.21.21</span> <span className="text-muted2">(apex domain — apex can&rsquo;t use CNAME)</span></div>
+                          : <div className="mt-1"><span className="font-mono text-content">CNAME</span> <span className="font-mono text-content">{sub}</span> &rarr; <span className="font-mono text-content">cname.vercel-dns.com</span> <span className="text-muted2">(subdomain)</span></div>}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className={badge}>3</span>
+                      <div><span className="font-medium text-content">Add the ownership record</span> so we can verify it:
+                        <div className="mt-1"><span className="font-mono text-content">TXT</span> <span className="font-mono text-content">_snr-verify.{dom.custom_domain}</span> &rarr; <span className="font-mono break-all text-content">{dom.token}</span></div>
+                      </div>
+                    </div>
+                    <p className="text-muted2 pt-0.5">DNS can take a few minutes to a few hours to propagate. Then click <span className="font-medium text-content">Verify domain</span> above — we check the TXT automatically, and {dom.custom_domain} starts serving this tenant&rsquo;s branding.</p>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
