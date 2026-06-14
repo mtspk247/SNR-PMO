@@ -717,6 +717,53 @@ export async function getDriveUsage(orgId: string): Promise<number> {
   if (error) throw new Error(error.message); return Number(data || 0);
 }
 
+// ---- Approvals (F3) ----
+export interface ApprovalRequest { id: string; org_id: string; entity_type: string; entity_id: string | null; kind: string | null; title: string; body: string | null; amount: number | null; requested_by: string; approver_id: string | null; status: 'pending' | 'approved' | 'rejected' | 'cancelled'; decided_by: string | null; decided_at: string | null; decision_note: string | null; created_at: string; }
+export async function listApprovals(orgId: string, opts?: { status?: string; entityType?: string }): Promise<ApprovalRequest[]> {
+  let q = sb.from('approval_requests').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (opts?.status) q = q.eq('status', opts.status);
+  if (opts?.entityType) q = q.eq('entity_type', opts.entityType);
+  const { data, error } = await q; if (error) throw new Error(error.message); return (data as ApprovalRequest[]) || [];
+}
+export async function approvalCreate(p: { org_id: string; entity_type: string; entity_id?: string | null; kind?: string | null; title: string; body?: string | null; amount?: number | null; approver_id?: string | null }): Promise<string> {
+  const { data, error } = await sb.rpc('approval_create', { p_org: p.org_id, p_entity_type: p.entity_type, p_entity_id: p.entity_id ?? null, p_kind: p.kind ?? null, p_title: p.title, p_body: p.body ?? null, p_amount: p.amount ?? null, p_approver: p.approver_id ?? null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function approvalDecide(id: string, status: 'approved' | 'rejected', note?: string): Promise<void> {
+  const { error } = await sb.rpc('approval_decide', { p_id: id, p_status: status, p_note: note ?? null }); if (error) throw new Error(error.message);
+}
+export async function approvalCancel(id: string): Promise<void> {
+  const { error } = await sb.rpc('approval_cancel', { p_id: id }); if (error) throw new Error(error.message);
+}
+
+// ---- Attachments (F4) ----
+export interface Attachment { id: string; org_id: string; entity_type: string; entity_id: string; file_name: string; storage_path: string | null; url: string | null; mime_type: string | null; size_bytes: number; created_by: string | null; created_at: string; }
+export async function listAttachments(entityType: string, entityId: string): Promise<Attachment[]> {
+  const { data, error } = await sb.from('attachments').select('*').eq('entity_type', entityType).eq('entity_id', entityId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as Attachment[]) || [];
+}
+export async function addAttachmentFile(p: { org_id: string; entity_type: string; entity_id: string; file: File; created_by: string }): Promise<Attachment> {
+  const safe = p.file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
+  const path = `${p.org_id}/${p.entity_type}/${p.entity_id}/${crypto.randomUUID()}_${safe}`;
+  const { error: upErr } = await sb.storage.from('attachments').upload(path, p.file, { upsert: false });
+  if (upErr) throw new Error(upErr.message);
+  const { data, error } = await sb.from('attachments').insert({ org_id: p.org_id, entity_type: p.entity_type, entity_id: p.entity_id, file_name: p.file.name, storage_path: path, mime_type: p.file.type || null, size_bytes: p.file.size, created_by: p.created_by }).select('*').single();
+  if (error) { await sb.storage.from('attachments').remove([path]); throw new Error(error.message); }
+  return data as Attachment;
+}
+export async function addAttachmentLink(p: { org_id: string; entity_type: string; entity_id: string; name: string; url: string; created_by: string }): Promise<Attachment> {
+  const { data, error } = await sb.from('attachments').insert({ org_id: p.org_id, entity_type: p.entity_type, entity_id: p.entity_id, file_name: p.name, url: p.url, created_by: p.created_by }).select('*').single();
+  if (error) throw new Error(error.message); return data as Attachment;
+}
+export async function attachmentUrl(path: string): Promise<string> {
+  const { data, error } = await sb.storage.from('attachments').createSignedUrl(path, 3600);
+  if (error) throw new Error(error.message); return data.signedUrl;
+}
+export async function deleteAttachment(a: Attachment): Promise<void> {
+  if (a.storage_path) await sb.storage.from('attachments').remove([a.storage_path]);
+  const { error } = await sb.from('attachments').delete().eq('id', a.id); if (error) throw new Error(error.message);
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')

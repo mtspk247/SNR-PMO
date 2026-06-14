@@ -65,6 +65,7 @@ const ADMIN_SECTION: Section = { kind: 'menu', key: 'admin', label: 'Administrat
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
   { href: '/admin/notifications', label: 'Notifications', icon: 'ti-bell-cog' },
+  { href: '/approvals', label: 'Approvals', icon: 'ti-checks' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
   { href: '/audit', label: 'Audit log', icon: 'ti-history', feature: 'audit' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
