@@ -5,8 +5,8 @@ import { sb } from '@/lib/supabase';
 import { signOut, recordGuestActivity } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
-import { hasFeature, roleAllowsFeature } from '@/lib/entitlements';
-import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, ROUTE_LABELS } from '@/lib/nav';
+import { hasFeature, roleAllowsFeature, navVisible, isUpsellLocked } from '@/lib/entitlements';
+import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, ROUTE_LABELS, featureForRoute } from '@/lib/nav';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
 import RequestsBell from '@/components/RequestsBell';
@@ -17,6 +17,7 @@ import ActivityTicker from '@/components/ActivityTicker';
 import ChatPanel from '@/components/ChatPanel';
 import { TimerChip } from '@/components/TimeTracking';
 import RunningTimers from '@/components/RunningTimers';
+import UpgradeScreen from '@/components/UpgradeScreen';
 import Toaster from '@/components/Toaster';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
@@ -38,6 +39,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
   const router = useRouter();
   const { user, orgs, platformAdmin, sidebarCollapsed, toggleSidebar, setActiveOrg, clear } = useAuthStore();
   const activeOrg = useActiveOrg();
+  const routeFeature = featureForRoute(router.pathname);
 
   const isActive = (href: string) => router.pathname === href || router.pathname.startsWith(href + '/');
 
@@ -53,10 +55,10 @@ export default function Layout({ title, children, flat = false }: { title: strin
     ...(platformAdmin ? [PLATFORM_SECTION] : []),
   ]
     .map((s) => s.kind === 'menu'
-      ? { ...s, items: s.items.filter((i) => hasFeature(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href) && (!i.adminOnly || can.manageMembers(activeOrg))) }
+      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href) && (!i.adminOnly || can.manageMembers(activeOrg))) }
       : s)
     .filter((s) => s.kind === 'link'
-      ? hasFeature(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature) && guestOk(s.item.href)
+      ? navVisible(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature) && guestOk(s.item.href)
       : s.items.length > 0);
 
   const [checking, setChecking] = useState(true);
@@ -119,13 +121,15 @@ export default function Layout({ title, children, flat = false }: { title: strin
     ? [{ label: rootLabel, href: rootHref }, { label: title }]
     : [{ label: title }];
 
-  const NavLink = ({ href, label, icon, sub = false }: Item & { sub?: boolean }) => {
+  const NavLink = ({ href, label, icon, feature, sub = false }: Item & { sub?: boolean }) => {
     const active = isActive(href);
+    const locked = isUpsellLocked(activeOrg, feature);
     return (
       <Link href={href} title={collapsed ? label : undefined}
         className={`sb-item ${active ? 'sb-item-active' : ''} ${collapsed ? 'justify-center px-0' : ''} ${sub && !collapsed ? 'py-1.5' : ''}`}>
         <Icon name={icon} className={`shrink-0 ${sub && !collapsed ? 'text-sm' : 'text-base'}`} />
-        {!collapsed && <span className="truncate">{label}</span>}
+        {!collapsed && <span className="truncate flex-1">{label}</span>}
+        {!collapsed && locked && <Icon name="ti-lock" className="text-xs text-muted2 shrink-0" />}
       </Link>
     );
   };
@@ -257,7 +261,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
             <NotificationBell />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full max-w-[1400px]${flat ? ' flat-surfaces' : ''}`}>{children}</div></main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full max-w-[1400px]${flat ? ' flat-surfaces' : ''}`}>{routeFeature && isUpsellLocked(activeOrg, routeFeature) ? <UpgradeScreen feature={routeFeature} canManage={can.manageBilling(activeOrg)} /> : children}</div></main>
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
       <StickyNotesFab />

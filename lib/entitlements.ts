@@ -15,6 +15,22 @@ export function hasFeature(org: MyOrg | null | undefined, key?: FeatureKey): boo
   return !!org?.features?.includes(key);
 }
 
+// True if the org's PLAN grants `key` (ignoring per-tenant overrides).
+export function planGrantsFeature(org: MyOrg | null | undefined, key?: FeatureKey): boolean {
+  if (!key) return true;
+  return !!org?.planFeatures?.includes(key);
+}
+// Off because the PLAN doesn't include it (vs an operator turning it off) → show a locked upsell.
+export function isUpsellLocked(org: MyOrg | null | undefined, key?: FeatureKey): boolean {
+  if (!key) return false;
+  return !hasFeature(org, key) && !planGrantsFeature(org, key);
+}
+// Nav visibility: show effective-on items AND plan-gated (locked) ones; hide only operator-disabled.
+export function navVisible(org: MyOrg | null | undefined, key?: FeatureKey): boolean {
+  if (!key) return true;
+  return hasFeature(org, key) || isUpsellLocked(org, key);
+}
+
 // Role-template permission labels (used by /roles + /users).
 export const PERMISSION_LABELS: Record<PermKey, string> = {
   can_view_dashboard: 'View dashboard',

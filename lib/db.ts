@@ -132,6 +132,15 @@ export async function platformAccounts(): Promise<PlatformAccount[]> {
   if (error) throw new Error(error.message);
   return (data as PlatformAccount[]) || [];
 }
+export async function getOrgPlanFeatures(orgId: string): Promise<string[]> {
+  const { data: sub } = await sb.from('subscriptions').select('plan_id, status').eq('org_id', orgId).maybeSingle();
+  let planId = sub?.plan_id as string | undefined;
+  const active = sub && (sub.status === 'active' || sub.status === 'trialing');
+  if (!active) { const { data: free } = await sb.from('plans').select('id').eq('key', 'free').maybeSingle(); planId = free?.id; }
+  if (!planId) return [];
+  const { data: pf } = await sb.from('plan_features').select('feature_key').eq('plan_id', planId).eq('enabled', true);
+  return ((pf || []) as any[]).map((r) => r.feature_key);
+}
 export async function isPlatformAdmin(): Promise<boolean> {
   const { data, error } = await sb.rpc('is_platform_admin');
   if (error) return false;

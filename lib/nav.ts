@@ -165,3 +165,18 @@ export function pageModuleFor(path: string): string | null {
   const item = ALL_ITEMS.find((i) => i.search && (path === i.href || path.startsWith(i.href + '/')));
   return item?.search?.key ?? null;
 }
+
+// Map a route to the plan feature that gates it (longest-prefix match over SECTIONS).
+export function featureForRoute(pathname: string): FeatureKey | undefined {
+  let best: { href: string; feature?: FeatureKey } | null = null;
+  const consider = (href: string, feature?: FeatureKey) => {
+    if (pathname === href || pathname.startsWith(href + '/')) {
+      if (!best || href.length > best.href.length) best = { href, feature };
+    }
+  };
+  for (const sec of SECTIONS) {
+    if (sec.kind === 'link') consider(sec.item.href, sec.item.feature);
+    else sec.items.forEach((i) => consider(i.href, i.feature));
+  }
+  return best?.feature;
+}
