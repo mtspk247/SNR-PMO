@@ -6,7 +6,14 @@ import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { useProjects } from '@/lib/queries';
-import { listGuests, revokeGuest, createGuest, GuestRow } from '@/lib/db';
+import { listGuests, revokeGuest, createGuest, guestSetAccess, GuestRow } from '@/lib/db';
+
+const LEVEL_META: Record<string, { label: string; pill: string; desc: string }> = {
+  viewer: { label: 'Viewer', pill: 'pill-gray', desc: 'Oversight — view, comment, reports, submit documents, propose changes. No direct edits.' },
+  collaborator: { label: 'Collaborator', pill: 'pill-amber', desc: 'Collaborates — can be assigned work and proposes edits for approval.' },
+  contributor: { label: 'Contributor', pill: 'pill-green', desc: 'Delivers — direct edits and time logging on their tasks.' },
+};
+const lvlDefault = (level: string, perm: 'direct_edit' | 'log_work') => level === 'contributor';
 
 export default function GuestsPage() {
   const org = useActiveOrg();
@@ -16,7 +23,8 @@ export default function GuestsPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
-  const [invite, setInvite] = useState<{ name: string; email: string; projectId: string } | null>(null);
+  const [invite, setInvite] = useState<{ name: string; email: string; projectId: string; level: string } | null>(null);
+  const [access, setAccess] = useState<{ g: GuestRow; level: string; directEdit: boolean; logWork: boolean } | null>(null);
 
   const load = async () => {
     try { setGuests(await listGuests()); }
@@ -33,11 +41,27 @@ export default function GuestsPage() {
     if (!invite || !org || !invite.name.trim() || !invite.email.trim() || !invite.projectId || busy) return;
     setBusy(true); setErr(''); setMsg('');
     try {
-      await createGuest({ org_id: org.id, email: invite.email.trim(), name: invite.name.trim(), project_id: invite.projectId });
-      setMsg(`Invited ${invite.email.trim()}.`);
+      await createGuest({ org_id: org.id, email: invite.email.trim(), name: invite.name.trim(), project_id: invite.projectId, level: invite.level });
+      setMsg(`Invited ${invite.email.trim()} as ${LEVEL_META[invite.level].label}.`);
       setInvite(null);
       await load();
     } catch (e: any) { setErr(e?.message || 'Could not invite guest'); }
+    finally { setBusy(false); }
+  };
+
+  const openAccess = (g: GuestRow) => setAccess({
+    g, level: g.guest_level || 'viewer',
+    directEdit: g.guest_perms?.direct_edit ?? lvlDefault(g.guest_level || 'viewer', 'direct_edit'),
+    logWork: g.guest_perms?.log_work ?? lvlDefault(g.guest_level || 'viewer', 'log_work'),
+  });
+  const changeLevel = (level: string) => setAccess((a) => a && { ...a, level, directEdit: lvlDefault(level, 'direct_edit'), logWork: lvlDefault(level, 'log_work') });
+  const saveAccess = async () => {
+    if (!access || busy) return;
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      await guestSetAccess(access.g.user_id, access.g.org_id, access.level, { direct_edit: access.directEdit, log_work: access.logWork });
+      setMsg('Guest access updated.'); setAccess(null); await load();
+    } catch (e: any) { setErr(e?.message || 'Could not update access'); }
     finally { setBusy(false); }
   };
 
@@ -57,7 +81,7 @@ export default function GuestsPage() {
   return (
     <Layout flat title="Guests">
       <PageHeader title="Guests" subtitle="External people with limited, project-scoped access" icon="ti-user-question"
-        action={<button className="btn btn-primary" onClick={() => setInvite({ name: '', email: '', projectId: projects[0]?.id || '' })}><Icon name="ti-user-plus" />Invite guest</button>} />
+        action={<button className="btn btn-primary" onClick={() => setInvite({ name: '', email: '', projectId: projects[0]?.id || '', level: 'viewer' })}><Icon name="ti-user-plus" />Invite guest</button>} />
 
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {msg && <p className="text-sm text-emerald-600 mb-3">{msg}</p>}
@@ -78,6 +102,7 @@ export default function GuestsPage() {
                 <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
                   <tr>
                     <th className="px-4 py-3 font-medium">Guest</th>
+                    <th className="px-4 py-3 font-medium">Access</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Projects</th>
                     <th className="px-4 py-3 font-medium">Added</th>
@@ -85,24 +110,38 @@ export default function GuestsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {guests.map((g) => (
-                    <tr key={g.user_id + g.org_id} className="border-t border-line hover:bg-surface2/50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Avatar name={g.full_name || g.email} size={26} />
-                          <div className="min-w-0"><span className="block font-medium text-content truncate">{g.full_name || g.email}</span><span className="block text-2xs text-muted truncate">{g.email}</span></div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3"><span className={`pill ${g.is_linked ? 'pill-green' : 'pill-amber'}`}>{g.is_linked ? 'Active' : 'Pending'}</span></td>
-                      <td className="px-4 py-3">
-                        {g.projects.length === 0 ? <span className="text-2xs text-muted2">None</span> : (
-                          <div className="flex flex-wrap gap-1">{g.projects.map((p) => <Link key={p.id} href={`/projects/${p.id}`} className="chip hover:text-content">{p.name}</Link>)}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted">{new Date(g.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 text-right"><button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => revoke(g)}><Icon name="ti-user-minus" className="text-sm" />Revoke</button></td>
-                    </tr>
-                  ))}
+                  {guests.map((g) => {
+                    const meta = LEVEL_META[g.guest_level] || LEVEL_META.viewer;
+                    const directEdit = g.guest_perms?.direct_edit ?? lvlDefault(g.guest_level || 'viewer', 'direct_edit');
+                    return (
+                      <tr key={g.user_id + g.org_id} className="border-t border-line hover:bg-surface2/50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Avatar name={g.full_name || g.email} size={26} />
+                            <div className="min-w-0"><span className="block font-medium text-content truncate">{g.full_name || g.email}</span><span className="block text-2xs text-muted truncate">{g.email}</span></div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => openAccess(g)} className="inline-flex items-center gap-1.5 group" title="Edit access">
+                            <span className={`pill ${meta.pill}`}>{meta.label}</span>
+                            {directEdit && <span className="text-2xs text-amber-600" title="Can edit directly"><Icon name="ti-pencil" className="text-xs" /></span>}
+                            <Icon name="ti-settings" className="text-muted2 text-sm opacity-0 group-hover:opacity-100" />
+                          </button>
+                        </td>
+                        <td className="px-4 py-3"><span className={`pill ${g.is_linked ? 'pill-green' : 'pill-amber'}`}>{g.is_linked ? 'Active' : 'Pending'}</span></td>
+                        <td className="px-4 py-3">
+                          {g.projects.length === 0 ? <span className="text-2xs text-muted2">None</span> : (
+                            <div className="flex flex-wrap gap-1">{g.projects.map((p) => <Link key={p.id} href={`/projects/${p.id}`} className="chip hover:text-content">{p.name}</Link>)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted">{new Date(g.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <button className="btn h-8 py-0 mr-1" disabled={busy} onClick={() => openAccess(g)}><Icon name="ti-adjustments" className="text-sm" />Access</button>
+                          <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => revoke(g)}><Icon name="ti-user-minus" className="text-sm" />Revoke</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table></div>
             </div>
@@ -116,11 +155,28 @@ export default function GuestsPage() {
           onSubmit={() => submitInvite()}>
           <Field label="Name" required><input className="input" value={invite.name} onChange={(e) => setInvite({ ...invite, name: e.target.value })} placeholder="Full name" autoFocus /></Field>
           <Field label="Email" required><input className="input" type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} placeholder="person@company.com" /></Field>
-          <Field label="Project" required hint="Guests get viewer access to this project">
-            <select className="input" value={invite.projectId} onChange={(e) => setInvite({ ...invite, projectId: e.target.value })}>
-              <option value="">Select a project…</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+          <Field label="Project" required hint="Guests get access to this project"><select className="input" value={invite.projectId} onChange={(e) => setInvite({ ...invite, projectId: e.target.value })}><option value="">Select a project…</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+          <Field label="Access level"><select className="input" value={invite.level} onChange={(e) => setInvite({ ...invite, level: e.target.value })}>{Object.entries(LEVEL_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select><p className="text-2xs text-muted mt-1">{LEVEL_META[invite.level].desc}</p></Field>
+        </Modal>
+      )}
+
+      {access && (
+        <Modal open onClose={() => setAccess(null)} title={`Access — ${access.g.full_name || access.g.email}`} icon="ti-adjustments" size="sm"
+          footer={<><button className="btn" onClick={() => setAccess(null)}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={saveAccess}>{busy ? 'Saving…' : 'Save access'}</button></>}
+          onSubmit={() => saveAccess()}>
+          <Field label="Level">
+            <div className="space-y-1.5">
+              {Object.entries(LEVEL_META).map(([k, v]) => (
+                <label key={k} className={`flex items-start gap-2 rounded-lg border p-2.5 cursor-pointer transition ${access.level === k ? 'border-accent bg-accent/5' : 'border-line hover:bg-surface2'}`}>
+                  <input type="radio" name="lvl" className="mt-0.5 accent-accent" checked={access.level === k} onChange={() => changeLevel(k)} />
+                  <span className="min-w-0"><span className="block text-sm font-medium text-content">{v.label}</span><span className="block text-2xs text-muted">{v.desc}</span></span>
+                </label>
+              ))}
+            </div>
+          </Field>
+          <Field label="Overrides" hint="Fine-tune on top of the level">
+            <label className="flex items-center gap-2 text-sm py-1"><input type="checkbox" className="accent-accent w-4 h-4" checked={access.directEdit} onChange={(e) => setAccess({ ...access, directEdit: e.target.checked })} /><span className={access.directEdit ? 'text-content' : 'text-muted'}>Allow direct edits (otherwise changes go through approval)</span></label>
+            <label className="flex items-center gap-2 text-sm py-1"><input type="checkbox" className="accent-accent w-4 h-4" checked={access.logWork} onChange={(e) => setAccess({ ...access, logWork: e.target.checked })} /><span className={access.logWork ? 'text-content' : 'text-muted'}>Allow time logging</span></label>
           </Field>
         </Modal>
       )}

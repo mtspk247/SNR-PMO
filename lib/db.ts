@@ -1215,9 +1215,9 @@ export async function getTrainingDocUrl(path: string): Promise<string> {
 // ---- W6 Guests ------------------------------------------------------------
 // SECURITY DEFINER RPC: directory row + guest org membership (seat-exempt) +
 // project_members viewer access in one call. Admin-gated server-side.
-export async function createGuest(p: { org_id: string; email: string; name: string; project_id: string }): Promise<string> {
+export async function createGuest(p: { org_id: string; email: string; name: string; project_id: string; level?: string }): Promise<string> {
   const { data, error } = await sb.rpc('create_guest', {
-    p_org: p.org_id, p_email: p.email, p_name: p.name, p_project: p.project_id,
+    p_org: p.org_id, p_email: p.email, p_name: p.name, p_project: p.project_id, p_level: p.level || 'viewer',
   });
   if (error) throw new Error(error.message);
   return data as string;
@@ -1539,7 +1539,8 @@ export async function removePlatformAdmin(userId: string): Promise<void> {
 }
 
 // ---- Guests (admin-facing cross-project management; see migration guests_admin_rpcs) ----
-export interface GuestRow { org_id: string; org_name: string; user_id: string; full_name: string | null; email: string; is_linked: boolean; created_at: string; projects: { id: string; name: string }[]; }
+export interface GuestRow { org_id: string; org_name: string; user_id: string; full_name: string | null; email: string; is_linked: boolean; created_at: string; guest_level: string; guest_perms: Record<string, boolean>; projects: { id: string; name: string }[]; }
+export const GUEST_LEVELS = ['viewer', 'collaborator', 'contributor'] as const;
 export async function listGuests(): Promise<GuestRow[]> {
   const { data, error } = await sb.rpc('guest_list');
   if (error) throw new Error(error.message);
@@ -1547,5 +1548,9 @@ export async function listGuests(): Promise<GuestRow[]> {
 }
 export async function revokeGuest(userId: string, orgId: string): Promise<void> {
   const { error } = await sb.rpc('guest_revoke', { p_user_id: userId, p_org: orgId });
+  if (error) throw new Error(error.message);
+}
+export async function guestSetAccess(userId: string, orgId: string, level: string, perms: Record<string, boolean>): Promise<void> {
+  const { error } = await sb.rpc('guest_set_access', { p_user_id: userId, p_org: orgId, p_level: level, p_perms: perms });
   if (error) throw new Error(error.message);
 }
