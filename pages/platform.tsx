@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, platformAccounts, PlatformAccount } from '@/lib/db';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, platformAccounts, PlatformAccount } from '@/lib/db';
 import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
@@ -249,70 +250,113 @@ function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promis
 // Transactional email (Resend) config — platform admin only. The API key is write-only;
 // status never returns it. In-app notifications are emailed via a server-side outbox + cron drain.
 function EmailTab() {
+  const router = useRouter();
   const [status, setStatus] = useState<EmailStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [provider, setProvider] = useState('resend');
+  const [from, setFrom] = useState(''); const [replyTo, setReplyTo] = useState(''); const [enabled, setEnabled] = useState(true);
   const [apiKey, setApiKey] = useState('');
-  const [from, setFrom] = useState('');
-  const [replyTo, setReplyTo] = useState('');
-  const [enabled, setEnabled] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
-  const [err, setErr] = useState('');
+  const [gcId, setGcId] = useState(''); const [gcSecret, setGcSecret] = useState('');
+  const [smtpHost, setSmtpHost] = useState(''); const [smtpPort, setSmtpPort] = useState('587'); const [smtpUser, setSmtpUser] = useState(''); const [smtpPass, setSmtpPass] = useState(''); const [smtpSecure, setSmtpSecure] = useState(false);
+  const [saving, setSaving] = useState(false); const [msg, setMsg] = useState(''); const [err, setErr] = useState('');
 
   const loadStatus = async () => {
     setLoading(true);
     try {
-      const st = await emailGetStatus();
-      setStatus(st);
-      if (st) { setEnabled(st.enabled); setFrom(st.from_email || ''); setReplyTo(st.reply_to || ''); }
+      const st = await emailGetStatus(); setStatus(st);
+      if (st) { setProvider(st.provider || 'resend'); setEnabled(st.enabled); setFrom(st.from_email || ''); setReplyTo(st.reply_to || ''); setSmtpHost(st.smtp_host || ''); setSmtpPort(String(st.smtp_port || 587)); setSmtpUser(st.smtp_user || ''); setSmtpSecure(!!st.smtp_secure); }
     } catch (e: any) { setErr(e?.message || 'Failed to load email status'); }
     finally { setLoading(false); }
   };
   useEffect(() => { loadStatus(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    const g = router.query.gmail;
+    if (g === 'connected') setMsg('Gmail connected — emails will now send from your Google account.');
+    else if (g === 'denied') setErr('Google authorization was cancelled.');
+    else if (g === 'norefresh') setErr('Google did not return a refresh token. In your Google account -> Security -> Third-party access, remove this app, then Connect again.');
+  }, [router.query.gmail]);
 
   const save = async () => {
     setSaving(true); setErr(''); setMsg('');
     try {
-      await emailSetConfig({ apiKey, from, replyTo, enabled });
-      setApiKey('');
-      setMsg('Saved. Email configuration updated.');
+      await emailSetConfigFull({ provider, from, replyTo, enabled, apiKey, googleClientId: gcId, googleClientSecret: gcSecret, smtpHost, smtpPort: smtpPort ? Number(smtpPort) : null, smtpUser, smtpPass, smtpSecure });
+      setApiKey(''); setGcSecret(''); setSmtpPass(''); setMsg('Saved. Email configuration updated.');
       await loadStatus();
-    } catch (e: any) { setErr(e?.message || 'Save failed'); }
-    finally { setSaving(false); }
+    } catch (e: any) { setErr(e?.message || 'Save failed'); } finally { setSaving(false); }
+  };
+
+  const connectGmail = async () => {
+    setErr('');
+    try {
+      await emailSetConfigFull({ provider: 'gmail', from, replyTo, googleClientId: gcId, googleClientSecret: gcSecret });
+      const pr = await emailOauthParams();
+      if (!pr.client_id) { setErr('Enter and save your Google client ID and secret first.'); return; }
+      const scope = encodeURIComponent('openid email https://www.googleapis.com/auth/gmail.send');
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(pr.client_id)}&redirect_uri=${encodeURIComponent(pr.redirect_uri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${encodeURIComponent(pr.state)}`;
+    } catch (e: any) { setErr(e?.message || 'Could not start Google authorization'); }
   };
 
   if (loading) return <div className="card rounded-t-none p-6"><Spinner /></div>;
+  const connected = (provider === 'resend' && status?.has_key) || (provider === 'gmail' && status?.gmail_connected) || (provider === 'smtp' && status?.has_smtp_pass && !!status?.smtp_host);
+  const provBtn = (id: string, label: string, icon: string) => (
+    <button onClick={() => setProvider(id)} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition ${provider === id ? 'border-accent bg-accent/10 text-accentstrong font-medium' : 'border-line text-muted hover:bg-surface2'}`}><Icon name={icon} className="text-base" />{label}</button>
+  );
 
   return (
-    <div className="card rounded-t-none p-5 sm:p-6 space-y-7">
+    <div className="card rounded-t-none p-5 sm:p-6 space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <span className={`pill ${status?.has_key ? 'pill-green' : 'pill-red'}`}>{status?.has_key ? 'Connected' : 'Not connected'}</span>
+        <span className={`pill ${connected ? 'pill-green' : 'pill-red'}`}>{connected ? 'Connected' : 'Not connected'}</span>
         <span className={`pill ${status?.enabled ? 'pill-green' : 'pill-gray'}`}>{status?.enabled ? 'Sending enabled' : 'Sending paused'}</span>
         <span className="pill pill-gray">Pending: {status?.pending_count ?? 0}</span>
         <span className="pill pill-gray">Sent: {status?.sent_count ?? 0}</span>
-        {status?.updated_at && <span className="text-2xs text-muted">Updated {new Date(status.updated_at).toLocaleString()}</span>}
+        <span className="pill pill-gray capitalize">Provider: {status?.provider || 'resend'}</span>
       </div>
-
       {err && <p className="text-sm text-rose-600">{err}</p>}
       {msg && <p className="text-sm text-emerald-600">{msg}</p>}
 
-      <div className="space-y-4 max-w-xl">
-        <h3 className="text-sm font-semibold text-content">Resend</h3>
-        <p className="text-2xs text-muted">Paste a Resend API key and a verified sender. The key is stored server-side and never shown back — leave it blank to keep the current one. In-app notifications are emailed automatically via a server-side queue (drained every minute).</p>
-        <Field label="API key" hint={status?.has_key ? 'A key is already set — leave blank to keep it.' : 're_…'}>
-          <input type="password" className="input" autoComplete="off" placeholder={status?.has_key ? '•••••••• (unchanged)' : 're_…'} value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-        </Field>
-        <Field label="From address" hint='Must use a verified Resend domain, e.g. "SNR-PMO <noreply@yourdomain.com>"'>
-          <input className="input" placeholder="SNR-PMO <noreply@yourdomain.com>" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </Field>
-        <Field label="Reply-to" hint="Optional">
-          <input className="input" placeholder="support@yourdomain.com" value={replyTo} onChange={(e) => setReplyTo(e.target.value)} />
-        </Field>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="accent-accent w-4 h-4" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-          <span className={enabled ? 'text-content' : 'text-muted'}>{enabled ? 'Sending enabled' : 'Sending paused (queue held until re-enabled)'}</span>
-        </label>
+      <div className="max-w-xl">
+        <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Provider</p>
+        <div className="flex gap-2">{provBtn('gmail', 'Gmail (Google)', 'ti-brand-google')}{provBtn('smtp', 'Custom SMTP', 'ti-server')}{provBtn('resend', 'Resend', 'ti-mail-bolt')}</div>
+      </div>
+
+      {provider === 'gmail' && (
+        <div className="space-y-4 max-w-xl">
+          <p className="text-2xs text-muted">Send via Gmail. In Google Cloud &rarr; APIs &amp; Services: enable the <span className="text-content">Gmail API</span>, create an <span className="text-content">OAuth client ID</span> (type "Web application"), and add this redirect URI:</p>
+          <code className="block text-2xs bg-surface2 rounded p-2 break-all text-content">https://dkjdtyzjdkumnpdyezbs.supabase.co/functions/v1/gmail-oauth-exchange</code>
+          <Field label="Google client ID"><input className="input" value={gcId} onChange={(e) => setGcId(e.target.value)} placeholder="…apps.googleusercontent.com" /></Field>
+          <Field label="Google client secret" hint={status?.has_google_client ? 'A secret is set — leave blank to keep it.' : 'GOCSPX-…'}><input type="password" className="input" autoComplete="off" value={gcSecret} onChange={(e) => setGcSecret(e.target.value)} placeholder={status?.has_google_client ? '•••••••• (unchanged)' : 'GOCSPX-…'} /></Field>
+          {status?.gmail_connected
+            ? <p className="text-sm text-emerald-600 flex items-center gap-1.5"><Icon name="ti-circle-check" />Connected as {status.gmail_email}</p>
+            : <p className="text-2xs text-muted">Save the client ID/secret, then click Connect to authorize your Google account.</p>}
+          <button className="btn" onClick={connectGmail}><Icon name="ti-brand-google" />{status?.gmail_connected ? 'Reconnect Google' : 'Connect Gmail'}</button>
+        </div>
+      )}
+
+      {provider === 'smtp' && (
+        <div className="space-y-4 max-w-xl">
+          <p className="text-2xs text-muted">Send via any SMTP server — your own domain, a Gmail App Password, Mailgun/SES SMTP, etc.</p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="SMTP host"><input className="input" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.yourdomain.com" /></Field>
+            <Field label="Port" hint="587 (STARTTLS) or 465 (SSL)"><input className="input" type="number" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} placeholder="587" /></Field>
+            <Field label="Username"><input className="input" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="user@yourdomain.com" /></Field>
+            <Field label="Password" hint={status?.has_smtp_pass ? 'Set — leave blank to keep.' : ''}><input type="password" className="input" autoComplete="off" value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder={status?.has_smtp_pass ? '•••••••• (unchanged)' : ''} /></Field>
+          </div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-accent w-4 h-4" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} /><span>Use SSL/TLS (port 465). Leave off for 587 STARTTLS.</span></label>
+        </div>
+      )}
+
+      {provider === 'resend' && (
+        <div className="space-y-4 max-w-xl">
+          <Field label="Resend API key" hint={status?.has_key ? 'A key is set — leave blank to keep it.' : 're_…'}><input type="password" className="input" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={status?.has_key ? '•••••••• (unchanged)' : 're_…'} /></Field>
+        </div>
+      )}
+
+      <div className="space-y-4 max-w-xl border-t border-line pt-5">
+        <Field label="From address" hint='e.g. "SNR-PMO <noreply@yourdomain.com>" — for Gmail your Google address is used'><input className="input" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="SNR-PMO <noreply@yourdomain.com>" /></Field>
+        <Field label="Reply-to" hint="Optional"><input className="input" value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="support@yourdomain.com" /></Field>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-accent w-4 h-4" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /><span className={enabled ? 'text-content' : 'text-muted'}>{enabled ? 'Sending enabled' : 'Sending paused (queue held)'}</span></label>
         <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save email configuration'}</button>
+        <p className="text-2xs text-muted2">Secrets are stored server-side and never shown back. The queue drains every minute.</p>
       </div>
     </div>
   );

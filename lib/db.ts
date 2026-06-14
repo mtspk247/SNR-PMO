@@ -1908,7 +1908,7 @@ export async function billingSetPlanPrice(planId: string, priceId: string): Prom
   if (error) throw error;
 }
 
-export interface EmailStatus { from_email: string | null; reply_to: string | null; enabled: boolean; has_key: boolean; pending_count: number; sent_count: number; updated_at: string | null; }
+export interface EmailStatus { provider: string; from_email: string | null; reply_to: string | null; enabled: boolean; has_key: boolean; has_google_client: boolean; gmail_connected: boolean; gmail_email: string | null; smtp_host: string | null; smtp_port: number | null; smtp_user: string | null; smtp_secure: boolean; has_smtp_pass: boolean; pending_count: number; sent_count: number; updated_at: string | null; }
 
 export async function emailGetStatus(): Promise<EmailStatus | null> {
   const { data, error } = await sb.rpc('email_get_status');
@@ -1922,6 +1922,14 @@ export async function emailSetConfig(p: { apiKey?: string; from?: string; replyT
     p_api_key: p.apiKey ?? '', p_from: p.from ?? '', p_reply_to: p.replyTo ?? '', p_enabled: p.enabled ?? null,
   });
   if (error) throw error;
+}
+
+export async function emailSetConfigFull(p: { provider?: string; from?: string; replyTo?: string; enabled?: boolean; apiKey?: string; googleClientId?: string; googleClientSecret?: string; smtpHost?: string; smtpPort?: number | null; smtpUser?: string; smtpPass?: string; smtpSecure?: boolean }): Promise<void> {
+  const { error } = await sb.rpc('email_set_config_full', { p_provider: p.provider ?? null, p_from: p.from ?? '', p_reply_to: p.replyTo ?? '', p_enabled: p.enabled ?? null, p_api_key: p.apiKey ?? '', p_google_client_id: p.googleClientId ?? '', p_google_client_secret: p.googleClientSecret ?? '', p_smtp_host: p.smtpHost ?? '', p_smtp_port: p.smtpPort ?? null, p_smtp_user: p.smtpUser ?? '', p_smtp_pass: p.smtpPass ?? '', p_smtp_secure: p.smtpSecure ?? null });
+  if (error) throw new Error(error.message);
+}
+export async function emailOauthParams(): Promise<{ client_id: string | null; state: string; redirect_uri: string }> {
+  const { data, error } = await sb.rpc('email_oauth_params'); if (error) throw new Error(error.message); return data as { client_id: string | null; state: string; redirect_uri: string };
 }
 
 /** Start a Stripe Checkout session for an org+plan; returns the redirect URL. */
