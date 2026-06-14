@@ -45,6 +45,8 @@ export default function TenantDetail() {
   const [tab, setTab] = useState('overview');
   const [confirmState, setConfirmState] = useState<{ title: string; body: string; onYes: () => void; danger?: boolean } | null>(null);
   const ask = (title: string, body: string, onYes: () => void, danger = false) => setConfirmState({ title, body, onYes, danger });
+  const [planSel, setPlanSel] = useState('');
+  useEffect(() => { setPlanSel(info?.plan || ''); }, [info?.plan]);
 
   useSetCrumbs(tenant ? [{ label: 'Tenants', href: '/tenants' }, { label: tenant.org_name }] : null);
 
@@ -196,10 +198,16 @@ export default function TenantDetail() {
         <div className="grid lg:grid-cols-3 gap-4">
           <div className="space-y-4">
             <div className="card p-5 space-y-3">
-              <Field label="Plan">
-                <select className="input" value={info.plan || ''} disabled={busy} onChange={(e) => { const v = e.target.value; ask('Change plan?', `Switch ${tenant.org_name} to the "${plans.find((p) => p.key === v)?.name || v || '—'}" plan?`, () => changePlan(v)); }}>
-                  <option value="">—</option>{plans.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
-                </select>
+              <Field label="Plan" hint="Pick a plan, then Apply (you'll be asked to confirm).">
+                <div className="flex items-center gap-2">
+                  <select className="input flex-1" value={planSel} disabled={busy} onChange={(e) => setPlanSel(e.target.value)}>
+                    <option value="">—</option>{plans.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+                  </select>
+                  <button className="btn btn-primary shrink-0" disabled={busy || !planSel || planSel === (info.plan || '')}
+                    onClick={() => ask('Change plan?', `Switch ${tenant.org_name} to the "${plans.find((p) => p.key === planSel)?.name || planSel}" plan?`, () => changePlan(planSel))}>
+                    {busy ? '…' : 'Apply'}
+                  </button>
+                </div>
               </Field>
               <Field label="Storage quota override (MB)" hint="Blank = use plan default">
                 <input className="input" type="number" defaultValue={info.limits.storage_mb ?? ''} disabled={busy}
