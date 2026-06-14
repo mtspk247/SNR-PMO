@@ -5,7 +5,7 @@ import { Comment, OrgUser } from '@/lib/supabase';
 import { useTeams } from '@/lib/queries';
 
 export default function CommentsThread({ entityType, entityId, orgId, users, currentUserId }:
-  { entityType: 'task' | 'project'; entityId: string; orgId?: string; users: OrgUser[]; currentUserId?: string }) {
+  { entityType: 'task' | 'project' | 'idea'; entityId: string; orgId?: string; users: OrgUser[]; currentUserId?: string }) {
   const [items, setItems] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');

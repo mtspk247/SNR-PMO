@@ -7,7 +7,7 @@ import { useAuthStore } from '@/lib/store';
 
 const ICON: Record<string, string> = {
   TASK_ASSIGNED: 'ti-checkbox', COMMENT: 'ti-message', MENTION: 'ti-at',
-  LEAVE_STATUS: 'ti-beach', CHECK_IN: 'ti-login', CHECK_OUT: 'ti-logout', SYSTEM: 'ti-bell',
+  LEAVE_STATUS: 'ti-beach', CHECK_IN: 'ti-login', CHECK_OUT: 'ti-logout', SYSTEM: 'ti-bell', POLL: 'ti-chart-bar',
   reminder: 'ti-alarm',
 };
 

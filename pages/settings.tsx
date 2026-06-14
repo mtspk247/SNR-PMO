@@ -99,6 +99,7 @@ const NOTIF_TYPES: { keys: string[]; label: string; desc: string }[] = [
   { keys: ['COMMENT'], label: 'Comments', desc: 'New comments on your tasks and projects' },
   { keys: ['LEAVE_STATUS'], label: 'Leave approvals', desc: 'Updates on your leave requests' },
   { keys: ['CHECK_IN', 'CHECK_OUT'], label: 'Attendance', desc: 'Check-in and check-out notices' },
+  { keys: ['POLL'], label: 'Idea polls', desc: 'When you are invited to vote on an idea' },
   { keys: ['SYSTEM'], label: 'System & digests', desc: 'Daily digest and system notices' },
 ];
 

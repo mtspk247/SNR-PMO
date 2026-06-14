@@ -474,13 +474,13 @@ export async function getFinancials(): Promise<Financial[]> {
 }
 
 // Phase 2.2 — @mention comments (entity_type 'task'|'project'); RLS = org member.
-export async function getComments(entityType: 'task' | 'project', entityId: string): Promise<Comment[]> {
+export async function getComments(entityType: 'task' | 'project' | 'idea', entityId: string): Promise<Comment[]> {
   const { data, error } = await sb.from('comments').select('*')
     .eq('entity_type', entityType).eq('entity_id', entityId).eq('deleted', false)
     .order('created_at', { ascending: true });
   if (error) throw error; return (data as Comment[]) || [];
 }
-export async function addComment(c: { entity_type: 'task' | 'project'; entity_id: string; org_id: string; author_id: string; body: string; mentions: string[] }): Promise<Comment> {
+export async function addComment(c: { entity_type: 'task' | 'project' | 'idea'; entity_id: string; org_id: string; author_id: string; body: string; mentions: string[] }): Promise<Comment> {
   const { data, error } = await sb.from('comments').insert(c).select('*').single();
   if (error) throw new Error(error.message); return data as Comment;
 }
@@ -1078,7 +1078,7 @@ export async function deleteLedgerEntry(id: string): Promise<void> {
 import { Idea, IdeaStatus } from './supabase';
 
 export const IDEA_STATUSES: IdeaStatus[] = ['idea', 'exploring', 'approved', 'building', 'shipped', 'parked'];
-const IDEA_SEL = '*, votes:idea_votes(user_id), project:projects(name), creator:users!ideas_created_by_fkey(full_name)';
+const IDEA_SEL = '*, votes:idea_votes(user_id, voter:users(full_name)), project:projects(name), creator:users!ideas_created_by_fkey(full_name)';
 
 export async function getIdeas(): Promise<Idea[]> {
   const { data, error } = await sb.from('ideas').select(IDEA_SEL)
@@ -1116,6 +1116,34 @@ export async function toggleIdeaVote(idea: Idea, userId: string): Promise<void> 
 // Convert an idea into a real project (status -> building, link kept on the idea).
 // Reuses createProject (return=minimal + refetch, the projects RLS-safe path),
 // then locates the new row in the authoritative list it returns.
+// ---- Idea polls (stakeholder yes/no/abstain) ----
+export interface IdeaPollStakeholder { user_id: string; name: string | null; choice: 'yes' | 'no' | 'abstain' | null; }
+export interface IdeaPoll {
+  id: string; question: string; status: 'open' | 'closed';
+  created_by: string | null; created_at: string; am_creator: boolean;
+  my_choice: 'yes' | 'no' | 'abstain' | null; can_vote: boolean;
+  stakeholders: IdeaPollStakeholder[];
+  counts: { yes: number; no: number; abstain: number; pending: number };
+}
+export async function getIdeaPoll(ideaId: string): Promise<IdeaPoll | null> {
+  const { data, error } = await sb.rpc('idea_poll_get', { p_idea: ideaId });
+  if (error) throw new Error(error.message);
+  return (data as IdeaPoll) || null;
+}
+export async function createIdeaPoll(ideaId: string, question: string, stakeholderIds: string[]): Promise<string> {
+  const { data, error } = await sb.rpc('idea_poll_create', { p_idea: ideaId, p_question: question, p_stakeholders: stakeholderIds });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+export async function voteIdeaPoll(pollId: string, choice: 'yes' | 'no' | 'abstain'): Promise<void> {
+  const { error } = await sb.rpc('idea_poll_vote', { p_poll: pollId, p_choice: choice });
+  if (error) throw new Error(error.message);
+}
+export async function closeIdeaPoll(pollId: string): Promise<void> {
+  const { error } = await sb.rpc('idea_poll_close', { p_poll: pollId });
+  if (error) throw new Error(error.message);
+}
+
 export async function convertIdeaToProject(idea: Idea, userId?: string | null):
   Promise<{ idea: Idea; projects: Project[] }> {
   const projects = await createProject({

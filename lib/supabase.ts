@@ -348,7 +348,7 @@ export interface Idea {
   status: IdeaStatus;
   project_id?: string | null;
   created_by?: string | null; created_at?: string;
-  votes?: { user_id: string }[];
+  votes?: { user_id: string; voter?: { full_name: string | null } | null }[];
   project?: { name: string | null } | null;
   creator?: { full_name: string | null } | null;
 }
