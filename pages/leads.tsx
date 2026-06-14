@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import {
@@ -89,12 +90,6 @@ export default function LeadsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const remove = async (l: Lead) => {
-    if (!confirm(`Delete "${l.name}"?`)) return;
-    setBusy(true);
-    try { await deleteLead(l.id); setEditor(null); load(); }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
 
   const convert = async (l: Lead) => {
     if (!me) return;
@@ -198,13 +193,8 @@ export default function LeadsPage() {
           footer={
             <>
               {editor.mode === 'edit' && editor.draft.id && (
-                <button
-                  className="btn btn-danger mr-auto"
-                  disabled={busy}
-                  onClick={() => remove(editor.draft as Lead)}
-                >
-                  <Icon name="ti-trash" />Delete
-                </button>
+                <ConfirmDelete entityType="lead" id={editor.draft.id!} name={editor.draft.name}
+                  className="btn btn-danger mr-auto" onDeleted={() => { setEditor(null); load(); }} />
               )}
               {editor.mode === 'edit' && editor.draft.status !== 'converted' && (
                 <button

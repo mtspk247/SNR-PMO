@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listClients, createClient, updateClient, deleteClient, Client } from '@/lib/db';
@@ -102,12 +103,6 @@ export default function ClientsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const remove = async (c: Client) => {
-    if (!confirm(`Delete client "${c.name}"?`)) return;
-    setBusy(true);
-    try { await deleteClient(c.id); setEditor(null); load(); }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
 
   if (!enabled) return (
     <Layout flat title="Clients">
@@ -203,9 +198,8 @@ export default function ClientsPage() {
           footer={
             <>
               {editor.mode === 'edit' && editor.draft.id && (
-                <button className="btn btn-danger mr-auto" disabled={busy} onClick={() => remove(editor.draft as Client)}>
-                  <Icon name="ti-trash" />Delete
-                </button>
+                <ConfirmDelete entityType="client" id={editor.draft.id!} name={editor.draft.name}
+                  className="btn btn-danger mr-auto" onDeleted={() => { setEditor(null); load(); }} />
               )}
               <button className="btn" onClick={() => setEditor(null)}>Cancel</button>
               <button

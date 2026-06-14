@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listJobs, createJob, updateJob, deleteJob, JobPosting } from '@/lib/db';
@@ -93,11 +94,6 @@ export default function JobsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const remove = async (j: JobPosting) => {
-    if (!confirm(`Delete "${j.title}"?`)) return;
-    setBusy(true);
-    try { await deleteJob(j.id); setEditor(null); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
 
   if (!enabled) return (
     <Layout flat title="Jobs">
@@ -172,9 +168,8 @@ export default function JobsPage() {
           footer={
             <>
               {editor.mode === 'edit' && editor.draft.id && isAdmin && (
-                <button className="btn btn-danger mr-auto" disabled={busy} onClick={() => editor.draft.id && remove(editor.draft as JobPosting)}>
-                  <Icon name="ti-trash" />Delete
-                </button>
+                <ConfirmDelete entityType="job" id={editor.draft.id!} name={editor.draft.title}
+                  className="btn btn-danger mr-auto" onDeleted={() => { setEditor(null); load(); }} />
               )}
               <button className="btn" onClick={() => setEditor(null)}>Cancel</button>
               <button className="btn btn-primary" disabled={busy || !editor.draft.title?.trim()} onClick={save}>
