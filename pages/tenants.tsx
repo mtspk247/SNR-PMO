@@ -4,7 +4,7 @@ import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
-import { listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride, listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getTenantUsage, getOrgActivity, TenantUsage, ActivityItem, listOrgInvites, createOrgInvite, revokeOrgInvite } from '@/lib/db';
+import { listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride, listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getTenantUsage, getOrgActivity, TenantUsage, ActivityItem, listOrgInvites, createOrgInvite, revokeOrgInvite, getTenantDomain, setCustomDomain, verifyCustomDomain, TenantDomain } from '@/lib/db';
 import { Plan, OrgInvite } from '@/lib/supabase';
 
 function UsageBar({ label, used, limit }: { label: string; used: number; limit: number | null }) {
@@ -44,11 +44,17 @@ export default function TenantsPage() {
     catch (e: any) { setInvErr(e.message); } finally { setInvBusy(false); }
   };
   const doRevoke = async (id: string) => { if (!confirm('Revoke this invitation? The link will stop working.')) return; try { await revokeOrgInvite(id); loadInvites(); } catch (e: any) { setErr(e.message); } };
+  const [dom, setDom] = useState<TenantDomain | null>(null);
+  const [domInput, setDomInput] = useState(''); const [domBusy, setDomBusy] = useState(false);
+  const loadDomain = (orgId: string) => getTenantDomain(orgId).then((d) => { setDom(d); setDomInput(d.custom_domain || ''); }).catch(() => setDom(null));
+  const saveDomain = async () => { if (!sel) return; setDomBusy(true); setErr(''); try { const d = await setCustomDomain(sel.org_id, domInput.trim()); setDom(d); setDomInput(d.custom_domain || ''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
+  const verifyDomain = async () => { if (!sel) return; setDomBusy(true); setErr(''); try { await verifyCustomDomain(sel.org_id); await loadDomain(sel.org_id); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
+  const removeDomain = async () => { if (!sel) return; setDomBusy(true); setErr(''); try { const d = await setCustomDomain(sel.org_id, ''); setDom(d); setDomInput(''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
 
   const load = () => { listTenants().then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   useEffect(() => { if (platformAdmin) { load(); loadInvites(); listPlans().then(setPlans).catch(() => {}); } }, [platformAdmin]);
 
-  const openTenant = async (t: any) => { setSel(t); setInfo(null); setWipeName(''); setSnaps([]); setUsage(null); setActivity([]); listTenantSnapshots(t.org_id).then(setSnaps).catch(() => setSnaps([])); getTenantUsage(t.org_id).then(setUsage).catch(() => {}); getOrgActivity(t.org_id).then(setActivity).catch(() => {}); try { setInfo(await getTenantInfo(t.org_id)); } catch (e: any) { setErr(e.message); } };
+  const openTenant = async (t: any) => { setSel(t); setInfo(null); setWipeName(''); setSnaps([]); setUsage(null); setActivity([]); setDom(null); loadDomain(t.org_id); listTenantSnapshots(t.org_id).then(setSnaps).catch(() => setSnaps([])); getTenantUsage(t.org_id).then(setUsage).catch(() => {}); getOrgActivity(t.org_id).then(setActivity).catch(() => {}); try { setInfo(await getTenantInfo(t.org_id)); } catch (e: any) { setErr(e.message); } };
   const refreshSnaps = async () => { if (sel) setSnaps(await listTenantSnapshots(sel.org_id)); };
   const doWipe = async () => {
     if (!sel || wipeName.trim() !== sel.org_name) return;
@@ -213,6 +219,32 @@ export default function TenantsPage() {
                 <input className="input" type="number" defaultValue={info.limits.storage_mb ?? ''} disabled={busy}
                   onBlur={(e) => saveQuota(e.target.value)} placeholder="e.g. 51200" />
               </Field>
+
+              <div className="rounded-lg border border-line p-3">
+                <p className="text-2xs uppercase tracking-wide text-muted2 font-semibold mb-1">Custom domain</p>
+                <p className="text-2xs text-muted mb-2">Serve this tenant on its own domain. Their logo, colors and name load automatically once the domain is verified.</p>
+                <div className="flex items-center gap-2">
+                  <input className="input flex-1" value={domInput} onChange={(e) => setDomInput(e.target.value)} placeholder="pm.acme.com" disabled={domBusy} />
+                  <button className="btn btn-primary shrink-0" disabled={domBusy} onClick={saveDomain}>{domBusy ? '…' : 'Save'}</button>
+                  {dom?.custom_domain && <button className="btn shrink-0" disabled={domBusy} onClick={removeDomain}>Remove</button>}
+                </div>
+                {dom?.custom_domain && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium ${dom.verified ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>{dom.verified ? 'Verified' : 'Pending verification'}</span>
+                      {!dom.verified && <button className="btn-ghost text-2xs" disabled={domBusy} onClick={verifyDomain}><Icon name="ti-check" />Mark verified</button>}
+                    </div>
+                    {!dom.verified && (
+                      <div className="rounded-md bg-surface2 p-2.5 text-2xs text-muted space-y-1.5">
+                        <p className="font-medium text-content">Add these DNS records, then add the domain to the Vercel project:</p>
+                        <p>1. <span className="font-mono text-content">CNAME</span> <span className="font-mono text-content">{dom.custom_domain}</span> → <span className="font-mono">cname.vercel-dns.com</span></p>
+                        <p>2. <span className="font-mono text-content">TXT</span> <span className="font-mono text-content">_snr-verify.{dom.custom_domain}</span> → <span className="font-mono break-all text-content">{dom.token}</span></p>
+                        <p className="text-muted2">Once DNS resolves and the domain is added in Vercel, click “Mark verified”.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-3">
                 <p className="text-2xs uppercase tracking-wide text-rose-600 font-semibold mb-1">Danger zone — wipe data</p>

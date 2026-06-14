@@ -2178,6 +2178,19 @@ export async function acceptOrgInvite(token: string): Promise<string> {
   const { data, error } = await sb.rpc('accept_org_invite', { p_token: token }); if (error) throw new Error(error.message); return data as string;
 }
 
+export interface TenantDomain { custom_domain: string | null; verified: boolean; token: string | null; }
+export async function getTenantDomain(orgId: string): Promise<TenantDomain> {
+  const { data, error } = await sb.rpc('tenant_domain', { p_org: orgId });
+  if (error) throw new Error(error.message); return data as TenantDomain;
+}
+export async function setCustomDomain(orgId: string, domain: string): Promise<TenantDomain> {
+  const { data, error } = await sb.rpc('set_custom_domain', { p_org: orgId, p_domain: domain });
+  if (error) throw new Error(error.message); return data as TenantDomain;
+}
+export async function verifyCustomDomain(orgId: string): Promise<void> {
+  const { error } = await sb.rpc('verify_custom_domain', { p_org: orgId }); if (error) throw new Error(error.message);
+}
+
 export interface TenantUsage {
   created_at: string | null; active: boolean; plan: string | null; owner: string | null;
   seat_count: number; seat_limit: number | null; guests: number;
