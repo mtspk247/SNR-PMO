@@ -941,16 +941,16 @@ export const updateOfferLetter = (id: string, patch: Partial<OfferLetter>) => _u
 export const deleteOfferLetter = (id: string) => _del('offer_letters', id);
 
 // ---- Sticky notes (personal) ----
-export interface StickyNote { id: string; org_id: string; user_id: string; body: string; color: string; created_at: string; updated_at: string; }
+export interface StickyNote { id: string; org_id: string; user_id: string; title: string; body: string; color: string; page_path: string | null; created_at: string; updated_at: string; }
 export async function listStickyNotes(userId: string): Promise<StickyNote[]> {
   const { data, error } = await sb.from('sticky_notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as StickyNote[]) || [];
 }
-export async function createStickyNote(p: { org_id: string; user_id: string; body: string; color?: string }): Promise<StickyNote> {
-  const { data, error } = await sb.from('sticky_notes').insert({ org_id: p.org_id, user_id: p.user_id, body: p.body, color: p.color || 'yellow' }).select('*').single();
+export async function createStickyNote(p: { org_id: string; user_id: string; body: string; color?: string; title?: string; page_path?: string | null }): Promise<StickyNote> {
+  const { data, error } = await sb.from('sticky_notes').insert({ org_id: p.org_id, user_id: p.user_id, body: p.body, color: p.color || 'yellow', title: p.title || '', page_path: p.page_path ?? null }).select('*').single();
   if (error) throw new Error(error.message); return data as StickyNote;
 }
-export async function updateStickyNote(id: string, patch: { body?: string; color?: string }): Promise<void> {
+export async function updateStickyNote(id: string, patch: { body?: string; color?: string; title?: string }): Promise<void> {
   const { error } = await sb.from('sticky_notes').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id); if (error) throw new Error(error.message);
 }
 export async function deleteStickyNote(id: string): Promise<void> {
