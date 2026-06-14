@@ -1554,3 +1554,28 @@ export async function guestSetAccess(userId: string, orgId: string, level: strin
   const { error } = await sb.rpc('guest_set_access', { p_user_id: userId, p_org: orgId, p_level: level, p_perms: perms });
   if (error) throw new Error(error.message);
 }
+
+// ---- Guest requests & suggestions (slice 2; see migration guest_requests) ----
+export interface GuestRequest {
+  id: string; org_id: string; project_id: string; created_by: string;
+  type: 'request' | 'suggestion' | 'edit'; title: string; body: string | null;
+  target_task_id: string | null; status: 'open' | 'approved' | 'rejected';
+  decided_by: string | null; decided_at: string | null; decision_note: string | null; created_at: string;
+  creator?: { full_name: string | null } | null;
+  decider?: { full_name: string | null } | null;
+  target?: { name: string } | null;
+}
+const GREQ_SEL = '*, creator:users!guest_requests_created_by_fkey(full_name), decider:users!guest_requests_decided_by_fkey(full_name), target:tasks!guest_requests_target_task_id_fkey(name)';
+export async function listGuestRequests(projectId: string): Promise<GuestRequest[]> {
+  const { data, error } = await sb.from('guest_requests').select(GREQ_SEL).eq('project_id', projectId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data as GuestRequest[]) || [];
+}
+export async function createGuestRequest(p: { org_id: string; project_id: string; created_by: string; type: string; title: string; body?: string }): Promise<void> {
+  const { error } = await sb.from('guest_requests').insert({ org_id: p.org_id, project_id: p.project_id, created_by: p.created_by, type: p.type, title: p.title, body: p.body || null });
+  if (error) throw new Error(error.message);
+}
+export async function decideGuestRequest(id: string, status: 'approved' | 'rejected', note: string, deciderId: string): Promise<void> {
+  const { error } = await sb.from('guest_requests').update({ status, decision_note: note || null, decided_by: deciderId, decided_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}

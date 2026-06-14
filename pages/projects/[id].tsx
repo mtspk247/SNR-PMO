@@ -11,6 +11,7 @@ import { useSetCrumbs } from '@/components/Breadcrumbs';
 import {
   getProjectById, getTasks, getRisks, getFinancials, getLedgerEntries,
   getOrgUsers, getOrgCompanies, getPortfolios,
+  createTask, listGuestRequests, createGuestRequest, decideGuestRequest, GuestRequest,
 } from '@/lib/db';
 import { Project, Task, Risk, Financial, LedgerEntry, OrgUser, OrgCompany, Portfolio } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -221,6 +222,7 @@ export default function ProjectDetail() {
         { key: 'tasks', label: 'Tasks', icon: 'ti-checklist', count: tasks.length },
         { key: 'risks', label: 'Risks', icon: 'ti-alert-triangle', count: risks.length },
         { key: 'financials', label: 'Financials', icon: 'ti-cash', count: financials.length + ledger.length },
+        { key: 'requests', label: 'Requests', icon: 'ti-inbox' },
         { key: 'discussion', label: 'Discussion', icon: 'ti-messages' },
       ]} />
 
@@ -353,6 +355,8 @@ export default function ProjectDetail() {
         </div>
       )}
 
+      {tab === 'requests' && <RequestsPanel projectId={id} orgId={org?.id} meId={me?.id} isOrgAdmin={isOrgAdmin} isGuest={org?.member_role === 'guest'} />}
+
       {tab === 'discussion' && (
         <div className="card p-5 max-w-2xl">
           <p className="text-sm font-semibold mb-3">Discussion</p>
@@ -360,5 +364,88 @@ export default function ProjectDetail() {
         </div>
       )}
     </Layout>
+  );
+}
+
+
+function RequestsPanel({ projectId, orgId, meId, isOrgAdmin, isGuest }: { projectId: string; orgId?: string; meId?: string; isOrgAdmin: boolean; isGuest: boolean }) {
+  const [rows, setRows] = useState<GuestRequest[] | null>(null);
+  const [type, setType] = useState('request');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [noteFor, setNoteFor] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+
+  const load = async () => { try { setRows(await listGuestRequests(projectId)); } catch (e: any) { setErr(e?.message || 'Failed to load requests'); setRows([]); } };
+  useEffect(() => { if (projectId) load(); /* eslint-disable-next-line */ }, [projectId]);
+
+  const canDecide = isOrgAdmin || (rows || []).some((r) => r.created_by !== meId);
+  const STATUS_PILL: Record<string, string> = { open: 'pill-amber', approved: 'pill-green', rejected: 'pill-red' };
+
+  const submit = async () => {
+    if (!title.trim() || !orgId || !meId || busy) return;
+    setBusy(true); setErr('');
+    try { await createGuestRequest({ org_id: orgId, project_id: projectId, created_by: meId, type, title: title.trim(), body: body.trim() || undefined }); setTitle(''); setBody(''); await load(); }
+    catch (e: any) { setErr(e?.message || 'Could not submit'); } finally { setBusy(false); }
+  };
+  const decide = async (r: GuestRequest, status: 'approved' | 'rejected', addTask: boolean) => {
+    if (!meId || busy) return;
+    setBusy(true); setErr('');
+    try {
+      if (addTask && status === 'approved' && orgId) await createTask({ name: r.title, org_id: orgId, project_id: projectId, status: 'To Do', priority: 'Medium' });
+      await decideGuestRequest(r.id, status, noteFor === r.id ? note : '', meId);
+      setNoteFor(null); setNote(''); await load();
+    } catch (e: any) { setErr(e?.message || 'Could not update request'); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="grid lg:grid-cols-3 gap-4">
+      <div className="lg:col-span-1">
+        <div className="card p-4">
+          <p className="text-sm font-semibold text-content mb-3">{isGuest ? 'Raise a request' : 'New request / suggestion'}</p>
+          {err && <p className="text-sm text-rose-600 mb-2">{err}</p>}
+          <div className="space-y-2.5">
+            <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="request">Request something</option>
+              <option value="suggestion">Suggest a change</option>
+            </select>
+            <input className="input" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <textarea className="input min-h-[80px] py-2" placeholder="Details (optional)" value={body} onChange={(e) => setBody(e.target.value)} />
+            <button className="btn btn-primary w-full" disabled={busy || !title.trim()} onClick={submit}><Icon name="ti-send" />Submit</button>
+            <p className="text-2xs text-muted2">{isGuest ? 'Your request goes to the project team for review.' : 'Tracked here for the team to action.'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="lg:col-span-2 space-y-3">
+        {rows === null ? <Spinner /> : rows.length === 0 ? (
+          <div className="card p-8"><EmptyState icon="ti-inbox" text="No requests yet." /></div>
+        ) : rows.map((r) => (
+          <div key={r.id} className="card p-4">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="chip capitalize">{r.type}</span>
+              <span className={`pill ${STATUS_PILL[r.status]}`}>{r.status}</span>
+            </div>
+            <p className="text-sm font-medium text-content">{r.title}</p>
+            {r.body && <p className="text-2xs text-muted mt-0.5 whitespace-pre-wrap">{r.body}</p>}
+            <p className="text-2xs text-muted2 mt-1">{r.creator?.full_name || 'Guest'} · {new Date(r.created_at).toLocaleDateString()}{r.decided_at ? ` · ${r.status} by ${r.decider?.full_name || 'team'}` : ''}</p>
+            {r.decision_note && <p className="text-2xs text-muted mt-1 italic">&ldquo;{r.decision_note}&rdquo;</p>}
+            {canDecide && r.status === 'open' && (
+              <div className="mt-3 pt-3 border-t border-line">
+                {noteFor === r.id && <input className="input mb-2" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />}
+                <div className="flex flex-wrap gap-2">
+                  <button className="btn btn-primary h-8 py-0" disabled={busy} onClick={() => decide(r, 'approved', false)}><Icon name="ti-check" />Approve</button>
+                  <button className="btn h-8 py-0" disabled={busy} onClick={() => decide(r, 'approved', true)}><Icon name="ti-plus" />Approve + task</button>
+                  <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => decide(r, 'rejected', false)}><Icon name="ti-x" />Reject</button>
+                  <button className="btn btn-ghost h-8 py-0" onClick={() => { setNoteFor(noteFor === r.id ? null : r.id); setNote(''); }}><Icon name="ti-note" />Note</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
