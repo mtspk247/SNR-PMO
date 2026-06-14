@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import {
   getPortfolios, createPortfolio, getOrgCompanies, getOrgUsers,
   getMyCompanyManagerships, getMyPortfolioManagerships, listPortfolioMembers, addPortfolioMember,
@@ -63,11 +64,6 @@ export default function PortfoliosPage() {
   );
   const canCreate = createableCompanies.length > 0;
   const canManage = (pf: Portfolio) => admin || mgrIds.has(pf.company_id) || pfMgrIds.has(pf.id);
-  const removePortfolio = async (pf: Portfolio) => {
-    if (!confirm(`Delete portfolio “${pf.name}”? Any projects must be reassigned first.`)) return;
-    try { await deletePortfolio(pf.id); setPortfolios((prev) => prev.filter((x) => x.id !== pf.id)); }
-    catch (e: any) { alert(e.message || 'Could not delete — reassign its projects first.'); }
-  };
 
   const submit = async () => {
     if (!org || !np.name.trim() || !np.company_id) return;
@@ -151,9 +147,9 @@ export default function PortfoliosPage() {
                   </button>
                 )}
                 {canManage(pf) && (
-                  <button onClick={() => removePortfolio(pf)} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete portfolio">
-                    <Icon name="ti-trash" />
-                  </button>
+                  <ConfirmDelete entityType="portfolio" id={pf.id} name={pf.name} iconOnly
+                    className="text-neutral-300 hover:text-rose-600 shrink-0"
+                    onDeleted={() => setPortfolios((prev) => prev.filter((x) => x.id !== pf.id))} />
                 )}
               </div>
               {pf.description && <p className="text-2xs text-neutral-500 mt-2 line-clamp-2">{pf.description}</p>}

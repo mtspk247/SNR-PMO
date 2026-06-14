@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listCreditNotes, createCreditNote, updateCreditNote, deleteCreditNote, CreditNote } from '@/lib/db';
@@ -87,12 +88,6 @@ export default function CreditNotesPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const remove = async (cn: CreditNote) => {
-    if (!confirm(`Delete credit note "${cn.credit_number}"?`)) return;
-    setBusy(true);
-    try { await deleteCreditNote(cn.id); setEditor(null); load(); }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
 
   if (!enabled) return (
     <Layout flat title="Credit Notes">
@@ -186,13 +181,8 @@ export default function CreditNotesPage() {
           footer={
             <>
               {editor.mode === 'edit' && editor.draft.id && (
-                <button
-                  className="btn btn-danger mr-auto"
-                  disabled={busy}
-                  onClick={() => editor.draft as CreditNote && remove(editor.draft as CreditNote)}
-                >
-                  <Icon name="ti-trash" />Delete
-                </button>
+                <ConfirmDelete entityType="credit_note" id={editor.draft.id!} name={editor.draft.credit_number}
+                  className="btn btn-danger mr-auto" onDeleted={() => { setEditor(null); load(); }} />
               )}
               <button className="btn" onClick={() => setEditor(null)}>Cancel</button>
               <button

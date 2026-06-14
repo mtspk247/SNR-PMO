@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import Attachments from '@/components/Attachments';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -94,12 +95,6 @@ export default function ProposalsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const remove = async (p: Proposal) => {
-    if (!confirm(`Delete "${p.title}"?`)) return;
-    setBusy(true);
-    try { await deleteProposal(p.id); setDetail(null); load(); }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
 
   const isPast = (d: string | null) => d ? new Date(d).getTime() < Date.now() : false;
 
@@ -223,7 +218,7 @@ export default function ProposalsPage() {
           canEdit={isAdmin || detail.created_by === me?.id || detail.owner_id === me?.id}
           orgId={org?.id}
           onClose={() => setDetail(null)}
-          onDelete={() => remove(detail)}
+          onDelete={() => { setDetail(null); load(); }}
           nameOf={name}
           busy={busy}
           onSave={async (patch) => {
@@ -301,9 +296,8 @@ function DetailModal({
       subtitle={proposal.client_name || undefined}
       footer={
         <>
-          <button className="btn btn-danger mr-auto" onClick={onDelete} disabled={!canEdit || busy}>
-            <Icon name="ti-trash" />Delete
-          </button>
+          {canEdit && <ConfirmDelete entityType="proposal" id={proposal.id} name={proposal.title}
+            className="btn btn-danger mr-auto" onDeleted={onDelete} />}
           <button className="btn" onClick={onClose}>Close</button>
           {canEdit && (
             <button

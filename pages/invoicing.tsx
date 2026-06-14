@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import Attachments from '@/components/Attachments';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -109,14 +110,13 @@ function InvoiceDetail({ id, orgId, me, onClose, onDeleted }: { id: string; orgI
   const delLn = async (lid: string) => { setBusy(true); try { await deleteInvoiceLine(lid); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const addPay = async () => { if (!orgId || !me || !pay.amount) return; setBusy(true); try { await addPayment({ org_id: orgId, invoice_id: id, amount: Number(pay.amount), paid_on: pay.paid_on, method: pay.method || undefined, reference: pay.reference || undefined, created_by: me }); setPay({ amount: 0, paid_on: new Date().toISOString().slice(0, 10), method: '', reference: '' }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const delPay = async (pid: string) => { setBusy(true); try { await deletePayment(pid); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
-  const removeInvoice = async () => { if (!confirm('Delete this invoice and all its lines/payments?')) return; setBusy(true); try { await deleteInvoice(id); onDeleted(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
   const cur = inv?.currency || 'USD';
   const balance = inv ? Number(inv.total) - Number(inv.amount_paid) : 0;
 
   return (
     <Modal open onClose={onClose} size="lg" icon="ti-file-invoice" title={inv?.invoice_number || 'Invoice'} subtitle={inv ? `${fmtMoney(inv.total, cur)} · ${inv.status}` : undefined}
-      footer={<><button className="btn btn-danger mr-auto" onClick={removeInvoice}><Icon name="ti-trash" />Delete</button><button className="btn" onClick={() => window.print()}><Icon name="ti-printer" />Print</button><button className="btn btn-primary" onClick={saveHdr} disabled={busy}>Save</button></>}>
+      footer={<><ConfirmDelete entityType="invoice" id={id} name={inv?.invoice_number} className="btn btn-danger mr-auto" onDeleted={onDeleted} /><button className="btn" onClick={() => window.print()}><Icon name="ti-printer" />Print</button><button className="btn btn-primary" onClick={saveHdr} disabled={busy}>Save</button></>}>
       {!inv ? <Spinner /> : <>
         {err && <p className="text-sm text-rose-600 mb-2">{err}</p>}
         <div className="grid sm:grid-cols-2 gap-3">

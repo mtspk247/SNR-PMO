@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon, StatusBadge } from '@/components/ui';
 import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity, ensureTaskStatuses, TaskStatus } from '@/lib/db';
 import StatusManager from '@/components/StatusManager';
@@ -91,12 +92,6 @@ export default function CRM() {
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
-  const removeDeal = async (d: Deal) => {
-    if (!confirm(`Delete deal "${d.title}"? This can't be undone.`)) return;
-    setBusy(true);
-    try { await deleteDeal(d.id); setDealsCache((p) => p.filter((x) => x.id !== d.id)); setSelectedId(null); setShowDetail(false); }
-    catch (e: any) { alert(e.message); } finally { setBusy(false); }
-  };
   const removeContact = async (c: Contact) => {
     if (!confirm(`Delete contact "${c.full_name}"?`)) return;
     setBusy(true);
@@ -211,7 +206,7 @@ export default function CRM() {
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => router.push(`/crm/deal/${selected.id}`)} className="btn-ghost p-1.5 rounded text-muted hover:text-accentstrong" title="Open full page"><Icon name="ti-arrow-up-right" /></button>
           <button onClick={() => setEditDeal(selected)} className="btn-ghost p-1.5 rounded text-muted hover:text-content" title="Edit deal"><Icon name="ti-pencil" /></button>
-          <button onClick={() => removeDeal(selected)} disabled={busy} className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500" title="Delete deal"><Icon name="ti-trash" /></button>
+          <ConfirmDelete entityType="deal" id={selected.id} name={selected.title} iconOnly className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500" onDeleted={() => { setDealsCache((p) => p.filter((x) => x.id !== selected.id)); setSelectedId(null); setShowDetail(false); }} />
           <button onClick={() => setShowDetail(false)} className="btn-ghost p-1.5 rounded text-muted hover:text-content" title="Close"><Icon name="ti-x" /></button>
         </div>
       </div>

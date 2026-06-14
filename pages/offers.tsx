@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import Attachments from '@/components/Attachments';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -140,19 +141,6 @@ export default function OffersPage() {
     }
   };
 
-  const remove = async (o: OfferLetter) => {
-    if (!confirm(`Delete offer for "${o.candidate_name}"?`)) return;
-    setBusy(true);
-    try {
-      await deleteOfferLetter(o.id);
-      setDetail(null);
-      load();
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   if (!enabled)
     return (
@@ -362,7 +350,7 @@ export default function OffersPage() {
           currentUserId={me?.id}
           onClose={() => setDetail(null)}
           onSave={saveDetail}
-          onDelete={() => remove(detail)}
+          onDelete={() => { setDetail(null); load(); }}
           busy={busy}
         />
       )}
@@ -398,9 +386,8 @@ function DetailModal({
       footer={
         <>
           {canEdit && (
-            <button className="btn btn-danger mr-auto" onClick={onDelete} disabled={busy}>
-              <Icon name="ti-trash" />Delete
-            </button>
+            <ConfirmDelete entityType="offer" id={offer.id} name={offer.candidate_name}
+              className="btn btn-danger mr-auto" onDeleted={onDelete} />
           )}
           <button className="btn" onClick={onClose}>Close</button>
           {canEdit && (

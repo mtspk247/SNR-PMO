@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import ConfirmDelete from '@/components/ConfirmDelete';
 import Attachments from '@/components/Attachments';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -101,12 +102,6 @@ export default function ContractsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const remove = async (c: Contract) => {
-    if (!confirm(`Delete "${c.title}"?`)) return;
-    setBusy(true);
-    try { await deleteContract(c.id); setDetail(null); load(); }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
 
   if (!enabled) return (
     <Layout flat title="Contracts">
@@ -246,7 +241,7 @@ export default function ContractsPage() {
           orgId={org?.id}
           onClose={() => setDetail(null)}
           onEdit={() => { setEditor({ draft: { ...detail } }); setDetail(null); }}
-          onDelete={() => remove(detail)}
+          onDelete={() => { setDetail(null); load(); }}
           nameOf={name}
         />
       )}
@@ -280,7 +275,7 @@ function ContractDetailModal({ contract, users, me, canEdit, orgId, onClose, onE
       subtitle={contract.client_name || undefined}
       footer={
         <>
-          {canEdit && <button className="btn btn-danger mr-auto" onClick={onDelete}><Icon name="ti-trash" />Delete</button>}
+          {canEdit && <ConfirmDelete entityType="contract" id={contract.id} name={contract.title} className="btn btn-danger mr-auto" onDeleted={onDelete} />}
           <button className="btn" onClick={onClose}>Close</button>
           {canEdit && <button className="btn btn-primary" onClick={onEdit}><Icon name="ti-pencil" />Edit</button>}
         </>
