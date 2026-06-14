@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
-import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting } from '@/lib/db';
+import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -183,11 +183,54 @@ function DeleteSafetyToggle({ org }: { org: { id: string; branding?: Record<stri
   );
 }
 
+function WipeWorkspace({ org }: { org: { id: string; name: string } }) {
+  const [snaps, setSnaps] = useState<TenantSnapshot[]>([]);
+  const [name, setName] = useState(''); const [wiping, setWiping] = useState(false); const [msg, setMsg] = useState('');
+  const refresh = () => listTenantSnapshots(org.id).then(setSnaps).catch(() => {});
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [org.id]);
+  const wipe = async () => {
+    if (name.trim() !== org.name) return;
+    setWiping(true); setMsg('');
+    try { await tenantSnapshot(org.id, 'Pre-wipe backup'); await wipeTenantData(org.id); setName(''); refresh(); setMsg('Workspace data wiped. A restorable snapshot was saved below.'); }
+    catch (e: any) { setMsg(e.message || 'Wipe failed'); } finally { setWiping(false); }
+  };
+  const restore = async (id: string) => {
+    if (!confirm('Restore this snapshot? It re-inserts the backed-up records.')) return;
+    setWiping(true); setMsg('');
+    try { await restoreTenantSnapshot(id); setMsg('Snapshot restored.'); }
+    catch (e: any) { setMsg(e.message); } finally { setWiping(false); }
+  };
+  return (
+    <div className="card p-6 max-w-4xl mb-6 border border-rose-200">
+      <div className="flex items-center gap-2 mb-1"><Icon name="ti-alert-triangle" className="text-rose-600" /><p className="text-sm font-semibold">Wipe workspace data</p></div>
+      <p className="text-2xs text-muted mb-3">Permanently clears all business data (projects, tasks, CRM, HR, finance, drives…). Keeps your organization, members, plan, branding and roles. A restorable snapshot is taken automatically first.</p>
+      {snaps.length > 0 && (
+        <div className="mb-3 space-y-1">
+          {snaps.map((sn) => (
+            <div key={sn.id} className="flex items-center gap-2 text-2xs">
+              <Icon name="ti-database-export" className="text-muted2 shrink-0" />
+              <span className="flex-1 text-muted truncate">{new Date(sn.created_at).toLocaleString()} · {sn.row_count} rows</span>
+              <button className="btn btn-ghost h-7 py-0 border border-line shrink-0" disabled={wiping} onClick={() => restore(sn.id)}>Restore</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <label className="text-2xs text-muted">Type <span className="font-mono font-semibold text-content">{org.name}</span> to confirm</label>
+      <input className="input mt-1 max-w-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder={org.name} />
+      <div className="mt-2 flex items-center gap-3">
+        <button className="btn btn-danger" disabled={wiping || name.trim() !== org.name} onClick={wipe}><Icon name="ti-trash-x" />{wiping ? 'Backing up & wiping…' : 'Back up & wipe data'}</button>
+        {msg && <span className="text-2xs text-muted">{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
-  const [tab, setTab] = useState<'notifications' | 'billing' | 'branding'>('notifications');
+  const isOwner = org?.member_role === 'owner';
+  const [tab, setTab] = useState<'notifications' | 'billing' | 'branding' | 'danger'>('notifications');
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -234,10 +277,12 @@ export default function SettingsPage() {
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
           { key: 'billing', label: 'Plan & billing', icon: 'ti-credit-card' },
           { key: 'branding', label: 'Branding', icon: 'ti-palette' },
-        ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'branding')} />
+          ...(isOwner ? [{ key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' }] : []),
+        ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'branding' | 'danger')} />
       )}
       {(!admin || tab === 'notifications') && <NotificationPrefs />}
       {admin && tab === 'billing' && <PlanPanel org={org} />}
+      {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
       {admin && tab === 'branding' && <DeleteSafetyToggle org={org} />}
       {admin && tab === 'branding' && <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">
         {/* Form */}

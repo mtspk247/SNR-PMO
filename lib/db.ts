@@ -2114,3 +2114,22 @@ export async function emptyTrash(): Promise<number> {
 export async function archiveTrash(id: string): Promise<void> {
   const { error } = await sb.rpc('trash_archive', { p_id: id }); if (error) throw new Error(error.message);
 }
+
+// ---- Tenant data wipe + per-tenant snapshots (auto-backup before wipe) ----
+export interface TenantSnapshot { id: string; org_id: string; label: string | null; created_by: string | null; created_at: string; table_count: number; row_count: number; }
+export async function tenantSnapshot(orgId: string, label?: string): Promise<string> {
+  const { data, error } = await sb.rpc('tenant_snapshot', { p_org: orgId, p_label: label ?? null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function wipeTenantData(orgId: string): Promise<void> {
+  const { error } = await sb.rpc('tenant_wipe_data', { p_org: orgId }); if (error) throw new Error(error.message);
+}
+export async function listTenantSnapshots(orgId: string): Promise<TenantSnapshot[]> {
+  const { data, error } = await sb.from('tenant_snapshots')
+    .select('id, org_id, label, created_by, created_at, table_count, row_count')
+    .eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as TenantSnapshot[]) || [];
+}
+export async function restoreTenantSnapshot(id: string): Promise<void> {
+  const { error } = await sb.rpc('tenant_restore_snapshot', { p_id: id }); if (error) throw new Error(error.message);
+}

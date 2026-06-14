@@ -4,7 +4,7 @@ import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
-import { listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride, listPlans, TenantInfo } from '@/lib/db';
+import { listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride, listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { Plan } from '@/lib/supabase';
 
 export default function TenantsPage() {
@@ -14,11 +14,26 @@ export default function TenantsPage() {
   const [sel, setSel] = useState<any | null>(null);
   const [info, setInfo] = useState<TenantInfo | null>(null);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const [snaps, setSnaps] = useState<TenantSnapshot[]>([]);
+  const [wipeName, setWipeName] = useState(''); const [wiping, setWiping] = useState(false);
 
   const load = () => { listTenants().then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   useEffect(() => { if (platformAdmin) { load(); listPlans().then(setPlans).catch(() => {}); } }, [platformAdmin]);
 
-  const openTenant = async (t: any) => { setSel(t); setInfo(null); try { setInfo(await getTenantInfo(t.org_id)); } catch (e: any) { setErr(e.message); } };
+  const openTenant = async (t: any) => { setSel(t); setInfo(null); setWipeName(''); setSnaps([]); listTenantSnapshots(t.org_id).then(setSnaps).catch(() => setSnaps([])); try { setInfo(await getTenantInfo(t.org_id)); } catch (e: any) { setErr(e.message); } };
+  const refreshSnaps = async () => { if (sel) setSnaps(await listTenantSnapshots(sel.org_id)); };
+  const doWipe = async () => {
+    if (!sel || wipeName.trim() !== sel.org_name) return;
+    setWiping(true); setErr('');
+    try { await tenantSnapshot(sel.org_id, 'Pre-wipe backup'); await wipeTenantData(sel.org_id); setWipeName(''); await refreshSnaps(); await refreshInfo(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setWiping(false); }
+  };
+  const doRestore = async (id: string) => {
+    if (!confirm('Restore this snapshot? It re-inserts the backed-up records.')) return;
+    setWiping(true); setErr('');
+    try { await restoreTenantSnapshot(id); await refreshInfo(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setWiping(false); }
+  };
   const refreshInfo = async () => { if (sel) setInfo(await getTenantInfo(sel.org_id)); };
 
   const changePlan = async (key: string) => { if (!sel) return; setBusy(true); try { await setTenantPlan(sel.org_id, key); await refreshInfo(); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
@@ -98,6 +113,27 @@ export default function TenantsPage() {
                 <input className="input" type="number" defaultValue={info.limits.storage_mb ?? ''} disabled={busy}
                   onBlur={(e) => saveQuota(e.target.value)} placeholder="e.g. 51200" />
               </Field>
+
+              <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-3">
+                <p className="text-2xs uppercase tracking-wide text-rose-600 font-semibold mb-1">Danger zone — wipe data</p>
+                <p className="text-2xs text-muted mb-2">Permanently clears all business data (projects, tasks, CRM, HR, finance, drives…). Keeps the org, members, plan, branding and roles. A restorable snapshot is taken automatically first.</p>
+                {snaps.length > 0 && (
+                  <div className="mb-2 space-y-1">
+                    {snaps.map((s2) => (
+                      <div key={s2.id} className="flex items-center gap-2 text-2xs">
+                        <Icon name="ti-database-export" className="text-muted2 shrink-0" />
+                        <span className="flex-1 text-muted truncate">{new Date(s2.created_at).toLocaleString()} · {s2.row_count} rows</span>
+                        <button className="btn btn-ghost h-7 py-0 border border-line shrink-0" disabled={busy || wiping} onClick={() => doRestore(s2.id)}>Restore</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label className="text-2xs text-muted">Type <span className="font-mono font-semibold text-content">{sel.org_name}</span> to confirm</label>
+                <input className="input mt-1" value={wipeName} onChange={(e) => setWipeName(e.target.value)} placeholder={sel.org_name} />
+                <button className="btn btn-danger mt-2" disabled={wiping || busy || wipeName.trim() !== sel.org_name} onClick={doWipe}>
+                  <Icon name="ti-trash-x" />{wiping ? 'Backing up & wiping…' : 'Back up & wipe tenant data'}
+                </button>
+              </div>
               {err && <p className="text-sm text-rose-600">{err}</p>}
             </div>
           )}
