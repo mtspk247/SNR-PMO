@@ -63,6 +63,7 @@ const SECTIONS: Section[] = [
 const ADMIN_SECTION: Section = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
+  { href: '/admin/notifications', label: 'Notifications', icon: 'ti-bell-cog' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
   { href: '/audit', label: 'Audit log', icon: 'ti-history', feature: 'audit' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },

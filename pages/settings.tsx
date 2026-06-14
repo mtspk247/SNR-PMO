@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
-import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs } from '@/lib/db';
+import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -93,31 +93,31 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-const NOTIF_TYPES: { keys: string[]; label: string; desc: string }[] = [
-  { keys: ['TASK_ASSIGNED'], label: 'Task assignments', desc: 'When a task is assigned to you' },
-  { keys: ['MENTION'], label: '@mentions', desc: 'When someone @mentions you in a comment or chat' },
-  { keys: ['COMMENT'], label: 'Comments', desc: 'New comments on your tasks and projects' },
-  { keys: ['LEAVE_STATUS'], label: 'Leave approvals', desc: 'Updates on your leave requests' },
-  { keys: ['CHECK_IN', 'CHECK_OUT'], label: 'Attendance', desc: 'Check-in and check-out notices' },
-  { keys: ['POLL'], label: 'Idea polls', desc: 'When you are invited to vote on an idea' },
-  { keys: ['SYSTEM'], label: 'System & digests', desc: 'Daily digest and system notices' },
-];
-
 function NotificationPrefs() {
+  const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
-  const [prefs, setPrefs] = useState<Record<string, boolean> | null>(null);
+  const [rows, setRows] = useState<NotifSetting[] | null>(null);
+  const [prefs, setPrefs] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (!me) return; getNotificationPrefs(me.id).then(setPrefs).catch(() => setPrefs({})); }, [me?.id]);
-  const enabled = (keys: string[]) => (prefs ? keys.every((k) => prefs[k] !== false) : true);
-  const toggle = async (keys: string[], val: boolean) => {
-    if (!me || !prefs) return;
-    const next = { ...prefs }; keys.forEach((k) => { next[k] = val; });
-    setPrefs(next); setSaved(false); setSaving(true);
-    try { await saveNotificationPrefs(me.id, next); setSaved(true); }
+
+  const load = () => {
+    if (!org || !me) return;
+    Promise.all([getMyNotifSettings(org.id), getNotificationPrefs(me.id)])
+      .then(([s, p]) => { setRows(s); setPrefs(p); })
+      .catch(() => setRows([]));
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id, me?.id]);
+
+  const toggle = async (row: NotifSetting) => {
+    if (row.locked || !me || !org) return;
+    const next = { ...prefs, [row.key]: !row.enabled };
+    setPrefs(next); setSaving(true); setSaved(false);
+    try { await saveNotificationPrefs(me.id, next); setRows(await getMyNotifSettings(org.id)); setSaved(true); }
     catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
+
   return (
     <div className="card p-6 max-w-4xl mb-6">
       <div className="flex items-center gap-2 mb-1">
@@ -126,21 +126,30 @@ function NotificationPrefs() {
         {saving && <span className="text-2xs text-muted ml-2">Saving…</span>}
         {saved && !saving && <span className="text-2xs text-emerald-600 ml-2">Saved</span>}
       </div>
-      <p className="text-2xs text-muted mb-4">Choose which notifications you receive. These apply to you only.</p>
-      <div className="divide-y divide-line">
-        {NOTIF_TYPES.map((row) => { const on = enabled(row.keys); return (
-          <div key={row.label} className="flex items-center gap-3 py-3">
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm text-content font-medium">{row.label}</span>
-              <span className="block text-2xs text-muted">{row.desc}</span>
-            </span>
-            <button type="button" role="switch" aria-checked={on} onClick={() => toggle(row.keys, !on)} disabled={!prefs}
-              className={`relative h-5 w-9 rounded-full transition shrink-0 disabled:opacity-50 ${on ? 'bg-accent' : 'bg-surface2 border border-line'}`}>
-              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
-            </button>
-          </div>
-        ); })}
-      </div>
+      <p className="text-2xs text-muted mb-4">Choose which notifications you receive. Required ones are set by your admin and can’t be turned off.</p>
+      {rows === null ? <Spinner /> : rows.length === 0 ? (
+        <p className="text-2xs text-muted2">No notification types available.</p>
+      ) : (
+        <div className="divide-y divide-line">
+          {rows.map((row) => (
+            <div key={row.key} className="flex items-center gap-3 py-3">
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="text-sm text-content font-medium">{row.label}</span>
+                  <span className="pill pill-gray text-2xs">{row.category}</span>
+                  {row.locked && <span className="pill pill-amber text-2xs">Required</span>}
+                </span>
+                <span className="block text-2xs text-muted">{row.description}</span>
+              </span>
+              <button type="button" role="switch" aria-checked={row.enabled} onClick={() => toggle(row)} disabled={row.locked || saving}
+                title={row.locked ? 'Required by your admin' : undefined}
+                className={`relative h-5 w-9 rounded-full transition shrink-0 disabled:opacity-60 ${row.enabled ? 'bg-accent' : 'bg-surface2 border border-line'}`}>
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${row.enabled ? 'left-[18px]' : 'left-0.5'}`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

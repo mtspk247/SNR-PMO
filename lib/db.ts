@@ -617,6 +617,24 @@ export async function saveNotificationPrefs(userId: string, prefs: Record<string
   if (error) throw new Error(error.message);
 }
 
+// Centralized notification catalog (RBAC + org policy aware).
+export interface NotifSetting { key: string; label: string; description: string | null; category: string; locked: boolean; enabled: boolean; }
+export async function getMyNotifSettings(orgId: string): Promise<NotifSetting[]> {
+  const { data, error } = await sb.rpc('notif_settings_me', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  return (data as NotifSetting[]) || [];
+}
+export interface NotifPolicyRow { key: string; label: string; description: string | null; category: string; policy: string; }
+export async function listOrgNotifPolicies(orgId: string): Promise<NotifPolicyRow[]> {
+  const { data, error } = await sb.rpc('notif_policy_list', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  return (data as NotifPolicyRow[]) || [];
+}
+export async function setOrgNotifPolicy(orgId: string, typeKey: string, policy: string): Promise<void> {
+  const { error } = await sb.rpc('notif_policy_set', { p_org: orgId, p_type: typeKey, p_policy: policy });
+  if (error) throw new Error(error.message);
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')
