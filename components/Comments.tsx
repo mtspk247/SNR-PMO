@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Avatar, Icon, Spinner } from '@/components/ui';
 import { getComments, addComment, deleteComment, notify } from '@/lib/db';
 import { Comment, OrgUser } from '@/lib/supabase';
+import { useTeams } from '@/lib/queries';
 
 export default function CommentsThread({ entityType, entityId, orgId, users, currentUserId }:
   { entityType: 'task' | 'project'; entityId: string; orgId?: string; users: OrgUser[]; currentUserId?: string }) {
@@ -11,15 +12,16 @@ export default function CommentsThread({ entityType, entityId, orgId, users, cur
   const [mentions, setMentions] = useState<string[]>([]);
   const [q, setQ] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { data: teams = [] } = useTeams();
 
   useEffect(() => { setLoading(true); getComments(entityType, entityId).then(setItems).finally(() => setLoading(false)); }, [entityType, entityId]);
 
   const nameOf = (id?: string | null) => users.find((u) => u.id === id)?.full_name || 'Someone';
 
   const onChange = (v: string) => { setBody(v); const m = v.match(/@([\w]*)$/); setQ(m ? m[1].toLowerCase() : null); };
-  const choose = (u: OrgUser) => {
-    setBody((b) => b.replace(/@([\w]*)$/, '@' + u.full_name + ' '));
-    setMentions((p) => (p.includes(u.id) ? p : [...p, u.id]));
+  const choose = (sug: { kind: 'user' | 'team'; id: string; label: string; members: string[] }) => {
+    setBody((b) => b.replace(/@([\w]*)$/, '@' + sug.label + ' '));
+    setMentions((p) => { const add = sug.kind === 'team' ? sug.members : [sug.id]; const n = new Set(p); add.forEach((x) => n.add(x)); return [...n]; });
     setQ(null);
   };
   const post = async () => {
@@ -48,7 +50,10 @@ export default function CommentsThread({ entityType, entityId, orgId, users, cur
     return nodes;
   };
 
-  const suggestions = q !== null ? users.filter((u) => u.full_name.toLowerCase().includes(q)).slice(0, 5) : [];
+  const suggestions = q !== null ? [
+    ...teams.filter((t: any) => t.name.toLowerCase().includes(q)).map((t: any) => ({ kind: 'team' as const, id: t.id, label: t.name, members: (t.members || []).map((m: any) => m.user_id) })),
+    ...users.filter((u) => u.full_name.toLowerCase().includes(q)).map((u) => ({ kind: 'user' as const, id: u.id, label: u.full_name, members: [] as string[] })),
+  ].slice(0, 6) : [];
 
   return (
     <div className="mt-5 pt-4 border-t border-line">
@@ -71,8 +76,8 @@ export default function CommentsThread({ entityType, entityId, orgId, users, cur
       <div className="relative mt-3">
         {suggestions.length > 0 && (
           <div className="absolute left-0 right-0 bottom-full mb-1 z-10 bg-white border border-line rounded-md shadow-lg py-1">
-            {suggestions.map((u) => (
-              <button key={u.id} onClick={() => choose(u)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-paper flex items-center gap-2"><Avatar name={u.full_name} size={20} />{u.full_name}</button>
+            {suggestions.map((sug) => (
+              <button key={sug.kind + sug.id} onClick={() => choose(sug)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-paper flex items-center gap-2">{sug.kind === 'team' ? <span className="w-5 h-5 grid place-items-center"><Icon name="ti-users-group" className="text-muted" /></span> : <Avatar name={sug.label} size={20} />}{sug.label}{sug.kind === 'team' && <span className="ml-auto text-2xs text-muted2">team</span>}</button>
             ))}
           </div>
         )}

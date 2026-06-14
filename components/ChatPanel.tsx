@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon, Spinner, Avatar, EmptyState } from '@/components/ui';
-import { useChatMessages, useProjects } from '@/lib/queries';
+import { useChatMessages, useProjects, useTeams } from '@/lib/queries';
 import { sendChatMessage, deleteChatMessage, getOrgUsers, getTasks, notify, createReminder } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -10,7 +10,7 @@ import { ChatMessage } from '@/lib/supabase';
 
 // C1 — rich chat: @mentions (notify), #task/#project chips (navigate), /remind.
 // Tokens are stored inline in the body: @[Name](user:id) · #[Name](task:id|project:id).
-const TOKEN_RE = /([@#])\[([^\]]+)\]\((user|task|project):([0-9a-fA-F-]{36})\)/g;
+const TOKEN_RE = /([@#])\[([^\]]+)\]\((user|task|project|team):([0-9a-fA-F-]{36})\)/g;
 
 /** Render a message body with mention highlights + entity link chips. */
 function RichBody({ body }: { body: string }) {
@@ -20,7 +20,7 @@ function RichBody({ body }: { body: string }) {
   while ((m = re.exec(body))) {
     if (m.index > last) parts.push(body.slice(last, m.index));
     const [, , label, kind, id] = m;
-    if (kind === 'user') {
+    if (kind === 'user' || kind === 'team') {
       parts.push(<span key={i++} className="px-1 rounded bg-accent/15 text-accentstrong font-medium">@{label}</span>);
     } else {
       parts.push(
@@ -77,6 +77,7 @@ export function ChatThread({ channel }: { channel: string | null }) {
   const [people, setPeople] = useState<{ id: string; full_name: string }[]>([]);
   const [entities, setEntities] = useState<{ id: string; name: string; kind: 'task' | 'project' }[]>([]);
   const { data: chProjects = [] } = useProjects();
+  const { data: chTeams = [] } = useTeams();
   useEffect(() => { getOrgUsers().then((u: any[]) => setPeople(u)).catch(() => {}); }, [org?.id]);
   useEffect(() => {
     getTasks().then((ts: any[]) => setEntities([
@@ -91,15 +92,18 @@ export function ChatThread({ channel }: { channel: string | null }) {
     return { sym: m[2] as '@' | '#', q: (m[3] || '').toLowerCase(), start: draft.length - ((m[3] || '').length + 1) };
   }, [draft]);
   const suggestions = useMemo(() => {
-    if (!trigger) return [];
-    if (trigger.sym === '@') return people.filter((p) => p.full_name.toLowerCase().includes(trigger.q)).slice(0, 6)
-      .map((p) => ({ id: p.id, label: p.full_name, kind: 'user' as const }));
+    if (!trigger) return [] as { id: string; label: string; kind: 'user' | 'task' | 'project' | 'team' }[];
+    if (trigger.sym === '@') {
+      const tms = chTeams.filter((t: any) => t.name.toLowerCase().includes(trigger.q)).map((t: any) => ({ id: t.id, label: t.name, kind: 'team' as const }));
+      const ppl = people.filter((p) => p.full_name.toLowerCase().includes(trigger.q)).map((p) => ({ id: p.id, label: p.full_name, kind: 'user' as const }));
+      return [...tms, ...ppl].slice(0, 6);
+    }
     return entities.filter((e) => e.name.toLowerCase().includes(trigger.q)).slice(0, 6)
       .map((e) => ({ id: e.id, label: e.name, kind: e.kind }));
-  }, [trigger, people, entities]);
-  const pick = (sug: { id: string; label: string; kind: 'user' | 'task' | 'project' }) => {
+  }, [trigger, people, entities, chTeams]);
+  const pick = (sug: { id: string; label: string; kind: 'user' | 'task' | 'project' | 'team' }) => {
     if (!trigger) return;
-    const sym = sug.kind === 'user' ? '@' : '#';
+    const sym = (sug.kind === 'user' || sug.kind === 'team') ? '@' : '#';
     setDraft(draft.slice(0, trigger.start) + `${sym}[${sug.label}](${sug.kind}:${sug.id}) `);
   };
 
@@ -131,6 +135,10 @@ export function ChatThread({ channel }: { channel: string | null }) {
       while ((mt = re.exec(body))) {
         if (mt[3] === 'user' && mt[4] !== me.id) {
           notify({ org_id: org.id, user_id: mt[4], type: 'MENTION', title: `${me.full_name || 'Someone'} mentioned you in chat`, body: body.replace(new RegExp(TOKEN_RE.source, 'g'), '$1$2').slice(0, 140), link: '/chat', entity_type: 'chat', entity_id: msg.id }).catch(() => {});
+        } else if (mt[3] === 'team') {
+          const tm = chTeams.find((t: any) => t.id === mt![4]);
+          if (tm) (tm.members || []).map((mm: any) => mm.user_id).filter((uid: string) => uid && uid !== me!.id).forEach((uid: string) =>
+            notify({ org_id: org.id, user_id: uid, type: 'MENTION', title: `${me!.full_name || 'Someone'} mentioned @${tm.name} in chat`, body: body.replace(new RegExp(TOKEN_RE.source, 'g'), '$1$2').slice(0, 140), link: '/chat', entity_type: 'chat', entity_id: msg.id }).catch(() => {}));
         }
       }
     } catch (e: any) { alert(e?.message || 'Failed to send'); }
@@ -195,7 +203,7 @@ export function ChatThread({ channel }: { channel: string | null }) {
             {suggestions.map((sug) => (
               <button key={`${sug.kind}:${sug.id}`} onClick={() => pick(sug)}
                 className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface2">
-                <Icon name={sug.kind === 'user' ? 'ti-at' : sug.kind === 'task' ? 'ti-checkbox' : 'ti-folder'} className="text-muted" />
+                <Icon name={sug.kind === 'user' ? 'ti-at' : sug.kind === 'team' ? 'ti-users-group' : sug.kind === 'task' ? 'ti-checkbox' : 'ti-folder'} className="text-muted" />
                 <span className="truncate">{sug.label}</span>
                 <span className="ml-auto text-2xs text-muted2">{sug.kind}</span>
               </button>

@@ -67,6 +67,7 @@ export default function Tasks() {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
+  const [teamFilter, setTeamFilter] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [view, setView] = useState<'list' | 'board'>('list');
@@ -128,7 +129,7 @@ export default function Tasks() {
   const statuses = taskStatuses.length ? taskStatuses.map((x) => x.name) : STATUSES;
   const statusColor = (n: string) => taskStatuses.find((x) => x.name === n)?.color;
   const reloadStatuses = () => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id).then(setTaskStatuses).catch(() => {}); };
-  const activeFilters = (projectFilter ? 1 : 0) + (priorityFilter ? 1 : 0) + (assigneeFilter ? 1 : 0) + (overdueOnly ? 1 : 0);
+  const activeFilters = (projectFilter ? 1 : 0) + (priorityFilter ? 1 : 0) + (assigneeFilter ? 1 : 0) + (teamFilter ? 1 : 0) + (overdueOnly ? 1 : 0);
   const reorderStatuses = async (from: string, to: string) => {
     if (from === to || taskStatuses.length === 0) return;
     const order = taskStatuses.map((x) => x.name);
@@ -146,19 +147,22 @@ export default function Tasks() {
 
   const roots = useMemo(() => tasks.filter((t) => !t.parent_task_id), [tasks]);
   const filtered = useMemo(() => {
+    const ftTeam = teamFilter ? teams.find((t: any) => t.id === teamFilter) : null;
+    const ftMembers = ftTeam ? new Set((ftTeam.members || []).map((m: any) => m.user_id)) : null;
     let r = roots.filter((t) =>
       (!query || t.name.toLowerCase().includes(query.toLowerCase())) &&
       (statusFilter.size === 0 || statusFilter.has(t.status)) &&
       (!priorityFilter || t.priority === priorityFilter) &&
       (!projectFilter || (projectFilter === 'none' ? !t.project_id : t.project_id === projectFilter)) &&
       (!assigneeFilter || (assigneeFilter === 'unassigned' ? !t.assignee_id : t.assignee_id === assigneeFilter)) &&
+      (!teamFilter || t.team_id === teamFilter || (!!t.assignee_id && !!ftMembers && ftMembers.has(t.assignee_id))) &&
       (!overdueOnly || (isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled')));
     r = [...r].sort((a, b) =>
       sort === 'name' ? a.name.localeCompare(b.name) :
       sort === 'due' ? (a.due_date || '9999').localeCompare(b.due_date || '9999') :
       (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
     return r;
-  }, [roots, query, statusFilter, priorityFilter, projectFilter, assigneeFilter, overdueOnly, sort]);
+  }, [roots, query, statusFilter, priorityFilter, projectFilter, assigneeFilter, teamFilter, teams, overdueOnly, sort]);
   const pg = usePagination(filtered, 25);
 
   // Grouped view over the current page (header order: known rank lists, else A→Z).
@@ -653,8 +657,13 @@ export default function Tasks() {
                       <option value="">All assignees</option><option value="unassigned">Unassigned</option>
                       {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                     </select></div>
+                  <div><label className="label">Team</label>
+                    <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="input h-9 w-full">
+                      <option value="">All teams</option>
+                      {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select></div>
                   <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={overdueOnly} onChange={() => setOverdueOnly((v) => !v)} className="accent-accentstrong" />Overdue only</label>
-                  {activeFilters > 0 && <button onClick={() => { setProjectFilter(''); setPriorityFilter(''); setAssigneeFilter(''); setOverdueOnly(false); }} className="text-2xs text-muted hover:text-content underline">Clear all filters</button>}
+                  {activeFilters > 0 && <button onClick={() => { setProjectFilter(''); setPriorityFilter(''); setAssigneeFilter(''); setTeamFilter(''); setOverdueOnly(false); }} className="text-2xs text-muted hover:text-content underline">Clear all filters</button>}
                 </div>
               )}
             </div>
