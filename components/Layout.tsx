@@ -9,6 +9,7 @@ import { hasFeature, roleAllowsFeature } from '@/lib/entitlements';
 import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
+import GlobalSearch from '@/components/GlobalSearch';
 import ChatPanel from '@/components/ChatPanel';
 import { TimerChip } from '@/components/TimeTracking';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
@@ -277,9 +278,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
             <Breadcrumbs fallback={defaultCrumbs} />
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="hidden sm:flex items-center gap-2 h-9 pl-3 pr-2 rounded-lg border border-line text-sm text-muted2 hover:border-borderstrong transition cursor-default">
-              <Icon name="ti-search" /><span>Search</span><span className="kbd ml-1.5">/</span>
-            </div>
+            <GlobalSearch />
             <TimerChip />
             <button onClick={() => setChatOpen(true)} title="Chat"
               className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">

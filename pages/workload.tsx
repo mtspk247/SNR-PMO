@@ -19,9 +19,21 @@ export default function Workload() {
   const { data: teams = [] } = useTeams();
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [dim, setDim] = useState<Dim>('person');
+  const [q, setQ] = useState('');
+  const [projectF, setProjectF] = useState('all');
+  const [priorityF, setPriorityF] = useState('all');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   useEffect(() => { if (org?.id) getOrgUsers(org.id).then(setUsers).catch(() => {}); }, [org?.id]);
 
   const open = useMemo(() => tasks.filter((t) => !t.parent_task_id && t.status !== 'Done' && t.status !== 'Cancelled'), [tasks]);
+
+  // Filters narrow the underlying task set; the KPI tiles reflect this scope.
+  const filtered = useMemo(() => open.filter((t) => {
+    if (projectF !== 'all' && (t.project_id || '') !== projectF) return false;
+    if (priorityF !== 'all' && (t.priority || '') !== priorityF) return false;
+    if (overdueOnly && !isOverdue(t.due_date)) return false;
+    return true;
+  }), [open, projectF, priorityF, overdueOnly]);
 
   const rows = useMemo<Row[]>(() => {
     const make = (id: string, name: string, avatar: boolean, items: Task[]): Row => ({
@@ -32,36 +44,68 @@ export default function Workload() {
       estHours: items.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0),
     });
     if (dim === 'person') {
-      const list = users.map((u) => make(u.id, u.full_name, true, open.filter((t) => t.assignee_id === u.id)));
-      const un = open.filter((t) => !t.assignee_id);
+      const list = users.map((u) => make(u.id, u.full_name, true, filtered.filter((t) => t.assignee_id === u.id)));
+      const un = filtered.filter((t) => !t.assignee_id);
       if (un.length) list.push(make('_un', 'Unassigned', false, un));
       return list.filter((r) => r.open > 0).sort((a, b) => b.open - a.open);
     }
     if (dim === 'team') {
-      const list = teams.map((tm: { id: string; name: string }) => make(tm.id, tm.name, false, open.filter((t) => t.team_id === tm.id)));
-      const none = open.filter((t) => !t.team_id);
+      const list = teams.map((tm: { id: string; name: string }) => make(tm.id, tm.name, false, filtered.filter((t) => t.team_id === tm.id)));
+      const none = filtered.filter((t) => !t.team_id);
       if (none.length) list.push(make('_none', 'No team', false, none));
       return list.filter((r) => r.open > 0).sort((a, b) => b.open - a.open);
     }
-    const list = projects.map((p) => make(p.id, p.name, false, open.filter((t) => t.project_id === p.id)));
-    const none = open.filter((t) => !t.project_id);
+    const list = projects.map((p) => make(p.id, p.name, false, filtered.filter((t) => t.project_id === p.id)));
+    const none = filtered.filter((t) => !t.project_id);
     if (none.length) list.push(make('_none', 'No project', false, none));
     return list.filter((r) => r.open > 0).sort((a, b) => b.open - a.open);
-  }, [dim, users, teams, projects, open]);
+  }, [dim, users, teams, projects, filtered]);
+
+  // Name search narrows the visible rows only (KPIs stay at filter scope).
+  const visibleRows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return needle ? rows.filter((r) => r.name.toLowerCase().includes(needle)) : rows;
+  }, [rows, q]);
 
   const maxOpen = Math.max(1, ...rows.map((r) => r.open));
-  const totalEst = rows.reduce((s, r) => s + r.estHours, 0);
-  const totalOverdue = rows.reduce((s, r) => s + r.overdue, 0);
+  const kOpen = filtered.length;
+  const kInProgress = filtered.filter((t) => t.status === 'In Progress').length;
+  const kOverdue = filtered.filter((t) => isOverdue(t.due_date)).length;
+  const kEst = filtered.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
+  const filtersActive = projectF !== 'all' || priorityF !== 'all' || overdueOnly || q.trim() !== '';
+  const clearFilters = () => { setQ(''); setProjectF('all'); setPriorityF('all'); setOverdueOnly(false); };
 
   return (
     <Layout flat title="Workload">
       <PageHeader title="Workload" subtitle="Open work distribution across people, teams and projects" icon="ti-chart-bar" />
       {isLoading ? <Spinner /> : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-            <StatCard label="Open tasks" value={open.length} icon="ti-checkbox" />
-            <StatCard label="Overdue" value={totalOverdue} hint={totalOverdue > 0 ? 'Needs attention' : 'On track'} hintTone={totalOverdue > 0 ? 'down' : 'up'} icon="ti-alarm" />
-            <StatCard label="Estimated hours" value={`${totalEst}h`} icon="ti-clock" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            <StatCard label="Open tasks" value={kOpen} icon="ti-checkbox" />
+            <StatCard label="In progress" value={kInProgress} icon="ti-progress" />
+            <StatCard label="Overdue" value={kOverdue} hint={kOverdue > 0 ? 'Needs attention' : 'On track'} hintTone={kOverdue > 0 ? 'down' : 'up'} icon="ti-alarm" />
+            <StatCard label="Estimated hours" value={`${kEst}h`} icon="ti-clock" />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-line bg-surface w-full sm:w-56">
+              <Icon name="ti-search" className="text-muted2" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find row…"
+                className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
+            </div>
+            <select value={projectF} onChange={(e) => setProjectF(e.target.value)} className="input h-9 w-auto">
+              <option value="all">All projects</option>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select value={priorityF} onChange={(e) => setPriorityF(e.target.value)} className="input h-9 w-auto">
+              <option value="all">All priorities</option>
+              {['Urgent', 'High', 'Medium', 'Low'].map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <button onClick={() => setOverdueOnly((v) => !v)}
+              className={`btn h-9 ${overdueOnly ? 'border-rose-400 text-rose-600' : ''}`}>
+              <Icon name="ti-alarm" className="text-sm" />Overdue only
+            </button>
+            {filtersActive && <button onClick={clearFilters} className="text-2xs text-muted hover:text-content underline">Clear</button>}
           </div>
 
           <div className="flex items-center gap-2 mb-3">
@@ -78,7 +122,7 @@ export default function Workload() {
             <div className="grid grid-cols-[minmax(160px,1fr)_1fr_88px_88px_88px] items-center gap-3 px-4 py-2 border-b border-line bg-surface2/60 text-2xs font-semibold uppercase tracking-wider text-muted2">
               <span>{dim === 'person' ? 'Person' : dim === 'team' ? 'Team' : 'Project'}</span><span>Load</span><span className="text-right">Open</span><span className="text-right">Overdue</span><span className="text-right">Est. h</span>
             </div>
-            {rows.length === 0 ? <EmptyState text="No open work to distribute" icon="ti-checks" /> : rows.map((r) => (
+            {visibleRows.length === 0 ? <EmptyState text={filtersActive ? 'No work matches these filters' : 'No open work to distribute'} icon="ti-checks" /> : visibleRows.map((r) => (
               <div key={r.id} className="grid grid-cols-[minmax(160px,1fr)_1fr_88px_88px_88px] items-center gap-3 px-4 py-3 border-b border-line bg-surface hover:bg-surface2 hover:shadow-md transition relative">
                 <div className="flex items-center gap-2 min-w-0">
                   {r.avatar ? <Avatar name={r.name} size={24} /> : <span className="w-6 h-6 rounded-md grid place-items-center bg-surface2 text-muted2 shrink-0"><Icon name={dim === 'team' ? 'ti-users-group' : dim === 'project' ? 'ti-folder' : 'ti-user'} className="text-sm" /></span>}

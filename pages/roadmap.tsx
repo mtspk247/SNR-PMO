@@ -25,6 +25,8 @@ const STATUS_PROGRESS: Record<string, string> = {
   Completed: 'bg-violet-700',
   Cancelled: 'bg-rose-700',
 };
+const STATUS_ORDER = ['Active', 'Planning', 'On Hold', 'Completed', 'Cancelled'];
+const PRIORITY_ORDER = ['Urgent', 'High', 'Medium', 'Low'];
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 function parseDate(d: string | null | undefined): Date | null {
@@ -257,18 +259,24 @@ export default function RoadmapPage() {
   const { data: portfolios = [] } = usePortfolios();
   const canEdit = can.write(org);
 
-  // ── Partition scheduled vs unscheduled
+  // ── View options
+  const [groupBy, setGroupBy] = useState<'portfolio' | 'status' | 'priority' | 'none'>('portfolio');
+  const [statusF, setStatusF] = useState('all');
+  const [showAnalysis, setShowAnalysis] = useState(false);
+
+  // ── Partition scheduled vs unscheduled (status filter applied)
   const { scheduled, unscheduled } = useMemo(() => {
     const sched: Project[] = [];
     const unsched: Project[] = [];
     for (const p of projects) {
+      if (statusF !== 'all' && p.status !== statusF) continue;
       if (p.start_date && p.end_date) sched.push(p);
       else unsched.push(p);
     }
     return { scheduled: sched, unscheduled: unsched };
-  }, [projects]);
+  }, [projects, statusF]);
 
-  // ── Compute timeline range
+  // ── Compute timeline range (fits the visible/scheduled set)
   const { rangeStart, rangeEnd, months } = useMemo(() => {
     const now = new Date();
     if (scheduled.length === 0) {
@@ -290,29 +298,49 @@ export default function RoadmapPage() {
     return { rangeStart: rs, rangeEnd: re, months: ms };
   }, [scheduled]);
 
-  // ── Group scheduled by portfolio (or "No portfolio")
-  const groups = useMemo(() => {
+  // ── Group scheduled by the chosen dimension
+  const groupEntries = useMemo<[string, Project[]][]>(() => {
+    if (groupBy === 'none') return [['', scheduled]];
     const portfolioMap = new Map<string, Portfolio>(portfolios.map(pf => [pf.id, pf]));
-    const byPortfolio = new Map<string, Project[]>();
-
+    const m = new Map<string, Project[]>();
     for (const p of scheduled) {
-      const key = p.portfolio_id
-        ? (portfolioMap.get(p.portfolio_id)?.name ?? 'Unknown portfolio')
-        : 'No portfolio';
-      const list = byPortfolio.get(key) ?? [];
-      list.push(p);
-      byPortfolio.set(key, list);
+      const key =
+        groupBy === 'portfolio' ? (p.portfolio_id ? (portfolioMap.get(p.portfolio_id)?.name ?? 'Unknown portfolio') : 'No portfolio')
+        : groupBy === 'status' ? (p.status || 'No status')
+        : (p.priority || 'No priority');
+      const list = m.get(key) ?? [];
+      list.push(p); m.set(key, list);
     }
+    const entries = [...m.entries()];
+    const order = groupBy === 'status' ? STATUS_ORDER : groupBy === 'priority' ? PRIORITY_ORDER : null;
+    if (order) entries.sort((a, b) => (order.indexOf(a[0]) < 0 ? 99 : order.indexOf(a[0])) - (order.indexOf(b[0]) < 0 ? 99 : order.indexOf(b[0])));
+    return entries;
+  }, [scheduled, portfolios, groupBy]);
 
-    // If only one group and it's "No portfolio", skip grouping headers
-    const hasMultipleGroups = byPortfolio.size > 1 || (byPortfolio.size === 1 && !byPortfolio.has('No portfolio'));
-    return { byPortfolio, hasMultipleGroups };
-  }, [scheduled, portfolios]);
+  // Single un-portfolioed group reads cleaner without a header (preserves prior UX).
+  const hasGroups = groupBy !== 'none' && !(groupEntries.length === 1 && groupEntries[0][0] === 'No portfolio');
 
-  // ── Stats
+  // ── Stats (whole portfolio, unaffected by filter)
   const total = projects.length;
   const active = projects.filter(p => p.status === 'Active').length;
   const done = projects.filter(p => p.status === 'Completed').length;
+  const allUnscheduled = useMemo(() => projects.filter(p => !(p.start_date && p.end_date)).length, [projects]);
+
+  // ── Analysis (status mix, overdue, avg progress, on-track)
+  const analysis = useMemo(() => {
+    const today = new Date();
+    const byStatus = new Map<string, number>();
+    for (const p of projects) byStatus.set(p.status, (byStatus.get(p.status) ?? 0) + 1);
+    const overdue = projects.filter(p => {
+      const e = parseDate(p.end_date);
+      return e && e < today && p.status !== 'Completed' && p.status !== 'Cancelled';
+    }).length;
+    const avgProgress = projects.length ? Math.round(projects.reduce((s, p) => s + (p.progress ?? 0), 0) / projects.length) : 0;
+    const schedAll = projects.filter(p => p.start_date && p.end_date);
+    const onTrack = schedAll.filter(p => { const e = parseDate(p.end_date); return p.status === 'Completed' || (e && e >= today); }).length;
+    const onTrackPct = schedAll.length ? Math.round((onTrack / schedAll.length) * 100) : 0;
+    return { byStatus, overdue, avgProgress, onTrackPct, schedCount: schedAll.length };
+  }, [projects]);
 
   // ── Cache-patch save (mirrors useUpdateProject.onSuccess pattern)
   const handleSave = async (id: string, patch: { start_date: string | null; end_date: string | null }) => {
@@ -320,7 +348,6 @@ export default function RoadmapPage() {
     qc.setQueryData(qk.projects(org?.id), list);
   };
 
-  // ── Today marker pct
   const todayPct = pct(new Date(), rangeStart, rangeEnd);
 
   if (isLoading) return <Layout flat title="Roadmap"><Spinner /></Layout>;
@@ -337,7 +364,7 @@ export default function RoadmapPage() {
         <StatCard label="Total" value={String(total)} hint="All projects" icon="ti-folder" />
         <StatCard label="Active" value={String(active)} hint="In progress" hintTone="up" icon="ti-player-play" />
         <StatCard label="Completed" value={String(done)} hint="Finished" hintTone="up" icon="ti-circle-check" />
-        <StatCard label="Unscheduled" value={String(unscheduled.length)} hint="Missing dates" icon="ti-calendar-off" />
+        <StatCard label="Unscheduled" value={String(allUnscheduled)} hint="Missing dates" icon="ti-calendar-off" />
       </div>
 
       {projects.length === 0 ? (
@@ -346,6 +373,72 @@ export default function RoadmapPage() {
         </div>
       ) : (
         <>
+          {/* View options */}
+          <div className="flex flex-wrap items-center gap-2 mb-5">
+            <span className="text-2xs text-muted2">Group by</span>
+            <select value={groupBy} onChange={e => setGroupBy(e.target.value as any)} className="input h-9 w-auto">
+              <option value="portfolio">Portfolio</option>
+              <option value="status">Status</option>
+              <option value="priority">Priority</option>
+              <option value="none">None</option>
+            </select>
+            <select value={statusF} onChange={e => setStatusF(e.target.value)} className="input h-9 w-auto">
+              <option value="all">All statuses</option>
+              {STATUS_ORDER.map(st => <option key={st} value={st}>{st}</option>)}
+            </select>
+            <div className="hidden sm:block flex-1" />
+            <button onClick={() => setShowAnalysis(v => !v)} className={`btn h-9 ${showAnalysis ? 'border-accent text-accentstrong' : ''}`}>
+              <Icon name="ti-chart-histogram" className="text-sm" />Analysis
+            </button>
+          </div>
+
+          {/* Analysis panel */}
+          {showAnalysis && (
+            <div className="card p-4 mb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-2xs font-semibold uppercase tracking-wide text-muted mb-2">Status distribution</p>
+                  <div className="flex flex-col gap-1.5">
+                    {STATUS_ORDER.filter(st => (analysis.byStatus.get(st) ?? 0) > 0).map(st => {
+                      const n = analysis.byStatus.get(st) ?? 0;
+                      return (
+                        <div key={st} className="flex items-center gap-2">
+                          <span className="text-2xs text-muted w-20 shrink-0">{st}</span>
+                          <div className="flex-1 h-2 rounded-full bg-surface2 overflow-hidden">
+                            <div className={`h-full rounded-full ${STATUS_BAR[st] ?? 'bg-accent'}`} style={{ width: `${total ? (n / total) * 100 : 0}%` }} />
+                          </div>
+                          <span className="text-2xs text-muted tabular-nums w-6 text-right">{n}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 content-start">
+                  <div className="rounded-lg border border-line p-3">
+                    <p className="text-2xl font-semibold tabular-nums text-content">{analysis.avgProgress}%</p>
+                    <p className="text-2xs text-muted mt-0.5">Avg progress</p>
+                  </div>
+                  <div className="rounded-lg border border-line p-3">
+                    <p className={`text-2xl font-semibold tabular-nums ${analysis.overdue > 0 ? 'text-rose-500' : 'text-content'}`}>{analysis.overdue}</p>
+                    <p className="text-2xs text-muted mt-0.5">Overdue (past end)</p>
+                  </div>
+                  <div className="rounded-lg border border-line p-3">
+                    <p className="text-2xl font-semibold tabular-nums text-content">{analysis.onTrackPct}%</p>
+                    <p className="text-2xs text-muted mt-0.5">On track (of {analysis.schedCount} scheduled)</p>
+                  </div>
+                  <div className="rounded-lg border border-line p-3">
+                    <p className="text-2xl font-semibold tabular-nums text-content">{allUnscheduled}</p>
+                    <p className="text-2xs text-muted mt-0.5">Unscheduled</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {scheduled.length === 0 && unscheduled.length === 0 ? (
+            <div className="card p-8"><EmptyState icon="ti-filter-off" text="No projects match this status filter." /></div>
+          ) : null}
+
           {/* ── Gantt chart */}
           {scheduled.length > 0 && (
             <div className="card overflow-hidden mb-6">
@@ -369,7 +462,6 @@ export default function RoadmapPage() {
 
                   {/* Rows with today line overlay */}
                   <div className="relative">
-                    {/* Today vertical line */}
                     {todayPct >= 0 && todayPct <= 100 && (
                       <div
                         className="absolute top-0 bottom-0 w-px bg-accent/60 z-10 pointer-events-none"
@@ -378,8 +470,8 @@ export default function RoadmapPage() {
                       />
                     )}
 
-                    {groups.hasMultipleGroups ? (
-                      Array.from(groups.byPortfolio.entries()).map(([label, projs]) => (
+                    {hasGroups ? (
+                      groupEntries.map(([label, projs]) => (
                         <GanttGroup
                           key={label}
                           label={label}
