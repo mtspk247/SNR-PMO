@@ -3,7 +3,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow } from '@/lib/db';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest } from '@/lib/db';
 import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
@@ -435,12 +435,22 @@ function OwnersTab() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  const [pending, setPending] = useState<OwnerDeletionRequest[]>([]);
 
   const load = async () => {
     try { setRows(await listPlatformAdmins()); }
     catch (e: any) { setErr(e?.message || 'Failed to load owners'); setRows([]); }
+    try { setPending(await ownerDeletionPending()); } catch { /* ignore */ }
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  const iAmPrimary = !!rows?.some((r) => r.is_self && r.is_primary);
+  const decide = async (id: string, approve: boolean) => {
+    if (busy) return;
+    if (!confirm(approve ? 'Approve this owner removal? This permanently removes the platform owner.' : 'Reject this owner-removal request?')) return;
+    setBusy(true); setErr(''); setMsg('');
+    try { const r = await decideOwnerDeletion(id, approve); setMsg(r.ok ? (approve ? 'Owner removed.' : 'Request rejected.') : (r.reason || 'Could not complete.')); await load(); }
+    catch (e: any) { setErr(e?.message || 'Could not decide'); } finally { setBusy(false); }
+  };
 
   const add = async () => {
     if (!email.trim() || busy) return;
@@ -459,8 +469,10 @@ function OwnersTab() {
     if (!confirm(`Remove ${r.full_name || r.email} as a platform owner?`)) return;
     setBusy(true); setErr(''); setMsg('');
     try {
-      await removePlatformAdmin(r.user_id);
-      setMsg('Owner removed.');
+      const res = await removePlatformAdmin(r.user_id);
+      setMsg(res.status === 'pending_approval'
+        ? 'Removal requested — it needs the primary owner\u2019s approval. An email was sent to the primary owner.'
+        : 'Owner removed.');
       await load();
     } catch (e: any) { setErr(e?.message || 'Could not remove owner'); }
     finally { setBusy(false); }
@@ -487,6 +499,27 @@ function OwnersTab() {
         </div>
         <button className="btn btn-primary" disabled={busy || !email.trim()} onClick={add}><Icon name="ti-user-plus" className="text-base" />Add owner</button>
       </div>
+
+      {pending.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50/50 p-4">
+          <p className="text-sm font-semibold text-content flex items-center gap-2"><Icon name="ti-shield-lock" className="text-amber-600" />Owner-removal approvals</p>
+          <p className="text-2xs text-muted mt-0.5 mb-3">{iAmPrimary ? 'A co-owner requested removing another owner. Only you (the primary owner) can approve.' : 'Pending the primary owner\u2019s approval.'}</p>
+          <div className="space-y-2">
+            {pending.map((pr) => (
+              <div key={pr.id} className="flex flex-wrap items-center gap-2 text-sm bg-surface border border-line rounded-md px-3 py-2">
+                <span className="text-content font-medium">{pr.target_name}</span>
+                <span className="text-2xs text-muted">requested by {pr.requested_by || '—'} · {new Date(pr.created_at).toLocaleString()}</span>
+                {iAmPrimary && (
+                  <span className="ml-auto flex items-center gap-2">
+                    <button className="btn btn-danger h-7 py-0" disabled={busy} onClick={() => decide(pr.id, true)}><Icon name="ti-check" className="text-sm" />Approve removal</button>
+                    <button className="btn h-7 py-0" disabled={busy} onClick={() => decide(pr.id, false)}>Reject</button>
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto"><table className="w-full text-sm">
         <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">

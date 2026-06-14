@@ -2009,9 +2009,26 @@ export async function addPlatformAdmin(email: string): Promise<string> {
   if (error) throw new Error(error.message);
   return data as string;
 }
-export async function removePlatformAdmin(userId: string): Promise<void> {
-  const { error } = await sb.rpc('platform_admin_remove', { p_user_id: userId });
+export async function removePlatformAdmin(userId: string): Promise<{ status: string }> {
+  const { data, error } = await sb.rpc('platform_admin_remove', { p_user_id: userId });
   if (error) throw new Error(error.message);
+  return (data as { status: string }) ?? { status: 'removed' };
+}
+export interface OwnerDeletionRequest { id: string; target_email: string; target_name: string; requested_by: string | null; created_at: string; }
+export async function ownerDeletionPending(): Promise<OwnerDeletionRequest[]> {
+  const { data, error } = await sb.rpc('owner_deletion_pending');
+  if (error) throw new Error(error.message);
+  return (data as OwnerDeletionRequest[]) || [];
+}
+export async function decideOwnerDeletion(id: string, approve: boolean): Promise<{ ok: boolean; reason?: string; status?: string }> {
+  const { data, error } = await sb.rpc('decide_owner_deletion', { p_id: id, p_approve: approve });
+  if (error) throw new Error(error.message);
+  return data as { ok: boolean; reason?: string; status?: string };
+}
+export async function approveOwnerDeletionToken(token: string): Promise<{ ok: boolean; removed?: string; reason?: string }> {
+  const { data, error } = await sb.rpc('approve_owner_deletion_token', { p_token: token });
+  if (error) throw new Error(error.message);
+  return data as { ok: boolean; removed?: string; reason?: string };
 }
 
 // ---- Guests (admin-facing cross-project management; see migration guests_admin_rpcs) ----
