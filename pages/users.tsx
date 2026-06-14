@@ -173,7 +173,7 @@ export default function UsersPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['manage', 'templates', 'teams'] as const).map((t) => (
+            {(['manage', 'templates'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}

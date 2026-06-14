@@ -1537,3 +1537,15 @@ export async function removePlatformAdmin(userId: string): Promise<void> {
   const { error } = await sb.rpc('platform_admin_remove', { p_user_id: userId });
   if (error) throw new Error(error.message);
 }
+
+// ---- Guests (admin-facing cross-project management; see migration guests_admin_rpcs) ----
+export interface GuestRow { org_id: string; org_name: string; user_id: string; full_name: string | null; email: string; is_linked: boolean; created_at: string; projects: { id: string; name: string }[]; }
+export async function listGuests(): Promise<GuestRow[]> {
+  const { data, error } = await sb.rpc('guest_list');
+  if (error) throw new Error(error.message);
+  return (data as GuestRow[]) || [];
+}
+export async function revokeGuest(userId: string, orgId: string): Promise<void> {
+  const { error } = await sb.rpc('guest_revoke', { p_user_id: userId, p_org: orgId });
+  if (error) throw new Error(error.message);
+}

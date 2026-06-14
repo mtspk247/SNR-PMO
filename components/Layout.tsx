@@ -18,7 +18,7 @@ import { getTheme, toggleTheme, Theme } from '@/lib/theme';
 
 // `feature` gates the item behind the active org's plan entitlement (3.3).
 // Items without a feature are core and always shown.
-type Item = { href: string; label: string; icon: string; feature?: FeatureKey };
+type Item = { href: string; label: string; icon: string; feature?: FeatureKey; adminOnly?: boolean };
 type Section =
   | { kind: 'link'; item: Item }
   | { kind: 'menu'; key: string; label: string; icon: string; items: Item[] };
@@ -30,11 +30,15 @@ const SECTIONS: Section[] = [
     { href: '/portfolios', label: 'Portfolios', icon: 'ti-stack-2', feature: 'portfolios' },
     { href: '/projects', label: 'Projects', icon: 'ti-folder' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox' },
-    { href: '/workload', label: 'Workload', icon: 'ti-chart-bar' },
     { href: '/ideas', label: 'Ideas', icon: 'ti-bulb' },
     { href: '/roadmap', label: 'Roadmap', icon: 'ti-timeline' },
-    { href: '/calendar', label: 'Calendar', icon: 'ti-calendar' },
     { href: '/chat', label: 'Chat', icon: 'ti-messages' },
+  ]},
+  { kind: 'menu', key: 'people', label: 'People', icon: 'ti-users', items: [
+    { href: '/teams', label: 'Teams', icon: 'ti-users-group' },
+    { href: '/workload', label: 'Workload', icon: 'ti-chart-bar' },
+    { href: '/calendar', label: 'Calendar', icon: 'ti-calendar' },
+    { href: '/guests', label: 'Guests', icon: 'ti-user-question', adminOnly: true },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Accounting', icon: 'ti-report-money', items: [
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
@@ -101,7 +105,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
     ...(platformAdmin ? [PLATFORM_SECTION] : []),
   ]
     .map((s) => s.kind === 'menu'
-      ? { ...s, items: s.items.filter((i) => hasFeature(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href)) }
+      ? { ...s, items: s.items.filter((i) => hasFeature(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href) && (!i.adminOnly || can.manageMembers(activeOrg))) }
       : s)
     .filter((s) => s.kind === 'link'
       ? hasFeature(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature) && guestOk(s.item.href)

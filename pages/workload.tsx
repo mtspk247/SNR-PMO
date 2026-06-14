@@ -142,7 +142,7 @@ export default function Workload() {
                 </>
               );
               return real
-                ? <Link key={r.id} href={`/workload/${dim}/${r.id}`} className={cls + " group"}>{inner}</Link>
+                ? <Link key={r.id} href={dim === 'team' ? `/teams/${r.id}` : `/workload/${dim}/${r.id}`} className={cls + " group"}>{inner}</Link>
                 : <div key={r.id} className={cls}>{inner}</div>;
             })}
           </div>
