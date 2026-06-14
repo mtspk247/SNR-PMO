@@ -4,12 +4,14 @@ import { useAuthStore } from '@/lib/store';
 import { sb } from '@/lib/supabase';
 import { signInWithPassword, signInWithGoogle, signUpNewTenant } from '@/lib/db';
 import { Icon } from '@/components/ui';
+import { useHostBranding } from '@/lib/useHostBranding';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
 export default function Login() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const brand = useHostBranding();
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,8 +65,10 @@ export default function Login() {
         <div className="pointer-events-none absolute -bottom-32 -right-24 w-[28rem] h-[28rem] rounded-full blur-3xl"
           style={{ background: 'radial-gradient(circle, rgba(111,211,217,.18), transparent 62%)' }} />
         <div className="relative flex items-center gap-2.5">
-          <span className="w-9 h-9 rounded-lg grid place-items-center font-bold text-accentfg shadow-lg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>S</span>
-          <span className="font-semibold text-lg tracking-tight">SNR-PMO</span>
+          {brand.logoUrl
+            ? <img src={brand.logoUrl} alt={brand.name} className="h-9 w-auto max-w-[180px] object-contain" />
+            : <><span className="w-9 h-9 rounded-lg grid place-items-center font-bold text-accentfg shadow-lg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>{brand.name.charAt(0).toUpperCase()}</span>
+              <span className="font-semibold text-lg tracking-tight">{brand.name}</span></>}
         </div>
         <div className="relative">
           <h1 className="text-[2.6rem] font-semibold leading-[1.08] tracking-tight">Run your agency<br />in one clean<br />workspace.</h1>
@@ -78,7 +82,7 @@ export default function Login() {
             ))}
           </ul>
         </div>
-        <p className="relative text-2xs text-white/40">© 2026 SNR-PMO · Secure multi-tenant SaaS</p>
+        <p className="relative text-2xs text-white/40">© 2026 {brand.name} · Secure multi-tenant SaaS</p>
       </div>
 
       <div className="flex items-center justify-center p-6">

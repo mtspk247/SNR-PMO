@@ -63,6 +63,13 @@ export async function getOrgBranding(slug: string): Promise<Organization | null>
   return (row as Organization) ?? null;
 }
 
+export async function getOrgBrandingByHost(host: string): Promise<Organization | null> {
+  const { data, error } = await sb.rpc('org_branding_by_host', { p_host: host });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as Organization) ?? null;
+}
+
 // White-label: owner/admin updates org name + branding. RLS policy `org_update`
 // enforces is_org_role(owner|admin); never trust the client gate alone.
 export async function updateOrgSettings(

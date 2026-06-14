@@ -3,7 +3,7 @@ import type { AppProps } from 'next/app';
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { sb } from '@/lib/supabase';
-import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgFeatures, isPlatformAdmin } from '@/lib/db';
+import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, isPlatformAdmin } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import { ErrorBoundary } from '@/components/ui';
@@ -40,6 +40,7 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     const slug = readCookie('org-slug');
     if (slug) getOrgBranding(slug).then(applyBranding).catch(() => {});
+    else if (typeof window !== 'undefined') getOrgBrandingByHost(window.location.hostname).then((o) => o && applyBranding(o)).catch(() => {});
   }, []);
 
   // Bootstrap + track the Supabase Auth session -> store (user + orgs).

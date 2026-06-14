@@ -4,6 +4,7 @@ import Head from 'next/head';
 import { sb } from '@/lib/supabase';
 import { invitePreview, acceptOrgInvite, InvitePreview } from '@/lib/db';
 import { Icon } from '@/components/ui';
+import { useHostBranding } from '@/lib/useHostBranding';
 
 /**
  * Slice 3 — invite-gated self-serve onboarding.
@@ -21,6 +22,7 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const brand = useHostBranding();
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -63,14 +65,16 @@ export default function SignupPage() {
         <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full blur-3xl"
           style={{ background: 'radial-gradient(circle, rgba(62,207,142,.28), transparent 62%)' }} />
         <div className="relative flex items-center gap-2.5">
-          <span className="w-9 h-9 rounded-lg grid place-items-center font-bold text-accentfg shadow-lg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>S</span>
-          <span className="font-semibold text-lg tracking-tight">SNR-PMO</span>
+          {brand.logoUrl
+            ? <img src={brand.logoUrl} alt={brand.name} className="h-9 w-auto max-w-[180px] object-contain" />
+            : <><span className="w-9 h-9 rounded-lg grid place-items-center font-bold text-accentfg shadow-lg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>{brand.name.charAt(0).toUpperCase()}</span>
+              <span className="font-semibold text-lg tracking-tight">{brand.name}</span></>}
         </div>
         <div className="relative">
           <h1 className="text-[2.6rem] font-semibold leading-[1.08] tracking-tight">You're invited.<br />Let's set up<br />your workspace.</h1>
           <p className="text-white/65 mt-5 max-w-sm text-[15px] leading-relaxed">Create your account to access your organization — projects, tasks, CRM, HR and financials, scoped securely to your tenant.</p>
         </div>
-        <p className="relative text-2xs text-white/40">© 2026 SNR-PMO · Secure multi-tenant SaaS</p>
+        <p className="relative text-2xs text-white/40">© 2026 {brand.name} · Secure multi-tenant SaaS</p>
       </div>
       <div className="flex items-center justify-center p-6"><div className="w-full max-w-sm">{children}</div></div>
     </div>
