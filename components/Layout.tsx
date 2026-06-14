@@ -46,6 +46,7 @@ const SECTIONS: Section[] = [
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
     { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
     { href: '/accounting', label: 'Ledger', icon: 'ti-report-money', feature: 'financial' },
+    { href: '/subscriptions', label: 'Subscriptions', icon: 'ti-credit-card', feature: 'subscriptions' },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
     { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm' },

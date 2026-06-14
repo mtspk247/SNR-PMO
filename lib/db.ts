@@ -764,6 +764,49 @@ export async function deleteAttachment(a: Attachment): Promise<void> {
   const { error } = await sb.from('attachments').delete().eq('id', a.id); if (error) throw new Error(error.message);
 }
 
+// ---- Subscriptions (vendor SaaS tracker) ----
+export interface VendorSubscription {
+  id: string; org_id: string; service: string; category: string | null; plan_type: string | null; plan_name: string | null;
+  cost: number; currency: string; email: string | null; subscribed_on: string | null; next_renewal: string | null;
+  shared_with: string[]; total_spending: number; payment_method: string | null; paid_by_company: string | null;
+  status: string; owner_id: string | null; remarks: string | null; created_by: string | null; created_at: string; updated_at: string;
+}
+export interface VendorSubReconciliation { id: string; org_id: string; subscription_id: string; recon_date: string; amount: number; note: string | null; created_by: string | null; created_at: string; }
+export type VendorSubInput = Partial<Omit<VendorSubscription, 'id' | 'created_at' | 'updated_at'>>;
+
+export async function listVendorSubscriptions(orgId: string): Promise<VendorSubscription[]> {
+  const { data, error } = await sb.from('vendor_subscriptions').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as VendorSubscription[]) || [];
+}
+export async function createVendorSubscription(p: VendorSubInput & { org_id: string; service: string; created_by: string }): Promise<VendorSubscription> {
+  const { data, error } = await sb.from('vendor_subscriptions').insert(p).select('*').single();
+  if (error) throw new Error(error.message); return data as VendorSubscription;
+}
+export async function updateVendorSubscription(id: string, patch: VendorSubInput): Promise<void> {
+  const { error } = await sb.from('vendor_subscriptions').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteVendorSubscription(id: string): Promise<void> {
+  const { error } = await sb.from('vendor_subscriptions').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+// Request a new subscription -> tracked as status 'requested' + an approval (F3). Flips to active on approval.
+export async function requestVendorSubscription(p: VendorSubInput & { org_id: string; service: string; created_by: string; approver_id?: string | null }): Promise<VendorSubscription> {
+  const sub = await createVendorSubscription({ ...p, status: 'requested' });
+  await approvalCreate({ org_id: p.org_id, entity_type: 'vendor_subscription', entity_id: sub.id, kind: 'subscription', title: `Subscription: ${p.service}`, body: p.remarks || p.plan_name || null, amount: p.cost ?? null, approver_id: p.approver_id ?? null });
+  return sub;
+}
+export async function listReconciliations(subId: string): Promise<VendorSubReconciliation[]> {
+  const { data, error } = await sb.from('vendor_sub_reconciliations').select('*').eq('subscription_id', subId).order('recon_date', { ascending: false });
+  if (error) throw new Error(error.message); return (data as VendorSubReconciliation[]) || [];
+}
+export async function addReconciliation(p: { org_id: string; subscription_id: string; recon_date: string; amount: number; note?: string; created_by: string }): Promise<VendorSubReconciliation> {
+  const { data, error } = await sb.from('vendor_sub_reconciliations').insert(p).select('*').single();
+  if (error) throw new Error(error.message); return data as VendorSubReconciliation;
+}
+export async function deleteReconciliation(id: string): Promise<void> {
+  const { error } = await sb.from('vendor_sub_reconciliations').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')
