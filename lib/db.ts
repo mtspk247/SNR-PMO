@@ -1316,7 +1316,7 @@ import { TimeEntry } from './supabase';
 
 // ---- W1 Time tracking -------------------------------------------------------
 // insert pinned to self (RLS time_insert); own rows pass time_select => RETURNING safe.
-const TIME_SEL = '*, user:users!time_entries_user_id_fkey(full_name), task:tasks(name)';
+const TIME_SEL = '*, user:users!time_entries_user_id_fkey(full_name), task:tasks(name), project:projects(name)';
 
 export async function getTaskTimeEntries(taskId: string): Promise<TimeEntry[]> {
   const { data, error } = await sb.from('time_entries').select(TIME_SEL)

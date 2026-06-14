@@ -393,6 +393,7 @@ export interface TimeEntry {
   is_manual: boolean;
   notes: string | null;
   task?: { name: string } | null;
+  project?: { name: string } | null;
   created_at: string;
   user?: { full_name: string } | null;
 }

@@ -113,26 +113,75 @@ export default function TimeTracking({ taskId, orgId, projectId }: {
   );
 }
 
-/** Compact running-timer chip for the app header — visible on every page. */
+/** Compact running-timer chip for the app header — task + project, with pause / stop / resume / dismiss. */
+const PKEY = (uid?: string) => `snr-paused-timer-${uid || 'anon'}`;
+type Paused = { taskId: string; projectId: string | null; orgId: string; taskName: string; projectName: string | null };
+
 export function TimerChip() {
   const me = useAuthStore((s) => s.user);
   const qc = useQueryClient();
   const { data: myTimer } = useMyOpenTimer(me?.id);
   const [busy, setBusy] = useState(false);
-  if (!myTimer) return null;
-  const stop = async () => {
-    setBusy(true);
-    try { await stopTimer(myTimer); qc.invalidateQueries({ queryKey: ['myTimer'] }); qc.invalidateQueries({ queryKey: qk.taskTime(myTimer.task_id) }); }
+  const [paused, setPaused] = useState<Paused | null>(null);
+
+  useEffect(() => {
+    try { const raw = localStorage.getItem(PKEY(me?.id)); setPaused(raw ? JSON.parse(raw) : null); } catch { /* ignore */ }
+  }, [me?.id]);
+  const savePaused = (p: Paused | null) => {
+    setPaused(p);
+    try { if (p) localStorage.setItem(PKEY(me?.id), JSON.stringify(p)); else localStorage.removeItem(PKEY(me?.id)); } catch { /* ignore */ }
+  };
+  // A live server-side timer always wins over a stale paused marker.
+  useEffect(() => { if (myTimer && paused) savePaused(null); /* eslint-disable-next-line */ }, [myTimer?.id]);
+
+  const invalidate = () => { qc.invalidateQueries({ queryKey: ['myTimer'] }); if (myTimer) qc.invalidateQueries({ queryKey: qk.taskTime(myTimer.task_id) }); };
+
+  const onPause = async () => {
+    if (!myTimer) return; setBusy(true);
+    try {
+      await stopTimer(myTimer);
+      savePaused({ taskId: myTimer.task_id, projectId: myTimer.project_id ?? null, orgId: myTimer.org_id, taskName: myTimer.task?.name || 'Task', projectName: myTimer.project?.name ?? null });
+      invalidate();
+    } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+  const onStop = async () => {
+    if (!myTimer) return; setBusy(true);
+    try { await stopTimer(myTimer); savePaused(null); invalidate(); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
+  const onResume = async () => {
+    if (!me || !paused) return; setBusy(true);
+    try { await startTimer({ org_id: paused.orgId, task_id: paused.taskId, project_id: paused.projectId, user_id: me.id }); savePaused(null); qc.invalidateQueries({ queryKey: ['myTimer'] }); }
+    catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+
+  const running = !!myTimer;
+  if (!running && !paused) return null;
+  const taskName = running ? (myTimer!.task?.name || 'Timer') : paused!.taskName;
+  const projectName = running ? (myTimer!.project?.name ?? null) : paused!.projectName;
+
   return (
-    <button onClick={stop} disabled={busy} title="Click to stop the running timer"
-      className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium bg-accent/10 text-accentstrong hover:bg-accent/20 transition-colors max-w-[18rem]">
-      <span className="w-1.5 h-1.5 rounded-full bg-accentstrong animate-pulse shrink-0" />
-      <span className="truncate max-w-[9rem]">{myTimer.task?.name || 'Timer'}</span>
+    <div className={`hidden sm:flex items-center gap-2 h-9 pl-2.5 pr-1 rounded-md text-xs font-medium max-w-[22rem] ${running ? 'bg-accent/10 text-accentstrong' : 'bg-amber-500/10 text-amber-600'}`}>
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${running ? 'bg-accentstrong animate-pulse' : 'bg-amber-500'}`} />
+      <span className="min-w-0 leading-tight">
+        <span className="block truncate max-w-[10rem]">{taskName}</span>
+        <span className="block truncate max-w-[10rem] text-2xs opacity-70 font-normal">{projectName || 'No project'}{running ? '' : ' · paused'}</span>
+      </span>
       <span className="opacity-50 shrink-0">·</span>
-      <Elapsed since={myTimer.started_at} />
-      <Icon name="ti-player-stop" className="text-sm shrink-0" />
-    </button>
+      {running ? <Elapsed since={myTimer!.started_at} /> : <span className="tabular-nums font-mono">paused</span>}
+      <span className="flex items-center gap-0.5 shrink-0">
+        {running ? (
+          <>
+            <button onClick={onPause} disabled={busy} title="Pause (stops this entry)" className="h-7 w-7 grid place-items-center rounded hover:bg-accent/20"><Icon name="ti-player-pause" className="text-sm" /></button>
+            <button onClick={onStop} disabled={busy} title="Stop" className="h-7 w-7 grid place-items-center rounded text-rose-500 hover:bg-rose-500/20"><Icon name="ti-player-stop" className="text-sm" /></button>
+          </>
+        ) : (
+          <>
+            <button onClick={onResume} disabled={busy} title="Resume (starts a new entry)" className="h-7 w-7 grid place-items-center rounded text-accentstrong hover:bg-accent/20"><Icon name="ti-player-play" className="text-sm" /></button>
+            <button onClick={() => savePaused(null)} disabled={busy} title="Dismiss" className="h-7 w-7 grid place-items-center rounded text-muted hover:bg-surface2"><Icon name="ti-x" className="text-sm" /></button>
+          </>
+        )}
+      </span>
+    </div>
   );
 }
