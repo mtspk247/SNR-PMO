@@ -2142,3 +2142,21 @@ export async function getRecentActivity(): Promise<ActivityItem[]> {
     .order('ts', { ascending: false }).limit(20);
   if (error) throw new Error(error.message); return (data as ActivityItem[]) || [];
 }
+
+// ---- Tenant usage / profile (operator + owner) ----
+export interface TenantUsage {
+  created_at: string | null; active: boolean; plan: string | null; owner: string | null;
+  seat_count: number; seat_limit: number | null; guests: number;
+  storage_used_mb: number; storage_limit_mb: number | null;
+  counts: Record<string, number>; features: string[];
+}
+export async function getTenantUsage(orgId: string): Promise<TenantUsage> {
+  const { data, error } = await sb.rpc('tenant_usage', { p_org: orgId });
+  if (error) throw new Error(error.message); return data as TenantUsage;
+}
+export async function getOrgActivity(orgId: string, limit = 15): Promise<ActivityItem[]> {
+  const { data, error } = await sb.from('audit_log')
+    .select('id, ts, username, action, entity_type, entity_id')
+    .eq('org_id', orgId).order('ts', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as ActivityItem[]) || [];
+}

@@ -4,8 +4,20 @@ import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
-import { listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride, listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
+import { listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride, listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getTenantUsage, getOrgActivity, TenantUsage, ActivityItem } from '@/lib/db';
 import { Plan } from '@/lib/supabase';
+
+function UsageBar({ label, used, limit }: { label: string; used: number; limit: number | null }) {
+  const pct = limit && limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : null;
+  const over = pct != null && pct >= 90;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-2xs mb-1"><span className="text-muted">{label}</span>
+        <span className={over ? 'text-rose-600 font-medium' : 'text-content'}>{used}{limit != null ? ` / ${limit}` : ' / ∞'}{pct != null ? ` (${pct}%)` : ''}</span></div>
+      <div className="h-1.5 rounded-full bg-surface2 overflow-hidden"><div className={`h-full ${over ? 'bg-rose-500' : 'bg-accent'}`} style={{ width: `${pct ?? 4}%` }} /></div>
+    </div>
+  );
+}
 
 export default function TenantsPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
@@ -15,12 +27,14 @@ export default function TenantsPage() {
   const [info, setInfo] = useState<TenantInfo | null>(null);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [snaps, setSnaps] = useState<TenantSnapshot[]>([]);
+  const [usage, setUsage] = useState<TenantUsage | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [wipeName, setWipeName] = useState(''); const [wiping, setWiping] = useState(false);
 
   const load = () => { listTenants().then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   useEffect(() => { if (platformAdmin) { load(); listPlans().then(setPlans).catch(() => {}); } }, [platformAdmin]);
 
-  const openTenant = async (t: any) => { setSel(t); setInfo(null); setWipeName(''); setSnaps([]); listTenantSnapshots(t.org_id).then(setSnaps).catch(() => setSnaps([])); try { setInfo(await getTenantInfo(t.org_id)); } catch (e: any) { setErr(e.message); } };
+  const openTenant = async (t: any) => { setSel(t); setInfo(null); setWipeName(''); setSnaps([]); setUsage(null); setActivity([]); listTenantSnapshots(t.org_id).then(setSnaps).catch(() => setSnaps([])); getTenantUsage(t.org_id).then(setUsage).catch(() => {}); getOrgActivity(t.org_id).then(setActivity).catch(() => {}); try { setInfo(await getTenantInfo(t.org_id)); } catch (e: any) { setErr(e.message); } };
   const refreshSnaps = async () => { if (sel) setSnaps(await listTenantSnapshots(sel.org_id)); };
   const doWipe = async () => {
     if (!sel || wipeName.trim() !== sel.org_name) return;
@@ -75,6 +89,43 @@ export default function TenantsPage() {
           footer={<button className="btn" onClick={() => { setSel(null); setInfo(null); }}>Close</button>}>
           {!info ? <Spinner /> : (
             <div className="space-y-4">
+              {usage && (
+                <div className="rounded-lg border border-line p-3 space-y-3 bg-surface2/30">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[['Plan', usage.plan || '—'], ['Owner', usage.owner || '—'],
+                      ['Created', usage.created_at ? new Date(usage.created_at).toLocaleDateString() : '—'],
+                      ['Status', usage.active ? 'Active' : 'Suspended']].map(([k, val]) => (
+                      <div key={k}><p className="text-2xs uppercase tracking-wide text-muted2">{k}</p><p className="text-sm font-medium text-content truncate">{val}</p></div>
+                    ))}
+                  </div>
+                  <UsageBar label="Members (seats)" used={usage.seat_count} limit={usage.seat_limit} />
+                  <UsageBar label="Storage (MB)" used={usage.storage_used_mb} limit={usage.storage_limit_mb} />
+                  <div className="flex items-center justify-between text-2xs"><span className="text-muted">Guests invited</span><span className="text-content font-medium">{usage.guests}</span></div>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {Object.entries(usage.counts).map(([k, val]) => (
+                      <div key={k} className="rounded-md border border-line bg-surface p-2 text-center"><p className="text-sm font-semibold tabular-nums text-content">{val}</p><p className="text-2xs text-muted2 capitalize">{k}</p></div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-2xs uppercase tracking-wide text-muted2 mb-1.5">Features enabled</p>
+                    <div className="flex flex-wrap gap-1.5">{usage.features.map((f) => <span key={f} className="pill pill-green text-2xs">{FEATURE_LABELS[f as keyof typeof FEATURE_LABELS] || f}</span>)}</div>
+                  </div>
+                </div>
+              )}
+              {activity.length > 0 && (
+                <div>
+                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1.5">Recent activity</p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto rounded-lg border border-line p-2">
+                    {activity.map((a) => (
+                      <div key={a.id} className="flex items-center gap-2 text-2xs">
+                        <span className="text-content font-medium">{(a.username || 'Someone').split(' ')[0]}</span>
+                        <span className="text-muted">{({ INSERT: 'created', UPDATE: 'updated', DELETE: 'deleted' } as Record<string, string>)[a.action] || a.action.toLowerCase()} {(a.entity_type || '').replace(/_/g, ' ')}</span>
+                        <span className="text-muted2 ml-auto whitespace-nowrap">{new Date(a.ts).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-3 flex-wrap">
                 <span className={`pill ${info.active ? 'pill-green' : 'pill-red'}`}>{info.active ? 'Active' : 'Suspended'}</span>
                 <button className={`btn h-8 py-0 ${info.active ? 'btn-danger' : 'btn-primary'}`} disabled={busy} onClick={toggleActive}>
