@@ -9,6 +9,7 @@ import { hasFeature, roleAllowsFeature } from '@/lib/entitlements';
 import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
+import RequestsBell from '@/components/RequestsBell';
 import GlobalSearch from '@/components/GlobalSearch';
 import ChatPanel from '@/components/ChatPanel';
 import { TimerChip } from '@/components/TimeTracking';
@@ -296,6 +297,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
               <Icon name="ti-messages" className="text-base" />
             </button>
             <ThemeToggle />
+            <RequestsBell />
             <NotificationBell />
           </div>
         </header>

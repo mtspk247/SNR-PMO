@@ -1589,6 +1589,13 @@ export async function listGuestRequests(projectId: string): Promise<GuestRequest
   if (error) throw new Error(error.message);
   return (data as GuestRequest[]) || [];
 }
+export interface GuestRequestG extends GuestRequest { project?: { name: string } | null; }
+const GREQ_SEL_G = GREQ_SEL + ', project:projects(name)';
+export async function listAllGuestRequests(): Promise<GuestRequestG[]> {
+  const { data, error } = await sb.from('guest_requests').select(GREQ_SEL_G).order('created_at', { ascending: false }).limit(200);
+  if (error) throw new Error(error.message);
+  return (data as GuestRequestG[]) || [];
+}
 export async function createGuestRequest(p: { org_id: string; project_id: string; created_by: string; type: string; title: string; body?: string }): Promise<void> {
   const { error } = await sb.from('guest_requests').insert({ org_id: p.org_id, project_id: p.project_id, created_by: p.created_by, type: p.type, title: p.title, body: p.body || null });
   if (error) throw new Error(error.message);
