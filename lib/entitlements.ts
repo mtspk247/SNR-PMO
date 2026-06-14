@@ -1,23 +1,13 @@
-import { FeatureKey, MyOrg, AppUser, PermKey } from './supabase';
+import { FEATURES, FeatureKey, MyOrg, AppUser, PermKey } from './supabase';
 
 // 3.3 client-side entitlement gating. The DB is the source of truth (RLS feature
 // clauses + seat trigger); these helpers only decide what the UI offers. A user
 // who forces a hidden route still hits an empty/denied result server-side.
 
 // Human labels for plan feature keys (used by settings + platform console).
-export const FEATURE_LABELS: Record<FeatureKey, string> = {
-  crm: 'CRM',
-  risk: 'Risk Analysis',
-  financial: 'Financial Data',
-  hr: 'HR / Onboarding',
-  integrations: 'Integrations',
-  audit: 'Audit Log',
-  white_label: 'White-label',
-  portfolios: 'Portfolios',
-  drives: 'Drives',
-  subscriptions: 'Subscriptions',
-  support: 'Support',
-};
+// Derived from the single FEATURES catalog in supabase.ts — do not hand-maintain.
+export const FEATURE_LABELS: Record<FeatureKey, string> =
+  Object.fromEntries(FEATURES.map((f) => [f.key, f.label])) as Record<FeatureKey, string>;
 
 // True if the org's plan enables `key`. No key → ungated (core module).
 export function hasFeature(org: MyOrg | null | undefined, key?: FeatureKey): boolean {

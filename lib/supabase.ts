@@ -36,9 +36,22 @@ export interface MyOrg extends Organization {
 // ---------------------------------------------------------------------------
 // 3.3 Platform layer — plans, features, entitlements, subscriptions
 // ---------------------------------------------------------------------------
-export type FeatureKey =
-  | 'crm' | 'risk' | 'financial' | 'hr' | 'integrations' | 'audit' | 'white_label' | 'portfolios'
-  | 'drives' | 'subscriptions' | 'support';
+// Single feature catalog — ONE place to add a plan feature. Drives the FeatureKey
+// type, FEATURE_LABELS (settings + tenant overrides), and nav gating keys.
+export const FEATURES = [
+  { key: 'crm', label: 'CRM' },
+  { key: 'risk', label: 'Risk Analysis' },
+  { key: 'financial', label: 'Financial Data' },
+  { key: 'hr', label: 'HR / Onboarding' },
+  { key: 'integrations', label: 'Integrations' },
+  { key: 'audit', label: 'Audit Log' },
+  { key: 'white_label', label: 'White-label' },
+  { key: 'portfolios', label: 'Portfolios' },
+  { key: 'drives', label: 'Drives' },
+  { key: 'subscriptions', label: 'Subscriptions' },
+  { key: 'support', label: 'Support' },
+] as const;
+export type FeatureKey = typeof FEATURES[number]['key'];
 export type PricingModel = 'flat' | 'per_user' | 'white_label';
 export type SubStatus = 'active' | 'trialing' | 'past_due' | 'canceled';
 
