@@ -37,7 +37,8 @@ export interface MyOrg extends Organization {
 // 3.3 Platform layer — plans, features, entitlements, subscriptions
 // ---------------------------------------------------------------------------
 export type FeatureKey =
-  | 'crm' | 'risk' | 'financial' | 'hr' | 'integrations' | 'audit' | 'white_label' | 'portfolios';
+  | 'crm' | 'risk' | 'financial' | 'hr' | 'integrations' | 'audit' | 'white_label' | 'portfolios'
+  | 'drives' | 'subscriptions' | 'support';
 export type PricingModel = 'flat' | 'per_user' | 'white_label';
 export type SubStatus = 'active' | 'trialing' | 'past_due' | 'canceled';
 

@@ -635,6 +635,21 @@ export async function setOrgNotifPolicy(orgId: string, typeKey: string, policy: 
   if (error) throw new Error(error.message);
 }
 
+// Entitlements & limits (F1)
+export async function tenantLimit(orgId: string, key: string): Promise<number | null> {
+  const { data, error } = await sb.rpc('tenant_limit', { p_org: orgId, p_key: key });
+  if (error) throw new Error(error.message);
+  return data == null ? null : Number(data);
+}
+export async function setTenantFeatureOverride(orgId: string, feature: string, enabled: boolean | null): Promise<void> {
+  const { error } = await sb.rpc('tenant_set_feature_override', { p_org: orgId, p_feature: feature, p_enabled: enabled });
+  if (error) throw new Error(error.message);
+}
+export async function setTenantLimitOverride(orgId: string, key: string, value: number | null): Promise<void> {
+  const { error } = await sb.rpc('tenant_set_limit_override', { p_org: orgId, p_key: key, p_value: value });
+  if (error) throw new Error(error.message);
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')

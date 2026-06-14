@@ -14,6 +14,9 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   audit: 'Audit Log',
   white_label: 'White-label',
   portfolios: 'Portfolios',
+  drives: 'Drives',
+  subscriptions: 'Subscriptions',
+  support: 'Support',
 };
 
 // True if the org's plan enables `key`. No key → ungated (core module).
