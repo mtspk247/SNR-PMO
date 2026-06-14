@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
-import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal } from '@/lib/db';
+import { updateOrgSettings, getOrgPlanInfo, listPlans, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -93,6 +93,57 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
+const NOTIF_TYPES: { keys: string[]; label: string; desc: string }[] = [
+  { keys: ['TASK_ASSIGNED'], label: 'Task assignments', desc: 'When a task is assigned to you' },
+  { keys: ['MENTION'], label: '@mentions', desc: 'When someone @mentions you in a comment or chat' },
+  { keys: ['COMMENT'], label: 'Comments', desc: 'New comments on your tasks and projects' },
+  { keys: ['LEAVE_STATUS'], label: 'Leave approvals', desc: 'Updates on your leave requests' },
+  { keys: ['CHECK_IN', 'CHECK_OUT'], label: 'Attendance', desc: 'Check-in and check-out notices' },
+  { keys: ['SYSTEM'], label: 'System & digests', desc: 'Daily digest and system notices' },
+];
+
+function NotificationPrefs() {
+  const me = useAuthStore((s) => s.user);
+  const [prefs, setPrefs] = useState<Record<string, boolean> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { if (!me) return; getNotificationPrefs(me.id).then(setPrefs).catch(() => setPrefs({})); }, [me?.id]);
+  const enabled = (keys: string[]) => (prefs ? keys.every((k) => prefs[k] !== false) : true);
+  const toggle = async (keys: string[], val: boolean) => {
+    if (!me || !prefs) return;
+    const next = { ...prefs }; keys.forEach((k) => { next[k] = val; });
+    setPrefs(next); setSaved(false); setSaving(true);
+    try { await saveNotificationPrefs(me.id, next); setSaved(true); }
+    catch (e: any) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+  return (
+    <div className="card p-6 max-w-4xl mb-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon name="ti-bell-cog" className="text-muted" />
+        <p className="text-sm font-semibold">Notifications</p>
+        {saving && <span className="text-2xs text-muted ml-2">Saving…</span>}
+        {saved && !saving && <span className="text-2xs text-emerald-600 ml-2">Saved</span>}
+      </div>
+      <p className="text-2xs text-muted mb-4">Choose which notifications you receive. These apply to you only.</p>
+      <div className="divide-y divide-line">
+        {NOTIF_TYPES.map((row) => { const on = enabled(row.keys); return (
+          <div key={row.label} className="flex items-center gap-3 py-3">
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-content font-medium">{row.label}</span>
+              <span className="block text-2xs text-muted">{row.desc}</span>
+            </span>
+            <button type="button" role="switch" aria-checked={on} onClick={() => toggle(row.keys, !on)} disabled={!prefs}
+              className={`relative h-5 w-9 rounded-full transition shrink-0 disabled:opacity-50 ${on ? 'bg-accent' : 'bg-surface2 border border-line'}`}>
+              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
+            </button>
+          </div>
+        ); })}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
@@ -115,7 +166,6 @@ export default function SettingsPage() {
   }, [org?.id]);
 
   if (!org) return <Layout flat title="Settings"><Spinner /></Layout>;
-  if (!admin) return <Layout flat title="Settings"><EmptyState icon="ti-lock" text="Only org admins can edit branding" /></Layout>;
 
   const save = async () => {
     setSaving(true); setMsg('');
@@ -138,9 +188,10 @@ export default function SettingsPage() {
 
   return (
     <Layout flat title="Settings">
-      <PageHeader title="Plan & branding" subtitle="Your subscription, entitlements, and white-label settings" />
-      <PlanPanel org={org} />
-      <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">
+      <PageHeader title="Settings" subtitle="Your preferences, subscription, and white-label settings" />
+      <NotificationPrefs />
+      {admin && <PlanPanel org={org} />}
+      {admin && <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">
         {/* Form */}
         <div className="lg:col-span-2 card p-6 space-y-5">
           <div>
@@ -214,7 +265,7 @@ export default function SettingsPage() {
           </div>
           <p className="text-2xs text-neutral-400 mt-3">Live white-label preview — primary drives buttons, links and the active nav item.</p>
         </div>
-      </div>
+      </div>}
     </Layout>
   );
 }

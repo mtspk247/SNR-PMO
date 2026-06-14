@@ -599,6 +599,24 @@ export async function notify(p: {
   if (error) throw new Error(error.message);
 }
 
+// Comment fan-out: notify mentions + assignee + project members, mirror to project chat (server-side).
+export async function commentFanout(commentId: string): Promise<void> {
+  const { error } = await sb.rpc('comment_fanout', { p_comment_id: commentId });
+  if (error) throw new Error(error.message);
+}
+
+// Per-user notification preferences (absent type = enabled; explicit false = muted).
+export async function getNotificationPrefs(userId: string): Promise<Record<string, boolean>> {
+  const { data, error } = await sb.from('notification_preferences').select('prefs').eq('user_id', userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.prefs as Record<string, boolean>) || {};
+}
+export async function saveNotificationPrefs(userId: string, prefs: Record<string, boolean>): Promise<void> {
+  const { error } = await sb.from('notification_preferences')
+    .upsert({ user_id: userId, prefs, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  if (error) throw new Error(error.message);
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Avatar, Icon, Spinner } from '@/components/ui';
-import { getComments, addComment, deleteComment, notify } from '@/lib/db';
+import { getComments, addComment, deleteComment, commentFanout } from '@/lib/db';
 import { Comment, OrgUser } from '@/lib/supabase';
 import { useTeams } from '@/lib/queries';
 
@@ -29,8 +29,7 @@ export default function CommentsThread({ entityType, entityId, orgId, users, cur
     setBusy(true);
     try {
       const c = await addComment({ entity_type: entityType, entity_id: entityId, org_id: orgId, author_id: currentUserId, body: body.trim(), mentions });
-      mentions.filter((id) => id !== currentUserId).forEach((id) =>
-        notify({ org_id: orgId, user_id: id, type: 'MENTION', title: `${nameOf(currentUserId)} mentioned you`, body: body.trim().slice(0, 140), link: '/' + entityType + 's', entity_type: entityType, entity_id: entityId }).catch(() => {}));
+      commentFanout(c.id).catch(() => {});  // notify mentions + assignee + project members; mirror to chat
       setItems((p) => [...p, c]); setBody(''); setMentions([]); setQ(null);
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
