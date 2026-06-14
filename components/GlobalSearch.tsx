@@ -131,7 +131,7 @@ export default function GlobalSearch() {
     <div className="absolute left-0 right-0 top-[2.6rem] z-[65] bg-surface border border-line rounded-lg shadow-xl overflow-hidden">
       <div className="max-h-[60vh] overflow-y-auto py-1">
         {q.trim().length < 2 ? (
-          <p className="px-4 py-5 text-center text-sm text-muted2">Type at least 2 characters{scope !== 'all' ? ` · scope: ${scopeLabel}` : ''}.</p>
+          <p className="px-4 py-5 text-center text-sm text-muted2">Type at least 2 characters{selMods.length > 0 ? ` · scope: ${scopeLabel}` : ''}.</p>
         ) : !loading && hits.length === 0 ? (
           <p className="px-4 py-5 text-center text-sm text-muted2">No matches for “{q.trim()}”.</p>
         ) : (() => { let last = ''; return hits.map((h, i) => {
