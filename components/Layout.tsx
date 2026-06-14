@@ -58,6 +58,7 @@ const SECTIONS: Section[] = [
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock' },
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },
   ]},
+  { kind: 'link', item: { href: '/drives', label: 'Drives', icon: 'ti-cloud', feature: 'drives' } },
   { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } },
 ];
 const ADMIN_SECTION: Section = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [

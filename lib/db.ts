@@ -650,6 +650,73 @@ export async function setTenantLimitOverride(orgId: string, key: string, value: 
   if (error) throw new Error(error.message);
 }
 
+// ---- Drives (F2) ----
+export interface Drive { id: string; org_id: string; name: string; description: string | null; created_by: string | null; created_at: string; }
+export interface DriveFolder { id: string; org_id: string; drive_id: string; parent_id: string | null; name: string; created_at: string; }
+export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; created_at: string; }
+
+export async function listDrives(orgId: string): Promise<Drive[]> {
+  const { data, error } = await sb.from('drives').select('*').eq('org_id', orgId).order('created_at');
+  if (error) throw new Error(error.message); return (data as Drive[]) || [];
+}
+export async function createDrive(p: { org_id: string; name: string; description?: string; created_by: string }): Promise<Drive> {
+  const { data, error } = await sb.from('drives').insert({ org_id: p.org_id, name: p.name, description: p.description || null, created_by: p.created_by }).select('*').single();
+  if (error) throw new Error(error.message); return data as Drive;
+}
+export async function renameDrive(id: string, name: string): Promise<void> {
+  const { error } = await sb.from('drives').update({ name }).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteDrive(id: string): Promise<void> {
+  const { error } = await sb.from('drives').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listFolders(driveId: string): Promise<DriveFolder[]> {
+  const { data, error } = await sb.from('drive_folders').select('*').eq('drive_id', driveId).order('name');
+  if (error) throw new Error(error.message); return (data as DriveFolder[]) || [];
+}
+export async function createFolder(p: { org_id: string; drive_id: string; parent_id: string | null; name: string; created_by: string }): Promise<DriveFolder> {
+  const { data, error } = await sb.from('drive_folders').insert({ org_id: p.org_id, drive_id: p.drive_id, parent_id: p.parent_id, name: p.name, created_by: p.created_by }).select('*').single();
+  if (error) throw new Error(error.message); return data as DriveFolder;
+}
+export async function renameFolder(id: string, name: string): Promise<void> {
+  const { error } = await sb.from('drive_folders').update({ name }).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteFolder(id: string): Promise<void> {
+  const { error } = await sb.from('drive_folders').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listFiles(driveId: string, folderId: string | null): Promise<DriveFile[]> {
+  let q = sb.from('drive_files').select('*').eq('drive_id', driveId);
+  q = folderId === null ? q.is('folder_id', null) : q.eq('folder_id', folderId);
+  const { data, error } = await q.order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as DriveFile[]) || [];
+}
+export async function uploadDriveFile(p: { org_id: string; drive_id: string; folder_id: string | null; file: File; created_by: string }): Promise<DriveFile> {
+  const safe = p.file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
+  // insert first so the quota trigger runs before we upload bytes
+  const { data: row, error: insErr } = await sb.from('drive_files')
+    .insert({ org_id: p.org_id, drive_id: p.drive_id, folder_id: p.folder_id, name: p.file.name, kind: 'file', mime_type: p.file.type || null, size_bytes: p.file.size, created_by: p.created_by })
+    .select('*').single();
+  if (insErr) throw new Error(insErr.message);
+  const rec = row as DriveFile;
+  const path = `${p.org_id}/${p.drive_id}/${rec.id}_${safe}`;
+  const { error: upErr } = await sb.storage.from('drives').upload(path, p.file, { upsert: false });
+  if (upErr) { await sb.from('drive_files').delete().eq('id', rec.id); throw new Error(upErr.message); }
+  const { error: updErr } = await sb.from('drive_files').update({ storage_path: path }).eq('id', rec.id);
+  if (updErr) throw new Error(updErr.message);
+  return { ...rec, storage_path: path };
+}
+export async function driveFileUrl(path: string): Promise<string> {
+  const { data, error } = await sb.storage.from('drives').createSignedUrl(path, 3600);
+  if (error) throw new Error(error.message); return data.signedUrl;
+}
+export async function deleteDriveFile(file: DriveFile): Promise<void> {
+  if (file.storage_path) { await sb.storage.from('drives').remove([file.storage_path]); }
+  const { error } = await sb.from('drive_files').delete().eq('id', file.id); if (error) throw new Error(error.message);
+}
+export async function getDriveUsage(orgId: string): Promise<number> {
+  const { data, error } = await sb.rpc('drive_usage', { p_org: orgId });
+  if (error) throw new Error(error.message); return Number(data || 0);
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')
