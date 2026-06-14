@@ -56,6 +56,10 @@ const SECTIONS: Section[] = [
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
     { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm' },
+    { href: '/leads', label: 'Leads', icon: 'ti-filter', feature: 'crm' },
+    { href: '/clients', label: 'Clients', icon: 'ti-friends', feature: 'crm' },
+    { href: '/proposals', label: 'Proposals', icon: 'ti-file-description', feature: 'crm' },
+    { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm' },
   ]},
   { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
     { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },

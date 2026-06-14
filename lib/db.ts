@@ -882,6 +882,38 @@ export const createCreditNote = (row: Partial<CreditNote> & { org_id: string; cr
 export const updateCreditNote = (id: string, patch: Partial<CreditNote>) => _update('credit_notes', id, patch);
 export const deleteCreditNote = (id: string) => _del('credit_notes', id);
 
+// ---- CRM expansion (leads / clients / proposals / contracts) ----
+export interface Lead { id: string; org_id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; source: string | null; status: string; value: number; currency: string; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface Client { id: string; org_id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; status: string; since: string | null; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface Proposal { id: string; org_id: string; title: string; client_name: string | null; amount: number; currency: string; status: string; valid_until: string | null; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface Contract { id: string; org_id: string; title: string; client_name: string | null; value: number; currency: string; status: string; start_date: string | null; end_date: string | null; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+
+export const listLeads = (orgId: string) => _list<Lead>('leads', orgId);
+export const createLead = (row: Partial<Lead> & { org_id: string; name: string; created_by: string }) => _create<Lead>('leads', row);
+export const updateLead = (id: string, patch: Partial<Lead>) => _update('leads', id, patch);
+export const deleteLead = (id: string) => _del('leads', id);
+
+export const listClients = (orgId: string) => _list<Client>('clients', orgId);
+export const createClient = (row: Partial<Client> & { org_id: string; name: string; created_by: string }) => _create<Client>('clients', row);
+export const updateClient = (id: string, patch: Partial<Client>) => _update('clients', id, patch);
+export const deleteClient = (id: string) => _del('clients', id);
+
+export const listProposals = (orgId: string) => _list<Proposal>('proposals', orgId);
+export const createProposal = (row: Partial<Proposal> & { org_id: string; title: string; created_by: string }) => _create<Proposal>('proposals', row);
+export const updateProposal = (id: string, patch: Partial<Proposal>) => _update('proposals', id, patch);
+export const deleteProposal = (id: string) => _del('proposals', id);
+
+export const listContracts = (orgId: string) => _list<Contract>('contracts', orgId);
+export const createContract = (row: Partial<Contract> & { org_id: string; title: string; created_by: string }) => _create<Contract>('contracts', row);
+export const updateContract = (id: string, patch: Partial<Contract>) => _update('contracts', id, patch);
+export const deleteContract = (id: string) => _del('contracts', id);
+
+export async function convertLeadToClient(lead: Lead, userId: string): Promise<Client> {
+  const client = await createClient({ org_id: lead.org_id, name: lead.name, contact_name: lead.contact_name || undefined, email: lead.email || undefined, phone: lead.phone || undefined, status: 'active', since: new Date().toISOString().slice(0, 10), owner_id: lead.owner_id || undefined, created_by: userId });
+  await updateLead(lead.id, { status: 'converted' });
+  return client;
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')
