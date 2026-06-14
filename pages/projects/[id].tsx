@@ -220,6 +220,7 @@ export default function ProjectDetail() {
 
       <Tabs active={tab} onChange={setTab} tabs={[
         { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
+        { key: 'report', label: 'Report', icon: 'ti-report-analytics' },
         { key: 'tasks', label: 'Tasks', icon: 'ti-checklist', count: tasks.length },
         { key: 'risks', label: 'Risks', icon: 'ti-alert-triangle', count: risks.length },
         { key: 'financials', label: 'Financials', icon: 'ti-cash', count: financials.length + ledger.length },
@@ -356,6 +357,8 @@ export default function ProjectDetail() {
           </div>
         </div>
       )}
+
+      {tab === 'report' && <ReportPanel project={project} tasks={tasks} />}
 
       {tab === 'requests' && <RequestsPanel projectId={id} orgId={org?.id} meId={me?.id} isOrgAdmin={isOrgAdmin} isGuest={org?.member_role === 'guest'} />}
 
@@ -505,6 +508,74 @@ function DocumentsPanel({ projectId, orgId, meId, isOrgAdmin }: { projectId: str
             })}
           </div></div>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+function ReportPanel({ project, tasks }: { project: Project; tasks: Task[] }) {
+  const today = new Date(new Date().toDateString());
+  const top = tasks.filter((t) => !t.parent_task_id);
+  const isDone = (t: Task) => DONE.includes(t.status);
+  const done = top.filter(isDone).length;
+  const overdueList = top.filter((t) => t.due_date && !isDone(t) && t.status !== 'Cancelled' && new Date(t.due_date) < today).sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+  const openTasks = top.filter((t) => !isDone(t) && t.status !== 'Cancelled');
+  const upcoming = openTasks.filter((t) => t.due_date && new Date(t.due_date) >= today).sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).slice(0, 8);
+  const inProg = top.filter((t) => t.status === 'In Progress').length;
+  const completion = top.length ? Math.round((done / top.length) * 100) : 0;
+  const statusCounts = (() => { const m = new Map<string, number>(); for (const t of top) m.set(t.status, (m.get(t.status) ?? 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]); })();
+
+  const exportCsv = () => {
+    const rows = [['Task', 'Status', 'Priority', 'Due'], ...top.map((t) => [t.name, t.status, t.priority, t.due_date || ''])];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = `${project.name.replace(/[^\w.-]+/g, '_')}-report.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-5 max-w-4xl">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><h2 className="text-lg font-semibold text-content">Project report</h2><p className="text-2xs text-muted2">Generated {new Date().toLocaleString()}</p></div>
+        <div className="flex gap-2">
+          <button className="btn h-9" onClick={() => window.print()}><Icon name="ti-printer" />Print / PDF</button>
+          <button className="btn h-9" onClick={exportCsv}><Icon name="ti-file-spreadsheet" />Export CSV</button>
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-3"><Pill label={project.status} /><span className="text-sm font-medium text-content">{project.name}</span><span className="ml-auto text-2xs text-muted2">{project.start_date || '—'} → {project.end_date || '—'}</span></div>
+        <div className="flex items-center gap-3"><div className="flex-1 h-2.5 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${project.progress ?? completion}%` }} /></div><span className="text-sm tabular-nums text-muted">{project.progress ?? completion}%</span></div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Tasks" value={top.length} icon="ti-checklist" />
+        <StatCard label="Completed" value={done} hint={`${completion}%`} hintTone="up" icon="ti-circle-check" />
+        <StatCard label="In progress" value={inProg} icon="ti-progress" />
+        <StatCard label="Overdue" value={overdueList.length} hintTone={overdueList.length ? 'down' : 'up'} icon="ti-alarm" />
+      </div>
+
+      <div className="card p-5">
+        <p className="text-sm font-semibold text-content mb-3">Status breakdown</p>
+        {statusCounts.length === 0 ? <p className="text-sm text-muted2">No tasks yet.</p> : (
+          <div className="flex flex-col gap-2">
+            {statusCounts.map(([s, n]) => (
+              <div key={s} className="flex items-center gap-3"><span className="w-28 shrink-0"><StatusBadge status={s} /></span><div className="flex-1 h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${top.length ? (n / top.length) * 100 : 0}%` }} /></div><span className="text-2xs text-muted2 tabular-nums w-6 text-right">{n}</span></div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="card p-5">
+          <p className="text-sm font-semibold text-content mb-2">Overdue ({overdueList.length})</p>
+          {overdueList.length === 0 ? <p className="text-2xs text-muted2">Nothing overdue.</p> : <div className="space-y-1.5">{overdueList.slice(0, 8).map((t) => (<div key={t.id} className="flex items-center gap-2 text-sm"><span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" /><span className="flex-1 truncate text-content">{t.name}</span><span className="text-2xs text-rose-500 tabular-nums">{t.due_date}</span></div>))}</div>}
+        </div>
+        <div className="card p-5">
+          <p className="text-sm font-semibold text-content mb-2">Upcoming ({upcoming.length})</p>
+          {upcoming.length === 0 ? <p className="text-2xs text-muted2">Nothing scheduled.</p> : <div className="space-y-1.5">{upcoming.map((t) => (<div key={t.id} className="flex items-center gap-2 text-sm"><span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" /><span className="flex-1 truncate text-content">{t.name}</span><span className="text-2xs text-muted2 tabular-nums">{t.due_date}</span></div>))}</div>}
+        </div>
       </div>
     </div>
   );
