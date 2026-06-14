@@ -45,6 +45,8 @@ export default function TenantDetail() {
   const [tab, setTab] = useState('overview');
   const [confirmState, setConfirmState] = useState<{ title: string; body: string; onYes: () => void; danger?: boolean } | null>(null);
   const ask = (title: string, body: string, onYes: () => void, danger = false) => setConfirmState({ title, body, onYes, danger });
+  const [okMsg, setOkMsg] = useState('');
+  const flash = (m: string) => { setOkMsg(m); window.setTimeout(() => setOkMsg(''), 2500); };
   const [planSel, setPlanSel] = useState('');
   useEffect(() => { setPlanSel(info?.plan || ''); }, [info?.plan]);
 
@@ -76,10 +78,10 @@ export default function TenantDetail() {
     return () => { active = false; };
   }, [platformAdmin, orgId]);
 
-  const changePlan = async (key: string) => { setBusy(true); try { await setTenantPlan(orgId, key); await refreshInfo(); refreshUsage(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const changePlan = async (key: string) => { setBusy(true); try { await setTenantPlan(orgId, key); await refreshInfo(); refreshUsage(); flash('Plan updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const toggleActive = async () => { if (!info) return; setBusy(true); try { await setTenantActive(orgId, !info.active); await refreshInfo(); refreshUsage(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
-  const setFeature = async (key: string, val: boolean | null) => { setBusy(true); try { await setTenantFeatureOverride(orgId, key, val); await refreshInfo(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
-  const saveQuota = async (mb: string) => { setBusy(true); try { await setTenantLimitOverride(orgId, 'storage_mb', mb === '' ? null : Number(mb)); await refreshInfo(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const setFeature = async (key: string, val: boolean | null) => { setBusy(true); try { await setTenantFeatureOverride(orgId, key, val); await refreshInfo(); flash('Feature access updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const saveQuota = async (mb: string) => { setBusy(true); try { await setTenantLimitOverride(orgId, 'storage_mb', mb === '' ? null : Number(mb)); await refreshInfo(); flash('Storage quota updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
   const saveDomain = async () => { setDomBusy(true); setErr(''); try { const d = await setCustomDomain(orgId, domInput.trim()); setDom(d); setDomInput(d.custom_domain || ''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
   const removeDomain = async () => { setDomBusy(true); setErr(''); try { const d = await setCustomDomain(orgId, ''); setDom(d); setDomInput(''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
@@ -139,6 +141,7 @@ export default function TenantDetail() {
         </div>} />
 
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+      {okMsg && <p className="text-sm text-emerald-600 mb-3">{okMsg}</p>}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Plan" value={usage?.plan || tenant.plan_name || tenant.plan_key || '—'} icon="ti-package" hint={`Owner: ${usage?.owner || '—'}`} />
@@ -235,7 +238,7 @@ export default function TenantDetail() {
                       <div className="flex items-center rounded-lg border border-line overflow-hidden text-2xs shrink-0">
                         {([['default', undefined], ['on', true], ['off', false]] as const).map(([lab, val]) => {
                           const activeSel = ov === val;
-                          return <button key={lab} disabled={busy} onClick={() => ask('Change feature access?', `Set "${label}" to ${lab} for ${tenant.org_name}?`, () => setFeature(key, (val as boolean | undefined) ?? null))}
+                          return <button key={lab} disabled={busy} onClick={() => setFeature(key, (val as boolean | undefined) ?? null)}
                             className={`px-2.5 h-7 capitalize transition ${activeSel ? 'bg-accent/15 text-accentstrong font-medium' : 'text-muted hover:bg-surface2'}`}>{lab}</button>;
                         })}
                       </div>
