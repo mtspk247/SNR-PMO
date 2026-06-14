@@ -159,7 +159,7 @@ export default function ProjectDetail() {
           <thead><tr><th className="th">Name</th><th className="th">Status</th><th className="th">Priority</th><th className="th">Assignee</th><th className="th">Due</th></tr></thead>
           <tbody>
             {shownTasks.map((t) => (
-              <tr key={t.id} className="row">
+              <tr key={t.id} className="row cursor-pointer" onClick={() => router.push(`/tasks?task=${t.id}`)}>
                 <td className="td font-medium">{t.name}</td>
                 <td className="td"><StatusBadge status={t.status} /></td>
                 <td className="td"><Pill label={t.priority} /></td>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -17,6 +18,7 @@ const lvlDefault = (level: string, perm: 'direct_edit' | 'log_work') => level ==
 
 export default function GuestsPage() {
   const org = useActiveOrg();
+  const router = useRouter();
   const manage = can.manageMembers(org);
   const { data: projects = [] } = useProjects();
   const [guests, setGuests] = useState<GuestRow[] | null>(null);
@@ -114,14 +116,14 @@ export default function GuestsPage() {
                     const meta = LEVEL_META[g.guest_level] || LEVEL_META.viewer;
                     const directEdit = g.guest_perms?.direct_edit ?? lvlDefault(g.guest_level || 'viewer', 'direct_edit');
                     return (
-                      <tr key={g.user_id + g.org_id} className="border-t border-line hover:bg-surface2/50">
+                      <tr key={g.user_id + g.org_id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => router.push(`/guests/${g.user_id}`)}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <Avatar name={g.full_name || g.email} size={26} />
                             <div className="min-w-0"><Link href={`/guests/${g.user_id}`} className="block font-medium text-content hover:text-accent truncate">{g.full_name || g.email}</Link><span className="block text-2xs text-muted truncate">{g.email}</span></div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => openAccess(g)} className="inline-flex items-center gap-1.5 group" title="Edit access">
                             <span className={`pill ${meta.pill}`}>{meta.label}</span>
                             {directEdit && <span className="text-2xs text-amber-600" title="Can edit directly"><Icon name="ti-pencil" className="text-xs" /></span>}
@@ -129,13 +131,13 @@ export default function GuestsPage() {
                           </button>
                         </td>
                         <td className="px-4 py-3"><span className={`pill ${g.is_linked ? 'pill-green' : 'pill-amber'}`}>{g.is_linked ? 'Active' : 'Pending'}</span></td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           {g.projects.length === 0 ? <span className="text-2xs text-muted2">None</span> : (
                             <div className="flex flex-wrap gap-1">{g.projects.map((p) => <Link key={p.id} href={`/projects/${p.id}`} className="chip hover:text-content">{p.name}</Link>)}</div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-muted">{new Date(g.created_at).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <Link href={`/guests/${g.user_id}`} className="btn h-8 py-0 mr-1"><Icon name="ti-user" className="text-sm" />Details</Link>
                           <button className="btn h-8 py-0 mr-1" disabled={busy} onClick={() => openAccess(g)}><Icon name="ti-adjustments" className="text-sm" />Access</button>
                           <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => revoke(g)}><Icon name="ti-user-minus" className="text-sm" />Revoke</button>

@@ -216,7 +216,7 @@ export default function IdeasPage() {
                     const isConverting = convertingId === idea.id;
                     const cell = (id: string) => {
                       switch (id) {
-                        case 'votes': return (<button className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded transition-colors ${hasVoted ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted hover:text-content hover:bg-surface2'} disabled:opacity-50`} onClick={() => vote(idea)} disabled={isVoting || !user} title={hasVoted ? 'Remove vote' : 'Vote'}><Icon name="ti-arrow-big-up" className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span></button>);
+                        case 'votes': return (<button className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded transition-colors ${hasVoted ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted hover:text-content hover:bg-surface2'} disabled:opacity-50`} onClick={(e) => { e.stopPropagation(); vote(idea); }} disabled={isVoting || !user} title={hasVoted ? 'Remove vote' : 'Vote'}><Icon name="ti-arrow-big-up" className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span></button>);
                         case 'title': return (<><p className="font-medium text-content truncate">{idea.title}</p>{idea.pitch && <p className="text-2xs text-muted truncate mt-0.5">{idea.pitch}</p>}</>);
                         case 'status': return <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>;
                         case 'project': return idea.project?.name ? <span className="pill pill-gray">{idea.project.name}</span> : '—';
@@ -226,9 +226,9 @@ export default function IdeasPage() {
                       }
                     };
                     return (
-                      <tr key={idea.id} className="row">
+                      <tr key={idea.id} className="row cursor-pointer" onClick={() => router.push(`/ideas/${idea.id}`)}>
                         {lp.ordered.map((id) => <td key={id} className={`td ${id === 'votes' ? 'text-center' : ''} ${id === 'title' ? 'max-w-xs' : ''} ${['project', 'by', 'created'].includes(id) ? 'text-2xs text-muted' : ''} ${id === 'created' ? 'tabular-nums' : ''}`}>{cell(id)}</td>)}
-                        <td className="td">
+                        <td className="td" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
                             <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEdit(idea)}><Icon name="ti-pencil" /></button>
                             {!idea.project_id && (<button className="btn-ghost p-1.5 text-accent" title="Convert to project" onClick={() => convert(idea)} disabled={isConverting}><Icon name="ti-rocket" /></button>)}
