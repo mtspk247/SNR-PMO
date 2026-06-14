@@ -238,7 +238,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
             <Breadcrumbs fallback={defaultCrumbs} />
           </div>
           {can.manageMembers(activeOrg) && (
-            <div className="hidden md:flex flex-1 min-w-0 items-center px-4">
+            <div className="hidden md:flex flex-1 min-w-0 items-center border-l border-line pl-4 ml-3 mr-3">
               <ActivityTicker />
             </div>
           )}

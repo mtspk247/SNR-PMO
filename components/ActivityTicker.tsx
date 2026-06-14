@@ -4,7 +4,6 @@ import { Icon } from '@/components/ui';
 import { getRecentActivity, ActivityItem } from '@/lib/db';
 import { useActiveOrg } from '@/lib/store';
 
-const WINDOW_MS = 10 * 60 * 1000;   // show events from the last ~10 minutes
 const VERB: Record<string, string> = { INSERT: 'created', UPDATE: 'updated', DELETE: 'deleted' };
 const niceEntity = (t: string | null) => (t || 'item').replace(/_/g, ' ');
 const firstName = (u: string | null) => (u || 'Someone').trim().split(/\s+/)[0];
@@ -41,7 +40,7 @@ export default function ActivityTicker() {
     if (stopped || !org) { setItems([]); return; }
     let alive = true;
     const load = () => getRecentActivity()
-      .then((rows) => { if (alive) setItems(rows.filter((r) => Date.now() - new Date(r.ts).getTime() < WINDOW_MS)); })
+      .then((rows) => { if (alive) setItems(rows); })
       .catch(() => {});
     load();
     const t = setInterval(load, 15000);
@@ -65,7 +64,7 @@ export default function ActivityTicker() {
     return (
       <button onClick={() => setS(false)} title="Show live activity"
         className="flex items-center gap-1.5 text-2xs text-muted2 hover:text-content">
-        <Icon name="ti-player-play" className="text-sm" /> Activity off
+        <Icon name="ti-player-play" className="text-sm" /><span className="uppercase tracking-wide">Activity off</span>
       </button>
     );
   }
@@ -74,24 +73,26 @@ export default function ActivityTicker() {
   const href = cur ? hrefFor(cur) : null;
 
   return (
-    <div className="flex items-center gap-2 max-w-full min-w-0">
-      <span className="flex items-center gap-1.5 text-2xs text-muted2 shrink-0">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+    <div className="group flex items-center gap-3 w-full min-w-0">
+      <span className="flex items-center gap-1.5 shrink-0">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-2xs font-medium uppercase tracking-wide text-muted2">Live</span>
       </span>
+      <span className="h-3.5 w-px bg-line shrink-0" />
       <div className="min-w-0 flex-1 overflow-hidden">
         {items.length === 0 ? (
-          <span className="text-2xs text-muted2">No recent activity</span>
+          <span className="text-2xs text-muted2 italic">No recent activity</span>
         ) : (
           <button onClick={() => href && router.push(href)} disabled={!href}
-            className={`block truncate text-2xs transition-opacity duration-200 ${vis ? 'opacity-100' : 'opacity-0'} ${href ? 'text-content hover:text-accentstrong cursor-pointer' : 'text-muted cursor-default'}`}>
-            <span className="font-medium">{firstName(cur?.username ?? null)}</span>{' '}
-            {VERB[cur?.action || ''] || (cur?.action || '').toLowerCase()}{' '}
-            <span className="text-muted">{niceEntity(cur?.entity_type ?? null)}</span>
+            className={`block truncate text-2xs transition-opacity duration-200 ${vis ? 'opacity-100' : 'opacity-0'} ${href ? 'text-content hover:text-accentstrong cursor-pointer' : 'text-content cursor-default'}`}>
+            <span className="font-semibold">{firstName(cur?.username ?? null)}</span>{' '}
+            <span className="text-muted">{VERB[cur?.action || ''] || (cur?.action || '').toLowerCase()}</span>{' '}
+            <span className="font-medium">{niceEntity(cur?.entity_type ?? null)}</span>
             <span className="text-muted2"> · {new Date(cur!.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </button>
         )}
       </div>
-      <div className="flex items-center gap-0.5 shrink-0 text-muted2">
+      <div className="flex items-center gap-0.5 shrink-0 text-muted2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
         <button onClick={() => setP(!paused)} title={paused ? 'Resume' : 'Pause'} className="hover:text-content p-1"><Icon name={paused ? 'ti-player-play' : 'ti-player-pause'} className="text-sm" /></button>
         <button onClick={() => { setItems([]); setIdx(0); idxRef.current = 0; }} title="Clear" className="hover:text-content p-1"><Icon name="ti-eraser" className="text-sm" /></button>
         <button onClick={() => setS(true)} title="Stop (hide)" className="hover:text-rose-500 p-1"><Icon name="ti-player-stop" className="text-sm" /></button>
