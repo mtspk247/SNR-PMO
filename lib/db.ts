@@ -227,8 +227,7 @@ export async function updateProject(id: string, patch: Partial<{
   return getProjects();
 }
 export async function deleteProject(id: string): Promise<void> {
-  const { error } = await sb.from('projects').delete().eq('id', id);
-  if (error) throw new Error(error.message);
+  return softDelete('project', id);
 }
 
 // --- Tenancy companies (Org → Company → Project). RLS: org owner/admin only. ---
@@ -252,8 +251,7 @@ export async function updateOrgCompany(id: string, patch: { name?: string; descr
   if (error) throw new Error(error.message); return data as OrgCompany;
 }
 export async function deleteOrgCompany(id: string): Promise<void> {
-  const { error } = await sb.from('companies').delete().eq('id', id);
-  if (error) throw new Error(error.message);
+  return softDelete('company', id);
 }
 
 // --- 3.4 Company RBAC: per-company membership ---------------------------
@@ -310,8 +308,7 @@ export async function updatePortfolio(id: string, patch: { name?: string; descri
   return getPortfolios();
 }
 export async function deletePortfolio(id: string): Promise<void> {
-  const { error } = await sb.from('portfolios').delete().eq('id', id);
-  if (error) throw new Error(error.message);
+  return softDelete('portfolio', id);
 }
 // Per-portfolio members. RLS: pfm_select=can_access_portfolio, pfm_write=manages_portfolio.
 export async function listPortfolioMembers(portfolioId: string): Promise<PortfolioMember[]> {
@@ -429,8 +426,7 @@ export async function advanceDealStage(id: string, current: string): Promise<Dea
 }
 // crm_* = single ALL policy (is_org_member AND feature) → delete is RLS-safe.
 export async function deleteDeal(id: string): Promise<void> {
-  const { error } = await sb.from('crm_deals').delete().eq('id', id);
-  if (error) throw new Error(error.message);
+  return softDelete('deal', id);
 }
 export async function deleteContact(id: string): Promise<void> {
   const { error } = await sb.from('crm_contacts').delete().eq('id', id);
@@ -858,7 +854,7 @@ export interface CreditNote { id: string; org_id: string; credit_number: string;
 export const listInvoices = (orgId: string) => _list<Invoice>('invoices', orgId);
 export const createInvoice = (row: Partial<Invoice> & { org_id: string; invoice_number: string; created_by: string }) => _create<Invoice>('invoices', row);
 export const updateInvoice = (id: string, patch: Partial<Invoice>) => _update('invoices', id, patch);
-export const deleteInvoice = (id: string) => _del('invoices', id);
+export const deleteInvoice = (id: string) => softDelete('invoice', id);
 export async function getInvoice(id: string): Promise<Invoice | null> {
   const { data, error } = await sb.from('invoices').select('*').eq('id', id).maybeSingle();
   if (error) throw new Error(error.message); return (data as Invoice) || null;
@@ -880,7 +876,7 @@ export const deletePayment = (id: string) => _del('payments', id);
 export const listCreditNotes = (orgId: string) => _list<CreditNote>('credit_notes', orgId);
 export const createCreditNote = (row: Partial<CreditNote> & { org_id: string; credit_number: string; created_by: string }) => _create<CreditNote>('credit_notes', row);
 export const updateCreditNote = (id: string, patch: Partial<CreditNote>) => _update('credit_notes', id, patch);
-export const deleteCreditNote = (id: string) => _del('credit_notes', id);
+export const deleteCreditNote = (id: string) => softDelete('credit_note', id);
 
 // ---- CRM expansion (leads / clients / proposals / contracts) ----
 export interface Lead { id: string; org_id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; source: string | null; status: string; value: number; currency: string; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
@@ -891,22 +887,22 @@ export interface Contract { id: string; org_id: string; title: string; client_na
 export const listLeads = (orgId: string) => _list<Lead>('leads', orgId);
 export const createLead = (row: Partial<Lead> & { org_id: string; name: string; created_by: string }) => _create<Lead>('leads', row);
 export const updateLead = (id: string, patch: Partial<Lead>) => _update('leads', id, patch);
-export const deleteLead = (id: string) => _del('leads', id);
+export const deleteLead = (id: string) => softDelete('lead', id);
 
 export const listClients = (orgId: string) => _list<Client>('clients', orgId);
 export const createClient = (row: Partial<Client> & { org_id: string; name: string; created_by: string }) => _create<Client>('clients', row);
 export const updateClient = (id: string, patch: Partial<Client>) => _update('clients', id, patch);
-export const deleteClient = (id: string) => _del('clients', id);
+export const deleteClient = (id: string) => softDelete('client', id);
 
 export const listProposals = (orgId: string) => _list<Proposal>('proposals', orgId);
 export const createProposal = (row: Partial<Proposal> & { org_id: string; title: string; created_by: string }) => _create<Proposal>('proposals', row);
 export const updateProposal = (id: string, patch: Partial<Proposal>) => _update('proposals', id, patch);
-export const deleteProposal = (id: string) => _del('proposals', id);
+export const deleteProposal = (id: string) => softDelete('proposal', id);
 
 export const listContracts = (orgId: string) => _list<Contract>('contracts', orgId);
 export const createContract = (row: Partial<Contract> & { org_id: string; title: string; created_by: string }) => _create<Contract>('contracts', row);
 export const updateContract = (id: string, patch: Partial<Contract>) => _update('contracts', id, patch);
-export const deleteContract = (id: string) => _del('contracts', id);
+export const deleteContract = (id: string) => softDelete('contract', id);
 
 export async function convertLeadToClient(lead: Lead, userId: string): Promise<Client> {
   const client = await createClient({ org_id: lead.org_id, name: lead.name, contact_name: lead.contact_name || undefined, email: lead.email || undefined, phone: lead.phone || undefined, status: 'active', since: new Date().toISOString().slice(0, 10), owner_id: lead.owner_id || undefined, created_by: userId });
@@ -923,7 +919,7 @@ export interface OfferLetter { id: string; org_id: string; application_id: strin
 export const listJobs = (orgId: string) => _list<JobPosting>('job_postings', orgId);
 export const createJob = (row: Partial<JobPosting> & { org_id: string; title: string; created_by: string }) => _create<JobPosting>('job_postings', row);
 export const updateJob = (id: string, patch: Partial<JobPosting>) => _update('job_postings', id, patch);
-export const deleteJob = (id: string) => _del('job_postings', id);
+export const deleteJob = (id: string) => softDelete('job', id);
 
 export const listApplications = (orgId: string) => _list<Application>('applications', orgId);
 export const createApplication = (row: Partial<Application> & { org_id: string; candidate_name: string; created_by: string }) => _create<Application>('applications', row);
@@ -938,7 +934,7 @@ export const deleteInterview = (id: string) => _del('interviews', id);
 export const listOfferLetters = (orgId: string) => _list<OfferLetter>('offer_letters', orgId);
 export const createOfferLetter = (row: Partial<OfferLetter> & { org_id: string; candidate_name: string; created_by: string }) => _create<OfferLetter>('offer_letters', row);
 export const updateOfferLetter = (id: string, patch: Partial<OfferLetter>) => _update('offer_letters', id, patch);
-export const deleteOfferLetter = (id: string) => _del('offer_letters', id);
+export const deleteOfferLetter = (id: string) => softDelete('offer', id);
 
 // ---- Sticky notes (personal) ----
 export interface StickyNote { id: string; org_id: string; user_id: string; title: string; body: string; color: string; page_path: string | null; archived_at: string | null; created_at: string; updated_at: string; }
@@ -2087,4 +2083,34 @@ export async function guestDetail(userId: string, orgId: string): Promise<GuestD
 }
 export async function recordGuestActivity(orgId: string, userId: string, projectId: string | null, kind: 'checkin' | 'view', detail: string): Promise<void> {
   try { await sb.from('guest_activity').insert({ org_id: orgId, user_id: userId, project_id: projectId, kind, detail }); } catch { /* best-effort */ }
+}
+
+// ---- Trash / safe delete (parent entities route here; reversible 30 days) ----
+export interface TrashItem {
+  id: string; org_id: string; entity_type: string; entity_id: string; label: string | null;
+  snapshot: any; deleted_by: string | null; deleted_at: string; purge_at: string;
+  status: 'user_trash' | 'tenant_retained' | 'archived';
+}
+// Snapshot + soft-delete a record. entityType must be a row in snrpmo.trash_types.
+export async function softDelete(entityType: string, id: string): Promise<void> {
+  const { error } = await sb.rpc('trash_soft_delete', { p_entity_type: entityType, p_entity_id: id });
+  if (error) throw new Error(error.message);
+}
+export async function listTrash(scope: 'mine' | 'admin' = 'mine'): Promise<TrashItem[]> {
+  let q = sb.from('trash').select('*').order('deleted_at', { ascending: false });
+  q = scope === 'mine' ? q.eq('status', 'user_trash') : q.in('status', ['tenant_retained', 'archived']);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message); return (data as TrashItem[]) || [];
+}
+export async function restoreTrash(id: string): Promise<void> {
+  const { error } = await sb.rpc('trash_restore', { p_id: id }); if (error) throw new Error(error.message);
+}
+export async function purgeTrash(id: string): Promise<void> {
+  const { error } = await sb.rpc('trash_purge', { p_id: id }); if (error) throw new Error(error.message);
+}
+export async function emptyTrash(): Promise<number> {
+  const { data, error } = await sb.rpc('trash_empty'); if (error) throw new Error(error.message); return (data as number) ?? 0;
+}
+export async function archiveTrash(id: string): Promise<void> {
+  const { error } = await sb.rpc('trash_archive', { p_id: id }); if (error) throw new Error(error.message);
 }

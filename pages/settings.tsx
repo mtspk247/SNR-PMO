@@ -154,6 +154,35 @@ function NotificationPrefs() {
   );
 }
 
+function DeleteSafetyToggle({ org }: { org: { id: string; branding?: Record<string, any> } }) {
+  const patchOrg = useAuthStore((s) => s.patchOrg);
+  const [on, setOn] = useState((org.branding as any)?.require_delete_confirm !== false);
+  const [saving, setSaving] = useState(false);
+  const toggle = async () => {
+    const next = !on; setOn(next); setSaving(true);
+    try {
+      const branding = { ...(org.branding || {}), require_delete_confirm: next };
+      const updated = await updateOrgSettings(org.id, { branding });
+      patchOrg({ id: org.id, branding: updated.branding });
+    } catch { setOn(!next); } finally { setSaving(false); }
+  };
+  return (
+    <div className="card p-6 max-w-4xl mb-6">
+      <div className="flex items-center gap-3">
+        <Icon name="ti-shield-check" className="text-muted shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">Require typing DELETE for core records</p>
+          <p className="text-2xs text-muted">When on, deleting parent records (projects, companies, clients, invoices…) asks for a typed confirmation. Everything still goes to Trash either way.</p>
+        </div>
+        <button role="switch" aria-checked={on} onClick={toggle} disabled={saving}
+          className={`relative h-5 w-9 rounded-full transition shrink-0 ${on ? 'bg-accent' : 'bg-surface2 border border-line'}`}>
+          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
@@ -209,6 +238,7 @@ export default function SettingsPage() {
       )}
       {(!admin || tab === 'notifications') && <NotificationPrefs />}
       {admin && tab === 'billing' && <PlanPanel org={org} />}
+      {admin && tab === 'branding' && <DeleteSafetyToggle org={org} />}
       {admin && tab === 'branding' && <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">
         {/* Form */}
         <div className="lg:col-span-2 card p-6 space-y-5">
