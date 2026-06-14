@@ -11,7 +11,7 @@ import { useSetCrumbs } from '@/components/Breadcrumbs';
 import {
   getProjectById, getTasks, getRisks, getFinancials, getLedgerEntries,
   getOrgUsers, getOrgCompanies, getPortfolios,
-  createTask, listGuestRequests, createGuestRequest, decideGuestRequest, GuestRequest,
+  createTask, listGuestRequests, createGuestRequest, decideGuestRequest, GuestRequest, recordGuestActivity,
   listGuestDocuments, uploadGuestDocument, guestDocumentUrl, deleteGuestDocument, GuestDocument,
 } from '@/lib/db';
 import { Project, Task, Risk, Financial, LedgerEntry, OrgUser, OrgCompany, Portfolio } from '@/lib/supabase';
@@ -37,6 +37,11 @@ export default function ProjectDetail() {
     } catch (e: any) { alert(e.message); } finally { setGBusy(false); }
   };
   const me = useAuthStore((s) => s.user);
+  useEffect(() => {
+    if (org?.member_role === 'guest' && me?.id && org?.id && id) {
+      try { const k = 'g_view_' + id; if (!sessionStorage.getItem(k)) { sessionStorage.setItem(k, '1'); recordGuestActivity(org.id, me.id, id, 'view', 'Viewed project'); } } catch { /* ignore */ }
+    }
+  }, [org?.id, me?.id, id]);
 
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);

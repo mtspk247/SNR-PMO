@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { sb } from '@/lib/supabase';
-import { signOut } from '@/lib/db';
+import { signOut, recordGuestActivity } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
 import { hasFeature, roleAllowsFeature } from '@/lib/entitlements';
@@ -128,6 +128,13 @@ export default function Layout({ title, children, flat = false }: { title: strin
 
   // Re-apply branding when the active org changes (covers org switch + apex domain).
   useEffect(() => { applyBranding(activeOrg); }, [activeOrg?.id, JSON.stringify(activeOrg?.branding)]);
+
+  // Lightweight guest check-in (once per browser session per org).
+  useEffect(() => {
+    if (activeOrg?.member_role === 'guest' && user?.id && activeOrg?.id) {
+      try { const k = 'g_checkin_' + activeOrg.id; if (!sessionStorage.getItem(k)) { sessionStorage.setItem(k, '1'); recordGuestActivity(activeOrg.id, user.id, null, 'checkin', 'Signed in'); } } catch { /* ignore */ }
+    }
+  }, [activeOrg?.id, user?.id, activeOrg?.member_role]);
 
   // Track the lg breakpoint so the rail only collapses on desktop; mobile is always full-width.
   useEffect(() => {

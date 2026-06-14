@@ -118,7 +118,7 @@ export default function GuestsPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <Avatar name={g.full_name || g.email} size={26} />
-                            <div className="min-w-0"><span className="block font-medium text-content truncate">{g.full_name || g.email}</span><span className="block text-2xs text-muted truncate">{g.email}</span></div>
+                            <div className="min-w-0"><Link href={`/guests/${g.user_id}`} className="block font-medium text-content hover:text-accent truncate">{g.full_name || g.email}</Link><span className="block text-2xs text-muted truncate">{g.email}</span></div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -136,6 +136,7 @@ export default function GuestsPage() {
                         </td>
                         <td className="px-4 py-3 text-muted">{new Date(g.created_at).toLocaleDateString()}</td>
                         <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <Link href={`/guests/${g.user_id}`} className="btn h-8 py-0 mr-1"><Icon name="ti-user" className="text-sm" />Details</Link>
                           <button className="btn h-8 py-0 mr-1" disabled={busy} onClick={() => openAccess(g)}><Icon name="ti-adjustments" className="text-sm" />Access</button>
                           <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => revoke(g)}><Icon name="ti-user-minus" className="text-sm" />Revoke</button>
                         </td>

@@ -1605,3 +1605,17 @@ export async function deleteGuestDocument(id: string, path: string): Promise<voi
   const { error } = await sb.from('guest_documents').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ---- Guest detail + activity (admin guest profile; migration guest_activity_and_detail) ----
+export interface GuestDetail {
+  profile: { user_id: string; full_name: string | null; email: string; is_linked: boolean; guest_level: string; guest_perms: Record<string, boolean>; created_at: string; projects: { id: string; name: string }[] };
+  requests: any[]; documents: any[]; comments: any[]; messages: any[]; tasks: any[]; activity: any[]; audit: any[];
+}
+export async function guestDetail(userId: string, orgId: string): Promise<GuestDetail> {
+  const { data, error } = await sb.rpc('guest_detail', { p_user_id: userId, p_org: orgId });
+  if (error) throw new Error(error.message);
+  return data as GuestDetail;
+}
+export async function recordGuestActivity(orgId: string, userId: string, projectId: string | null, kind: 'checkin' | 'view', detail: string): Promise<void> {
+  try { await sb.from('guest_activity').insert({ org_id: orgId, user_id: userId, project_id: projectId, kind, detail }); } catch { /* best-effort */ }
+}
