@@ -136,6 +136,15 @@ export async function saveOnboarding(orgId: string, name: string, meta: Record<s
   const { error } = await sb.rpc('save_onboarding', { p_org: orgId, p_name: name, p_meta: meta });
   if (error) throw new Error(error.message);
 }
+export interface MyProfile { id: string; full_name: string | null; phone: string | null; job_title: string | null; avatar_url: string | null; }
+export async function getMyProfile(userId: string): Promise<MyProfile> {
+  const { data, error } = await sb.from('users').select('id, full_name, phone, job_title, avatar_url').eq('id', userId).single();
+  if (error) throw error; return data as MyProfile;
+}
+export async function updateMyProfile(userId: string, patch: Partial<Omit<MyProfile, 'id'>>): Promise<void> {
+  const { error } = await sb.from('users').update(patch).eq('id', userId);
+  if (error) throw new Error(error.message);
+}
 export async function getOrgPlanFeatures(orgId: string): Promise<string[]> {
   const { data: sub } = await sb.from('subscriptions').select('plan_id, status').eq('org_id', orgId).maybeSingle();
   let planId = sub?.plan_id as string | undefined;

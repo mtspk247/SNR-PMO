@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import FirstRunChecklist from '@/components/FirstRunChecklist';
 import WelcomeWizard from '@/components/WelcomeWizard';
+import ProfileCompletion from '@/components/ProfileCompletion';
 import { StatCard, Pill, Spinner, EmptyState, Icon, Avatar, StatusBadge } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
 import {
@@ -231,6 +232,7 @@ export default function Dashboard() {
 
       <WelcomeWizard />
       <FirstRunChecklist />
+      <ProfileCompletion />
 
       {loading ? <Spinner /> : (
         <>
