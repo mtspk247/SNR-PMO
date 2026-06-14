@@ -3,11 +3,11 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow } from '@/lib/db';
+import { listPlatformOrgs, listPlans, listFeatures, listPlanFeatures, setPlanFeature, setOrgPlan, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow } from '@/lib/db';
 import { PlatformOrg, Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'tenants' | 'plans' | 'billing' | 'email' | 'backups' | 'errors';
+type Tab = 'tenants' | 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -429,6 +429,96 @@ function BackupsTab() {
   );
 }
 
+function OwnersTab() {
+  const [rows, setRows] = useState<PlatformAdminRow[] | null>(null);
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const load = async () => {
+    try { setRows(await listPlatformAdmins()); }
+    catch (e: any) { setErr(e?.message || 'Failed to load owners'); setRows([]); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const add = async () => {
+    if (!email.trim() || busy) return;
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      await addPlatformAdmin(email.trim());
+      setMsg(`Added ${email.trim()} as a platform owner.`);
+      setEmail('');
+      await load();
+    } catch (e: any) { setErr(e?.message || 'Could not add owner'); }
+    finally { setBusy(false); }
+  };
+
+  const remove = async (r: PlatformAdminRow) => {
+    if (busy) return;
+    if (!confirm(`Remove ${r.full_name || r.email} as a platform owner?`)) return;
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      await removePlatformAdmin(r.user_id);
+      setMsg('Owner removed.');
+      await load();
+    } catch (e: any) { setErr(e?.message || 'Could not remove owner'); }
+    finally { setBusy(false); }
+  };
+
+  if (rows === null) return <div className="card rounded-t-none p-6"><Spinner /></div>;
+
+  return (
+    <div className="card rounded-t-none p-5 sm:p-6 space-y-6">
+      <div>
+        <h3 className="text-sm font-semibold text-content">Platform owners</h3>
+        <p className="text-2xs text-muted mt-1 max-w-2xl">Platform owners have full cross-tenant administration access — this console, every tenant, plans and billing. Add a co-owner by the email of an existing user (they must have signed in to the app at least once). The primary owner can&rsquo;t be removed, and there must always be at least one owner.</p>
+      </div>
+
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+
+      <div className="flex flex-wrap items-end gap-2 max-w-xl">
+        <div className="flex-1 min-w-[14rem]">
+          <Field label="Add co-owner by email" hint="Must be an existing user">
+            <input className="input" type="email" autoComplete="off" placeholder="person@company.com" value={email}
+              onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
+          </Field>
+        </div>
+        <button className="btn btn-primary" disabled={busy || !email.trim()} onClick={add}><Icon name="ti-user-plus" className="text-base" />Add owner</button>
+      </div>
+
+      <div className="overflow-x-auto"><table className="w-full text-sm">
+        <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
+          <tr>
+            <th className="px-4 py-3 font-medium">Owner</th>
+            <th className="px-4 py-3 font-medium">Role</th>
+            <th className="px-4 py-3 font-medium">Since</th>
+            <th className="px-4 py-3 font-medium text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.user_id} className="border-t border-line hover:bg-surface2/50">
+              <td className="px-4 py-3">
+                <span className="block font-medium text-content">{r.full_name || r.email}{r.is_self && <span className="text-2xs text-muted2"> (you)</span>}</span>
+                <span className="block text-2xs text-muted">{r.email}</span>
+              </td>
+              <td className="px-4 py-3">{r.is_primary ? <span className="pill pill-green">Primary owner</span> : <span className="pill pill-gray">Co-owner</span>}</td>
+              <td className="px-4 py-3 text-muted">{new Date(r.created_at).toLocaleDateString()}</td>
+              <td className="px-4 py-3 text-right">
+                {r.is_primary
+                  ? <span className="text-2xs text-muted2">Protected</span>
+                  : <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => remove(r)}><Icon name="ti-user-minus" className="text-sm" />Remove</button>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div>
+    </div>
+  );
+}
+
 export default function PlatformPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
   const [orgs, setOrgs] = useState<PlatformOrg[]>([]);
@@ -483,7 +573,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['tenants', 'plans', 'billing', 'email', 'backups', 'errors'] as const).map((t) => (
+            {(['tenants', 'plans', 'billing', 'email', 'backups', 'errors', 'owners'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -493,7 +583,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : 'Errors'}
+                {t === 'tenants' ? 'Tenants' : t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : 'Co-owners'}
               </button>
             ))}
           </div>
@@ -590,8 +680,10 @@ export default function PlatformPage() {
             <EmailTab />
           ) : tab === 'backups' ? (
             <BackupsTab />
-          ) : (
+          ) : tab === 'errors' ? (
             <ErrorsTab />
+          ) : (
+            <OwnersTab />
           )}
 
           {planModal && (

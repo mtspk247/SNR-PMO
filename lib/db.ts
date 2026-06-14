@@ -1520,3 +1520,20 @@ export async function deletePlan(id: string): Promise<void> {
     throw error;
   }
 }
+
+// ---- Platform co-owners (platform-admin only RPCs; see migration platform_co_owners) ----
+export interface PlatformAdminRow { user_id: string; email: string; full_name: string | null; is_primary: boolean; created_at: string; is_self: boolean; }
+export async function listPlatformAdmins(): Promise<PlatformAdminRow[]> {
+  const { data, error } = await sb.rpc('platform_admin_list');
+  if (error) throw new Error(error.message);
+  return (data as PlatformAdminRow[]) || [];
+}
+export async function addPlatformAdmin(email: string): Promise<string> {
+  const { data, error } = await sb.rpc('platform_admin_add', { p_email: email });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+export async function removePlatformAdmin(userId: string): Promise<void> {
+  const { error } = await sb.rpc('platform_admin_remove', { p_user_id: userId });
+  if (error) throw new Error(error.message);
+}
