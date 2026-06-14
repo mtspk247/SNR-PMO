@@ -914,6 +914,32 @@ export async function convertLeadToClient(lead: Lead, userId: string): Promise<C
   return client;
 }
 
+// ---- HR / ATS (jobs / applications / interviews / offer letters) ----
+export interface JobPosting { id: string; org_id: string; title: string; department: string | null; location: string | null; employment_type: string; description: string | null; openings: number; status: string; owner_id: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface Application { id: string; org_id: string; job_id: string | null; candidate_name: string; email: string | null; phone: string | null; source: string | null; stage: string; rating: number | null; notes: string | null; owner_id: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface Interview { id: string; org_id: string; application_id: string; scheduled_at: string | null; interviewer_id: string | null; mode: string; stage_label: string | null; status: string; feedback: string | null; rating: number | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface OfferLetter { id: string; org_id: string; application_id: string | null; candidate_name: string; job_title: string | null; salary: number; currency: string; start_date: string | null; status: string; expires_on: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+
+export const listJobs = (orgId: string) => _list<JobPosting>('job_postings', orgId);
+export const createJob = (row: Partial<JobPosting> & { org_id: string; title: string; created_by: string }) => _create<JobPosting>('job_postings', row);
+export const updateJob = (id: string, patch: Partial<JobPosting>) => _update('job_postings', id, patch);
+export const deleteJob = (id: string) => _del('job_postings', id);
+
+export const listApplications = (orgId: string) => _list<Application>('applications', orgId);
+export const createApplication = (row: Partial<Application> & { org_id: string; candidate_name: string; created_by: string }) => _create<Application>('applications', row);
+export const updateApplication = (id: string, patch: Partial<Application>) => _update('applications', id, patch);
+export const deleteApplication = (id: string) => _del('applications', id);
+
+export const listInterviews = (orgId: string) => _list<Interview>('interviews', orgId);
+export const createInterview = (row: Partial<Interview> & { org_id: string; application_id: string; created_by: string }) => _create<Interview>('interviews', row);
+export const updateInterview = (id: string, patch: Partial<Interview>) => _update('interviews', id, patch);
+export const deleteInterview = (id: string) => _del('interviews', id);
+
+export const listOfferLetters = (orgId: string) => _list<OfferLetter>('offer_letters', orgId);
+export const createOfferLetter = (row: Partial<OfferLetter> & { org_id: string; candidate_name: string; created_by: string }) => _create<OfferLetter>('offer_letters', row);
+export const updateOfferLetter = (id: string, patch: Partial<OfferLetter>) => _update('offer_letters', id, patch);
+export const deleteOfferLetter = (id: string) => _del('offer_letters', id);
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')

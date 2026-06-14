@@ -63,6 +63,10 @@ const SECTIONS: Section[] = [
   ]},
   { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
     { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
+    { href: '/jobs', label: 'Jobs', icon: 'ti-briefcase-2', feature: 'hr' },
+    { href: '/applications', label: 'Applications', icon: 'ti-files', feature: 'hr' },
+    { href: '/interviews', label: 'Interviews', icon: 'ti-calendar-event', feature: 'hr' },
+    { href: '/offers', label: 'Offer letters', icon: 'ti-mail-check', feature: 'hr' },
     { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr' },
     { href: '/training', label: 'Training & JDs', icon: 'ti-school', feature: 'hr' },
     { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
