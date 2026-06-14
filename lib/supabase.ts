@@ -26,6 +26,7 @@ export interface Organization {
   name: string;
   branding: OrgBranding;
   plan: 'free' | 'pro' | 'enterprise';
+  onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string } | null;
 }
 
 export interface MyOrg extends Organization {

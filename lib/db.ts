@@ -49,7 +49,7 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, organizations(id, slug, name, branding, plan)')
+    .select('role, organizations(id, slug, name, branding, plan, onboarding)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -131,6 +131,10 @@ export async function platformAccounts(): Promise<PlatformAccount[]> {
   const { data, error } = await sb.rpc('platform_accounts');
   if (error) throw new Error(error.message);
   return (data as PlatformAccount[]) || [];
+}
+export async function saveOnboarding(orgId: string, name: string, meta: Record<string, any>): Promise<void> {
+  const { error } = await sb.rpc('save_onboarding', { p_org: orgId, p_name: name, p_meta: meta });
+  if (error) throw new Error(error.message);
 }
 export async function getOrgPlanFeatures(orgId: string): Promise<string[]> {
   const { data: sub } = await sb.from('subscriptions').select('plan_id, status').eq('org_id', orgId).maybeSingle();
