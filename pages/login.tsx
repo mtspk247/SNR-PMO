@@ -150,11 +150,8 @@ export default function Login() {
               </button>
             ) : (
               <>
-                {mode === 'signin' ? "Don't have a workspace? " : 'Already have one? '}
-                <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setInfo(''); }}
-                  className="font-medium text-content hover:underline">
-                  {mode === 'signin' ? 'Create one' : 'Sign in'}
-                </button>
+                <span className="text-muted">Workspaces are by invitation.</span>{' '}
+                <span className="text-muted2">Check your invite email for a secure signup link.</span>
               </>
             )}
           </p>

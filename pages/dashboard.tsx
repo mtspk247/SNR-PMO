@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
+import FirstRunChecklist from '@/components/FirstRunChecklist';
 import { StatCard, Pill, Spinner, EmptyState, Icon, Avatar, StatusBadge } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
 import {
@@ -226,6 +227,8 @@ export default function Dashboard() {
         </div>
         <Link href="/tasks" className="btn btn-primary self-start sm:self-auto"><Icon name="ti-checkbox" className="text-base" />View my tasks</Link>
       </div>
+
+      <FirstRunChecklist />
 
       {loading ? <Spinner /> : (
         <>
