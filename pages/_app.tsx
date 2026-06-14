@@ -3,7 +3,7 @@ import type { AppProps } from 'next/app';
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { sb } from '@/lib/supabase';
-import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, isPlatformAdmin } from '@/lib/db';
+import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, isPlatformAdmin, ensurePersonalWorkspace } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import { ErrorBoundary } from '@/components/ui';
@@ -51,7 +51,12 @@ export default function App({ Component, pageProps }: AppProps) {
         const user = await getCurrentUser();
         if (!active) return;
         if (!user) { clear(); return; }
-        const orgs = await getMyOrgs(user.id);
+        let orgs = await getMyOrgs(user.id);
+        // Open self-serve: a signed-in user with no workspace (e.g. Google sign-in)
+        // gets a free personal workspace auto-provisioned (skipped if they have a pending invite).
+        if (orgs.length === 0) {
+          try { const r = await ensurePersonalWorkspace(); if (r?.created) orgs = await getMyOrgs(user.id); } catch { /* ignore */ }
+        }
         // 3.3: attach each org's plan entitlements + resolve platform-admin flag.
         const [withFeatures, platformAdmin] = await Promise.all([
           Promise.all(orgs.map(async (o) => ({ ...o, features: await getOrgFeatures(o.id) }))),

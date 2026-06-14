@@ -121,6 +121,17 @@ export async function getOrgFeatures(orgId: string): Promise<string[]> {
   return [...set];
 }
 
+export async function ensurePersonalWorkspace(): Promise<{ created: boolean; org_id?: string; workspace?: string; reason?: string }> {
+  const { data, error } = await sb.rpc('ensure_personal_workspace');
+  if (error) throw new Error(error.message);
+  return data as { created: boolean; org_id?: string; workspace?: string; reason?: string };
+}
+export interface PlatformAccount { user_id: string; email: string; full_name: string | null; role: string; created_at: string | null; org_count: number; orgs: string[]; }
+export async function platformAccounts(): Promise<PlatformAccount[]> {
+  const { data, error } = await sb.rpc('platform_accounts');
+  if (error) throw new Error(error.message);
+  return (data as PlatformAccount[]) || [];
+}
 export async function isPlatformAdmin(): Promise<boolean> {
   const { data, error } = await sb.rpc('is_platform_admin');
   if (error) return false;
