@@ -10,6 +10,8 @@ import { FeatureKey } from '@/lib/supabase';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
 import RequestsBell from '@/components/RequestsBell';
+import NoticeBoardIcon from '@/components/NoticeBoardIcon';
+import StickyNotesFab from '@/components/StickyNotesFab';
 import GlobalSearch from '@/components/GlobalSearch';
 import ChatPanel from '@/components/ChatPanel';
 import { TimerChip } from '@/components/TimeTracking';
@@ -318,12 +320,14 @@ export default function Layout({ title, children, flat = false }: { title: strin
             </button>
             <ThemeToggle />
             <RequestsBell />
+            <NoticeBoardIcon />
             <NotificationBell />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full max-w-[1400px]${flat ? ' flat-surfaces' : ''}`}>{children}</div></main>
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+      <StickyNotesFab />
     </div>
   );
 }

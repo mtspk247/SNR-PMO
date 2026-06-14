@@ -940,6 +940,41 @@ export const createOfferLetter = (row: Partial<OfferLetter> & { org_id: string; 
 export const updateOfferLetter = (id: string, patch: Partial<OfferLetter>) => _update('offer_letters', id, patch);
 export const deleteOfferLetter = (id: string) => _del('offer_letters', id);
 
+// ---- Sticky notes (personal) ----
+export interface StickyNote { id: string; org_id: string; user_id: string; body: string; color: string; created_at: string; updated_at: string; }
+export async function listStickyNotes(userId: string): Promise<StickyNote[]> {
+  const { data, error } = await sb.from('sticky_notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as StickyNote[]) || [];
+}
+export async function createStickyNote(p: { org_id: string; user_id: string; body: string; color?: string }): Promise<StickyNote> {
+  const { data, error } = await sb.from('sticky_notes').insert({ org_id: p.org_id, user_id: p.user_id, body: p.body, color: p.color || 'yellow' }).select('*').single();
+  if (error) throw new Error(error.message); return data as StickyNote;
+}
+export async function updateStickyNote(id: string, patch: { body?: string; color?: string }): Promise<void> {
+  const { error } = await sb.from('sticky_notes').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteStickyNote(id: string): Promise<void> {
+  const { error } = await sb.from('sticky_notes').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+
+// ---- Notice board ----
+export interface Notice { id: string; org_id: string; title: string; body: string | null; audience_type: string; audience_ids: string[]; department: string | null; pinned: boolean; expires_on: string | null; created_by: string | null; created_at: string; mine?: { read_at: string | null }[]; }
+export async function listMyNotices(orgId: string): Promise<Notice[]> {
+  const { data, error } = await sb.from('notices').select('*, mine:notice_recipients(read_at)').eq('org_id', orgId).order('pinned', { ascending: false }).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as Notice[]) || [];
+}
+export async function noticeCreate(p: { org_id: string; title: string; body?: string; audience_type: string; audience_ids?: string[]; department?: string }): Promise<string> {
+  const { data, error } = await sb.rpc('notice_create', { p_org: p.org_id, p_title: p.title, p_body: p.body ?? null, p_audience_type: p.audience_type, p_audience_ids: p.audience_ids ?? null, p_department: p.department ?? null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function noticeMarkRead(id: string): Promise<void> {
+  const { error } = await sb.rpc('notice_mark_read', { p_notice: id }); if (error) throw new Error(error.message);
+}
+export async function unreadNoticeCount(): Promise<number> {
+  const { count, error } = await sb.from('notice_recipients').select('notice_id', { count: 'exact', head: true }).is('read_at', null);
+  if (error) return 0; return count || 0;
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')
