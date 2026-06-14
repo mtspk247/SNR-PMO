@@ -223,6 +223,12 @@ export interface AppNotification {
   entity_id: string | null; is_read: boolean; urgent: boolean; created_at: string;
 }
 
+export interface OrgInvite {
+  id: string; token: string; email: string; org_id: string | null; org_name: string | null;
+  plan_key: string; role: string; status: 'pending' | 'accepted' | 'revoked';
+  invited_by: string | null; created_at: string; expires_at: string; accepted_at: string | null;
+}
+
 export interface Tag {
   id: string; name: string; color: string | null;
   scope: 'Global' | 'Personal'; created_by?: string | null; org_id?: string;

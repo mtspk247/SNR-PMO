@@ -488,7 +488,7 @@ export async function deleteComment(id: string): Promise<void> {
 // ===========================================================================
 // Phase 2 data access
 // ===========================================================================
-import { Attendance, Leave, AppNotification, Tag, Integration, AuditEntry, AdminUser, RoleTemplate, OnboardingTemplate, OnboardingTemplateItem, OnboardingTask } from './supabase';
+import { Attendance, Leave, AppNotification, Tag, Integration, AuditEntry, AdminUser, RoleTemplate, OnboardingTemplate, OnboardingTemplateItem, OnboardingTask, OrgInvite } from './supabase';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -2151,6 +2151,26 @@ export async function getRecentActivity(): Promise<ActivityItem[]> {
 }
 
 // ---- Tenant usage / profile (operator + owner) ----
+// ---- Onboarding: tenant invites (Slice 3) -------------------------------
+export async function listOrgInvites(): Promise<OrgInvite[]> {
+  const { data, error } = await sb.from('org_invites').select('*').order('created_at', { ascending: false });
+  if (error) throw error; return (data as OrgInvite[]) || [];
+}
+export async function createOrgInvite(email: string, orgName: string, planKey = 'free', role = 'owner', orgId: string | null = null): Promise<{ id: string; token: string; email: string; link: string; expires_at: string }> {
+  const { data, error } = await sb.rpc('create_org_invite', { p_email: email, p_org_name: orgName, p_plan_key: planKey, p_role: role, p_org_id: orgId });
+  if (error) throw new Error(error.message); return data as { id: string; token: string; email: string; link: string; expires_at: string };
+}
+export async function revokeOrgInvite(id: string): Promise<void> {
+  const { error } = await sb.rpc('revoke_org_invite', { p_id: id }); if (error) throw new Error(error.message);
+}
+export interface InvitePreview { valid: boolean; reason?: string; email?: string; role?: string; plan?: string; new_org?: boolean; org_name?: string | null; }
+export async function invitePreview(token: string): Promise<InvitePreview> {
+  const { data, error } = await sb.rpc('invite_preview', { p_token: token }); if (error) throw new Error(error.message); return data as InvitePreview;
+}
+export async function acceptOrgInvite(token: string): Promise<string> {
+  const { data, error } = await sb.rpc('accept_org_invite', { p_token: token }); if (error) throw new Error(error.message); return data as string;
+}
+
 export interface TenantUsage {
   created_at: string | null; active: boolean; plan: string | null; owner: string | null;
   seat_count: number; seat_limit: number | null; guests: number;
