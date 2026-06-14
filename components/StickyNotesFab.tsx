@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { Icon } from '@/components/ui';
 import { listStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, StickyNote } from '@/lib/db';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -9,19 +10,37 @@ const COLORS: Record<string, string> = {
   blue: 'bg-sky-100 border-sky-200', pink: 'bg-pink-100 border-pink-200',
 };
 const DOT: Record<string, string> = { yellow: 'bg-amber-400', green: 'bg-emerald-400', blue: 'bg-sky-400', pink: 'bg-pink-400' };
+const POS_KEY = 'sn_fab_pos';
+const HIDE_KEY = 'sn_fab_hidden';
 
-/** Floating quick-notes — sidebar of note names + detail (content + the page it was made on). */
+type Pos = { x: number; y: number };
+
+/** Floating quick-notes — draggable, dismissable. Full management lives at /notes. */
 export default function StickyNotesFab() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [selId, setSelId] = useState<string | null>(null);
+  const [pos, setPos] = useState<Pos | null>(null);
+  const posRef = useRef<Pos | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const load = () => { if (me) listStickyNotes(me.id).then((n) => { setNotes(n); setSelId((cur) => cur || (n[0]?.id ?? null)); }).catch(() => {}); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [me?.id]);
+
+  // Restore persisted position + hidden state.
+  useEffect(() => {
+    try { const r = localStorage.getItem(POS_KEY); if (r) { const p = JSON.parse(r); setPos(p); posRef.current = p; } } catch { /* ignore */ }
+    try { if (localStorage.getItem(HIDE_KEY) === '1') setHidden(true); } catch { /* ignore */ }
+    // Re-show if user re-enabled it from /notes (custom event) or another tab.
+    const onShow = () => { setHidden(false); try { localStorage.removeItem(HIDE_KEY); } catch { /* ignore */ } };
+    window.addEventListener('sn-fab-show', onShow);
+    return () => window.removeEventListener('sn-fab-show', onShow);
+  }, []);
+
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h);
@@ -42,11 +61,41 @@ export default function StickyNotesFab() {
   const setColor = (n: StickyNote, color: string) => { patch(n.id, { color }); updateStickyNote(n.id, { color }).catch(() => {}); };
   const del = async (n: StickyNote) => { setNotes((p) => p.filter((x) => x.id !== n.id)); if (selId === n.id) setSelId(null); deleteStickyNote(n.id).catch(() => {}); };
 
-  if (!me) return null;
+  // Drag-to-move. A click that doesn't move toggles the panel; a real drag repositions + persists.
+  const onDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    const base = posRef.current ?? { x: window.innerWidth - 68, y: window.innerHeight - 68 };
+    let moved = false;
+    const move = (ev: MouseEvent) => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+      if (moved) {
+        const x = Math.min(Math.max(8, base.x + dx), window.innerWidth - 56);
+        const y = Math.min(Math.max(8, base.y + dy), window.innerHeight - 56);
+        const np = { x, y }; posRef.current = np; setPos(np);
+      }
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      if (!moved) { setOpen((o) => !o); if (!open) load(); }
+      else { try { localStorage.setItem(POS_KEY, JSON.stringify(posRef.current)); } catch { /* ignore */ } }
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  const hide = () => { setHidden(true); setOpen(false); try { localStorage.setItem(HIDE_KEY, '1'); } catch { /* ignore */ } };
+
+  if (!me || hidden) return null;
+
+  const style: React.CSSProperties = pos ? { left: pos.x, top: pos.y } : { right: 20, bottom: 20 };
+
   return (
-    <div ref={ref} className="fixed bottom-5 right-5 z-40 print:hidden">
+    <div ref={ref} style={style} className="fixed z-40 print:hidden">
       {open && (
-        <div className="mb-2 w-[32rem] max-w-[calc(100vw-2.5rem)] h-[24rem] bg-surface border border-line rounded-xl shadow-lg overflow-hidden flex">
+        <div className="absolute bottom-full right-0 mb-2 w-[32rem] max-w-[calc(100vw-2.5rem)] h-[24rem] bg-surface border border-line rounded-xl shadow-lg overflow-hidden flex">
           {/* Sidebar: note names */}
           <div className="w-40 shrink-0 border-r border-line flex flex-col">
             <div className="flex items-center justify-between px-2.5 py-2 border-b border-line">
@@ -62,6 +111,7 @@ export default function StickyNotesFab() {
                 </button>
               ))}
             </div>
+            <Link href="/notes" onClick={() => setOpen(false)} className="text-2xs text-center text-muted hover:text-content border-t border-line py-2">All notes &amp; archive →</Link>
           </div>
           {/* Detail */}
           <div className="flex-1 min-w-0 flex flex-col">
@@ -89,10 +139,17 @@ export default function StickyNotesFab() {
           </div>
         </div>
       )}
-      <button onClick={() => { setOpen((o) => !o); if (!open) load(); }} title="Quick notes"
-        className="h-12 w-12 rounded-full bg-accent text-[#fff] shadow-lg grid place-items-center hover:opacity-90 transition">
-        <Icon name={open ? 'ti-x' : 'ti-notes'} className="text-xl" />
-      </button>
+      {/* FAB: drag to move, click to toggle, × to hide */}
+      <div className="relative">
+        <button onMouseDown={onDown} title="Quick notes — drag to move"
+          className="h-12 w-12 rounded-full bg-accent text-[#fff] shadow-lg grid place-items-center hover:opacity-90 transition cursor-grab active:cursor-grabbing select-none">
+          <Icon name={open ? 'ti-x' : 'ti-notes'} className="text-xl" />
+        </button>
+        <button onClick={hide} title="Hide notes button (re-enable from the Notes page)"
+          className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-surface border border-line text-muted2 hover:text-rose-600 grid place-items-center shadow">
+          <Icon name="ti-x" className="text-2xs" />
+        </button>
+      </div>
     </div>
   );
 }

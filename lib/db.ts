@@ -941,9 +941,12 @@ export const updateOfferLetter = (id: string, patch: Partial<OfferLetter>) => _u
 export const deleteOfferLetter = (id: string) => _del('offer_letters', id);
 
 // ---- Sticky notes (personal) ----
-export interface StickyNote { id: string; org_id: string; user_id: string; title: string; body: string; color: string; page_path: string | null; created_at: string; updated_at: string; }
-export async function listStickyNotes(userId: string): Promise<StickyNote[]> {
-  const { data, error } = await sb.from('sticky_notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false });
+export interface StickyNote { id: string; org_id: string; user_id: string; title: string; body: string; color: string; page_path: string | null; archived_at: string | null; created_at: string; updated_at: string; }
+export async function listStickyNotes(userId: string, scope: 'active' | 'archived' | 'all' = 'active'): Promise<StickyNote[]> {
+  let q = sb.from('sticky_notes').select('*').eq('user_id', userId);
+  if (scope === 'active') q = q.is('archived_at', null);
+  else if (scope === 'archived') q = q.not('archived_at', 'is', null);
+  const { data, error } = await q.order('updated_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as StickyNote[]) || [];
 }
 export async function createStickyNote(p: { org_id: string; user_id: string; body: string; color?: string; title?: string; page_path?: string | null }): Promise<StickyNote> {
@@ -955,6 +958,10 @@ export async function updateStickyNote(id: string, patch: { body?: string; color
 }
 export async function deleteStickyNote(id: string): Promise<void> {
   const { error } = await sb.from('sticky_notes').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function archiveStickyNote(id: string, archived: boolean): Promise<void> {
+  const { error } = await sb.from('sticky_notes').update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 // ---- Notice board ----

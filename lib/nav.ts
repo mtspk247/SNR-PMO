@@ -101,6 +101,7 @@ export const SECTIONS: NavSection[] = [
   ]},
   { kind: 'link', item: { href: '/drives', label: 'Drives', icon: 'ti-cloud', feature: 'drives' } },
   { kind: 'link', item: { href: '/support', label: 'Support', icon: 'ti-lifebuoy', feature: 'support' } },
+  { kind: 'link', item: { href: '/notes', label: 'Notes', icon: 'ti-notes' } },
   { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } },
 ];
 
