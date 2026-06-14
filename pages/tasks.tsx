@@ -82,6 +82,7 @@ export default function Tasks() {
   const taskTabs = useModalTabs('overview');
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(false);
@@ -196,6 +197,27 @@ export default function Tasks() {
   }, [router.query.task, tasks.length]);
 
   const mutate = async (fn: () => Promise<void>) => { setBusy(true); try { await fn(); } catch (e: any) { alert(e.message); } finally { setBusy(false); } };
+
+  // Bulk select + mass-assign (List view)
+  const toggleSel = (id: string) => setSel((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const clearSel = () => setSel(new Set());
+  const selectableIds = filtered.filter((t) => !t.parent_task_id).map((t) => t.id);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => sel.has(id));
+  const toggleSelectAll = () => setSel(allSelected ? new Set() : new Set(selectableIds));
+  const bulkAssignUser = (uid: string) => mutate(async () => {
+    for (const id of Array.from(sel)) {
+      const u = await updateTask(id, { assignee_id: uid || null }); patchLocal(u);
+      if (uid && uid !== me?.id && activeOrg?.id) notify({ org_id: activeOrg.id, user_id: uid, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: u.name, link: '/tasks', entity_type: 'task', entity_id: id }).catch(() => {});
+    }
+    clearSel();
+  });
+  const bulkAssignTeam = (teamId: string) => mutate(async () => {
+    const team = teams.find((t: any) => t.id === teamId);
+    for (const id of Array.from(sel)) { patchLocal(await updateTask(id, { team_id: teamId || null } as any)); }
+    if (activeOrg?.id && team) (team.members || []).map((m: any) => m.user_id).filter((mid: string) => mid !== me?.id).forEach((mid: string) =>
+      notify({ org_id: activeOrg.id, user_id: mid, type: 'TASK_ASSIGNED', title: `Tasks assigned to ${team.name}`, body: `${sel.size} task(s) assigned to your team`, link: '/tasks', entity_type: 'task' }).catch(() => {}));
+    clearSel();
+  });
   const setStatus = (id: string, status: string) => mutate(async () => patchLocal(await updateTask(id, { status })));
   const reassign = (assignee_id: string) => selected && mutate(async () => {
     patchLocal(await updateTask(selected.id, { assignee_id: assignee_id || null }));
@@ -528,7 +550,7 @@ export default function Tasks() {
 
   const ColHeader = () => (
     <div className={`${GRID} py-2 border-b border-line bg-surface2/60 text-2xs font-semibold uppercase tracking-wider text-muted2`} style={gridStyle}>
-      <span>Name</span>
+      <span className="flex items-center gap-2"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} onClick={(e) => e.stopPropagation()} className="accent-accentstrong" title="Select all" />Name</span>
       {shownCols.map((c) => <span key={c.id}>{c.label}</span>)}
       <span />
     </div>
@@ -541,6 +563,7 @@ export default function Tasks() {
         className={`group relative ${GRID} py-2.5 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent z-10' : 'bg-surface hover:bg-surface2 hover:shadow-md hover:z-10 border-l-2 border-l-transparent'}`}
         style={gridStyle} onClick={() => selectTask(t.id)}>
         <div className="flex items-center gap-2 min-w-0">
+          <input type="checkbox" checked={sel.has(t.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSel(t.id)} className="accent-accentstrong shrink-0" title="Select" />
           {subs.length > 0 ? (
             <button onClick={(e) => { e.stopPropagation(); setExpanded((pr) => { const n = new Set(pr); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; }); }}
               className="shrink-0 -ml-1 text-muted2 hover:text-content" title={expanded.has(t.id) ? 'Collapse subtasks' : 'Expand subtasks'}>
@@ -719,6 +742,23 @@ export default function Tasks() {
       )}
 
       {/* Task detail — centered modal (ClickUp-style) */}
+      {sel.size > 0 && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-surface border border-line rounded-xl shadow-2xl px-3 py-2">
+          <span className="text-sm font-medium text-content">{sel.size} selected</span>
+          <span className="text-muted2">·</span>
+          <select className="input h-8 w-auto py-0 text-sm" value="" onChange={(e) => { if (e.target.value) bulkAssignUser(e.target.value === '__un' ? '' : e.target.value); e.target.value = ''; }}>
+            <option value="">Assign to…</option>
+            <option value="__un">Unassigned</option>
+            {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+          </select>
+          <select className="input h-8 w-auto py-0 text-sm" value="" onChange={(e) => { if (e.target.value) bulkAssignTeam(e.target.value); e.target.value = ''; }}>
+            <option value="">Team…</option>
+            {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <button onClick={clearSel} className="btn btn-ghost h-8 py-0">Clear</button>
+        </div>
+      )}
+
       {showDetail && selected && (
         <div className="modal-backdrop fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 overflow-y-auto" onClick={() => setShowDetail(false)}>
           <div className="modal-card w-full max-w-5xl my-2" onClick={(e) => e.stopPropagation()}>
