@@ -975,6 +975,40 @@ export async function unreadNoticeCount(): Promise<number> {
   if (error) return 0; return count || 0;
 }
 
+// ---- Tenant management (platform admin) ----
+export interface TenantInfo { active: boolean; plan: string | null; features: Record<string, boolean>; limits: Record<string, number>; }
+export async function listTenants(): Promise<any[]> {
+  const { data, error } = await sb.rpc('platform_list_orgs');
+  if (error) throw new Error(error.message); return (data as any[]) || [];
+}
+export async function getTenantInfo(orgId: string): Promise<TenantInfo> {
+  const { data, error } = await sb.rpc('tenant_admin_info', { p_org: orgId });
+  if (error) throw new Error(error.message); return data as TenantInfo;
+}
+export async function setTenantPlan(orgId: string, planKey: string): Promise<void> {
+  const { error } = await sb.rpc('tenant_set_plan', { p_org: orgId, p_plan_key: planKey }); if (error) throw new Error(error.message);
+}
+export async function setTenantActive(orgId: string, active: boolean): Promise<void> {
+  const { error } = await sb.rpc('tenant_set_active', { p_org: orgId, p_active: active }); if (error) throw new Error(error.message);
+}
+
+// ---- Support ticketing ----
+export interface SupportTicket { id: string; org_id: string; subject: string; body: string | null; category: string | null; priority: string; status: string; requester_id: string; assignee_id: string | null; created_at: string; updated_at: string; resolved_at: string | null; }
+export interface SupportReply { id: string; ticket_id: string; org_id: string; author_id: string; body: string; created_at: string; }
+export const listTickets = (orgId: string) => _list<SupportTicket>('support_tickets', orgId);
+export async function createTicket(p: { org_id: string; subject: string; body?: string; category?: string; priority?: string }): Promise<string> {
+  const { data, error } = await sb.rpc('support_ticket_create', { p_org: p.org_id, p_subject: p.subject, p_body: p.body ?? null, p_category: p.category ?? null, p_priority: p.priority ?? 'medium' });
+  if (error) throw new Error(error.message); return data as string;
+}
+export const updateTicket = (id: string, patch: Partial<SupportTicket>) => _update('support_tickets', id, patch);
+export async function listTicketReplies(ticketId: string): Promise<SupportReply[]> {
+  const { data, error } = await sb.from('support_ticket_replies').select('*').eq('ticket_id', ticketId).order('created_at');
+  if (error) throw new Error(error.message); return (data as SupportReply[]) || [];
+}
+export async function addTicketReply(ticketId: string, body: string): Promise<string> {
+  const { data, error } = await sb.rpc('support_reply', { p_ticket: ticketId, p_body: body }); if (error) throw new Error(error.message); return data as string;
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')

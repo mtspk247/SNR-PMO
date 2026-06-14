@@ -76,6 +76,7 @@ const SECTIONS: Section[] = [
     { href: '/leave', label: 'Leave', icon: 'ti-beach' },
   ]},
   { kind: 'link', item: { href: '/drives', label: 'Drives', icon: 'ti-cloud', feature: 'drives' } },
+  { kind: 'link', item: { href: '/support', label: 'Support', icon: 'ti-lifebuoy', feature: 'support' } },
   { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } },
 ];
 const ADMIN_SECTION: Section = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
@@ -88,7 +89,10 @@ const ADMIN_SECTION: Section = { kind: 'menu', key: 'admin', label: 'Administrat
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
 ]};
 // Super-super-admin (cross-tenant) — gated by platformAdmin, not a plan feature.
-const PLATFORM_SECTION: Section = { kind: 'link', item: { href: '/platform', label: 'Platform', icon: 'ti-building-skyscraper' } };
+const PLATFORM_SECTION: Section = { kind: 'menu', key: 'platform', label: 'Platform', icon: 'ti-building-skyscraper', items: [
+  { href: '/platform', label: 'Console', icon: 'ti-dashboard' },
+  { href: '/tenants', label: 'Tenants', icon: 'ti-building-community' },
+] };
 
 // Flat label lookup for route-derived breadcrumbs.
 const ROUTE_LABELS: Record<string, string> = {};
