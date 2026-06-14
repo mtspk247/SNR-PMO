@@ -114,7 +114,11 @@ export async function getOrgFeatures(orgId: string): Promise<string[]> {
   if (!planId) return [];
   const { data: pf } = await sb.from('plan_features')
     .select('feature_key').eq('plan_id', planId).eq('enabled', true);
-  return ((pf || []) as any[]).map((r) => r.feature_key);
+  const set = new Set(((pf || []) as any[]).map((r) => r.feature_key as string));
+  // Per-tenant overrides win over the plan default (operator toggles in /tenants/[id]).
+  const { data: ov } = await sb.from('org_feature_overrides').select('feature_key, enabled').eq('org_id', orgId);
+  for (const o of (ov || []) as any[]) { if (o.enabled) set.add(o.feature_key); else set.delete(o.feature_key); }
+  return [...set];
 }
 
 export async function isPlatformAdmin(): Promise<boolean> {

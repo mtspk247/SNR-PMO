@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
-import { Field } from '@/components/Modal';
+import { Modal, Field } from '@/components/Modal';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
@@ -43,6 +43,8 @@ export default function TenantDetail() {
   const [domInput, setDomInput] = useState(''); const [domBusy, setDomBusy] = useState(false); const [domMsg, setDomMsg] = useState('');
   const [loading, setLoading] = useState(true); const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState('overview');
+  const [confirmState, setConfirmState] = useState<{ title: string; body: string; onYes: () => void; danger?: boolean } | null>(null);
+  const ask = (title: string, body: string, onYes: () => void, danger = false) => setConfirmState({ title, body, onYes, danger });
 
   useSetCrumbs(tenant ? [{ label: 'Tenants', href: '/tenants' }, { label: tenant.org_name }] : null);
 
@@ -101,7 +103,6 @@ export default function TenantDetail() {
     catch (e: any) { setErr(e.message); } finally { setWiping(false); }
   };
   const doRestore = async (id: string) => {
-    if (!confirm('Restore this snapshot? It re-inserts the backed-up records.')) return;
     setWiping(true); setErr('');
     try { await restoreTenantSnapshot(id); await refreshInfo(); refreshUsage(); }
     catch (e: any) { setErr(e.message); } finally { setWiping(false); }
@@ -113,6 +114,14 @@ export default function TenantDetail() {
     <Layout flat title="Tenant">
       <EmptyState icon="ti-building-community" title="Tenant not found" text="This organization doesn't exist or you can't access it." />
       <div className="mt-4"><button className="btn" onClick={() => router.push('/tenants')}><Icon name="ti-arrow-left" />Back to tenants</button></div>
+
+      {confirmState && (
+        <Modal open onClose={() => setConfirmState(null)} size="sm" icon={confirmState.danger ? 'ti-alert-triangle' : 'ti-help-circle'} title={confirmState.title}
+          footer={<><button className="btn" onClick={() => setConfirmState(null)}>Cancel</button>
+            <button className={`btn ${confirmState.danger ? 'btn-danger' : 'btn-primary'}`} onClick={() => { const fn = confirmState.onYes; setConfirmState(null); fn(); }}>Confirm</button></>}>
+          <p className="text-sm text-content">{confirmState.body}</p>
+        </Modal>
+      )}
     </Layout>
   );
 
@@ -121,7 +130,7 @@ export default function TenantDetail() {
       <PageHeader title={tenant.org_name} subtitle={tenant.slug} icon="ti-building-community"
         action={<div className="flex items-center gap-2">
           <span className={`pill ${info?.active === false ? 'pill-red' : 'pill-green'}`}>{info?.active === false ? 'Suspended' : 'Active'}</span>
-          <button className={`btn h-8 py-0 ${info?.active === false ? 'btn-primary' : 'btn-danger'}`} disabled={busy || !info} onClick={toggleActive}>
+          <button className={`btn h-8 py-0 ${info?.active === false ? 'btn-primary' : 'btn-danger'}`} disabled={busy || !info} onClick={() => ask(info?.active === false ? 'Reactivate tenant?' : 'Suspend tenant?', info?.active === false ? `Reactivate ${tenant.org_name}? Members regain access.` : `Suspend ${tenant.org_name}? Members lose access until reactivated.`, toggleActive, info?.active !== false)}>
             <Icon name={info?.active === false ? 'ti-circle-check' : 'ti-ban'} />{info?.active === false ? 'Reactivate' : 'Suspend'}
           </button>
           <button className="btn h-8 py-0" onClick={() => router.push('/tenants')}><Icon name="ti-arrow-left" />Back</button>
@@ -188,13 +197,13 @@ export default function TenantDetail() {
           <div className="space-y-4">
             <div className="card p-5 space-y-3">
               <Field label="Plan">
-                <select className="input" value={info.plan || ''} disabled={busy} onChange={(e) => changePlan(e.target.value)}>
+                <select className="input" value={info.plan || ''} disabled={busy} onChange={(e) => { const v = e.target.value; ask('Change plan?', `Switch ${tenant.org_name} to the "${plans.find((p) => p.key === v)?.name || v || '—'}" plan?`, () => changePlan(v)); }}>
                   <option value="">—</option>{plans.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
                 </select>
               </Field>
               <Field label="Storage quota override (MB)" hint="Blank = use plan default">
                 <input className="input" type="number" defaultValue={info.limits.storage_mb ?? ''} disabled={busy}
-                  onBlur={(e) => saveQuota(e.target.value)} placeholder="e.g. 51200" />
+                  onBlur={(e) => { const v = e.target.value; if (v !== String(info.limits.storage_mb ?? '')) ask('Update storage quota?', `Set ${tenant.org_name}'s storage quota to ${v === '' ? 'the plan default' : v + ' MB'}?`, () => saveQuota(v)); }} placeholder="e.g. 51200" />
               </Field>
             </div>
           </div>
@@ -210,7 +219,7 @@ export default function TenantDetail() {
                       <div className="flex items-center rounded-lg border border-line overflow-hidden text-2xs">
                         {([['default', undefined], ['on', true], ['off', false]] as const).map(([lab, val]) => {
                           const activeSel = ov === val;
-                          return <button key={lab} disabled={busy} onClick={() => setFeature(key, (val as boolean | undefined) ?? null)}
+                          return <button key={lab} disabled={busy} onClick={() => ask('Change feature access?', `Set "${label}" to ${lab} for ${tenant.org_name}?`, () => setFeature(key, (val as boolean | undefined) ?? null))}
                             className={`px-2.5 h-7 capitalize transition ${activeSel ? 'bg-accent/15 text-accentstrong font-medium' : 'text-muted hover:bg-surface2'}`}>{lab}</button>;
                         })}
                       </div>
@@ -229,8 +238,8 @@ export default function TenantDetail() {
           <p className="text-2xs text-muted mb-3">Serve this tenant on its own domain. Their logo, colors and name load automatically once the domain is verified.</p>
           <div className="flex items-center gap-2">
             <input className="input flex-1" value={domInput} onChange={(e) => setDomInput(e.target.value)} placeholder="pm.acme.com" disabled={domBusy} />
-            <button className="btn btn-primary shrink-0" disabled={domBusy} onClick={saveDomain}>{domBusy ? '…' : 'Save'}</button>
-            {dom?.custom_domain && <button className="btn shrink-0" disabled={domBusy} onClick={removeDomain}>Remove</button>}
+            <button className="btn btn-primary shrink-0" disabled={domBusy} onClick={() => ask('Save custom domain?', `Set ${tenant.org_name}'s custom domain to "${domInput.trim()}"? It must be verified before it serves their branding.`, saveDomain)}>{domBusy ? '…' : 'Save'}</button>
+            {dom?.custom_domain && <button className="btn shrink-0" disabled={domBusy} onClick={() => ask('Remove custom domain?', `Remove the custom domain from ${tenant.org_name}?`, removeDomain, true)}>Remove</button>}
           </div>
           {dom?.custom_domain && (
             <div className="mt-3 space-y-2">
@@ -263,7 +272,7 @@ export default function TenantDetail() {
                 <div key={s2.id} className="flex items-center gap-2 text-2xs">
                   <Icon name="ti-database-export" className="text-muted2 shrink-0" />
                   <span className="flex-1 text-muted truncate">{new Date(s2.created_at).toLocaleString()} · {s2.row_count} rows</span>
-                  <button className="btn btn-ghost h-7 py-0 border border-line shrink-0" disabled={busy || wiping} onClick={() => doRestore(s2.id)}>Restore</button>
+                  <button className="btn btn-ghost h-7 py-0 border border-line shrink-0" disabled={busy || wiping} onClick={() => ask('Restore snapshot?', 'This re-inserts the backed-up records into the tenant.', () => doRestore(s2.id))}>Restore</button>
                 </div>
               ))}
             </div>

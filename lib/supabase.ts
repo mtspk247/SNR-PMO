@@ -39,6 +39,13 @@ export interface MyOrg extends Organization {
 // Single feature catalog — ONE place to add a plan feature. Drives the FeatureKey
 // type, FEATURE_LABELS (settings + tenant overrides), and nav gating keys.
 export const FEATURES = [
+  { key: 'companies', label: 'Companies' },
+  { key: 'projects', label: 'Projects & Tasks' },
+  { key: 'ideas', label: 'Ideas' },
+  { key: 'chat', label: 'Chat' },
+  { key: 'teams', label: 'Teams & Workload' },
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'attendance', label: 'Attendance & Leave' },
   { key: 'crm', label: 'CRM' },
   { key: 'risk', label: 'Risk Analysis' },
   { key: 'financial', label: 'Financial Data' },
