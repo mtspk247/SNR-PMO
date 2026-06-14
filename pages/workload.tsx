@@ -122,21 +122,29 @@ export default function Workload() {
             <div className="grid grid-cols-[minmax(160px,1fr)_1fr_88px_88px_88px] items-center gap-3 px-4 py-2 border-b border-line bg-surface2/60 text-2xs font-semibold uppercase tracking-wider text-muted2">
               <span>{dim === 'person' ? 'Person' : dim === 'team' ? 'Team' : 'Project'}</span><span>Load</span><span className="text-right">Open</span><span className="text-right">Overdue</span><span className="text-right">Est. h</span>
             </div>
-            {visibleRows.length === 0 ? <EmptyState text={filtersActive ? 'No work matches these filters' : 'No open work to distribute'} icon="ti-checks" /> : visibleRows.map((r) => (
-              <div key={r.id} className="grid grid-cols-[minmax(160px,1fr)_1fr_88px_88px_88px] items-center gap-3 px-4 py-3 border-b border-line bg-surface hover:bg-surface2 hover:shadow-md transition relative">
-                <div className="flex items-center gap-2 min-w-0">
-                  {r.avatar ? <Avatar name={r.name} size={24} /> : <span className="w-6 h-6 rounded-md grid place-items-center bg-surface2 text-muted2 shrink-0"><Icon name={dim === 'team' ? 'ti-users-group' : dim === 'project' ? 'ti-folder' : 'ti-user'} className="text-sm" /></span>}
-                  <span className="text-sm font-medium text-content truncate">{r.name}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${(r.open / maxOpen) * 100}%` }} /></div>
-                  <span className="text-2xs text-muted2 tabular-nums w-16">{r.inProgress} in prog.</span>
-                </div>
-                <span className="text-sm text-right tabular-nums">{r.open}</span>
-                <span className={`text-sm text-right tabular-nums ${r.overdue > 0 ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{r.overdue}</span>
-                <span className="text-sm text-right tabular-nums text-muted">{r.estHours}</span>
-              </div>
-            ))}
+            {visibleRows.length === 0 ? <EmptyState text={filtersActive ? 'No work matches these filters' : 'No open work to distribute'} icon="ti-checks" /> : visibleRows.map((r) => {
+              const real = !r.id.startsWith('_');
+              const cls = "grid grid-cols-[minmax(160px,1fr)_1fr_88px_88px_88px] items-center gap-3 px-4 py-3 border-b border-line bg-surface hover:bg-surface2 hover:shadow-md transition relative" + (real ? " cursor-pointer" : "");
+              const inner = (
+                <>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {r.avatar ? <Avatar name={r.name} size={24} /> : <span className="w-6 h-6 rounded-md grid place-items-center bg-surface2 text-muted2 shrink-0"><Icon name={dim === 'team' ? 'ti-users-group' : dim === 'project' ? 'ti-folder' : 'ti-user'} className="text-sm" /></span>}
+                    <span className="text-sm font-medium text-content truncate">{r.name}</span>
+                    {real && <Icon name="ti-arrow-up-right" className="text-2xs text-muted2 opacity-0 group-hover:opacity-100" />}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${(r.open / maxOpen) * 100}%` }} /></div>
+                    <span className="text-2xs text-muted2 tabular-nums w-16">{r.inProgress} in prog.</span>
+                  </div>
+                  <span className="text-sm text-right tabular-nums">{r.open}</span>
+                  <span className={`text-sm text-right tabular-nums ${r.overdue > 0 ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{r.overdue}</span>
+                  <span className="text-sm text-right tabular-nums text-muted">{r.estHours}</span>
+                </>
+              );
+              return real
+                ? <Link key={r.id} href={`/workload/${dim}/${r.id}`} className={cls + " group"}>{inner}</Link>
+                : <div key={r.id} className={cls}>{inner}</div>;
+            })}
           </div>
         </>
       )}
