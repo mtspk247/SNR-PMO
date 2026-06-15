@@ -4,11 +4,45 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import { updateOrgSettings, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
-import { SKINS, applySkin, normalizeSkin, Skin } from '@/lib/skin';
+import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin } from '@/lib/skin';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { FEATURE_LABELS, formatPrice } from '@/lib/entitlements';
 import { OrgPlanInfo, FeatureKey, Plan, PlanFeature } from '@/lib/supabase';
+
+function SkinThumb({ sk }: { sk: SkinMeta }) {
+  const { bg, sf, bd, tx, mu, ac } = sk.c; const r = Math.min(sk.r, 6);
+  const line = (w: string, c: string) => <span style={{ display: 'block', height: 5, borderRadius: 3, width: w, background: c }} />;
+  const body = (
+    <div style={{ flex: 1, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ height: 11, width: 34, borderRadius: r, background: ac }} />
+      {line('100%', bd)}{line('82%', bd)}{line('64%', bd)}
+    </div>
+  );
+  if (sk.nav === 'top') {
+    return (
+      <div style={{ height: 78, borderRadius: 8, overflow: 'hidden', border: `1px solid ${bd}`, background: bg }}>
+        <div style={{ height: 17, background: sf, borderBottom: `1px solid ${bd}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px' }}>
+          <span style={{ height: 5, width: 18, borderRadius: 3, background: ac }} />
+          <span style={{ height: 5, width: 14, borderRadius: 3, background: mu }} />
+          <span style={{ height: 5, width: 14, borderRadius: 3, background: mu }} />
+        </div>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <div style={{ height: 78, borderRadius: 8, overflow: 'hidden', border: `1px solid ${bd}`, background: bg, display: 'flex' }}>
+      <div style={{ width: '30%', background: sf, borderRight: `1px solid ${bd}`, padding: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <span style={{ height: 6, borderRadius: 3, width: '100%', background: ac }} />
+        <span style={{ height: 5, borderRadius: 3, width: '80%', background: mu }} />
+        <span style={{ height: 5, borderRadius: 3, width: '80%', background: mu }} />
+        <span style={{ height: 5, borderRadius: 3, width: '58%', background: mu }} />
+      </div>
+      {body}
+    </div>
+  );
+}
 
 function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
   const [info, setInfo] = useState<OrgPlanInfo | null>(null);
@@ -334,6 +368,7 @@ export default function SettingsPage() {
             {SKINS.map((sk) => (
               <button key={sk.key} type="button" onClick={() => { setSkin(sk.key); applySkin(sk.key); }}
                 className={`text-left rounded-lg border p-3 transition ${skin === sk.key ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
+                <div className="mb-2"><SkinThumb sk={sk} /></div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="w-4 h-4 rounded" style={{ background: sk.swatch }} />
                   <span className="text-sm font-medium">{sk.label}</span>
