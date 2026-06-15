@@ -129,6 +129,7 @@ export interface Task {
   id: string; project_id: string | null; name: string;
   description?: string | null;
   status: string; priority: string; assignee_id: string | null;
+  assignee_ids?: string[] | null;
   parent_task_id?: string | null;
   followers?: string[];
   due_date: string | null; estimated_hours: number | null; actual_hours?: number | null;

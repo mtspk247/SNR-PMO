@@ -23,8 +23,8 @@ function Elapsed({ since }: { since: string }) {
 }
 
 /** W1 — per-task time tracking block (task drawer). Timer + manual entries + log. */
-export default function TimeTracking({ taskId, orgId, projectId }: {
-  taskId: string; orgId: string; projectId?: string | null;
+export default function TimeTracking({ taskId, orgId, projectId, variant = 'full' }: {
+  taskId: string; orgId: string; projectId?: string | null; variant?: 'full' | 'icon';
 }) {
   const me = useAuthStore((s) => s.user);
   const qc = useQueryClient();
@@ -63,6 +63,23 @@ export default function TimeTracking({ taskId, orgId, projectId }: {
     setBusy(true);
     try { await deleteTimeEntry(e.id); refresh(); } catch (er: any) { alert(er.message); } finally { setBusy(false); }
   };
+
+  if (variant === 'icon') {
+    return runningHere ? (
+      <button onClick={onStop} disabled={busy} title="Stop timer"
+        className="inline-flex items-center gap-1.5 h-8 px-2 rounded-lg text-xs font-medium text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30">
+        <Icon name="ti-player-stop" className="text-base" /><Elapsed since={runningHere.started_at} />
+      </button>
+    ) : (
+      <span className="inline-flex items-center gap-1.5">
+        <button onClick={onStart} disabled={busy || !!runningElsewhere} title={runningElsewhere ? 'A timer is already running on another task' : 'Start timer'}
+          className="h-8 w-8 grid place-items-center rounded-lg text-accentstrong border border-line hover:bg-surface2 disabled:opacity-50">
+          <Icon name="ti-player-play" className="text-base" />
+        </button>
+        {total > 0 && <span className="text-xs text-muted2 tabular-nums">{fmtMins(total)}</span>}
+      </span>
+    );
+  }
 
   return (
     <div className="mt-5 pt-4 border-t border-line">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
@@ -330,14 +331,20 @@ export default function Tasks() {
 
   const doneSubs = subtasks.filter((s) => s.status === 'Done').length;
   const availFollowers = users.filter((u) => !(selected?.followers || []).includes(u.id));
+  const assigneeIds = selected ? ((selected.assignee_ids && selected.assignee_ids.length) ? selected.assignee_ids : (selected.assignee_id ? [selected.assignee_id] : [])) : [];
+  const availAssignees = users.filter((u) => !assigneeIds.includes(u.id));
+  const setAssignees = (ids: string[]) => selected && mutate(async () => patchLocal(await updateTask(selected.id, { assignee_ids: ids, assignee_id: ids[0] || null })));
+  const addAssignee = (uid: string) => { if (!selected || !uid || assigneeIds.includes(uid)) return; setAssignees([...assigneeIds, uid]); if (uid !== me?.id && selected.org_id) notify({ org_id: selected.org_id, user_id: uid, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: selected.name, link: '/tasks', entity_type: 'task', entity_id: selected.id }).catch(() => {}); };
+  const removeAssignee = (uid: string) => { if (!selected) return; setAssignees(assigneeIds.filter((x) => x !== uid)); };
 
   // ----- shared detail panel (used as sidebar on xl+, overlay drawer below) -----
   const DetailPanel = () => !selected ? (
     <div className="card p-5 text-sm text-muted">Select a task to see details</div>
   ) : (
     <div className="card flex flex-col lg:flex-row max-h-[85vh] overflow-hidden">
-      {/* MAIN — title · description · subtasks · activity (Linear-style) */}
+      {/* MAIN */}
       <div className="flex-1 min-w-0 overflow-y-auto p-5 lg:p-6">
+        {/* Breadcrumb + actions */}
         <div className="flex items-center gap-1.5 text-2xs text-muted2 mb-4 min-w-0">
           <Icon name="ti-folder" className="text-sm shrink-0" />
           <span className="truncate">{selected.projects?.name || 'No project'}</span>
@@ -350,17 +357,109 @@ export default function Tasks() {
           </div>
         </div>
 
-        <div className="flex items-start gap-2.5">
-          <div className="mt-1.5"><Bars level={PRIORITY_RANK[selected.priority] || 1} /></div>
-          <h3 className="flex-1 text-xl font-semibold leading-snug tracking-tight text-content">{selected.name}</h3>
+        {/* TITLE ROW — status · name · assignees · timer */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {(() => {
+            const col = statusColor(selected.status);
+            return (
+              <span className="relative inline-flex items-center shrink-0">
+                <span className="absolute left-2.5 w-2 h-2 rounded-full" style={{ background: col || '#9ca3af' }} />
+                <select value={selected.status} disabled={busy} onChange={(e) => setStatus(selected.id, e.target.value)}
+                  className="appearance-none h-8 pl-6 pr-7 rounded-full text-sm font-medium border border-line bg-surface2 text-content cursor-pointer hover:border-borderstrong">
+                  {statuses.map((st) => <option key={st}>{st}</option>)}
+                </select>
+                <Icon name="ti-chevron-down" className="absolute right-2.5 text-2xs text-muted2 pointer-events-none" />
+              </span>
+            );
+          })()}
+          <h3 className="text-lg sm:text-xl font-semibold leading-snug tracking-tight text-content min-w-0">{selected.name}</h3>
+          <div className="flex items-center shrink-0">
+            {assigneeIds.map((uid) => (
+              <span key={uid} className="group relative -ml-1.5 first:ml-0" title={userName(uid)}>
+                <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(uid)} size={28} /></span>
+                <button onClick={() => removeAssignee(uid)} disabled={busy} className="absolute -top-1 -right-1 hidden group-hover:grid h-4 w-4 place-items-center rounded-full bg-rose-500 text-white text-[8px]"><Icon name="ti-x" /></button>
+              </span>
+            ))}
+            {availAssignees.length > 0 && (
+              <span className="relative -ml-1.5 first:ml-0" title="Assign people">
+                <select value="" disabled={busy} onChange={(e) => addAssignee(e.target.value)}
+                  className="appearance-none h-7 w-7 rounded-full border border-dashed border-borderstrong bg-surface text-muted2 text-center text-sm cursor-pointer hover:border-accent hover:text-accentstrong ring-2 ring-surface">
+                  <option value="">+</option>
+                  {availAssignees.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                </select>
+              </span>
+            )}
+          </div>
+          <TimeTracking variant="icon" taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
         </div>
 
-        {selected.description
-          ? <p className="text-sm text-contentsoft mt-4 whitespace-pre-wrap leading-relaxed">{selected.description}</p>
-          : <p className="text-sm text-muted2 italic mt-4">No description.</p>}
+        {/* PROPERTY BAR */}
+        <div className="flex flex-wrap items-center gap-2 mt-4 pb-4 border-b border-line">
+          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
+            <Bars level={PRIORITY_RANK[selected.priority] || 1} /><span className="text-content font-medium">{selected.priority}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted max-w-[14rem]">
+            <Icon name="ti-folder" className="text-sm text-muted2 shrink-0" />
+            {selected.project_id && selected.projects?.name
+              ? <Link href={`/projects/${selected.project_id}`} className="text-content font-medium truncate hover:underline">{selected.projects.name}</Link>
+              : <span className="text-muted2">No project</span>}
+          </span>
+          <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-muted'}`}>
+            <Icon name="ti-calendar" className="text-sm text-muted2 shrink-0" /><span className="font-medium">{selected.due_date || '—'}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
+            <Icon name="ti-clock" className="text-sm text-muted2 shrink-0" /><span className="text-content font-medium">{selected.estimated_hours || 0} h</span>
+          </span>
+          {teams.length > 0 && (
+            <label className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
+              <Icon name="ti-users-group" className="text-sm text-muted2 shrink-0" />
+              <select value={selected.team_id || ''} disabled={busy} onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { team_id: e.target.value || null })))} className="bg-transparent text-content font-medium text-xs outline-none cursor-pointer max-w-[9rem]"><option value="">No team</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+            </label>
+          )}
+          <label className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
+            <Icon name="ti-repeat" className="text-sm text-muted2 shrink-0" />
+            <select value={selected.recur_every || ''} disabled={busy} onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { recur_every: (e.target.value || null) as Task['recur_every'] })))} className="bg-transparent text-content font-medium text-xs outline-none cursor-pointer"><option value="">No repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option></select>
+          </label>
+          <label className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
+            <Icon name="ti-bell" className="text-sm text-muted2 shrink-0" />
+            <input type="datetime-local" disabled={busy} value="" className="bg-transparent text-content text-xs outline-none cursor-pointer w-[8.5rem]" onChange={(e) => { if (!e.target.value || !me || !selected.org_id) return; const at = new Date(e.target.value); createReminder({ org_id: selected.org_id, user_id: me.id, note: `Task: ${selected.name}`, remind_at: at.toISOString(), entity_type: 'task', entity_id: selected.id }).then(() => alert(`Reminder set for ${at.toLocaleString()}`)).catch((er) => alert(er.message)); }} />
+          </label>
+        </div>
 
+        {/* Followers + Tags */}
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-3 mt-3">
+          <div className="flex items-center gap-2">
+            <span className="section-label">Followers</span>
+            <div className="flex items-center">
+              {(selected.followers || []).map((fid) => (
+                <span key={fid} className="group relative -ml-1.5 first:ml-0" title={userName(fid)}>
+                  <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(fid)} size={22} /></span>
+                  <button onClick={() => removeFollower(fid)} disabled={busy} className="absolute -top-1 -right-1 hidden group-hover:grid h-3.5 w-3.5 place-items-center rounded-full bg-rose-500 text-white text-[8px]"><Icon name="ti-x" /></button>
+                </span>
+              ))}
+              {availFollowers.length > 0 && (
+                <select value="" disabled={busy} onChange={(e) => addFollower(e.target.value)} className="ml-1 input h-7 w-8 px-0 text-center text-muted2" title="Add follower">
+                  <option value="">+</option>
+                  {availFollowers.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 min-w-[12rem]"><EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} /></div>
+        </div>
+
+        {/* Description */}
+        <div className="mt-5">
+          <p className="section-label mb-2">Description</p>
+          {selected.description
+            ? <p className="text-sm text-contentsoft whitespace-pre-wrap leading-relaxed">{selected.description}</p>
+            : <p className="text-sm text-muted2 italic">No description.</p>}
+        </div>
+
+        {/* Fields */}
         <TaskCustomFields task={selected} />
 
+        {/* Subtasks */}
         <div className="mt-6 pt-5 border-t border-line">
           <p className="section-label mb-2.5">Subtasks {subtasks.length > 0 && <span className="text-muted2">· {doneSubs}/{subtasks.length}</span>}</p>
           <div className="space-y-1.5">
@@ -379,80 +478,17 @@ export default function Tasks() {
           </div>
         </div>
 
+        {/* Checklist */}
         <Checklist taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
 
-        <div className="mt-6 pt-5 border-t border-line">
-          <p className="section-label mb-3 flex items-center gap-2"><Icon name="ti-activity" className="text-base text-muted2" />Activity</p>
-          <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
-        </div>
+        {/* Time log (manual entries + history) */}
+        <TimeTracking taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
       </div>
 
-      {/* PROPERTIES RAIL */}
-      <div className="lg:w-[19rem] shrink-0 border-t lg:border-t-0 lg:border-l border-line overflow-y-auto p-5 bg-surface2/30">
-        <p className="section-label mb-3">Properties</p>
-        <dl className="space-y-3 text-sm">
-          {(() => {
-            const idx = statuses.indexOf(selected.status);
-            const next = idx >= 0 && idx < statuses.length - 1 ? statuses[idx + 1] : null;
-            return (
-              <div className="flex items-center justify-between gap-2">
-                <dt className="flex items-center gap-2 text-muted"><Icon name="ti-progress" className="text-base text-muted2 shrink-0" />Status</dt>
-                <dd className="flex items-center gap-1">
-                  <select value={selected.status} disabled={busy} onChange={(e) => setStatus(selected.id, e.target.value)} className="input h-8 py-0 text-sm font-medium max-w-[8.5rem]">{statuses.map((st) => <option key={st}>{st}</option>)}</select>
-                  {next && <button disabled={busy} onClick={() => setStatus(selected.id, next)} title={`Move to ${next}`} className="btn-ghost h-8 w-7 p-0 grid place-items-center text-muted2 hover:text-accentstrong shrink-0"><Icon name="ti-arrow-right" /></button>}
-                </dd>
-              </div>
-            );
-          })()}
-          <div className="flex items-center justify-between gap-2">
-            <dt className="flex items-center gap-2 text-muted"><Icon name="ti-user" className="text-base text-muted2 shrink-0" />Assignee</dt>
-            <dd><select value={selected.assignee_id || ''} disabled={busy} onChange={(e) => reassign(e.target.value)} className="input h-8 py-0 text-sm max-w-[9.5rem]"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></dd>
-          </div>
-          <div className="flex items-center justify-between gap-2"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-folder" className="text-base text-muted2 shrink-0" />Project</dt><dd className="font-medium text-content text-right truncate max-w-[9.5rem]">
-            {selected.project_id && selected.projects?.name ? (
-              <EntityLink icon="ti-folder" label={selected.projects.name} href={`/projects/${selected.project_id}`}
-                actions={can.write(activeOrg) ? [{ label: 'Edit in Projects', icon: 'ti-pencil', onClick: () => router.push('/projects') }] : []} />
-            ) : '—'}
-          </dd></div>
-          <div className="flex items-center justify-between gap-2"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-calendar" className="text-base text-muted2 shrink-0" />Due date</dt><dd className={`font-medium ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-content'}`}>{selected.due_date || '—'}</dd></div>
-          <div className="flex items-center justify-between gap-2"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-clock" className="text-base text-muted2 shrink-0" />Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
-          {teams.length > 0 && (
-            <div className="flex items-center justify-between gap-2">
-              <dt className="flex items-center gap-2 text-muted"><Icon name="ti-users-group" className="text-base text-muted2 shrink-0" />Team</dt>
-              <dd><select value={selected.team_id || ''} disabled={busy} onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { team_id: e.target.value || null })))} className="input h-8 py-0 text-sm max-w-[9.5rem]"><option value="">—</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></dd>
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-2">
-            <dt className="flex items-center gap-2 text-muted"><Icon name="ti-repeat" className="text-base text-muted2 shrink-0" />Repeat</dt>
-            <dd><select value={selected.recur_every || ''} disabled={busy} onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { recur_every: (e.target.value || null) as Task['recur_every'] })))} className="input h-8 py-0 text-sm"><option value="">Never</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option></select></dd>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <dt className="flex items-center gap-2 text-muted"><Icon name="ti-bell" className="text-base text-muted2 shrink-0" />Remind me</dt>
-            <dd><input type="datetime-local" disabled={busy} value="" className="input h-8 py-0 text-sm max-w-[9.5rem]"
-              onChange={(e) => { if (!e.target.value || !me || !selected.org_id) return; const at = new Date(e.target.value); createReminder({ org_id: selected.org_id, user_id: me.id, note: `Task: ${selected.name}`, remind_at: at.toISOString(), entity_type: 'task', entity_id: selected.id }).then(() => alert(`Reminder set for ${at.toLocaleString()}`)).catch((er) => alert(er.message)); }} /></dd>
-          </div>
-        </dl>
-
-        <div className="mt-5 pt-4 border-t border-line">
-          <p className="section-label mb-2.5">Followers</p>
-          <div className="flex items-center flex-wrap gap-1.5">
-            {(selected.followers || []).map((fid) => (
-              <span key={fid} className="group relative" title={userName(fid)}>
-                <Avatar name={userName(fid)} size={26} />
-                <button onClick={() => removeFollower(fid)} disabled={busy} className="absolute -top-1 -right-1 hidden group-hover:grid h-3.5 w-3.5 place-items-center rounded-full bg-rose-500 text-white text-[8px]"><Icon name="ti-x" /></button>
-              </span>
-            ))}
-            {availFollowers.length > 0 && (
-              <select value="" disabled={busy} onChange={(e) => addFollower(e.target.value)} className="input h-7 w-8 px-0 text-center text-muted2" title="Add follower">
-                <option value="">+</option>
-                {availFollowers.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-line"><TimeTracking taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} /></div>
-        <div className="mt-4 pt-4 border-t border-line"><EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} /></div>
+      {/* ACTIVITY RAIL */}
+      <div className="lg:w-[20rem] shrink-0 border-t lg:border-t-0 lg:border-l border-line overflow-y-auto p-5 bg-surface2/30">
+        <p className="section-label mb-3 flex items-center gap-2"><Icon name="ti-activity" className="text-base text-muted2" />Activity</p>
+        <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
       </div>
     </div>
   );
