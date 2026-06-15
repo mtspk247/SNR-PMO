@@ -330,8 +330,10 @@ export default function SettingsPage() {
     const branding = {
       ...(org.branding || {}),
       logo_url: logo.trim() || undefined,
-      primary_color: primary,
-      accent_color: accent,
+      // Treat the stock defaults as "no custom brand" so the chosen skin's accent
+      // shows; a genuinely customised colour still persists and overrides the skin.
+      primary_color: primary && primary.toLowerCase() !== DEFAULTS.primary.toLowerCase() ? primary : undefined,
+      accent_color: accent && accent.toLowerCase() !== DEFAULTS.accent.toLowerCase() ? accent : undefined,
       skin,
     };
     try {

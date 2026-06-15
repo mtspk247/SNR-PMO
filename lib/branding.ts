@@ -27,9 +27,11 @@ export function applyBranding(org: Pick<Organization, 'name' | 'branding'> | nul
   const fg = luminance(primary) > 0.55 ? '12 22 17' : '255 255 255'; // contrast on fills
   const strongLight = triplet(scale(primary, 0.6)); // darker, readable as text on light
   const strongDark = accent;                         // primary itself reads on dark
+  // Raise specificity (:root[data-skin]) so a tenant's custom brand colour always
+  // overrides the active skin's default accent (white-label wins, deterministically).
   styleEl.textContent =
-    `:root{--accent:${accent};--accent-strong:${strongLight};--accent-fg:${fg};}` +
-    `[data-theme="dark"]{--accent:${accent};--accent-strong:${strongDark};--accent-fg:${fg};}`;
+    `:root,:root[data-skin]{--accent:${accent};--accent-strong:${strongLight};--accent-fg:${fg};}` +
+    `:root[data-theme="dark"],:root[data-skin][data-theme="dark"]{--accent:${accent};--accent-strong:${strongDark};--accent-fg:${fg};}`;
 }
 
 function ensureStyleEl(): HTMLStyleElement {
