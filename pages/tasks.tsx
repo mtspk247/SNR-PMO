@@ -336,43 +336,105 @@ export default function Tasks() {
     <div className="card p-5 text-sm text-muted">Select a task to see details</div>
   ) : (
     <div className="card flex flex-col lg:flex-row max-h-[85vh] overflow-hidden">
-      <div className="flex-1 min-w-0 overflow-y-auto p-5">
-      {/* Address / breadcrumb */}
-      <div className="flex items-center gap-1.5 text-2xs text-muted2 mb-3 min-w-0">
-        <Icon name="ti-folder" className="text-sm shrink-0" />
-        <span className="truncate">{selected.projects?.name || 'No project'}</span>
-        <Icon name="ti-chevron-right" className="text-2xs shrink-0" />
-        <span className="truncate text-muted">{selected.name}</span>
-        <div className="ml-auto flex items-center gap-1 shrink-0">
-          <button onClick={() => openEdit(selected)} disabled={busy} title="Edit task" className="btn-ghost p-1.5 rounded text-muted hover:text-content"><Icon name="ti-pencil" /></button>
-          {canDelete && <button onClick={() => removeTask(selected.id, selected.name)} disabled={busy} title="Delete task" className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500"><Icon name="ti-trash" /></button>}
-          <button onClick={() => setShowDetail(false)} title="Close" className="btn-ghost p-1.5 rounded text-muted hover:text-content"><Icon name="ti-x" /></button>
+      {/* MAIN — title · description · subtasks · activity (Linear-style) */}
+      <div className="flex-1 min-w-0 overflow-y-auto p-5 lg:p-6">
+        <div className="flex items-center gap-1.5 text-2xs text-muted2 mb-4 min-w-0">
+          <Icon name="ti-folder" className="text-sm shrink-0" />
+          <span className="truncate">{selected.projects?.name || 'No project'}</span>
+          <Icon name="ti-chevron-right" className="text-2xs shrink-0" />
+          <span className="truncate text-muted">{selected.name}</span>
+          <div className="ml-auto flex items-center gap-1 shrink-0">
+            <button onClick={() => openEdit(selected)} disabled={busy} title="Edit task" className="btn-ghost p-1.5 rounded text-muted hover:text-content"><Icon name="ti-pencil" /></button>
+            {canDelete && <button onClick={() => removeTask(selected.id, selected.name)} disabled={busy} title="Delete task" className="btn-ghost p-1.5 rounded text-muted hover:text-rose-500"><Icon name="ti-trash" /></button>}
+            <button onClick={() => setShowDetail(false)} title="Close" className="btn-ghost p-1.5 rounded text-muted hover:text-content"><Icon name="ti-x" /></button>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2.5">
+          <div className="mt-1.5"><Bars level={PRIORITY_RANK[selected.priority] || 1} /></div>
+          <h3 className="flex-1 text-xl font-semibold leading-snug tracking-tight text-content">{selected.name}</h3>
+        </div>
+
+        {selected.description
+          ? <p className="text-sm text-contentsoft mt-4 whitespace-pre-wrap leading-relaxed">{selected.description}</p>
+          : <p className="text-sm text-muted2 italic mt-4">No description.</p>}
+
+        <TaskCustomFields task={selected} />
+
+        <div className="mt-6 pt-5 border-t border-line">
+          <p className="section-label mb-2.5">Subtasks {subtasks.length > 0 && <span className="text-muted2">· {doneSubs}/{subtasks.length}</span>}</p>
+          <div className="space-y-1.5">
+            {subtasks.map((st) => (
+              <div key={st.id} className="flex items-center gap-2 group">
+                <input type="checkbox" checked={st.status === 'Done'} disabled={busy} onChange={() => toggleSub(st)} className="accent-accentstrong" />
+                <span className={`text-sm flex-1 truncate ${st.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{st.name}</span>
+                <button onClick={() => removeTask(st.id, st.name)} disabled={busy} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500"><Icon name="ti-x" className="text-sm" /></button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <input value={subInput} onChange={(e) => setSubInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSubtask()}
+              placeholder="Add a subtask…" className="input h-8 text-sm" />
+            <button onClick={addSubtask} disabled={busy || !subInput.trim()} className="btn h-8 px-2 text-xs"><Icon name="ti-plus" /></button>
+          </div>
+        </div>
+
+        <Checklist taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
+
+        <div className="mt-6 pt-5 border-t border-line">
+          <p className="section-label mb-3 flex items-center gap-2"><Icon name="ti-activity" className="text-base text-muted2" />Activity</p>
+          <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
         </div>
       </div>
 
-      <div className="flex items-start gap-2">
-        <Bars level={PRIORITY_RANK[selected.priority] || 1} />
-        <h3 className="flex-1 text-xl font-semibold leading-snug tracking-tight text-content">{selected.name}</h3>
-      </div>
-
-      {/* Status stepper — move the task back / forward through categories */}
-      {(() => {
-        const idx = statuses.indexOf(selected.status);
-        const prev = idx > 0 ? statuses[idx - 1] : null;
-        const next = idx >= 0 && idx < statuses.length - 1 ? statuses[idx + 1] : null;
-        return (
-          <div className="flex items-center gap-2 mt-3">
-            <button disabled={busy || !prev} onClick={() => prev && setStatus(selected.id, prev)} title={prev ? `Move back to ${prev}` : 'First status'} className="btn h-9 w-9 p-0 shrink-0"><Icon name="ti-chevron-left" /></button>
-            <select value={selected.status} disabled={busy} onChange={(e) => setStatus(selected.id, e.target.value)} className="input h-9 flex-1 font-medium">{statuses.map((st) => <option key={st}>{st}</option>)}</select>
-            <button disabled={busy || !next} onClick={() => next && setStatus(selected.id, next)} title={next ? `Move to ${next}` : 'Last status'} className="btn btn-primary h-9 px-3 text-xs gap-1 shrink-0 whitespace-nowrap">{next ? <>{next}<Icon name="ti-chevron-right" /></> : <><Icon name="ti-check" />Done</>}</button>
+      {/* PROPERTIES RAIL */}
+      <div className="lg:w-[19rem] shrink-0 border-t lg:border-t-0 lg:border-l border-line overflow-y-auto p-5 bg-surface2/30">
+        <p className="section-label mb-3">Properties</p>
+        <dl className="space-y-3 text-sm">
+          {(() => {
+            const idx = statuses.indexOf(selected.status);
+            const next = idx >= 0 && idx < statuses.length - 1 ? statuses[idx + 1] : null;
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <dt className="flex items-center gap-2 text-muted"><Icon name="ti-progress" className="text-base text-muted2 shrink-0" />Status</dt>
+                <dd className="flex items-center gap-1">
+                  <select value={selected.status} disabled={busy} onChange={(e) => setStatus(selected.id, e.target.value)} className="input h-8 py-0 text-sm font-medium max-w-[8.5rem]">{statuses.map((st) => <option key={st}>{st}</option>)}</select>
+                  {next && <button disabled={busy} onClick={() => setStatus(selected.id, next)} title={`Move to ${next}`} className="btn-ghost h-8 w-7 p-0 grid place-items-center text-muted2 hover:text-accentstrong shrink-0"><Icon name="ti-arrow-right" /></button>}
+                </dd>
+              </div>
+            );
+          })()}
+          <div className="flex items-center justify-between gap-2">
+            <dt className="flex items-center gap-2 text-muted"><Icon name="ti-user" className="text-base text-muted2 shrink-0" />Assignee</dt>
+            <dd><select value={selected.assignee_id || ''} disabled={busy} onChange={(e) => reassign(e.target.value)} className="input h-8 py-0 text-sm max-w-[9.5rem]"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></dd>
           </div>
-        );
-      })()}
+          <div className="flex items-center justify-between gap-2"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-folder" className="text-base text-muted2 shrink-0" />Project</dt><dd className="font-medium text-content text-right truncate max-w-[9.5rem]">
+            {selected.project_id && selected.projects?.name ? (
+              <EntityLink icon="ti-folder" label={selected.projects.name} href={`/projects/${selected.project_id}`}
+                actions={can.write(activeOrg) ? [{ label: 'Edit in Projects', icon: 'ti-pencil', onClick: () => router.push('/projects') }] : []} />
+            ) : '—'}
+          </dd></div>
+          <div className="flex items-center justify-between gap-2"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-calendar" className="text-base text-muted2 shrink-0" />Due date</dt><dd className={`font-medium ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-content'}`}>{selected.due_date || '—'}</dd></div>
+          <div className="flex items-center justify-between gap-2"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-clock" className="text-base text-muted2 shrink-0" />Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
+          {teams.length > 0 && (
+            <div className="flex items-center justify-between gap-2">
+              <dt className="flex items-center gap-2 text-muted"><Icon name="ti-users-group" className="text-base text-muted2 shrink-0" />Team</dt>
+              <dd><select value={selected.team_id || ''} disabled={busy} onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { team_id: e.target.value || null })))} className="input h-8 py-0 text-sm max-w-[9.5rem]"><option value="">—</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            <dt className="flex items-center gap-2 text-muted"><Icon name="ti-repeat" className="text-base text-muted2 shrink-0" />Repeat</dt>
+            <dd><select value={selected.recur_every || ''} disabled={busy} onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { recur_every: (e.target.value || null) as Task['recur_every'] })))} className="input h-8 py-0 text-sm"><option value="">Never</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option></select></dd>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <dt className="flex items-center gap-2 text-muted"><Icon name="ti-bell" className="text-base text-muted2 shrink-0" />Remind me</dt>
+            <dd><input type="datetime-local" disabled={busy} value="" className="input h-8 py-0 text-sm max-w-[9.5rem]"
+              onChange={(e) => { if (!e.target.value || !me || !selected.org_id) return; const at = new Date(e.target.value); createReminder({ org_id: selected.org_id, user_id: me.id, note: `Task: ${selected.name}`, remind_at: at.toISOString(), entity_type: 'task', entity_id: selected.id }).then(() => alert(`Reminder set for ${at.toLocaleString()}`)).catch((er) => alert(er.message)); }} /></dd>
+          </div>
+        </dl>
 
-      {/* Top meta — followers · time tracking · tags (above the fold, ClickUp-style) */}
-      <div className="mt-4 grid gap-4 sm:grid-cols-3 pb-4 border-b border-line">
-        <div>
-          <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Followers</p>
+        <div className="mt-5 pt-4 border-t border-line">
+          <p className="section-label mb-2.5">Followers</p>
           <div className="flex items-center flex-wrap gap-1.5">
             {(selected.followers || []).map((fid) => (
               <span key={fid} className="group relative" title={userName(fid)}>
@@ -388,96 +450,13 @@ export default function Tasks() {
             )}
           </div>
         </div>
-        <div><TimeTracking taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} /></div>
-        <div><EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} /></div>
-      </div>
 
-      {selected.description && <p className="text-sm text-contentsoft mt-4 whitespace-pre-wrap">{selected.description}</p>}
-
-      <dl className="mt-5 pt-4 border-t border-line space-y-2.5 text-sm">
-        <div className="flex items-center justify-between gap-2">
-          <dt className="flex items-center gap-2 text-muted"><Icon name="ti-user" className="text-base text-muted2 shrink-0" />Assignee</dt>
-          <dd><select value={selected.assignee_id || ''} disabled={busy} onChange={(e) => reassign(e.target.value)} className="input h-8 py-0 text-sm max-w-[10rem]"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></dd>
-        </div>
-        <div className="flex items-center justify-between"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-folder" className="text-base text-muted2 shrink-0" />Project</dt><dd className="font-medium text-content">
-          {selected.project_id && selected.projects?.name ? (
-            <EntityLink icon="ti-folder" label={selected.projects.name} href={`/projects/${selected.project_id}`}
-              actions={can.write(activeOrg) ? [{ label: 'Edit in Projects', icon: 'ti-pencil', onClick: () => router.push('/projects') }] : []} />
-          ) : '—'}
-        </dd></div>
-        <div className="flex items-center justify-between"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-calendar" className="text-base text-muted2 shrink-0" />Due date</dt><dd className={`font-medium ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-content'}`}>{selected.due_date || '—'}</dd></div>
-        <div className="flex items-center justify-between"><dt className="flex items-center gap-2 text-muted"><Icon name="ti-clock" className="text-base text-muted2 shrink-0" />Estimated</dt><dd className="font-medium text-content">{selected.estimated_hours || 0} h</dd></div>
-        {teams.length > 0 && (
-          <div className="flex items-center justify-between gap-2">
-            <dt className="flex items-center gap-2 text-muted"><Icon name="ti-users-group" className="text-base text-muted2 shrink-0" />Team</dt>
-            <dd>
-              <select value={selected.team_id || ''} disabled={busy}
-                onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { team_id: e.target.value || null })))}
-                className="input h-8 py-0 text-sm max-w-[10rem]">
-                <option value="">—</option>
-                {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </dd>
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-2">
-          <dt className="flex items-center gap-2 text-muted"><Icon name="ti-repeat" className="text-base text-muted2 shrink-0" />Repeat</dt>
-          <dd>
-            <select value={selected.recur_every || ''} disabled={busy}
-              onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { recur_every: (e.target.value || null) as Task['recur_every'] })))}
-              className="input h-8 py-0 text-sm">
-              <option value="">Never</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Every 2 weeks</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </dd>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <dt className="flex items-center gap-2 text-muted"><Icon name="ti-bell" className="text-base text-muted2 shrink-0" />Remind me</dt>
-          <dd>
-            <input type="datetime-local" disabled={busy} value="" className="input h-8 py-0 text-sm"
-              onChange={(e) => {
-                if (!e.target.value || !me || !selected.org_id) return;
-                const at = new Date(e.target.value);
-                createReminder({ org_id: selected.org_id, user_id: me.id, note: `Task: ${selected.name}`, remind_at: at.toISOString(), entity_type: 'task', entity_id: selected.id })
-                  .then(() => alert(`Reminder set for ${at.toLocaleString()}`)).catch((er) => alert(er.message));
-              }} />
-          </dd>
-        </div>
-      </dl>
-
-      {/* Custom fields (per-project, ClickUp-style) */}
-      <TaskCustomFields task={selected} />
-
-      {/* Subtasks */}
-      <div className="mt-5 pt-4 border-t border-line">
-        <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Subtasks {subtasks.length > 0 && <span className="text-muted2">· {doneSubs}/{subtasks.length}</span>}</p>
-        <div className="space-y-1.5">
-          {subtasks.map((st) => (
-            <div key={st.id} className="flex items-center gap-2 group">
-              <input type="checkbox" checked={st.status === 'Done'} disabled={busy} onChange={() => toggleSub(st)} className="accent-accentstrong" />
-              <span className={`text-sm flex-1 truncate ${st.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{st.name}</span>
-              <button onClick={() => removeTask(st.id, st.name)} disabled={busy} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500"><Icon name="ti-x" className="text-sm" /></button>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 mt-2">
-          <input value={subInput} onChange={(e) => setSubInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSubtask()}
-            placeholder="Add a subtask…" className="input h-8 text-sm" />
-          <button onClick={addSubtask} disabled={busy || !subInput.trim()} className="btn h-8 px-2 text-xs"><Icon name="ti-plus" /></button>
-        </div>
-      </div>
-
-      <Checklist taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
-      </div>
-      <div className="lg:w-[22rem] shrink-0 border-t lg:border-t-0 lg:border-l border-line overflow-y-auto p-5 bg-surface2/20">
-        <p className="section-label mb-3 flex items-center gap-2"><Icon name="ti-activity" className="text-base text-muted2" />Activity</p>
-        <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
+        <div className="mt-4 pt-4 border-t border-line"><TimeTracking taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} /></div>
+        <div className="mt-4 pt-4 border-t border-line"><EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} /></div>
       </div>
     </div>
   );
+
 
   const BoardView = () => (
     <div className="flex-1 min-w-0 overflow-x-auto pb-2">
