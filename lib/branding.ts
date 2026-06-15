@@ -1,4 +1,5 @@
 import { Organization } from './supabase';
+import { applySkin } from './skin';
 
 // Apply a tenant's branding to the live theme. The org's primary colour drives the
 // real accent tokens (--accent/--accent-strong/--accent-fg) that every page reads
@@ -10,6 +11,7 @@ export function applyBranding(org: Pick<Organization, 'name' | 'branding'> | nul
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   const b = org?.branding || {};
+  applySkin((b as any).skin);
   if (org?.name) root.dataset.orgName = org.name;
 
   // Keep the hex brand vars (consumed by logo marks + progress bars).

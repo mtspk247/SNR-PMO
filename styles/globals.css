@@ -151,3 +151,66 @@ h1 { letter-spacing: -0.02em; }
 }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-2) / .75); background-clip: padding-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
+
+/* ============================================================================
+   THEME SKINS (per-tenant) — selected via [data-skin] on <html>.
+   Orthogonal to [data-theme] (light|dark). Classic = no data-skin (or
+   data-skin="classic"): inherits the :root/dark defaults above, untouched.
+   Each skin re-declares the FULL palette in BOTH its light and dark block so
+   dark mode wins regardless of source order. Layout reads --container-max.
+   ============================================================================ */
+
+/* ---- Nebula (ClickUp-style, brand purple) ---- */
+[data-skin="nebula"] {
+  --bg: 247 248 250; --surface: 255 255 255; --surface-2: 242 243 247; --surface-3: 234 235 241;
+  --border: 232 233 239; --border-strong: 215 217 227;
+  --content: 26 26 46; --content-soft: 68 70 94; --muted: 107 111 134; --muted-2: 154 157 179;
+  --accent: 123 104 238; --accent-strong: 91 79 207; --accent-fg: 255 255 255; --ring: 123 104 238;
+  --brand-primary: #7B68EE; --container-max: 1440px;
+}
+[data-skin="nebula"][data-theme="dark"] {
+  --bg: 20 19 28; --surface: 30 28 41; --surface-2: 38 35 52; --surface-3: 46 43 61;
+  --border: 46 43 61; --border-strong: 61 58 80;
+  --content: 236 235 245; --content-soft: 199 197 218; --muted: 155 152 176; --muted-2: 111 108 132;
+  --accent: 155 140 255; --accent-strong: 179 166 255; --accent-fg: 20 19 28; --ring: 155 140 255;
+}
+[data-skin="nebula"] .card, [data-skin="nebula"] .stat { border-radius: 12px; }
+[data-skin="nebula"] .btn, [data-skin="nebula"] .input, [data-skin="nebula"] .textarea, [data-skin="nebula"] .sb-item { border-radius: 10px; }
+
+/* ---- Atlas (Jira-style, Atlassian blue) — flat + compact + full-bleed ---- */
+[data-skin="atlas"] {
+  --bg: 244 245 247; --surface: 255 255 255; --surface-2: 235 236 240; --surface-3: 223 225 230;
+  --border: 223 225 230; --border-strong: 193 199 208;
+  --content: 23 43 77; --content-soft: 66 82 110; --muted: 94 108 132; --muted-2: 137 147 164;
+  --accent: 0 82 204; --accent-strong: 7 71 166; --accent-fg: 255 255 255; --ring: 0 82 204;
+  --brand-primary: #0052CC; --container-max: none;
+}
+[data-skin="atlas"][data-theme="dark"] {
+  --bg: 22 26 29; --surface: 34 39 43; --surface-2: 29 33 37; --surface-3: 44 51 58;
+  --border: 44 51 58; --border-strong: 69 79 89;
+  --content: 222 228 234; --content-soft: 182 194 207; --muted: 159 173 188; --muted-2: 115 132 150;
+  --accent: 87 157 255; --accent-strong: 133 184 255; --accent-fg: 8 30 54; --ring: 87 157 255;
+}
+[data-skin="atlas"] .card, [data-skin="atlas"] .stat { border-radius: 4px; box-shadow: none; }
+[data-skin="atlas"] .btn, [data-skin="atlas"] .input, [data-skin="atlas"] .textarea, [data-skin="atlas"] .sb-item { border-radius: 4px; }
+[data-skin="atlas"] .stat:hover { box-shadow: none; transform: none; }
+[data-skin="atlas"] .card-interactive:hover { box-shadow: none; transform: none; }
+[data-skin="atlas"] .td, [data-skin="atlas"] .th { padding-top: .375rem; padding-bottom: .375rem; }
+[data-skin="atlas"] .sb-item { padding-top: .3125rem; padding-bottom: .3125rem; }
+
+/* ---- Coral (Asana-style, brand coral) ---- */
+[data-skin="coral"] {
+  --bg: 250 251 251; --surface: 255 255 255; --surface-2: 246 247 248; --surface-3: 237 238 239;
+  --border: 237 237 237; --border-strong: 220 220 220;
+  --content: 30 31 33; --content-soft: 74 75 77; --muted: 109 110 111; --muted-2: 154 155 156;
+  --accent: 240 106 106; --accent-strong: 192 65 60; --accent-fg: 255 255 255; --ring: 240 106 106;
+  --brand-primary: #F06A6A; --container-max: 1280px;
+}
+[data-skin="coral"][data-theme="dark"] {
+  --bg: 30 31 33; --surface: 42 43 45; --surface-2: 37 38 40; --surface-3: 52 53 55;
+  --border: 58 59 61; --border-strong: 74 75 77;
+  --content: 236 236 236; --content-soft: 196 196 196; --muted: 156 156 158; --muted-2: 110 110 112;
+  --accent: 248 142 142; --accent-strong: 251 169 169; --accent-fg: 42 16 16; --ring: 248 142 142;
+}
+[data-skin="coral"] .card, [data-skin="coral"] .stat { border-radius: 8px; }
+[data-skin="coral"] .btn, [data-skin="coral"] .input, [data-skin="coral"] .textarea, [data-skin="coral"] .sb-item { border-radius: 8px; }

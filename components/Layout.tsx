@@ -22,6 +22,7 @@ import Toaster from '@/components/Toaster';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
+import { normalizeSkin } from '@/lib/skin';
 
 
 function ThemeToggle() {
@@ -40,6 +41,10 @@ export default function Layout({ title, children, flat = false }: { title: strin
   const { user, orgs, platformAdmin, sidebarCollapsed, toggleSidebar, setActiveOrg, clear } = useAuthStore();
   const activeOrg = useActiveOrg();
   const routeFeature = featureForRoute(router.pathname);
+
+  // Per-tenant skin. 'atlas' uses a Jira-style top nav; the rest use the sidebar.
+  const skin = normalizeSkin(activeOrg?.branding?.skin);
+  const topNav = skin === 'atlas';
 
   const isActive = (href: string) => router.pathname === href || router.pathname.startsWith(href + '/');
 
@@ -111,7 +116,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
   if (checking) return <div className="h-screen bg-bg"><Spinner /></div>;
 
   const logout = async () => { await signOut(); clear(); router.replace('/login'); };
-  const collapsed = isLg && sidebarCollapsed;   // never collapse the mobile drawer
+  const collapsed = !topNav && isLg && sidebarCollapsed;   // never collapse the mobile drawer; n/a in top-nav
 
   // Route-derived breadcrumb default; dynamic pages override via useSetCrumbs.
   const parts = router.pathname.split('/').filter(Boolean);
@@ -154,84 +159,211 @@ export default function Layout({ title, children, flat = false }: { title: strin
     );
   };
 
-  return (
-    <div className="flex h-screen bg-bg text-content">
-      {/* Mobile drawer backdrop */}
-      {mobileOpen && <div onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-black/40 lg:hidden" aria-hidden />}
-      <aside className={`side shrink-0 flex flex-col z-40 fixed inset-y-0 left-0 w-60 transition-transform duration-200
-        lg:relative lg:z-auto lg:transition-[width] ${collapsed ? 'lg:w-16' : 'lg:w-60'}
-        ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        {/* Edge collapse toggle — sits on the sidebar's right border (desktop only). */}
+  // ---- Top-nav (Jira-style) horizontal primitives ----
+  const TopLink = ({ href, label, icon, feature }: Item) => {
+    const active = isActive(href);
+    const locked = isUpsellLocked(activeOrg, feature);
+    return (
+      <Link href={href}
+        className={`flex items-center gap-2 px-3 h-9 rounded-lg text-sm whitespace-nowrap transition-colors ${active ? 'bg-accent/12 text-accentstrong font-semibold' : 'text-contentsoft hover:bg-surface2 hover:text-content'}`}>
+        <Icon name={icon} className="text-base shrink-0" />
+        <span>{label}</span>
+        {locked && <Icon name="ti-lock" className="text-xs text-muted2" />}
+      </Link>
+    );
+  };
+
+  const TopMenu = ({ section: s }: { section: Extract<Section, { kind: 'menu' }> }) => {
+    const open = !!openMenus[s.key];
+    const containsActive = s.items.some((i) => isActive(i.href));
+    return (
+      <div className="relative">
+        <button onClick={() => setOpenMenus((p) => ({ [s.key]: !p[s.key] }))}
+          className={`flex items-center gap-2 px-3 h-9 rounded-lg text-sm whitespace-nowrap transition-colors ${containsActive ? 'bg-accent/12 text-accentstrong font-semibold' : 'text-contentsoft hover:bg-surface2 hover:text-content'}`}>
+          <Icon name={s.icon} className="text-base shrink-0" />
+          <span>{s.label}</span>
+          <Icon name="ti-chevron-down" className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-20" onClick={() => setOpenMenus({})} aria-hidden />
+            <div className="absolute left-0 top-full mt-1 z-30 w-56 bg-surface border border-line rounded-lg shadow-lg p-1 space-y-0.5">
+              {s.items.map((i) => <NavLink key={i.href} {...i} />)}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const BrandMark = () => (
+    <Link href="/dashboard" title="Dashboard" className="flex items-center gap-2.5 min-w-0">
+      {activeOrg?.branding?.logo_url
+        ? <img src={activeOrg.branding.logo_url} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
+        : <span className="w-7 h-7 rounded-md grid place-items-center text-sm font-semibold shrink-0 text-accentfg"
+            style={{ background: 'var(--brand-primary, #3ECF8E)' }}>
+            {(activeOrg?.name || 'S').charAt(0).toUpperCase()}
+          </span>}
+      <span className="font-semibold truncate side-fg hidden sm:block">{activeOrg?.name || 'SNR-PMO'}</span>
+    </Link>
+  );
+
+  const HeaderActions = () => (
+    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      <GlobalSearch />
+      <TimerChip />
+      <RunningTimers />
+      <button onClick={() => setChatOpen(true)} title="Chat"
+        className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">
+        <Icon name="ti-messages" className="text-base" />
+      </button>
+      <ThemeToggle />
+      <RequestsBell />
+      <NoticeBoardIcon />
+      <NotificationBell />
+    </div>
+  );
+
+  const contentInner = (
+    <div className={`mx-auto w-full${flat ? ' flat-surfaces' : ''}`} style={{ maxWidth: 'var(--container-max, 1400px)' }}>
+      {routeFeature && isUpsellLocked(activeOrg, routeFeature) ? <UpgradeScreen feature={routeFeature} canManage={can.manageBilling(activeOrg)} /> : children}
+    </div>
+  );
+
+  // The sidebar/drawer aside is reused for mobile in every skin. In top-nav skins
+  // it is hidden on desktop (lg) because navigation lives in the header.
+  const aside = (
+    <aside className={`side shrink-0 flex flex-col z-40 fixed inset-y-0 left-0 w-60 transition-transform duration-200
+      ${topNav ? 'lg:hidden' : `lg:relative lg:z-auto lg:transition-[width] ${collapsed ? 'lg:w-16' : 'lg:w-60'}`}
+      ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      {!topNav && (
         <button onClick={toggleSidebar} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className="hidden lg:grid absolute -right-3 top-[4.5rem] z-50 h-6 w-6 place-items-center rounded-full
             border border-line bg-surface shadow-sm text-muted hover:text-content hover:border-accent/60 transition">
           <Icon name={collapsed ? 'ti-chevron-right' : 'ti-chevron-left'} className="text-xs" />
         </button>
+      )}
 
-        {/* Brand + org switcher */}
-        <div className="relative h-14 shrink-0 flex items-center gap-2.5 px-3 border-b border-line">
-          <Link href="/dashboard" title="Dashboard" className={`flex items-center gap-2.5 min-w-0 ${collapsed ? '' : 'flex-1'}`}>
-            {activeOrg?.branding?.logo_url
-              ? <img src={activeOrg.branding.logo_url} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
-              : <span className="w-7 h-7 rounded-md grid place-items-center text-sm font-semibold shrink-0 text-accentfg"
-                  style={{ background: 'var(--brand-primary, #3ECF8E)' }}>
-                  {(activeOrg?.name || 'S').charAt(0).toUpperCase()}
-                </span>}
-            {!collapsed && <span className="font-semibold truncate side-fg">{activeOrg?.name || 'SNR-PMO'}</span>}
-          </Link>
-          {!collapsed && orgs.length > 1 && (
-            <button onClick={() => setOrgMenu((v) => !v)} title="Switch workspace" className="shrink-0 side-dim hover:text-content p-1 -mr-1">
-              <Icon name="ti-selector" className="text-sm" />
-            </button>
-          )}
-          {!collapsed && orgMenu && orgs.length > 0 && (
-            <div className="absolute left-2 right-2 top-14 z-20 bg-surface text-content rounded-md border border-line shadow-lg py-1">
-              {orgs.map((o) => (
-                <button key={o.id} onClick={() => { setActiveOrg(o.id); setOrgMenu(false); }}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface2 ${o.id === activeOrg?.id ? 'font-medium' : ''}`}>
-                  <span className="truncate">{o.name}</span>
-                  <span className="text-2xs text-muted2">{roleLabel(o.member_role)}</span>
-                </button>
-              ))}
+      {/* Brand + org switcher */}
+      <div className="relative h-14 shrink-0 flex items-center gap-2.5 px-3 border-b border-line">
+        <Link href="/dashboard" title="Dashboard" className={`flex items-center gap-2.5 min-w-0 ${collapsed ? '' : 'flex-1'}`}>
+          {activeOrg?.branding?.logo_url
+            ? <img src={activeOrg.branding.logo_url} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
+            : <span className="w-7 h-7 rounded-md grid place-items-center text-sm font-semibold shrink-0 text-accentfg"
+                style={{ background: 'var(--brand-primary, #3ECF8E)' }}>
+                {(activeOrg?.name || 'S').charAt(0).toUpperCase()}
+              </span>}
+          {!collapsed && <span className="font-semibold truncate side-fg">{activeOrg?.name || 'SNR-PMO'}</span>}
+        </Link>
+        {!collapsed && orgs.length > 1 && (
+          <button onClick={() => setOrgMenu((v) => !v)} title="Switch workspace" className="shrink-0 side-dim hover:text-content p-1 -mr-1">
+            <Icon name="ti-selector" className="text-sm" />
+          </button>
+        )}
+        {!collapsed && orgMenu && orgs.length > 0 && (
+          <div className="absolute left-2 right-2 top-14 z-20 bg-surface text-content rounded-md border border-line shadow-lg py-1">
+            {orgs.map((o) => (
+              <button key={o.id} onClick={() => { setActiveOrg(o.id); setOrgMenu(false); }}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface2 ${o.id === activeOrg?.id ? 'font-medium' : ''}`}>
+                <span className="truncate">{o.name}</span>
+                <span className="text-2xs text-muted2">{roleLabel(o.member_role)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Categorized nav: top-level links + accordion menus (flat icon rail when collapsed) */}
+      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+        {sections.map((s, idx) => {
+          if (collapsed) {
+            const items = s.kind === 'link' ? [s.item] : s.items;
+            return (
+              <div key={s.kind === 'link' ? s.item.href : s.key}>
+                {idx > 0 && <div className="mx-2 my-2 h-px side-divider" />}
+                {items.map((i) => <NavLink key={i.href} {...i} />)}
+              </div>
+            );
+          }
+          return s.kind === 'link'
+            ? <NavLink key={s.item.href} {...s.item} />
+            : <Menu key={s.key} section={s} />;
+        })}
+      </nav>
+
+      {/* User */}
+      <div className="p-2 border-t border-line">
+        <div className={`flex items-center gap-2.5 px-1 ${collapsed ? 'justify-center' : ''}`}>
+          <Avatar name={user?.full_name || 'U'} size={32} />
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate side-fg">{user?.full_name}</p>
+              <p className="text-2xs side-dim truncate">{roleLabel(activeOrg?.member_role)}</p>
             </div>
           )}
+          <button onClick={logout} title="Sign out" className="p-1.5 rounded-md side-dim hover:text-content hover:bg-surface2">
+            <Icon name="ti-logout" className="text-base" />
+          </button>
         </div>
+      </div>
+    </aside>
+  );
 
-        {/* Categorized nav: top-level links + accordion menus (flat icon rail when collapsed) */}
-        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          {sections.map((s, idx) => {
-            if (collapsed) {
-              // Collapsed: every leaf as an icon, thin divider between sections.
-              const items = s.kind === 'link' ? [s.item] : s.items;
-              return (
-                <div key={s.kind === 'link' ? s.item.href : s.key}>
-                  {idx > 0 && <div className="mx-2 my-2 h-px side-divider" />}
-                  {items.map((i) => <NavLink key={i.href} {...i} />)}
-                </div>
-              );
-            }
-            return s.kind === 'link'
-              ? <NavLink key={s.item.href} {...s.item} />
-              : <Menu key={s.key} section={s} />;
-          })}
-        </nav>
-
-        {/* User */}
-        <div className="p-2 border-t border-line">
-          <div className={`flex items-center gap-2.5 px-1 ${collapsed ? 'justify-center' : ''}`}>
-            <Avatar name={user?.full_name || 'U'} size={32} />
-            {!collapsed && (
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate side-fg">{user?.full_name}</p>
-                <p className="text-2xs side-dim truncate">{roleLabel(activeOrg?.member_role)}</p>
+  // ---- TOP-NAV LAYOUT (Atlas / Jira-style) ----
+  if (topNav) {
+    return (
+      <div className="flex flex-col h-screen bg-bg text-content">
+        {mobileOpen && <div onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-black/40 lg:hidden" aria-hidden />}
+        {aside}
+        <header className="h-14 shrink-0 border-b border-line bg-surface/80 backdrop-blur relative z-20 flex items-center gap-3 px-4 sm:px-6">
+          <button onClick={() => setMobileOpen(true)} aria-label="Open menu"
+            className="lg:hidden h-9 w-9 -ml-1.5 grid place-items-center rounded-md text-muted hover:text-content hover:bg-surface2 transition">
+            <Icon name="ti-menu-2" className="text-lg" />
+          </button>
+          <div className="relative shrink-0">
+            <div className="flex items-center gap-1.5">
+              <BrandMark />
+              {orgs.length > 1 && (
+                <button onClick={() => setOrgMenu((v) => !v)} title="Switch workspace" className="shrink-0 text-muted hover:text-content p-1">
+                  <Icon name="ti-selector" className="text-sm" />
+                </button>
+              )}
+            </div>
+            {orgMenu && orgs.length > 0 && (
+              <div className="absolute left-0 top-12 z-30 w-56 bg-surface text-content rounded-md border border-line shadow-lg py-1">
+                {orgs.map((o) => (
+                  <button key={o.id} onClick={() => { setActiveOrg(o.id); setOrgMenu(false); }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface2 ${o.id === activeOrg?.id ? 'font-medium' : ''}`}>
+                    <span className="truncate">{o.name}</span>
+                    <span className="text-2xs text-muted2">{roleLabel(o.member_role)}</span>
+                  </button>
+                ))}
               </div>
             )}
-            <button onClick={logout} title="Sign out" className="p-1.5 rounded-md side-dim hover:text-content hover:bg-surface2">
-              <Icon name="ti-logout" className="text-base" />
-            </button>
           </div>
-        </div>
-      </aside>
+          <nav className="hidden lg:flex items-center gap-1 min-w-0 overflow-x-auto flex-1">
+            {sections.map((s) => s.kind === 'link'
+              ? <TopLink key={s.item.href} {...s.item} />
+              : <TopMenu key={s.key} section={s} />)}
+          </nav>
+          <div className="ml-auto"><HeaderActions /></div>
+        </header>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="mx-auto w-full mb-3" style={{ maxWidth: 'var(--container-max, 1400px)' }}><Breadcrumbs fallback={defaultCrumbs} /></div>
+          {contentInner}
+        </main>
+        {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+        <StickyNotesFab />
+        <Toaster />
+      </div>
+    );
+  }
+
+  // ---- SIDEBAR LAYOUT (Classic / Nebula / Coral) ----
+  return (
+    <div className="flex h-screen bg-bg text-content">
+      {mobileOpen && <div onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-black/40 lg:hidden" aria-hidden />}
+      {aside}
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 shrink-0 border-b border-line bg-surface/80 backdrop-blur relative z-20 flex items-center justify-between gap-2 px-4 sm:px-6">
@@ -247,21 +379,9 @@ export default function Layout({ title, children, flat = false }: { title: strin
               <ActivityTicker />
             </div>
           )}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <GlobalSearch />
-            <TimerChip />
-            <RunningTimers />
-            <button onClick={() => setChatOpen(true)} title="Chat"
-              className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">
-              <Icon name="ti-messages" className="text-base" />
-            </button>
-            <ThemeToggle />
-            <RequestsBell />
-            <NoticeBoardIcon />
-            <NotificationBell />
-          </div>
+          <HeaderActions />
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full max-w-[1400px]${flat ? ' flat-surfaces' : ''}`}>{routeFeature && isUpsellLocked(activeOrg, routeFeature) ? <UpgradeScreen feature={routeFeature} canManage={can.manageBilling(activeOrg)} /> : children}</div></main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{contentInner}</main>
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
       <StickyNotesFab />

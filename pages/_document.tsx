@@ -1,7 +1,7 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 
 // Set the theme before first paint to avoid a flash of the wrong palette.
-const noFlash = `(function(){try{var t=localStorage.getItem('snr-theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
+const noFlash = `(function(){try{var t=localStorage.getItem('snr-theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);var sk=localStorage.getItem('snr-skin');document.documentElement.setAttribute('data-skin',(sk==='nebula'||sk==='atlas'||sk==='coral')?sk:'classic');}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
 
 export default function Document() {
   return (
