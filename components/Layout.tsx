@@ -311,42 +311,82 @@ export default function Layout({ title, children, flat = false }: { title: strin
 
   // ---- TOP-NAV LAYOUT (Atlas / Jira-style) ----
   if (topNav) {
+    // Keep the bar usable: show the first few sections inline, fold the rest into "More".
+    const TOP_INLINE = 6;
+    const inlineSections = sections.slice(0, TOP_INLINE);
+    const overflowSections = sections.slice(TOP_INLINE);
+
+    const MoreMenu = ({ secs }: { secs: typeof sections }) => {
+      const open = !!openMenus['__more'];
+      const containsActive = secs.some((s) => s.kind === 'link' ? isActive(s.item.href) : s.items.some((i) => isActive(i.href)));
+      return (
+        <div className="relative">
+          <button onClick={() => setOpenMenus((p) => ({ ['__more']: !p['__more'] }))}
+            className={`flex items-center gap-2 px-3 h-9 rounded-lg text-sm whitespace-nowrap transition-colors ${containsActive ? 'bg-accent/12 text-accentstrong font-semibold' : 'text-contentsoft hover:bg-surface2 hover:text-content'}`}>
+            <Icon name="ti-dots" className="text-base shrink-0" />
+            <span>More</span>
+            <Icon name="ti-chevron-down" className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setOpenMenus({})} aria-hidden />
+              <div className="absolute right-0 top-full mt-1 z-30 w-64 bg-surface border border-line rounded-lg shadow-lg p-1 space-y-0.5 max-h-[70vh] overflow-y-auto">
+                {secs.map((s) => s.kind === 'link'
+                  ? <NavLink key={s.item.href} {...s.item} />
+                  : (
+                    <div key={s.key} className="pt-1 first:pt-0">
+                      <div className="px-2.5 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{s.label}</div>
+                      {s.items.map((i) => <NavLink key={i.href} {...i} />)}
+                    </div>
+                  ))}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    };
+
     return (
       <div className="flex flex-col h-screen bg-bg text-content">
         {mobileOpen && <div onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-black/40 lg:hidden" aria-hidden />}
         {aside}
-        <header className="h-14 shrink-0 border-b border-line bg-surface/80 backdrop-blur relative z-20 flex items-center gap-3 px-4 sm:px-6">
-          <button onClick={() => setMobileOpen(true)} aria-label="Open menu"
-            className="lg:hidden h-9 w-9 -ml-1.5 grid place-items-center rounded-md text-muted hover:text-content hover:bg-surface2 transition">
-            <Icon name="ti-menu-2" className="text-lg" />
-          </button>
-          <div className="relative shrink-0">
-            <div className="flex items-center gap-1.5">
-              <BrandMark />
-              {orgs.length > 1 && (
-                <button onClick={() => setOrgMenu((v) => !v)} title="Switch workspace" className="shrink-0 text-muted hover:text-content p-1">
-                  <Icon name="ti-selector" className="text-sm" />
-                </button>
+        <header className="shrink-0 border-b border-line bg-surface/80 backdrop-blur relative z-20">
+          {/* Row 1 — brand + global actions */}
+          <div className="h-14 flex items-center gap-3 px-4 sm:px-6">
+            <button onClick={() => setMobileOpen(true)} aria-label="Open menu"
+              className="lg:hidden h-9 w-9 -ml-1.5 grid place-items-center rounded-md text-muted hover:text-content hover:bg-surface2 transition">
+              <Icon name="ti-menu-2" className="text-lg" />
+            </button>
+            <div className="relative shrink-0">
+              <div className="flex items-center gap-1.5">
+                <BrandMark />
+                {orgs.length > 1 && (
+                  <button onClick={() => setOrgMenu((v) => !v)} title="Switch workspace" className="shrink-0 text-muted hover:text-content p-1">
+                    <Icon name="ti-selector" className="text-sm" />
+                  </button>
+                )}
+              </div>
+              {orgMenu && orgs.length > 0 && (
+                <div className="absolute left-0 top-12 z-30 w-56 bg-surface text-content rounded-md border border-line shadow-lg py-1">
+                  {orgs.map((o) => (
+                    <button key={o.id} onClick={() => { setActiveOrg(o.id); setOrgMenu(false); }}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface2 ${o.id === activeOrg?.id ? 'font-medium' : ''}`}>
+                      <span className="truncate">{o.name}</span>
+                      <span className="text-2xs text-muted2">{roleLabel(o.member_role)}</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-            {orgMenu && orgs.length > 0 && (
-              <div className="absolute left-0 top-12 z-30 w-56 bg-surface text-content rounded-md border border-line shadow-lg py-1">
-                {orgs.map((o) => (
-                  <button key={o.id} onClick={() => { setActiveOrg(o.id); setOrgMenu(false); }}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface2 ${o.id === activeOrg?.id ? 'font-medium' : ''}`}>
-                    <span className="truncate">{o.name}</span>
-                    <span className="text-2xs text-muted2">{roleLabel(o.member_role)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="ml-auto"><HeaderActions /></div>
           </div>
-          <nav className="hidden lg:flex items-center gap-1 min-w-0 overflow-x-auto flex-1">
-            {sections.map((s) => s.kind === 'link'
+          {/* Row 2 — module navigation (desktop; mobile uses the drawer) */}
+          <nav className="hidden lg:flex items-center gap-1 h-11 px-4 sm:px-6 border-t border-line">
+            {inlineSections.map((s) => s.kind === 'link'
               ? <TopLink key={s.item.href} {...s.item} />
               : <TopMenu key={s.key} section={s} />)}
+            {overflowSections.length > 0 && <MoreMenu secs={overflowSections} />}
           </nav>
-          <div className="ml-auto"><HeaderActions /></div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="mx-auto w-full mb-3" style={{ maxWidth: 'var(--container-max, 1400px)' }}><Breadcrumbs fallback={defaultCrumbs} /></div>
@@ -358,6 +398,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
       </div>
     );
   }
+
 
   // ---- SIDEBAR LAYOUT (Classic / Nebula / Coral) ----
   return (
