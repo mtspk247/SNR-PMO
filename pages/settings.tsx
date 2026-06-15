@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
-import { updateOrgSettings, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
+import { updateOrgSettings, setOrgTheme, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin } from '@/lib/skin';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -310,6 +310,7 @@ export default function SettingsPage() {
   const [primary, setPrimary] = useState(DEFAULTS.primary);
   const [accent, setAccent] = useState(DEFAULTS.accent);
   const [skin, setSkin] = useState<Skin>('classic');
+  const [skinMsg, setSkinMsg] = useState('');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -320,8 +321,22 @@ export default function SettingsPage() {
     setLogo(b.logo_url || '');
     setPrimary(b.primary_color || DEFAULTS.primary);
     setAccent(b.accent_color || DEFAULTS.accent);
-    setSkin(normalizeSkin(b.skin));
+    setSkin(normalizeSkin(org.theme_skin));
   }, [org?.id]);
+
+  // Theme is saved on click via its own ungated path (not the white-label branding Save).
+  const pickSkin = async (k: Skin) => {
+    if (!org) return;
+    const prev = skin;
+    setSkin(k); applySkin(k); setSkinMsg('');
+    try {
+      await setOrgTheme(org.id, k);
+      patchOrg({ id: org.id, theme_skin: k });
+      setSkinMsg('Theme saved'); setTimeout(() => setSkinMsg(''), 2000);
+    } catch (e: any) {
+      setSkin(prev); applySkin(prev); setSkinMsg(e.message || 'Could not save theme');
+    }
+  };
 
   if (!org) return <Layout flat title="Settings"><Spinner /></Layout>;
 
@@ -368,7 +383,7 @@ export default function SettingsPage() {
           <p className="text-sm text-muted mb-4">Sets the layout, palette and density for everyone in this workspace. Light vs dark stays a personal choice per user.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {SKINS.map((sk) => (
-              <button key={sk.key} type="button" onClick={() => { setSkin(sk.key); applySkin(sk.key); }}
+              <button key={sk.key} type="button" onClick={() => pickSkin(sk.key)}
                 className={`text-left rounded-lg border p-3 transition ${skin === sk.key ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
                 <div className="mb-2"><SkinThumb sk={sk} /></div>
                 <div className="flex items-center gap-2 mb-1.5">
@@ -380,7 +395,7 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
-          <p className="text-2xs text-muted mt-3">Preview applies instantly; click <span className="font-medium text-content">Save changes</span> below to apply it for the whole workspace.</p>
+          <p className="text-2xs text-muted mt-3">Saved instantly for the whole workspace. Light vs dark stays a personal choice.{skinMsg && <span className="ml-2 text-emerald-600 font-medium">{skinMsg}</span>}</p>
         </div>
       )}
       {admin && tab === 'branding' && <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">

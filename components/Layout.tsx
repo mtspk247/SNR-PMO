@@ -43,7 +43,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
   const routeFeature = featureForRoute(router.pathname);
 
   // Per-tenant skin. 'atlas' uses a Jira-style top nav; the rest use the sidebar.
-  const skin = normalizeSkin(activeOrg?.branding?.skin);
+  const skin = normalizeSkin(activeOrg?.theme_skin);
   const topNav = skin === 'atlas';
 
   const isActive = (href: string) => router.pathname === href || router.pathname.startsWith(href + '/');

@@ -15,7 +15,6 @@ export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer';
 
 export interface OrgBranding {
   logo_url?: string;
-  skin?: 'classic' | 'nebula' | 'atlas' | 'coral';
   primary_color?: string;
   accent_color?: string;
   ink_color?: string;
@@ -26,6 +25,7 @@ export interface Organization {
   slug: string;
   name: string;
   branding: OrgBranding;
+  theme_skin?: 'classic' | 'nebula' | 'atlas' | 'coral' | null;
   plan: 'free' | 'pro' | 'enterprise';
   onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string } | null;
 }

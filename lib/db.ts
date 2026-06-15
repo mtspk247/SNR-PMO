@@ -49,7 +49,7 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, organizations(id, slug, name, branding, plan, onboarding)')
+    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -87,6 +87,20 @@ export async function updateOrgSettings(
     .single();
   if (error) throw new Error(error.message);
   return data as Organization;
+}
+
+// Theme skin is a free, per-tenant UI preference (NOT white-label branding, which is
+// plan-gated by the fn_enforce_white_label trigger). Stored in its own column so any
+// owner/admin can change it without the white_label feature. RLS org_update gates it.
+export async function setOrgTheme(orgId: string, skin: string): Promise<{ id: string; theme_skin: string | null }> {
+  const { data, error } = await sb
+    .from('organizations')
+    .update({ theme_skin: skin })
+    .eq('id', orgId)
+    .select('id, theme_skin')
+    .single();
+  if (error) throw new Error(error.message);
+  return data as { id: string; theme_skin: string | null };
 }
 
 export async function getOrgUsers(): Promise<OrgUser[]> {

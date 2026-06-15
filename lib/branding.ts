@@ -7,19 +7,22 @@ import { applySkin } from './skin';
 // bars all recolour to the tenant. Used pre-auth (subdomain, in _app) and post-auth
 // (active org, in Layout). We inject a <style> element rather than inline root vars
 // so we can give light and dark themes their own readable accent-strong shade.
-export function applyBranding(org: Pick<Organization, 'name' | 'branding'> | null) {
+export function applyBranding(org: (Pick<Organization, 'name' | 'branding'> & { theme_skin?: string | null }) | null) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   const b = org?.branding || {};
-  applySkin((b as any).skin);
+  applySkin(org?.theme_skin);
   if (org?.name) root.dataset.orgName = org.name;
 
+  // A primary colour equal to the stock default is treated as "not customised"
+  // so the active skin's own accent shows; a genuinely custom colour still overrides.
+  const customPrimary = b.primary_color && b.primary_color.toLowerCase() !== '#3ecf8e' ? b.primary_color : undefined;
   // Keep the hex brand vars (consumed by logo marks + progress bars).
-  setVar(root, '--brand-primary', b.primary_color);
+  setVar(root, '--brand-primary', customPrimary);
   setVar(root, '--brand-accent', b.accent_color);
   setVar(root, '--brand-ink', b.ink_color);
 
-  const primary = parseHex(b.primary_color);
+  const primary = parseHex(customPrimary);
   const styleEl = ensureStyleEl();
   if (!primary) { styleEl.textContent = ''; return; }   // no brand → fall back to defaults
 
