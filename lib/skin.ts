@@ -2,7 +2,7 @@
 // Applied via <html data-skin>. The pre-paint default is set by the inline script
 // in _document.tsx (from localStorage); the active org's skin is applied at runtime
 // by applyBranding (lib/branding.ts), called pre-auth (host) and post-auth (active org).
-export type Skin = 'classic' | 'nebula' | 'atlas' | 'coral';
+export type Skin = 'classic' | 'daylight' | 'vivid' | 'midnight';
 
 export interface SkinMeta {
   key: Skin;
@@ -16,18 +16,18 @@ export interface SkinMeta {
 }
 
 export const SKINS: SkinMeta[] = [
-  { key: 'classic', label: 'Classic', blurb: 'Supabase green · left sidebar', swatch: '#3ECF8E', nav: 'left', r: 6,
+  { key: 'classic',  label: 'Classic',  blurb: 'Supabase green · clean', swatch: '#3ECF8E', nav: 'left', r: 6,
     c: { bg: '#FAFAF9', sf: '#FFFFFF', bd: '#E6E5E1', tx: '#181816', mu: '#D8D7D2', ac: '#16B57A', on: '#ffffff' } },
-  { key: 'nebula',  label: 'Nebula',  blurb: 'ClickUp-style · purple · sidebar', swatch: '#7B68EE', nav: 'left', r: 10,
-    c: { bg: '#F7F8FA', sf: '#FFFFFF', bd: '#E8E9EF', tx: '#1A1A2E', mu: '#D4D6E0', ac: '#7B68EE', on: '#ffffff' } },
-  { key: 'atlas',   label: 'Atlas',   blurb: 'Jira-style · blue · flat & compact', swatch: '#0052CC', nav: 'left', r: 3,
-    c: { bg: '#F4F5F7', sf: '#FFFFFF', bd: '#DFE1E6', tx: '#172B4D', mu: '#C7CDD6', ac: '#0052CC', on: '#ffffff' } },
-  { key: 'coral',   label: 'Coral',   blurb: 'Asana-style · coral · sidebar', swatch: '#F06A6A', nav: 'left', r: 7,
-    c: { bg: '#FAFBFB', sf: '#FFFFFF', bd: '#EDEDED', tx: '#1E1F21', mu: '#DCDCDC', ac: '#F06A6A', on: '#ffffff' } },
+  { key: 'daylight', label: 'Daylight', blurb: 'Clean light admin · indigo', swatch: '#4F46E5', nav: 'left', r: 12,
+    c: { bg: '#F6F7F9', sf: '#FFFFFF', bd: '#E6E8EC', tx: '#1B1F2A', mu: '#C9CDD6', ac: '#4F46E5', on: '#ffffff' } },
+  { key: 'vivid',    label: 'Vivid',    blurb: 'Colorful · gradients · violet', swatch: '#7C3AED', nav: 'left', r: 14,
+    c: { bg: '#F8F6FF', sf: '#FFFFFF', bd: '#ECE8F6', tx: '#241A36', mu: '#CDC7DC', ac: '#7C3AED', on: '#ffffff' } },
+  { key: 'midnight', label: 'Midnight', blurb: 'Dark glass · neon', swatch: '#7C5CFF', nav: 'left', r: 16,
+    c: { bg: '#101233', sf: '#211E4A', bd: '#3A356B', tx: '#EDEAFF', mu: '#4A4780', ac: '#7C5CFF', on: '#ffffff' } },
 ];
 
 const KEY = 'snr-skin';
-const VALID: Skin[] = ['classic', 'nebula', 'atlas', 'coral'];
+const VALID: Skin[] = ['classic', 'daylight', 'vivid', 'midnight'];
 
 export function normalizeSkin(s?: string | null): Skin {
   return (VALID as string[]).includes(s || '') ? (s as Skin) : 'classic';

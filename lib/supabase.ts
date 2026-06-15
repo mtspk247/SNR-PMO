@@ -25,7 +25,7 @@ export interface Organization {
   slug: string;
   name: string;
   branding: OrgBranding;
-  theme_skin?: 'classic' | 'nebula' | 'atlas' | 'coral' | null;
+  theme_skin?: 'classic' | 'daylight' | 'vivid' | 'midnight' | null;
   plan: 'free' | 'pro' | 'enterprise';
   onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string } | null;
 }
