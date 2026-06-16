@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Dropdown from '@/components/Dropdown';
@@ -10,6 +10,7 @@ import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
 import { getOrgUsers, createTask, updateTask, deleteTask, notify, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useTasks, useProjects, useTeams } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
@@ -53,6 +54,44 @@ const EMPTY_FORM: TaskForm = { name: '', description: '', project_id: '', assign
 
 type GroupBy = 'none' | 'project' | 'priority' | 'status';
 
+function BoardCardInner({ task, projectName, assigneeName, overdue }: { task: Task; projectName: string; assigneeName: string; overdue: boolean }) {
+  return (
+    <>
+      <p className="text-sm font-medium text-content truncate">{task.name}</p>
+      <p className="text-2xs text-muted truncate mt-1">{projectName || '—'}</p>
+      <div className="flex items-center gap-2 mt-2.5">
+        <Pill label={task.priority} />
+        {task.due_date && <span className={`text-2xs tnum ${overdue ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{task.due_date}</span>}
+        {assigneeName && <span className="ml-auto shrink-0"><Avatar name={assigneeName} size={20} /></span>}
+      </div>
+    </>
+  );
+}
+
+function BoardCard({ task, selected, projectName, assigneeName, overdue, onOpen }: { task: Task; selected: boolean; projectName: string; assigneeName: string; overdue: boolean; onOpen: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
+  return (
+    <button ref={setNodeRef} type="button" data-card="1" {...attributes} {...listeners} onClick={onOpen}
+      className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selected ? 'border-accent' : ''} ${isDragging ? 'opacity-40' : ''}`}>
+      <BoardCardInner task={task} projectName={projectName} assigneeName={assigneeName} overdue={overdue} />
+    </button>
+  );
+}
+
+function BoardColumn({ status, color, count, onAdd, children }: { status: string; color?: string; count: number; onAdd: () => void; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+  return (
+    <div ref={setNodeRef} className={`w-72 shrink-0 flex flex-col min-h-0 rounded-lg p-1 transition ${isOver ? 'ring-2 ring-inset ring-accent/50 bg-accent/5' : ''}`}>
+      <div className="flex items-center gap-2 mb-2 px-0.5">
+        <StatusBadge status={status} solid color={color} />
+        <span className="text-2xs font-medium text-muted2 tnum">{count}</span>
+        <button onClick={onAdd} title="Add task" className="ml-auto text-muted2 hover:text-content transition"><Icon name="ti-plus" className="text-sm" /></button>
+      </div>
+      <div className="space-y-2 overflow-y-auto pr-1 flex-1 min-h-[2.5rem]">{children}</div>
+    </div>
+  );
+}
+
 export default function Tasks() {
   const router = useRouter();
   const activeOrg = useActiveOrg();
@@ -76,8 +115,10 @@ export default function Tasks() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [view, setView] = useState<'list' | 'board'>('list');
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const boardScrollRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{ x: number; left: number } | null>(null);
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(COL_DEFS.map((c) => c.id)));
   const [colOrder, setColOrder] = useState<string[]>(COL_DEFS.map((c) => c.id));
   const [colMenu, setColMenu] = useState(false);
@@ -488,49 +529,58 @@ export default function Tasks() {
   };
 
 
-  const BoardView = () => (
-    <div className="flex-1 min-w-0 overflow-x-auto pb-2">
-      <div className="flex gap-3 h-full">
-        {statuses.map((st) => {
-          const items = filtered.filter((t) => t.status === st);
-          return (
-            <div key={st}
-              onDragOver={(e) => { e.preventDefault(); if (dragOverCol !== st) setDragOverCol(st); }}
-              onDrop={() => { if (dragId) { const tk = tasks.find((x) => x.id === dragId); if (tk && tk.status !== st) setStatus(dragId, st); } setDragId(null); setDragOverCol(null); }}
-              className={`w-72 shrink-0 flex flex-col min-h-0 rounded-xl p-1 transition ${dragOverCol === st ? 'ring-2 ring-inset ring-accent/50 bg-accent/5' : ''}`}>
-              <div className="flex items-center gap-2 mb-2 px-0.5">
-                <StatusBadge status={st} solid color={statusColor(st)} />
-                <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
-                <button onClick={() => { setForm({ ...EMPTY_FORM, status: st }); setModal({ mode: 'create' }); }}
-                  title="Add task" className="ml-auto text-muted2 hover:text-content transition"><Icon name="ti-plus" className="text-sm" /></button>
-              </div>
-              <div className="space-y-2 overflow-y-auto pr-1 flex-1">
-                {items.map((t) => {
-                  const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
-                  return (
-                    <button key={t.id} draggable
-                      onDragStart={(e) => { setDragId(t.id); e.dataTransfer.effectAllowed = 'move'; }}
-                      onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
-                      onClick={() => selectTask(t.id)}
-                      className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selectedId === t.id ? 'border-accent' : ''} ${dragId === t.id ? 'opacity-95 shadow-lg ring-2 ring-accent/50 scale-[1.03] rotate-1' : ''}`}>
-                      <p className="text-sm font-medium text-content truncate">{t.name}</p>
-                      <p className="text-2xs text-muted truncate mt-1">{t.projects?.name || '—'}</p>
-                      <div className="flex items-center gap-2 mt-2.5">
-                        <Pill label={t.priority} />
-                        {t.due_date && <span className={`text-2xs tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date}</span>}
-                        {t.assignee_id && <span className="ml-auto shrink-0"><Avatar name={userName(t.assignee_id)} size={20} /></span>}
-                      </div>
-                    </button>
-                  );
-                })}
-                {items.length === 0 && <p className="text-2xs text-muted2 px-1 py-6 text-center">No tasks</p>}
-              </div>
+  const BoardView = () => {
+    const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
+    const onDragEnd = (e: DragEndEvent) => {
+      const overId = e.over?.id as string | undefined;
+      const id = e.active.id as string;
+      setActiveId(null);
+      const tk = tasks.find((x) => x.id === id);
+      if (overId && tk && tk.status !== overId) setStatus(id, overId);
+    };
+    const panDown = (e: React.PointerEvent) => {
+      if ((e.target as HTMLElement).closest('[data-card]')) return;
+      const el = boardScrollRef.current; if (!el) return;
+      panRef.current = { x: e.clientX, left: el.scrollLeft };
+    };
+    const panMove = (e: React.PointerEvent) => {
+      if (!panRef.current || !boardScrollRef.current) return;
+      boardScrollRef.current.scrollLeft = panRef.current.left - (e.clientX - panRef.current.x);
+    };
+    const panUp = () => { panRef.current = null; };
+    return (
+      <DndContext sensors={sensors} onDragStart={(e) => setActiveId(e.active.id as string)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
+        <div ref={boardScrollRef} onPointerDown={panDown} onPointerMove={panMove} onPointerUp={panUp} onPointerLeave={panUp}
+          className="flex-1 min-w-0 overflow-x-auto pb-2 cursor-grab select-none">
+          <div className="flex gap-3 h-full">
+            {statuses.map((st) => {
+              const items = filtered.filter((t) => t.status === st);
+              return (
+                <BoardColumn key={st} status={st} color={statusColor(st)} count={items.length}
+                  onAdd={() => { setForm({ ...EMPTY_FORM, status: st }); setModal({ mode: 'create' }); }}>
+                  {items.map((t) => (
+                    <BoardCard key={t.id} task={t} selected={selectedId === t.id}
+                      projectName={t.projects?.name || ''} assigneeName={t.assignee_id ? userName(t.assignee_id) : ''}
+                      overdue={isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled'}
+                      onOpen={() => selectTask(t.id)} />
+                  ))}
+                  {items.length === 0 && <p className="text-2xs text-muted2 px-1 py-6 text-center">No tasks</p>}
+                </BoardColumn>
+              );
+            })}
+          </div>
+        </div>
+        <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(.16,1,.3,1)' }}>
+          {activeTask ? (
+            <div className="card p-3 w-72 shadow-lg ring-2 ring-accent/50 rotate-1 cursor-grabbing">
+              <BoardCardInner task={activeTask} projectName={activeTask.projects?.name || ''} assigneeName={activeTask.assignee_id ? userName(activeTask.assignee_id) : ''} overdue={isOverdue(activeTask.due_date) && activeTask.status !== 'Done' && activeTask.status !== 'Cancelled'} />
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    );
+  };
+
 
   const shownCols = colOrder.map((id) => COL_DEFS.find((c) => c.id === id)!).filter((c) => c && visibleCols.has(c.id));
   const moveCol = (id: string, dir: number) => setColOrder((o) => { const i = o.indexOf(id); const j = i + dir; if (j < 0 || j >= o.length) return o; const n = [...o]; [n[i], n[j]] = [n[j], n[i]]; return n; });
