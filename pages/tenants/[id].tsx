@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
+import Select from '@/components/Select';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
@@ -11,8 +12,9 @@ import {
   listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot,
   getTenantUsage, getOrgActivity, TenantUsage, ActivityItem,
   getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain,
+  getOrgFeatures, getOrgPlanFeatures,
 } from '@/lib/db';
-import { Plan } from '@/lib/supabase';
+import { Plan, MyOrg } from '@/lib/supabase';
 
 function UsageBar({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const pct = limit && limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : null;
@@ -30,6 +32,7 @@ export default function TenantDetail() {
   const router = useRouter();
   const orgId = typeof router.query.id === 'string' ? router.query.id : '';
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
+  const patchOrg = useAuthStore((s) => s.patchOrg);
 
   const [tenant, setTenant] = useState<any | null>(null);
   const [info, setInfo] = useState<TenantInfo | null>(null);
@@ -78,9 +81,10 @@ export default function TenantDetail() {
     return () => { active = false; };
   }, [platformAdmin, orgId]);
 
-  const changePlan = async (key: string) => { setBusy(true); try { await setTenantPlan(orgId, key); await refreshInfo(); refreshUsage(); flash('Plan updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const refreshSessionOrg = async (key?: string) => { try { const [features, planFeatures] = await Promise.all([getOrgFeatures(orgId), getOrgPlanFeatures(orgId)]); patchOrg({ id: orgId, ...(key ? { plan: key as MyOrg['plan'] } : {}), features, planFeatures }); } catch { /* not one of my orgs */ } };
+  const changePlan = async (key: string) => { setBusy(true); try { await setTenantPlan(orgId, key); await refreshInfo(); refreshUsage(); await refreshSessionOrg(key); flash('Plan updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const toggleActive = async () => { if (!info) return; setBusy(true); try { await setTenantActive(orgId, !info.active); await refreshInfo(); refreshUsage(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
-  const setFeature = async (key: string, val: boolean | null) => { setBusy(true); try { await setTenantFeatureOverride(orgId, key, val); await refreshInfo(); flash('Feature access updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const setFeature = async (key: string, val: boolean | null) => { setBusy(true); try { await setTenantFeatureOverride(orgId, key, val); await refreshInfo(); await refreshSessionOrg(); flash('Feature access updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const saveQuota = async (mb: string) => { setBusy(true); try { await setTenantLimitOverride(orgId, 'storage_mb', mb === '' ? null : Number(mb)); await refreshInfo(); flash('Storage quota updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
   const saveDomain = async () => { setDomBusy(true); setErr(''); try { const d = await setCustomDomain(orgId, domInput.trim()); setDom(d); setDomInput(d.custom_domain || ''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
@@ -203,9 +207,7 @@ export default function TenantDetail() {
             <div className="card p-5 space-y-3">
               <Field label="Plan" hint="Pick a plan, then Apply (you'll be asked to confirm).">
                 <div className="flex items-center gap-2">
-                  <select className="input flex-1" value={planSel} disabled={busy} onChange={(e) => setPlanSel(e.target.value)}>
-                    <option value="">—</option>{plans.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
-                  </select>
+                  <div className="flex-1"><Select value={planSel} disabled={busy} onChange={setPlanSel} placeholder="Select a plan…" options={plans.map((p) => ({ value: p.key, label: p.name }))} /></div>
                   <button className="btn btn-primary shrink-0" disabled={busy || !planSel || planSel === (info.plan || '')}
                     onClick={() => ask('Change plan?', `Switch ${tenant.org_name} to the "${plans.find((p) => p.key === planSel)?.name || planSel}" plan?`, () => changePlan(planSel))}>
                     {busy ? '…' : 'Apply'}
