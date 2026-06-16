@@ -1099,11 +1099,19 @@ export async function getTenantInfo(orgId: string): Promise<TenantInfo> {
   const { data, error } = await sb.rpc('tenant_admin_info', { p_org: orgId });
   if (error) throw new Error(error.message); return data as TenantInfo;
 }
-export async function setTenantPlan(orgId: string, planKey: string): Promise<void> {
-  const { error } = await sb.rpc('tenant_set_plan', { p_org: orgId, p_plan_key: planKey }); if (error) throw new Error(error.message);
+export async function setTenantPlan(orgId: string, planKey: string, reason?: string): Promise<void> {
+  const { error } = await sb.rpc('tenant_set_plan', { p_org: orgId, p_plan_key: planKey, p_reason: reason || null }); if (error) throw new Error(error.message);
 }
-export async function setTenantActive(orgId: string, active: boolean): Promise<void> {
-  const { error } = await sb.rpc('tenant_set_active', { p_org: orgId, p_active: active }); if (error) throw new Error(error.message);
+export async function setTenantActive(orgId: string, active: boolean, reason?: string): Promise<void> {
+  const { error } = await sb.rpc('tenant_set_active', { p_org: orgId, p_active: active, p_reason: reason || null }); if (error) throw new Error(error.message);
+}
+export interface TenantEvent { id: string; org_id: string; event_type: string; actor_user_id: string | null; plan_from: string | null; plan_to: string | null; amount_cents: number | null; currency: string | null; reason: string | null; meta: any; created_at: string; }
+export async function getTenantEvents(orgId: string): Promise<TenantEvent[]> {
+  const { data, error } = await sb.from('tenant_events').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data || []) as TenantEvent[];
+}
+export async function addTenantNote(orgId: string, text: string): Promise<void> {
+  const { error } = await sb.rpc('tenant_add_note', { p_org: orgId, p_text: text }); if (error) throw new Error(error.message);
 }
 
 // ---- Support ticketing ----

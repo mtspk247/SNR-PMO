@@ -8,7 +8,7 @@ import { useSetCrumbs } from '@/components/Breadcrumbs';
 import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
-  listTenants, getTenantInfo, setTenantPlan, setTenantActive, setTenantFeatureOverride, setTenantLimitOverride,
+  listTenants, getTenantInfo, setTenantPlan, setTenantActive, getTenantEvents, addTenantNote, TenantEvent, setTenantFeatureOverride, setTenantLimitOverride,
   listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot,
   getTenantUsage, getOrgActivity, TenantUsage, ActivityItem,
   getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain,
@@ -27,6 +27,15 @@ function UsageBar({ label, used, limit }: { label: string; used: number; limit: 
     </div>
   );
 }
+
+const EVENT_META = (t: string): { label: string; icon: string; dot: string } => (({
+  signup: { label: 'Signed up', icon: 'ti-sparkles', dot: 'bg-accent' },
+  plan_changed: { label: 'Plan changed', icon: 'ti-package', dot: 'bg-violet-500' },
+  suspended: { label: 'Suspended', icon: 'ti-ban', dot: 'bg-rose-500' },
+  reactivated: { label: 'Reactivated', icon: 'ti-circle-check', dot: 'bg-emerald-500' },
+  payment: { label: 'Payment', icon: 'ti-credit-card', dot: 'bg-emerald-500' },
+  note: { label: 'Note', icon: 'ti-note', dot: 'bg-amber-400' },
+} as Record<string, { label: string; icon: string; dot: string }>)[t] || { label: t, icon: 'ti-point', dot: 'bg-muted2' });
 
 export default function TenantDetail() {
   const router = useRouter();
@@ -51,11 +60,16 @@ export default function TenantDetail() {
   const [okMsg, setOkMsg] = useState('');
   const flash = (m: string) => { setOkMsg(m); window.setTimeout(() => setOkMsg(''), 2500); };
   const [planSel, setPlanSel] = useState('');
+  const [events, setEvents] = useState<TenantEvent[]>([]);
+  const [planReason, setPlanReason] = useState('');
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
   useEffect(() => { setPlanSel(info?.plan || ''); }, [info?.plan]);
 
   useSetCrumbs(tenant ? [{ label: 'Tenants', href: '/tenants' }, { label: tenant.org_name }] : null);
 
   const refreshInfo = async () => setInfo(await getTenantInfo(orgId));
+  const refreshEvents = () => getTenantEvents(orgId).then(setEvents).catch(() => {});
   const refreshUsage = () => getTenantUsage(orgId).then(setUsage).catch(() => {});
   const refreshSnaps = () => listTenantSnapshots(orgId).then(setSnaps).catch(() => setSnaps([]));
   const loadDomain = () => { setDomMsg(''); return getTenantDomain(orgId).then((d) => { setDom(d); setDomInput(d.custom_domain || ''); }).catch(() => setDom(null)); };
@@ -75,6 +89,7 @@ export default function TenantDetail() {
         getOrgActivity(orgId).then(setActivity).catch(() => {});
         listPlans().then(setPlans).catch(() => {});
         setInfo(await getTenantInfo(orgId));
+        refreshEvents();
       } catch (e: any) { if (active) setErr(e.message); }
       finally { if (active) setLoading(false); }
     })();
@@ -82,8 +97,9 @@ export default function TenantDetail() {
   }, [platformAdmin, orgId]);
 
   const refreshSessionOrg = async (key?: string) => { try { const [features, planFeatures] = await Promise.all([getOrgFeatures(orgId), getOrgPlanFeatures(orgId)]); patchOrg({ id: orgId, ...(key ? { plan: key as MyOrg['plan'] } : {}), features, planFeatures }); } catch { /* not one of my orgs */ } };
-  const changePlan = async (key: string) => { setBusy(true); try { await setTenantPlan(orgId, key); await refreshInfo(); refreshUsage(); await refreshSessionOrg(key); flash('Plan updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
-  const toggleActive = async () => { if (!info) return; setBusy(true); try { await setTenantActive(orgId, !info.active); await refreshInfo(); refreshUsage(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const changePlan = async (key: string, reason?: string) => { setBusy(true); try { await setTenantPlan(orgId, key, reason); await refreshInfo(); refreshUsage(); await refreshSessionOrg(key); refreshEvents(); setPlanReason(''); flash('Plan updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const toggleActive = async () => { if (!info) return; setBusy(true); try { await setTenantActive(orgId, !info.active); await refreshInfo(); refreshUsage(); refreshEvents(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const addNote = async () => { if (!noteText.trim()) return; setSavingNote(true); try { await addTenantNote(orgId, noteText.trim()); setNoteText(''); refreshEvents(); flash('Note added.'); } catch (e: any) { setErr(e.message); } finally { setSavingNote(false); } };
   const setFeature = async (key: string, val: boolean | null) => { setBusy(true); try { await setTenantFeatureOverride(orgId, key, val); await refreshInfo(); await refreshSessionOrg(); flash('Feature access updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const saveQuota = async (mb: string) => { setBusy(true); try { await setTenantLimitOverride(orgId, 'storage_mb', mb === '' ? null : Number(mb)); await refreshInfo(); flash('Storage quota updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
@@ -157,6 +173,7 @@ export default function TenantDetail() {
       <Tabs active={tab} onChange={setTab} tabs={[
         { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
         { key: 'plan', label: 'Plan & features', icon: 'ti-package' },
+        { key: 'lifecycle', label: 'Lifecycle & billing', icon: 'ti-timeline' },
         { key: 'domain', label: 'Custom domain', icon: 'ti-world' },
         { key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' },
       ]} />
@@ -209,10 +226,11 @@ export default function TenantDetail() {
                 <div className="flex items-center gap-2">
                   <div className="flex-1"><Select value={planSel} disabled={busy} onChange={setPlanSel} placeholder="Select a plan…" options={plans.map((p) => ({ value: p.key, label: p.name }))} /></div>
                   <button className="btn btn-primary shrink-0" disabled={busy || !planSel || planSel === (info.plan || '')}
-                    onClick={() => ask('Override plan?', `Override ${tenant.org_name}\u2019s plan to "${plans.find((p) => p.key === planSel)?.name || planSel}"? This bypasses their paid upgrade flow — for comps/support.`, () => changePlan(planSel))}>
+                    onClick={() => ask('Override plan?', `Override ${tenant.org_name}\u2019s plan to "${plans.find((p) => p.key === planSel)?.name || planSel}"? This bypasses their paid upgrade flow — for comps/support.`, () => changePlan(planSel, planReason))}>
                     {busy ? '…' : 'Apply'}
                   </button>
                 </div>
+                <input className="input mt-2 w-full text-sm" value={planReason} onChange={(e) => setPlanReason(e.target.value)} placeholder="Reason (optional) — comp, downgrade reason, churn risk…" />
               </Field>
               <Field label="Storage quota override (MB)" hint="Blank = use plan default">
                 <input className="input" type="number" defaultValue={info.limits.storage_mb ?? ''} disabled={busy}
@@ -301,6 +319,43 @@ export default function TenantDetail() {
               })()}
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'lifecycle' && (
+        <div className="grid lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 card p-5">
+            <p className="text-2xs uppercase tracking-wide text-muted2 mb-3">Lifecycle &amp; billing timeline</p>
+            {events.length === 0 ? <p className="text-sm text-muted2">No events yet.</p> : (
+              <ol className="relative border-l border-line ml-2 space-y-4">
+                {events.map((ev) => { const m = EVENT_META(ev.event_type); return (
+                  <li key={ev.id} className="ml-4 relative">
+                    <span className={`absolute -left-[23px] top-1 w-3 h-3 rounded-full ${m.dot}`} />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Icon name={m.icon} className="text-sm text-muted2" />
+                      <span className="text-sm font-medium text-content">{m.label}</span>
+                      {ev.plan_from && ev.plan_to && <span className="text-2xs text-muted2 capitalize">{ev.plan_from} → {ev.plan_to}</span>}
+                      {ev.amount_cents != null && <span className="text-2xs text-content font-medium">{(ev.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: ev.currency || 'USD' })}</span>}
+                      <span className="text-2xs text-muted2 ml-auto whitespace-nowrap">{new Date(ev.created_at).toLocaleString()}</span>
+                    </div>
+                    {ev.reason && <p className="text-2xs text-muted mt-0.5">{ev.reason}</p>}
+                  </li>
+                ); })}
+              </ol>
+            )}
+          </div>
+          <div className="space-y-4">
+            <div className="card p-5">
+              <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Add a note</p>
+              <textarea className="textarea h-20 w-full" value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Log a call, churn reason, follow-up, discount offered…" />
+              <button className="btn btn-primary mt-2 w-full" disabled={savingNote || !noteText.trim()} onClick={addNote}>{savingNote ? 'Saving…' : 'Add note'}</button>
+            </div>
+            <div className="card p-5">
+              <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Billing</p>
+              <p className="text-2xs text-muted">Current plan: <span className="text-content font-medium capitalize">{usage?.plan || info?.plan || '—'}</span></p>
+              <p className="text-2xs text-muted mt-1">Paid invoices appear here once Stripe is connected (Platform → Billing).</p>
+            </div>
+          </div>
         </div>
       )}
 
