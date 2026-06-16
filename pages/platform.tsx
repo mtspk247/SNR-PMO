@@ -786,3 +786,134 @@ function CampaignsTab() {
     </div>
   );
 }
+
+export default function PlatformPage() {
+  const platformAdmin = useAuthStore((s) => s.platformAdmin);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [pf, setPf] = useState<PlanFeature[]>([]);
+  const [planLimits, setPlanLimits] = useState<PlanLimit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('plans');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [planModal, setPlanModal] = useState<Plan | 'new' | null>(null);
+
+  const load = async () => {
+    const [p, f, m, l] = await Promise.all([listPlans(), listFeatures(), listPlanFeatures(), listPlanLimits()]);
+    setPlans(p); setFeatures(f); setPf(m); setPlanLimits(l);
+  };
+  useEffect(() => { if (platformAdmin) load().catch((e) => setErr(e.message)).finally(() => setLoading(false)); else setLoading(false); }, [platformAdmin]);
+
+  if (!platformAdmin) {
+    return <Layout title="Platform"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />Platform administration is restricted to the platform team.</div></Layout>;
+  }
+
+  const enabled = (planId: string, fk: string) => pf.some((x) => x.plan_id === planId && x.feature_key === fk && x.enabled);
+
+  const toggleFeature = async (planId: string, fk: string, on: boolean) => {
+    setBusy(true); setErr('');
+    setPf((prev) => {
+      const i = prev.findIndex((x) => x.plan_id === planId && x.feature_key === fk);
+      if (i >= 0) { const c = prev.slice(); c[i] = { ...c[i], enabled: on }; return c; }
+      return [...prev, { plan_id: planId, feature_key: fk, enabled: on }];
+    });
+    try { await setPlanFeature(planId, fk, on); } catch (e: any) { setErr(e.message); await load(); }
+    finally { setBusy(false); }
+  };
+
+
+  return (
+    <Layout title="Platform">
+      {loading ? <Spinner /> : (
+        <>
+          <PageHeader title="Plans & billing" subtitle="Cross-tenant administration — plans, seats, features, billing and ops. Manage individual tenants under Tenants."
+            action={tab === 'plans' ? (
+              <button className="btn btn-primary" onClick={() => setPlanModal('new')}>
+                <Icon name="ti-plus" className="text-base" /> New plan
+              </button>
+            ) : undefined} />
+
+          {/* Tabs */}
+          <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
+            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'campaigns'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  tab === t
+                    ? 'border-b-accent text-content'
+                    : 'border-b-transparent text-muted hover:text-content'
+                }`}
+              >
+                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : 'Campaigns'}
+              </button>
+            ))}
+          </div>
+
+          {err && <p className="text-sm text-rose-600 mb-3 px-4 pt-4 card rounded-t-none">{err}</p>}
+
+          {tab === 'plans' ? (
+            <div className="card overflow-x-auto rounded-t-none">
+              <div className="overflow-x-auto"><table className="w-full text-sm">
+                <thead className="bg-surface2 text-left">
+                  <tr>
+                    <th className="px-4 py-3 font-medium text-2xs uppercase tracking-wide text-muted">Feature</th>
+                    {plans.map((p) => (
+                      <th key={p.id} className="px-4 py-3 text-center">
+                        <span className="flex items-center justify-center gap-1.5">
+                          <span className="font-semibold text-content">{p.name}</span>
+                          {!p.is_active && <span className="pill pill-gray">inactive</span>}
+                          <button className="text-muted2 hover:text-accentstrong transition-colors" title={`Edit ${p.name}`}
+                            onClick={() => setPlanModal(p)}>
+                            <Icon name="ti-pencil" className="text-sm" />
+                          </button>
+                        </span>
+                        <span className="block text-2xs text-muted font-normal">{formatPrice(p.price_cents, p.pricing_model)}{p.billing_period === 'annual' ? ' (annual)' : ''}</span>
+                        <span className="block text-2xs text-muted font-normal">{p.user_limit == null ? 'unlimited seats' : `${p.user_limit} seats`}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {features.map((f) => (
+                    <tr key={f.key} className="border-t border-line hover:bg-surface2/50">
+                      <td className="px-4 py-3">
+                        <span className="block font-medium text-content">{f.name}</span>
+                        <span className="block text-2xs text-muted">{f.description}</span>
+                      </td>
+                      {plans.map((p) => (
+                        <td key={p.id} className="px-4 py-3 text-center">
+                          <input type="checkbox" className="accent-accent w-4 h-4" disabled={busy}
+                            checked={enabled(p.id, f.key)}
+                            onChange={(e) => toggleFeature(p.id, f.key, e.target.checked)} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+              <div className="px-4 py-3 text-2xs text-muted border-t border-line">Changes apply immediately to every tenant on that plan (enforced server-side via RLS).</div>
+            </div>
+          ) : tab === 'billing' ? (
+            <BillingTab plans={plans} onReload={load} />
+          ) : tab === 'email' ? (
+            <EmailTab />
+          ) : tab === 'backups' ? (
+            <BackupsTab />
+          ) : tab === 'errors' ? (
+            <ErrorsTab />
+          ) : tab === 'owners' ? (
+            <OwnersTab />
+          ) : (
+            <CampaignsTab />
+          )}
+
+          {planModal && (
+            <PlanModal plan={planModal === 'new' ? null : planModal} storageMb={planModal && planModal !== 'new' ? (planLimits.find((l) => l.plan_id === planModal.id && l.key === 'storage_mb')?.value ?? null) : null} onClose={() => setPlanModal(null)} onSaved={load} />
+          )}
+        </>
+      )}
+    </Layout>
+  );
+}
