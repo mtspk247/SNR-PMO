@@ -1,3 +1,4 @@
+import { titleCase } from '@/lib/format';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
@@ -206,22 +207,34 @@ function NotificationPrefs() {
       {rows === null ? <Spinner /> : rows.length === 0 ? (
         <p className="text-2xs text-muted2">No notification types available.</p>
       ) : (
-        <div className="divide-y divide-line">
-          {rows.map((row) => (
-            <div key={row.key} className="flex items-center gap-3 py-3">
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="text-sm text-content font-medium">{row.label}</span>
-                  <span className="pill pill-gray text-2xs">{row.category}</span>
-                  {row.locked && <span className="pill pill-amber text-2xs">Required</span>}
-                </span>
-                <span className="block text-2xs text-muted">{row.description}</span>
-              </span>
-              <button type="button" role="switch" aria-checked={row.enabled} onClick={() => toggle(row)} disabled={row.locked || saving}
-                title={row.locked ? 'Required by your admin' : undefined}
-                className={`relative h-5 w-9 rounded-full transition shrink-0 disabled:opacity-60 ${row.enabled ? 'bg-accent' : 'bg-surface2 border border-line'}`}>
-                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${row.enabled ? 'left-[18px]' : 'left-0.5'}`} />
-              </button>
+        <div className="space-y-6">
+          {Object.entries(rows.reduce((acc, r) => { const k = r.category || 'General'; (acc[k] = acc[k] || []).push(r); return acc; }, {} as Record<string, NotifSetting[]>)).map(([cat, items]) => (
+            <div key={cat}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xs font-semibold uppercase tracking-wide text-muted2">{titleCase(cat)}</span>
+                <span className="h-px flex-1 bg-line" />
+                <span className="text-2xs text-muted2">{items.filter((i) => !i.locked).length} optional · {items.filter((i) => i.locked).length} required</span>
+              </div>
+              <div className="divide-y divide-line">
+                {[...items].sort((a, b) => Number(a.locked) - Number(b.locked)).map((row) => (
+                  <div key={row.key} className="flex items-center gap-3 py-3">
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="text-sm text-content font-medium">{row.label}</span>
+                        {row.locked
+                          ? <span className="pill pill-amber text-2xs">Required</span>
+                          : <span className="pill pill-gray text-2xs">Optional</span>}
+                      </span>
+                      <span className="block text-2xs text-muted">{row.description}</span>
+                    </span>
+                    <button type="button" role="switch" aria-checked={row.enabled} onClick={() => toggle(row)} disabled={row.locked || saving}
+                      title={row.locked ? 'Required by your admin' : undefined}
+                      className={`relative h-5 w-9 rounded-full transition shrink-0 disabled:opacity-60 ${row.enabled ? 'bg-accent' : 'bg-surface2 border border-line'}`}>
+                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${row.enabled ? 'left-[18px]' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
