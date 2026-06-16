@@ -339,7 +339,7 @@ export interface Payslip {
 // ---- Task custom fields (per-project definitions + per-task values) ----
 export interface TaskFieldDef {
   id: string; org_id: string; project_id: string; name: string;
-  field_type: 'text' | 'number' | 'date' | 'checkbox' | 'dropdown';
+  field_type: 'text' | 'number' | 'date' | 'checkbox' | 'dropdown' | 'multiselect';
   options?: string[] | null; created_by?: string | null; created_at?: string;
 }
 export interface TaskFieldValue {
@@ -351,7 +351,7 @@ export interface TaskFieldValue {
 export type CustomEntityType = 'crm_deal' | 'crm_contact' | 'crm_company' | 'employee' | 'ledger_entry';
 export interface CustomFieldDef {
   id: string; org_id: string; entity_type: CustomEntityType; name: string;
-  field_type: 'text' | 'number' | 'date' | 'checkbox' | 'dropdown';
+  field_type: 'text' | 'number' | 'date' | 'checkbox' | 'dropdown' | 'multiselect';
   options?: string[] | null; position?: number; created_by?: string | null; created_at?: string;
 }
 export interface CustomFieldValue {

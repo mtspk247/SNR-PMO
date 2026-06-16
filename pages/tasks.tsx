@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import Dropdown from '@/components/Dropdown';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
@@ -32,6 +33,7 @@ const COL_DEFS: { id: string; label: string; w: string }[] = [
 ];
 const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low'];
 const PRIORITY_RANK: Record<string, number> = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
+const PRIORITY_DOT: Record<string, string> = { Urgent: '#ef4444', High: '#f59e0b', Medium: '#3b82f6', Low: '#9aa0ae' };
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date(new Date().toDateString());
 
 const Bars = ({ level }: { level: number }) => (
@@ -336,15 +338,29 @@ export default function Tasks() {
   const setAssignees = (ids: string[]) => selected && mutate(async () => patchLocal(await updateTask(selected.id, { assignee_ids: ids, assignee_id: ids[0] || null })));
   const addAssignee = (uid: string) => { if (!selected || !uid || assigneeIds.includes(uid)) return; setAssignees([...assigneeIds, uid]); if (uid !== me?.id && selected.org_id) notify({ org_id: selected.org_id, user_id: uid, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: selected.name, link: '/tasks', entity_type: 'task', entity_id: selected.id }).catch(() => {}); };
   const removeAssignee = (uid: string) => { if (!selected) return; setAssignees(assigneeIds.filter((x) => x !== uid)); };
+  const toggleAssignee = (uid: string) => assigneeIds.includes(uid) ? removeAssignee(uid) : addAssignee(uid);
+  const toggleFollower = (uid: string) => ((selected?.followers || []).includes(uid) ? removeFollower(uid) : addFollower(uid));
+  const setPriority = (pr: string) => selected && mutate(async () => patchLocal(await updateTask(selected.id, { priority: pr })));
 
   // ----- shared detail panel (used as sidebar on xl+, overlay drawer below) -----
-  const DetailPanel = () => !selected ? (
-    <div className="card p-5 text-sm text-muted">Select a task to see details</div>
-  ) : (
+  const PropRow = ({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) => (
+    <div className="flex items-center gap-2 min-h-[34px] px-2 -mx-2 rounded-lg hover:bg-surface2/40 transition-colors">
+      <span className="flex items-center gap-2 w-24 shrink-0 text-xs text-muted"><Icon name={icon} className="text-sm text-muted2" />{label}</span>
+      <div className="flex-1 min-w-0 text-sm">{children}</div>
+    </div>
+  );
+
+  const DetailPanel = () => {
+    if (!selected) return <div className="card p-5 text-sm text-muted">Select a task to see details</div>;
+    const statusItems = statuses.map((st) => ({ value: st, label: st, dot: statusColor(st) || '#9ca3af' }));
+    const teamName = teams.find((t) => t.id === selected.team_id)?.name;
+    const REPEAT = [{ value: '', label: 'No repeat' }, { value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'biweekly', label: 'Every 2 weeks' }, { value: 'monthly', label: 'Monthly' }];
+    const repeatLabel = REPEAT.find((r) => r.value === (selected.recur_every || ''))?.label || 'No repeat';
+    const trig = (text: string, muted = false) => <span className={`inline-flex items-center gap-1.5 px-2 py-1 -ml-2 rounded-md hover:bg-surface2 transition cursor-pointer ${muted ? 'text-muted2' : 'text-content'}`}>{text}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>;
+    return (
     <div className="card flex flex-col lg:flex-row max-h-[85vh] overflow-hidden">
       {/* MAIN */}
       <div className="flex-1 min-w-0 overflow-y-auto p-5 lg:p-6">
-        {/* Breadcrumb + actions */}
         <div className="flex items-center gap-1.5 text-2xs text-muted2 mb-4 min-w-0">
           <Icon name="ti-folder" className="text-sm shrink-0" />
           <span className="truncate">{selected.projects?.name || 'No project'}</span>
@@ -357,96 +373,78 @@ export default function Tasks() {
           </div>
         </div>
 
-        {/* TITLE ROW — status · name · assignees · timer */}
+        {/* TITLE ROW */}
         <div className="flex items-center gap-3 flex-wrap">
-          {(() => {
-            const col = statusColor(selected.status);
-            return (
-              <span className="relative inline-flex items-center shrink-0">
-                <span className="absolute left-2.5 w-2 h-2 rounded-full" style={{ background: col || '#9ca3af' }} />
-                <select value={selected.status} disabled={busy} onChange={(e) => setStatus(selected.id, e.target.value)}
-                  className="appearance-none h-8 pl-6 pr-7 rounded-full text-sm font-medium border border-line bg-surface2 text-content cursor-pointer hover:border-borderstrong">
-                  {statuses.map((st) => <option key={st}>{st}</option>)}
-                </select>
-                <Icon name="ti-chevron-down" className="absolute right-2.5 text-2xs text-muted2 pointer-events-none" />
-              </span>
-            );
-          })()}
+          <Dropdown value={selected.status} onChange={(v) => setStatus(selected.id, v)} items={statusItems} width={200}
+            trigger={<span className="inline-flex items-center gap-2 h-8 px-3 rounded-full text-sm font-medium bg-surface2 text-content hover:brightness-95 transition"><span className="w-2 h-2 rounded-full" style={{ background: statusColor(selected.status) || '#9ca3af' }} />{selected.status}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
           <h3 className="text-lg sm:text-xl font-semibold leading-snug tracking-tight text-content min-w-0">{selected.name}</h3>
-          <div className="flex items-center shrink-0">
+          <div className="flex items-center">
             {assigneeIds.map((uid) => (
               <span key={uid} className="group relative -ml-1.5 first:ml-0" title={userName(uid)}>
                 <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(uid)} size={28} /></span>
                 <button onClick={() => removeAssignee(uid)} disabled={busy} className="absolute -top-1 -right-1 hidden group-hover:grid h-4 w-4 place-items-center rounded-full bg-rose-500 text-white text-[8px]"><Icon name="ti-x" /></button>
               </span>
             ))}
-            {availAssignees.length > 0 && (
-              <span className="relative -ml-1.5 first:ml-0" title="Assign people">
-                <select value="" disabled={busy} onChange={(e) => addAssignee(e.target.value)}
-                  className="appearance-none h-7 w-7 rounded-full border border-dashed border-borderstrong bg-surface text-muted2 text-center text-sm cursor-pointer hover:border-accent hover:text-accentstrong ring-2 ring-surface">
-                  <option value="">+</option>
-                  {availAssignees.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                </select>
-              </span>
-            )}
+            <span className="-ml-1.5 first:ml-0">
+              <Dropdown multiple search width={240} placeholder="Assign people…" values={assigneeIds} onToggle={toggleAssignee}
+                items={users.map((u) => ({ value: u.id, label: u.full_name }))}
+                trigger={<span title="Assign" className="grid place-items-center h-7 w-7 rounded-full border border-dashed border-borderstrong bg-surface text-muted2 hover:border-accent hover:text-accentstrong ring-2 ring-surface cursor-pointer"><Icon name="ti-plus" className="text-sm" /></span>} />
+            </span>
           </div>
           <TimeTracking variant="icon" taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
         </div>
 
-        {/* PROPERTY BAR */}
-        <div className="flex flex-wrap items-center gap-2 mt-4 pb-4 border-b border-line">
-          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
-            <Bars level={PRIORITY_RANK[selected.priority] || 1} /><span className="text-content font-medium">{selected.priority}</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted max-w-[14rem]">
-            <Icon name="ti-folder" className="text-sm text-muted2 shrink-0" />
+        {/* PROPERTIES */}
+        <div className="grid sm:grid-cols-2 gap-x-8 mt-4 pb-3 border-b border-line">
+          <PropRow icon="ti-flag" label="Priority">
+            <Dropdown value={selected.priority} onChange={setPriority} items={PRIORITIES.map((pr) => ({ value: pr, label: pr, dot: PRIORITY_DOT[pr] }))} width={180}
+              trigger={<span className="inline-flex items-center gap-2 px-2 py-1 -ml-2 rounded-md hover:bg-surface2 cursor-pointer"><Bars level={PRIORITY_RANK[selected.priority] || 1} /><span className="font-medium text-content">{selected.priority}</span></span>} />
+          </PropRow>
+          <PropRow icon="ti-folder" label="Project">
             {selected.project_id && selected.projects?.name
-              ? <Link href={`/projects/${selected.project_id}`} className="text-content font-medium truncate hover:underline">{selected.projects.name}</Link>
-              : <span className="text-muted2">No project</span>}
-          </span>
-          <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500' : 'text-muted'}`}>
-            <Icon name="ti-calendar" className="text-sm text-muted2 shrink-0" /><span className="font-medium">{selected.due_date || '—'}</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
-            <Icon name="ti-clock" className="text-sm text-muted2 shrink-0" /><span className="text-content font-medium">{selected.estimated_hours || 0} h</span>
-          </span>
+              ? <Link href={`/projects/${selected.project_id}`} className="px-2 py-1 -ml-2 rounded-md hover:bg-surface2 inline-block font-medium text-content truncate max-w-full">{selected.projects.name}</Link>
+              : <span className="px-2 py-1 -ml-2 text-muted2">No project</span>}
+          </PropRow>
+          <PropRow icon="ti-calendar" label="Due">
+            <span className={`px-2 py-1 -ml-2 ${isOverdue(selected.due_date) && selected.status !== 'Done' ? 'text-rose-500 font-medium' : selected.due_date ? 'text-content' : 'text-muted2'}`}>{selected.due_date || 'No due date'}</span>
+          </PropRow>
+          <PropRow icon="ti-clock" label="Estimate">
+            <span className={`px-2 py-1 -ml-2 ${selected.estimated_hours ? 'text-content font-medium' : 'text-muted2'}`}>{selected.estimated_hours ? `${selected.estimated_hours} h` : 'No estimate'}</span>
+          </PropRow>
           {teams.length > 0 && (
-            <label className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
-              <Icon name="ti-users-group" className="text-sm text-muted2 shrink-0" />
-              <select value={selected.team_id || ''} disabled={busy} onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { team_id: e.target.value || null })))} className="bg-transparent text-content font-medium text-xs outline-none cursor-pointer max-w-[9rem]"><option value="">No team</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-            </label>
+            <PropRow icon="ti-users-group" label="Team">
+              <Dropdown value={selected.team_id || ''} onChange={(v) => mutate(async () => patchLocal(await updateTask(selected.id, { team_id: v || null })))} width={200}
+                items={[{ value: '', label: 'No team' }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
+                trigger={trig(teamName || 'No team', !teamName)} />
+            </PropRow>
           )}
-          <label className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
-            <Icon name="ti-repeat" className="text-sm text-muted2 shrink-0" />
-            <select value={selected.recur_every || ''} disabled={busy} onChange={(e) => mutate(async () => patchLocal(await updateTask(selected.id, { recur_every: (e.target.value || null) as Task['recur_every'] })))} className="bg-transparent text-content font-medium text-xs outline-none cursor-pointer"><option value="">No repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option></select>
-          </label>
-          <label className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface2/50 text-xs text-muted">
-            <Icon name="ti-bell" className="text-sm text-muted2 shrink-0" />
-            <input type="datetime-local" disabled={busy} value="" className="bg-transparent text-content text-xs outline-none cursor-pointer w-[8.5rem]" onChange={(e) => { if (!e.target.value || !me || !selected.org_id) return; const at = new Date(e.target.value); createReminder({ org_id: selected.org_id, user_id: me.id, note: `Task: ${selected.name}`, remind_at: at.toISOString(), entity_type: 'task', entity_id: selected.id }).then(() => alert(`Reminder set for ${at.toLocaleString()}`)).catch((er) => alert(er.message)); }} />
-          </label>
-        </div>
-
-        {/* Followers + Tags */}
-        <div className="flex flex-wrap items-start gap-x-6 gap-y-3 mt-3">
-          <div className="flex items-center gap-2">
-            <span className="section-label">Followers</span>
+          <PropRow icon="ti-repeat" label="Repeat">
+            <Dropdown value={selected.recur_every || ''} onChange={(v) => mutate(async () => patchLocal(await updateTask(selected.id, { recur_every: (v || null) as Task['recur_every'] })))} width={180}
+              items={REPEAT} trigger={trig(repeatLabel, !selected.recur_every)} />
+          </PropRow>
+          <PropRow icon="ti-bell" label="Remind">
+            <input type="datetime-local" disabled={busy} value="" className="bg-transparent text-sm text-content rounded-md px-2 py-1 -ml-2 hover:bg-surface2 outline-none cursor-pointer w-[12rem]"
+              onChange={(e) => { if (!e.target.value || !me || !selected.org_id) return; const at = new Date(e.target.value); createReminder({ org_id: selected.org_id, user_id: me.id, note: `Task: ${selected.name}`, remind_at: at.toISOString(), entity_type: 'task', entity_id: selected.id }).then(() => alert(`Reminder set for ${at.toLocaleString()}`)).catch((er) => alert(er.message)); }} />
+          </PropRow>
+          <PropRow icon="ti-users" label="Followers">
             <div className="flex items-center">
               {(selected.followers || []).map((fid) => (
                 <span key={fid} className="group relative -ml-1.5 first:ml-0" title={userName(fid)}>
-                  <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(fid)} size={22} /></span>
+                  <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(fid)} size={24} /></span>
                   <button onClick={() => removeFollower(fid)} disabled={busy} className="absolute -top-1 -right-1 hidden group-hover:grid h-3.5 w-3.5 place-items-center rounded-full bg-rose-500 text-white text-[8px]"><Icon name="ti-x" /></button>
                 </span>
               ))}
-              {availFollowers.length > 0 && (
-                <select value="" disabled={busy} onChange={(e) => addFollower(e.target.value)} className="ml-1 input h-7 w-8 px-0 text-center text-muted2" title="Add follower">
-                  <option value="">+</option>
-                  {availFollowers.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                </select>
-              )}
+              <span className="-ml-1.5 first:ml-0">
+                <Dropdown multiple search width={240} placeholder="Add followers…" values={selected.followers || []} onToggle={toggleFollower}
+                  items={users.map((u) => ({ value: u.id, label: u.full_name }))}
+                  trigger={<span title="Add follower" className="grid place-items-center h-6 w-6 rounded-full border border-dashed border-borderstrong bg-surface text-muted2 hover:border-accent hover:text-accentstrong ring-2 ring-surface cursor-pointer"><Icon name="ti-plus" className="text-xs" /></span>} />
+              </span>
             </div>
-          </div>
-          <div className="flex-1 min-w-[12rem]"><EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} /></div>
+          </PropRow>
         </div>
+
+        {/* Tags */}
+        <div className="mt-3"><EntityTags entityType="task" entityId={selected.id} orgId={selected.org_id} bare /></div>
 
         {/* Description */}
         <div className="mt-5">
@@ -456,7 +454,6 @@ export default function Tasks() {
             : <p className="text-sm text-muted2 italic">No description.</p>}
         </div>
 
-        {/* Fields */}
         <TaskCustomFields task={selected} />
 
         {/* Subtasks */}
@@ -465,23 +462,19 @@ export default function Tasks() {
           <div className="space-y-1.5">
             {subtasks.map((st) => (
               <div key={st.id} className="flex items-center gap-2 group">
-                <input type="checkbox" checked={st.status === 'Done'} disabled={busy} onChange={() => toggleSub(st)} className="accent-accentstrong" />
+                <input type="checkbox" checked={st.status === 'Done'} disabled={busy} onChange={() => toggleSub(st)} className="accent-accentstrong w-4 h-4" />
                 <span className={`text-sm flex-1 truncate ${st.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{st.name}</span>
                 <button onClick={() => removeTask(st.id, st.name)} disabled={busy} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500"><Icon name="ti-x" className="text-sm" /></button>
               </div>
             ))}
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <input value={subInput} onChange={(e) => setSubInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSubtask()}
-              placeholder="Add a subtask…" className="input h-8 text-sm" />
+            <input value={subInput} onChange={(e) => setSubInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSubtask()} placeholder="Add a subtask…" className="input h-8 text-sm" />
             <button onClick={addSubtask} disabled={busy || !subInput.trim()} className="btn h-8 px-2 text-xs"><Icon name="ti-plus" /></button>
           </div>
         </div>
 
-        {/* Checklist */}
         <Checklist taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
-
-        {/* Time log (manual entries + history) */}
         <TimeTracking taskId={selected.id} orgId={selected.org_id as string} projectId={selected.project_id} />
       </div>
 
@@ -491,7 +484,8 @@ export default function Tasks() {
         <CommentsThread entityType="task" entityId={selected.id} orgId={selected.org_id} users={users} currentUserId={me?.id} />
       </div>
     </div>
-  );
+    );
+  };
 
 
   const BoardView = () => (
