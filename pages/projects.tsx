@@ -8,6 +8,7 @@ import { Pill, Spinner, EmptyState, PageHeader, Icon, StatusBadge } from '@/comp
 import { Modal, Field } from '@/components/Modal';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { ViewControls, useViewPrefs, buildGroups } from '@/components/ViewControls';
 import { useProjects, useOrgCompanies, usePortfolios, useCreateProject, useUpdateProject, useDeleteProject } from '@/lib/queries';
 import { Project } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -67,6 +68,16 @@ export default function Projects() {
   const companyName = (id?: string | null) => (id ? companies.find((c) => c.id === id)?.name : undefined);
   // Portfolios belong to a company; offer only those under the chosen company.
   const modalPortfolios = portfolios.filter((pf) => pf.company_id === np.company_id);
+  const vp = useViewPrefs(`snr-projects-vp-${me?.id || 'anon'}`, { view: 'table', groupBy: 'none' });
+  const groupOptions = [
+    { value: 'none', label: 'No grouping' },
+    { value: 'company', label: 'Group by company' },
+    { value: 'portfolio', label: 'Group by portfolio' },
+    { value: 'status', label: 'Group by status' },
+    { value: 'priority', label: 'Group by priority' },
+  ];
+  const gKey = (p: Project) => vp.groupBy === 'company' ? (p.company_id || '') : vp.groupBy === 'portfolio' ? (p.portfolio_id || '') : vp.groupBy === 'status' ? p.status : vp.groupBy === 'priority' ? p.priority : 'all';
+  const gLabel = (k: string) => vp.groupBy === 'company' ? (companyName(k) || 'No company') : vp.groupBy === 'portfolio' ? (portfolioName(k) || 'No portfolio') : (k || '—');
 
   const openNew = () => { setErr(''); setEditId(null); setNp(EMPTY); setShowNew(true); };
   const openEdit = (p: Project) => {
@@ -104,6 +115,48 @@ export default function Projects() {
     } catch (e: any) { setErr(e.message || 'Could not delete — remove its tasks, risks and financials first.'); }
   };
 
+  const ProjectRow = (p: Project) => {
+    const cell = (id: string) => { switch (id) {
+      case 'name': return (<><p className="font-medium">{p.name}</p>{portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}{p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}</>);
+      case 'status': return <StatusBadge status={p.status} color={pColor(p.status)} />;
+      case 'company': return <span className="text-2xs text-muted">{companyName(p.company_id) || '—'}</span>;
+      case 'priority': return <Pill label={p.priority} />;
+      case 'timeline': return <span className="text-2xs text-neutral-500">{p.start_date || '—'} → {p.end_date || '—'}</span>;
+      case 'progress': return (<div className="flex items-center gap-2"><div className="flex-1 h-1.5 rounded bg-neutral-100"><div className="h-1.5 rounded bg-ink" style={{ width: `${p.progress || 0}%` }} /></div><span className="text-2xs text-neutral-500 w-8 text-right">{p.progress || 0}%</span></div>);
+      default: return null; } };
+    return (
+      <tr key={p.id} onClick={() => router.push(`/projects/${p.id}`)} className="row cursor-pointer">
+        {lp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
+        <td className="td"><div className="flex items-center gap-1 justify-end">{canCreate && <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit project" className="text-muted2 hover:text-content p-1"><Icon name="ti-pencil" className="text-sm" /></button>}<Link href={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-muted2 hover:text-content inline-flex p-1" title="Open project"><Icon name="ti-arrow-right" /></Link></div></td>
+      </tr>
+    );
+  };
+  const ProjectTable = ({ items }: { items: Project[] }) => (
+    <div className="bg-surface overflow-hidden rounded-lg border border-line">
+      <div className="overflow-x-auto"><table className="w-full">
+        <thead><tr>{lp.ordered.map((id) => <th key={id} className={`th ${id === 'progress' ? 'w-44' : ''}`}>{PROJECT_COLS.find((c) => c.id === id)?.label}</th>)}<th className="th w-10"></th></tr></thead>
+        <tbody>{items.map(ProjectRow)}</tbody>
+      </table></div>
+    </div>
+  );
+  const ProjectCards = ({ items }: { items: Project[] }) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {items.map((p) => (
+        <div key={p.id} onClick={() => router.push(`/projects/${p.id}`)} className="card p-4 cursor-pointer hover:border-borderstrong transition group">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-medium truncate">{p.name}</p>
+            {canCreate && <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit" className="text-muted2 hover:text-content p-1 opacity-0 group-hover:opacity-100 shrink-0"><Icon name="ti-pencil" className="text-sm" /></button>}
+          </div>
+          <div className="flex items-center gap-2 mt-2"><StatusBadge status={p.status} color={pColor(p.status)} /><Pill label={p.priority} /></div>
+          {companyName(p.company_id) && <p className="text-2xs text-muted mt-2 inline-flex items-center gap-1"><Icon name="ti-building" />{companyName(p.company_id)}</p>}
+          {portfolioName(p.portfolio_id) && <p className="text-2xs text-muted2 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}
+          <div className="flex items-center gap-2 mt-3"><div className="flex-1 h-1.5 rounded-full bg-surface2 overflow-hidden"><div className="h-1.5 rounded-full bg-accent" style={{ width: `${p.progress || 0}%` }} /></div><span className="text-2xs text-muted w-9 text-right tabular-nums">{p.progress || 0}%</span></div>
+        </div>
+      ))}
+    </div>
+  );
+  const groups = vp.groupBy === 'none' ? [{ key: 'all', label: '', items: pg.pageItems }] : buildGroups(filtered, gKey, gLabel);
+
   return (
     <Layout title="Projects">
       <PageHeader title="Projects" subtitle={`${projects.length} projects`}
@@ -112,43 +165,19 @@ export default function Projects() {
         <EmptyState text={canCreate ? 'No projects yet — create your first one' : 'No projects yet'} />
       ) : (
         <>
-          <ListToolbar prefs={lp} cols={PROJECT_COLS} filters={FILTERS} placeholder="Search projects…" />
+          <ListToolbar prefs={lp} cols={PROJECT_COLS} filters={FILTERS} placeholder="Search projects…">
+            <ViewControls prefs={vp} views={[{ id: 'table', icon: 'ti-list', label: 'List' }, { id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }]} groupOptions={groupOptions} />
+          </ListToolbar>
           {filtered.length === 0 ? <EmptyState text="No projects match your filters" /> : (
-          <div className="bg-surface overflow-hidden">
-            <div className="overflow-x-auto"><table className="w-full">
-              <thead><tr>
-                {lp.ordered.map((id) => <th key={id} className={`th ${id === 'progress' ? 'w-44' : ''}`}>{PROJECT_COLS.find((c) => c.id === id)?.label}</th>)}
-                <th className="th w-10"></th>
-              </tr></thead>
-              <tbody>
-                {pg.pageItems.map((p) => {
-                  const cell = (id: string) => {
-                    switch (id) {
-                      case 'name': return (<><p className="font-medium">{p.name}</p>{portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}{p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}</>);
-                      case 'status': return <StatusBadge status={p.status} color={pColor(p.status)} />;
-                      case 'company': return <span className="text-2xs text-muted">{companyName(p.company_id) || '—'}</span>;
-                      case 'priority': return <Pill label={p.priority} />;
-                      case 'timeline': return <span className="text-2xs text-neutral-500">{p.start_date || '—'} → {p.end_date || '—'}</span>;
-                      case 'progress': return (<div className="flex items-center gap-2"><div className="flex-1 h-1.5 rounded bg-neutral-100"><div className="h-1.5 rounded bg-ink" style={{ width: `${p.progress || 0}%` }} /></div><span className="text-2xs text-neutral-500 w-8 text-right">{p.progress || 0}%</span></div>);
-                      default: return null;
-                    }
-                  };
-                  return (
-                    <tr key={p.id} onClick={() => router.push(`/projects/${p.id}`)} className="row cursor-pointer">
-                      {lp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
-                      <td className="td">
-                        <div className="flex items-center gap-1 justify-end">
-                          {canCreate && <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit project" className="text-muted2 hover:text-content p-1"><Icon name="ti-pencil" className="text-sm" /></button>}
-                          <Link href={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-muted2 hover:text-content inline-flex p-1" title="Open project"><Icon name="ti-arrow-right" /></Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table></div>
-            <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
-          </div>
+            <div className="space-y-6">
+              {groups.map((g) => (
+                <div key={g.key}>
+                  {g.label && <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-content">{g.label}</h3><span className="text-2xs text-muted2 bg-surface2 rounded-full px-2 py-0.5">{g.items.length}</span></div>}
+                  {vp.view === 'cards' ? <ProjectCards items={g.items} /> : <ProjectTable items={g.items} />}
+                </div>
+              ))}
+              {vp.groupBy === 'none' && <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />}
+            </div>
           )}
         </>
       )}
