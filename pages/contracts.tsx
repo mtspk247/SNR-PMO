@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -130,7 +131,7 @@ export default function ContractsPage() {
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <input className="input h-9 w-56" placeholder="Search contracts…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
+        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -206,7 +207,7 @@ export default function ContractsPage() {
               <input className="input" value={editor.draft.currency || 'USD'} onChange={(e) => setD({ currency: e.target.value })} />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as any })} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
+              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as any })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
             </Field>
             <Field label="Owner">
               <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} options={[{ value: '', label: 'None' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />

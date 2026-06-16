@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -63,14 +64,14 @@ export default function WelcomeWizard() {
         </Field>
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label="Team size">
-            <Select value={teamSize} onChange={(v) => setTeamSize(v)} options={[{ value: '', label: 'Select…' }, ...TEAM.map((t) => ({ value: t, label: t }))]} />
+            <Select value={teamSize} onChange={(v) => setTeamSize(v)} options={[{ value: '', label: 'Select…' }, ...TEAM.map((t) => ({ value: t, label: titleCase(t) }))]} />
           </Field>
           <Field label="Industry">
-            <Select value={industry} onChange={(v) => setIndustry(v)} options={[{ value: '', label: 'Select…' }, ...industries.map((t) => ({ value: t, label: t }))]} />
+            <Select value={industry} onChange={(v) => setIndustry(v)} options={[{ value: '', label: 'Select…' }, ...industries.map((t) => ({ value: t, label: titleCase(t) }))]} />
           </Field>
         </div>
         <Field label="What will you mainly use it for?">
-          <Select value={useCase} onChange={(v) => setUseCase(v)} options={[{ value: '', label: 'Select…' }, ...useCases.map((t) => ({ value: t, label: t }))]} />
+          <Select value={useCase} onChange={(v) => setUseCase(v)} options={[{ value: '', label: 'Select…' }, ...useCases.map((t) => ({ value: t, label: titleCase(t) }))]} />
         </Field>
         <Field label="Your role" hint="e.g. Founder, Project Manager">
           <input className="input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Founder" />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { Icon } from '@/components/ui';
 import {
@@ -83,7 +84,7 @@ export default function CustomFields({
         return <input key={k} type="checkbox" checked={v === 'true'} onChange={(e) => save(d.id, String(e.target.checked))} className="accent-accentstrong" />;
       case 'dropdown':
         return (
-          <Select value={v} onChange={(v) => save(d.id, v)} className="h-8 py-0 max-w-[10rem]" options={[{ value: '', label: 'None' }, ...(d.options || []).map((o) => ({ value: o, label: o }))]} />
+          <Select value={v} onChange={(v) => save(d.id, v)} className="h-8 py-0 max-w-[10rem]" options={[{ value: '', label: 'None' }, ...(d.options || []).map((o) => ({ value: o, label: titleCase(o) }))]} />
         );
       case 'date':
         return <input key={k} type="date" value={v} onChange={(e) => save(d.id, e.target.value)} className="input h-8 py-0 text-sm max-w-[10rem]" />;
@@ -130,7 +131,7 @@ export default function CustomFields({
         <div className="mt-3 p-3 rounded-md border border-line bg-surface2/40 space-y-2">
           <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             placeholder="Field name" className="input h-8 text-sm" autoFocus />
-          <Select value={draft.field_type} onChange={(v) => setDraft({ ...draft, field_type: v })} className="h-8 py-0" options={[...TYPES.map((t) => ({ value: t, label: t }))]} />
+          <Select value={draft.field_type} onChange={(v) => setDraft({ ...draft, field_type: v })} className="h-8 py-0" options={[...TYPES.map((t) => ({ value: t, label: titleCase(t) }))]} />
           {draft.field_type === 'dropdown' && (
             <input value={draft.options} onChange={(e) => setDraft({ ...draft, options: e.target.value })}
               placeholder="Options, comma-separated" className="input h-8 text-sm" />

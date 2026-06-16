@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
@@ -101,7 +102,7 @@ export default function NoticesPage() {
             </div>
           )}
           {compose.audience_type === 'department' && (
-            <Field label="Department"><Select value={compose.department} onChange={(v) => setCompose({ ...compose, department: v })} options={[{ value: '', label: 'Select…' }, ...departments.map((d) => ({ value: d, label: d }))]} /></Field>
+            <Field label="Department"><Select value={compose.department} onChange={(v) => setCompose({ ...compose, department: v })} options={[{ value: '', label: 'Select…' }, ...departments.map((d) => ({ value: d, label: titleCase(d) }))]} /></Field>
           )}
         </Modal>
       )}

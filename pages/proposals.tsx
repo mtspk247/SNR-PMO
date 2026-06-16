@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -135,7 +136,7 @@ export default function ProposalsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -246,7 +247,7 @@ function EditorFields({ draft, setD, users }: { draft: Draft; setD: (p: Draft) =
         <input className="input" value={draft.currency || 'USD'} onChange={(e) => setD({ currency: e.target.value })} />
       </Field>
       <Field label="Status">
-        <Select value={draft.status || 'draft'} onChange={(v) => setD({ status: v as Proposal['status'] })} options={[...(['draft', 'sent', 'accepted', 'rejected', 'expired'] as const).map((s) => ({ value: s, label: s }))]} />
+        <Select value={draft.status || 'draft'} onChange={(v) => setD({ status: v as Proposal['status'] })} options={[...(['draft', 'sent', 'accepted', 'rejected', 'expired'] as const).map((s) => ({ value: s, label: titleCase(s) }))]} />
       </Field>
       <Field label="Valid until">
         <input className="input" type="date" value={draft.valid_until || ''} onChange={(e) => setD({ valid_until: e.target.value || null })} />

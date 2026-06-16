@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
@@ -437,7 +438,7 @@ function EditPayslipModal({ slip, busy, onClose, onSubmit }: { slip: Payslip; bu
             <input autoFocus type="number" value={bonus} onChange={(e) => setBonus(e.target.value)} className="input" />
           </Field>
           <Field label="Bonus tag">
-            <Select value={bonusTag} onChange={(v) => setBonusTag(v)} options={[{ value: '', label: 'None' }, ...BONUS_TAGS.map((tag) => ({ value: tag, label: tag }))]} />
+            <Select value={bonusTag} onChange={(v) => setBonusTag(v)} options={[{ value: '', label: 'None' }, ...BONUS_TAGS.map((tag) => ({ value: tag, label: titleCase(tag) }))]} />
           </Field>
           <Field label="Bonus note">
             <input type="text" value={bonusNote} onChange={(e) => setBonusNote(e.target.value)} placeholder="Optional note…" className="input" />

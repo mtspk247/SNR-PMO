@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -209,7 +210,7 @@ export default function InterviewsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
+        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -307,7 +308,7 @@ export default function InterviewsPage() {
               />
             </Field>
             <Field label="Mode">
-              <Select value={editor.draft.mode} onChange={(v) => setD({ mode: v })} options={[...MODES.map((m) => ({ value: m, label: m }))]} />
+              <Select value={editor.draft.mode} onChange={(v) => setD({ mode: v })} options={[...MODES.map((m) => ({ value: m, label: titleCase(m) }))]} />
             </Field>
             <Field label="Stage label">
               <input
@@ -318,7 +319,7 @@ export default function InterviewsPage() {
               />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status} onChange={(v) => setD({ status: v })} options={[...STATUSES.map((s) => ({ value: s, label: s === 'no_show' ? 'No-show' : s }))]} />
+              <Select value={editor.draft.status} onChange={(v) => setD({ status: v })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) === 'no_show' ? 'No-show' : s }))]} />
             </Field>
             <Field label="Rating (1–5)">
               <input

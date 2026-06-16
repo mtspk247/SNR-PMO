@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -34,7 +35,7 @@ export default function EmployeesPage() {
     const roles = Array.from(new Set(rows.map((e) => e.role).filter(Boolean))) as string[];
     return [
       { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'suspended', label: 'Suspended' }] },
-      { id: 'department', label: 'Department', options: [{ value: 'all', label: 'All departments' }, ...depts.map((d) => ({ value: d, label: d }))] },
+      { id: 'department', label: 'Department', options: [{ value: 'all', label: 'All departments' }, ...depts.map((d) => ({ value: d, label: titleCase(d) }))] },
       { id: 'role', label: 'Role', options: [{ value: 'all', label: 'All roles' }, ...roles.map((r) => ({ value: r, label: r.replace('_', ' ') }))] },
     ];
   }, [rows]);

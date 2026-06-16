@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import Select from '@/components/Select';
@@ -240,7 +241,7 @@ export default function AssetsPage() {
               />
             </Field>
             <Field label="Currency">
-              <Select value={editor.draft.currency || 'USD'} onChange={(v) => setD({ currency: v })} options={CURRENCIES.map((c) => ({ value: c, label: c }))} />
+              <Select value={editor.draft.currency || 'USD'} onChange={(v) => setD({ currency: v })} options={CURRENCIES.map((c) => ({ value: c, label: titleCase(c) }))} />
             </Field>
             <Field label="Value">
               <input

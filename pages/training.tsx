@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -91,8 +92,8 @@ export default function TrainingPage() {
 
   const tdLp = useListPrefs(`snr-training-docs-view-${me?.id || 'anon'}`, TD_COLS);
   const jdLp = useListPrefs(`snr-training-jd-view-${me?.id || 'anon'}`, JD_COLS);
-  const TD_FILTERS: FilterDef[] = useMemo(() => [{ id: 'category', label: 'Category', options: [{ value: 'all', label: 'All categories' }, ...tdCategories.map((c) => ({ value: c, label: c }))] }], [tdCategories]);
-  const JD_FILTERS: FilterDef[] = useMemo(() => [{ id: 'department', label: 'Department', options: [{ value: 'all', label: 'All departments' }, ...jdDepartments.map((d) => ({ value: d, label: d }))] }], [jdDepartments]);
+  const TD_FILTERS: FilterDef[] = useMemo(() => [{ id: 'category', label: 'Category', options: [{ value: 'all', label: 'All categories' }, ...tdCategories.map((c) => ({ value: c, label: titleCase(c) }))] }], [tdCategories]);
+  const JD_FILTERS: FilterDef[] = useMemo(() => [{ id: 'department', label: 'Department', options: [{ value: 'all', label: 'All departments' }, ...jdDepartments.map((d) => ({ value: d, label: titleCase(d) }))] }], [jdDepartments]);
 
   const filteredTd = useMemo(() => {
     const term = tdLp.query.trim().toLowerCase();

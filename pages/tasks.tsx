@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -593,7 +594,7 @@ export default function Tasks() {
     switch (id) {
       case 'status':
         return (
-          <Select value={t.status} onChange={(v) => setStatus(t.id, v)} disabled={busy} options={[...statuses.map((s) => ({ value: s, label: s }))]} />
+          <Select value={t.status} onChange={(v) => setStatus(t.id, v)} disabled={busy} options={[...statuses.map((s) => ({ value: s, label: titleCase(s) }))]} />
         );
       case 'assignee':
         return <div key={id} className="flex items-center min-w-0">{t.assignee_id ? <span title={userName(t.assignee_id)} className="inline-flex cursor-default"><Avatar name={userName(t.assignee_id)} size={22} src={userAvatar(t.assignee_id)} /></span> : <span className="text-muted2 text-2xs">—</span>}</div>;
@@ -710,7 +711,7 @@ export default function Tasks() {
                       trigger={<span className="flex items-center justify-between gap-2 h-9 w-full px-3 rounded-md border border-line bg-surface text-sm cursor-pointer hover:border-borderstrong"><span className="truncate">{projectFilter === '' ? 'All projects' : projectFilter === 'none' ? 'No project' : (projects.find((p) => p.id === projectFilter)?.name || '—')}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} /></div>
                   <div><label className="label">Priority</label>
                     <Dropdown value={priorityFilter} onChange={setPriorityFilter} width={224}
-                      items={[{ value: '', label: 'All priorities' }, ...priorities.map((p) => ({ value: p, label: p }))]}
+                      items={[{ value: '', label: 'All priorities' }, ...priorities.map((p) => ({ value: p, label: titleCase(p) }))]}
                       trigger={<span className="flex items-center justify-between gap-2 h-9 w-full px-3 rounded-md border border-line bg-surface text-sm cursor-pointer hover:border-borderstrong"><span className="truncate">{priorityFilter || 'All priorities'}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} /></div>
                   <div><label className="label">Assignee</label>
                     <Dropdown value={assigneeFilter} onChange={setAssigneeFilter} width={224} search placeholder="Find person…"
@@ -858,9 +859,9 @@ export default function Tasks() {
           {taskTabs.tab === 'overview' && (
             <div className="space-y-3.5 mt-4">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Status"><Select value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={[...statuses.map(s => ({ value: s, label: s }))]} /></Field>
+                <Field label="Status"><Select value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={[...statuses.map(s => ({ value: s, label: titleCase(s) }))]} /></Field>
                 <Field label="Assignee"><Select value={form.assignee_id} onChange={(v) => setForm({ ...form, assignee_id: v })} options={[{ value: '', label: 'Unassigned' }, ...users.map(u => ({ value: u.id, label: u.full_name }))]} /></Field>
-                <Field label="Priority"><Select value={form.priority} onChange={(v) => setForm({ ...form, priority: v })} options={[...priorities.map((p) => ({ value: p, label: p }))]} /></Field>
+                <Field label="Priority"><Select value={form.priority} onChange={(v) => setForm({ ...form, priority: v })} options={[...priorities.map((p) => ({ value: p, label: titleCase(p) }))]} /></Field>
                 <Field label="Due date"><input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" /></Field>
               </div>
               <Field label="Project">

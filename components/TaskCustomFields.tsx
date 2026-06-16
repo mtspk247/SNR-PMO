@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import { Icon } from '@/components/ui';
 import {
   getTaskFieldDefs, createTaskFieldDef, deleteTaskFieldDef,
@@ -68,14 +69,14 @@ export default function TaskCustomFields({ task }: { task: Task }) {
       case 'dropdown':
         return (
           <Dropdown value={v} onChange={(nv) => save(d.id, nv)} width={200}
-            items={[{ value: '', label: '—' }, ...(d.options || []).map((o) => ({ value: o, label: o }))]}
+            items={[{ value: '', label: '—' }, ...(d.options || []).map((o) => ({ value: o, label: titleCase(o) }))]}
             trigger={v ? <span className="inline-flex items-center gap-1.5 text-2xs font-semibold px-2 py-0.5 rounded-full bg-accent/12 text-accentstrong">{v}<Icon name="ti-chevron-down" className="text-2xs" /></span> : valBtn('Select', true)} />
         );
       case 'multiselect': {
         const sel = v ? v.split(',').filter(Boolean) : [];
         return (
           <Dropdown multiple values={sel} onToggle={(o) => save(d.id, (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]).join(','))} width={200}
-            items={(d.options || []).map((o) => ({ value: o, label: o }))}
+            items={(d.options || []).map((o) => ({ value: o, label: titleCase(o) }))}
             trigger={<span className="inline-flex items-center gap-1 flex-wrap max-w-[12rem]">{sel.length ? sel.map((o) => <span key={o} className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-accent/12 text-accentstrong">{o}</span>) : <span className="text-sm text-muted2 px-2 py-1 rounded-md hover:bg-surface2">Select…</span>}</span>} />
         );
       }

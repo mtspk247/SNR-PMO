@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
@@ -378,7 +379,7 @@ export default function RoadmapPage() {
           <div className="flex flex-wrap items-center gap-2 mb-5">
             <span className="text-2xs text-muted2">Group by</span>
             <div className="w-auto"><Select value={groupBy} onChange={(v) => setGroupBy(v as any)} options={[{ value: 'portfolio', label: 'Portfolio' }, { value: 'status', label: 'Status' }, { value: 'priority', label: 'Priority' }, { value: 'none', label: 'None' }]} /></div>
-            <div className="w-auto"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUS_ORDER.map(st => ({ value: st, label: st }))]} /></div>
+            <div className="w-auto"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUS_ORDER.map(st => ({ value: st, label: titleCase(st) }))]} /></div>
             <div className="hidden sm:block flex-1" />
             <button onClick={() => setShowAnalysis(v => !v)} className={`btn h-9 ${showAnalysis ? 'border-accent text-accentstrong' : ''}`}>
               <Icon name="ti-chart-histogram" className="text-sm" />Analysis

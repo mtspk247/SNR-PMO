@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
 import { Spinner, EmptyState, Icon, StatCard, Pill } from '@/components/ui';
@@ -74,7 +75,7 @@ export default function FinancialData() {
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <p className="text-sm text-neutral-500">Plan vs. actual spend · {data.length} entries</p>
-            <Select value={project} onChange={setProject} className="max-w-[220px]" options={[{ value: '', label: 'All projects' }, ...projects.map((p) => ({ value: p, label: p }))]} />
+            <Select value={project} onChange={setProject} className="max-w-[220px]" options={[{ value: '', label: 'All projects' }, ...projects.map((p) => ({ value: p, label: titleCase(p) }))]} />
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

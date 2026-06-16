@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -147,7 +148,7 @@ export default function CRM() {
   const clp = useListPrefs(`snr-crm-contacts-view-${me?.id || 'anon'}`, CONTACT_COLS);
   const CONTACT_FILTERS: FilterDef[] = useMemo(() => {
     const sts = Array.from(new Set(contacts.map((c) => c.status).filter(Boolean))) as string[];
-    return [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...sts.map((x) => ({ value: x, label: x }))] }];
+    return [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...sts.map((x) => ({ value: x, label: titleCase(x) }))] }];
   }, [contacts]);
   const contactsFiltered = useMemo(() => {
     const term = clp.query.trim().toLowerCase();
@@ -542,7 +543,7 @@ function DealModal({ open, companies, contacts, busy, stages, onAddCompany, onCl
               <input value={value} onChange={(e) => setValue(e.target.value)} type="number" min="0" placeholder="0" className="input" />
             </Field>
             <Field label="Stage" className="flex-1">
-              <Select value={stage} onChange={(v) => setStage(v)} options={[...stages.map((s) => ({ value: s, label: s }))]} />
+              <Select value={stage} onChange={(v) => setStage(v)} options={[...stages.map((s) => ({ value: s, label: titleCase(s) }))]} />
             </Field>
           </div>
           <Field label="Expected close">
@@ -609,7 +610,7 @@ function ContactModal({ open, companies, busy, onAddCompany, onClose, onSubmit }
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. VP Sales" className="input" />
           </Field>
           <Field label="Status" className="flex-1">
-            <Select value={status} onChange={(v) => setStatus(v)} options={[...['Lead', 'Active', 'Customer', 'Inactive'].map((s) => ({ value: s, label: s }))]} />
+            <Select value={status} onChange={(v) => setStatus(v)} options={[...['Lead', 'Active', 'Customer', 'Inactive'].map((s) => ({ value: s, label: titleCase(s) }))]} />
           </Field>
         </div>
         <CompanyField companies={companies} value={companyId} onChange={setCompanyId} onAddCompany={onAddCompany} />

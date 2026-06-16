@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -45,9 +46,9 @@ export default function Projects() {
 
   const lp = useListPrefs(`snr-projects-view-${me?.id || 'anon'}`, PROJECT_COLS);
   const FILTERS: FilterDef[] = useMemo(() => [
-    { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...pNames.map((s) => ({ value: s, label: s }))] },
+    { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...pNames.map((s) => ({ value: s, label: titleCase(s) }))] },
     { id: 'company', label: 'Company', options: [{ value: 'all', label: 'All companies' }, ...companies.map((c) => ({ value: c.id, label: c.name }))] },
-    { id: 'priority', label: 'Priority', options: [{ value: 'all', label: 'All priorities' }, ...PRIORITIES.map((x) => ({ value: x, label: x }))] },
+    { id: 'priority', label: 'Priority', options: [{ value: 'all', label: 'All priorities' }, ...PRIORITIES.map((x) => ({ value: x, label: titleCase(x) }))] },
   ], [pNames, companies]);
   const filtered = useMemo(() => {
     const term = lp.query.trim().toLowerCase();
@@ -186,10 +187,10 @@ export default function Projects() {
           </Field>
           <div className="flex gap-3">
             <Field label="Status" className="flex-1">
-              <Select value={np.status} onChange={(v) => setNp({ ...np, status: v })} options={[...pNames.map(s => ({ value: s, label: s }))]} />
+              <Select value={np.status} onChange={(v) => setNp({ ...np, status: v })} options={[...pNames.map(s => ({ value: s, label: titleCase(s) }))]} />
             </Field>
             <Field label="Priority" className="flex-1">
-              <Select value={np.priority} onChange={(v) => setNp({ ...np, priority: v })} options={[...PRIORITIES.map(p => ({ value: p, label: p }))]} />
+              <Select value={np.priority} onChange={(v) => setNp({ ...np, priority: v })} options={[...PRIORITIES.map(p => ({ value: p, label: titleCase(p) }))]} />
             </Field>
           </div>
           <div className="flex gap-3">

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -180,7 +181,7 @@ export default function OffersPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -307,7 +308,7 @@ export default function OffersPage() {
               />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as OfferStatus })} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
+              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as OfferStatus })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
             </Field>
             <Field label="Application">
               <Select value={editor.draft.application_id || ''} onChange={(v) => setD({ application_id: v || null })} options={[{ value: '', label: 'None' }, ...applications.map((a) => ({ value: a.id, label: a.candidate_name }))]} />
@@ -439,7 +440,7 @@ function DetailModal({
           />
         </Field>
         <Field label="Status">
-          <Select value={draft.status || 'draft'} onChange={(v) => setF({ status: v as OfferStatus })} disabled={!canEdit} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
+          <Select value={draft.status || 'draft'} onChange={(v) => setF({ status: v as OfferStatus })} disabled={!canEdit} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
         </Field>
         <Field label="Application">
           <Select value={draft.application_id || ''} onChange={(v) => setF({ application_id: v || null })} disabled={!canEdit} options={[{ value: '', label: 'None' }, ...applications.map((a) => ({ value: a.id, label: a.candidate_name }))]} />

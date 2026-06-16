@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
@@ -176,10 +177,10 @@ export default function SupportPage() {
             </Field>
             <div className="grid sm:grid-cols-2 gap-3">
               <Field label="Category">
-                <Select value={draft.category} onChange={(v) => setDraft({ ...draft, category: v })} options={[{ value: '', label: '— none —' }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]} />
+                <Select value={draft.category} onChange={(v) => setDraft({ ...draft, category: v })} options={[{ value: '', label: '— none —' }, ...CATEGORIES.map((c) => ({ value: c, label: titleCase(c) }))]} />
               </Field>
               <Field label="Priority">
-                <Select value={draft.priority} onChange={(v) => setDraft({ ...draft, priority: v })} options={[...PRIORITIES.map((p) => ({ value: p, label: p }))]} />
+                <Select value={draft.priority} onChange={(v) => setDraft({ ...draft, priority: v })} options={[...PRIORITIES.map((p) => ({ value: p, label: titleCase(p) }))]} />
               </Field>
             </div>
             <Field label="Description">
@@ -326,7 +327,7 @@ function TicketDetailModal({
             <Select value={status} onChange={(v) => setStatus(v as any)} options={[...STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') }))]} />
           </Field>
           <Field label="Priority">
-            <Select value={priority} onChange={(v) => setPriority(v as any)} options={[...PRIORITIES.map((p) => ({ value: p, label: p }))]} />
+            <Select value={priority} onChange={(v) => setPriority(v as any)} options={[...PRIORITIES.map((p) => ({ value: p, label: titleCase(p) }))]} />
           </Field>
           <Field label="Assignee">
             <Select value={assigneeId} onChange={(v) => setAssigneeId(v)} options={[{ value: '', label: '— unassigned —' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />

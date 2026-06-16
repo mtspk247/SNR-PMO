@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -139,7 +140,7 @@ export default function ClientsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -246,7 +247,7 @@ export default function ClientsPage() {
               />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status || 'prospect'} onChange={(v) => setD({ status: v as ClientStatus })} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
+              <Select value={editor.draft.status || 'prospect'} onChange={(v) => setD({ status: v as ClientStatus })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
             </Field>
             <Field label="Client since">
               <input

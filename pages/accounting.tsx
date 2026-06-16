@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -152,7 +153,7 @@ export default function AccountingPage() {
   const lp = useListPrefs(`snr-accounting-view-${me?.id || 'anon'}`, LEDGER_COLS);
   const FILTERS: FilterDef[] = useMemo(() => [
     { id: 'type', label: 'Type', options: [{ value: 'all', label: 'All types' }, { value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }] },
-    { id: 'category', label: 'Category', options: [{ value: 'all', label: 'All categories' }, ...allCategories.map((c) => ({ value: c, label: c }))] },
+    { id: 'category', label: 'Category', options: [{ value: 'all', label: 'All categories' }, ...allCategories.map((c) => ({ value: c, label: titleCase(c) }))] },
   ], [allCategories]);
 
   const filtered = useMemo(() => {
@@ -586,7 +587,7 @@ export default function AccountingPage() {
                 }} options={[{ value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }]} /></div>
             </Field>
             <Field label="Category" required>
-              <Select value={form.category} onChange={(v) => set({ category: v })} options={[...cats[form.type].map((c) => ({ value: c, label: c })), ...(!cats[form.type].includes(form.category) ? [{ value: form.category, label: form.category }] : [])]} />
+              <Select value={form.category} onChange={(v) => set({ category: v })} options={[...cats[form.type].map((c) => ({ value: c, label: titleCase(c) })), ...(!cats[form.type].includes(form.category) ? [{ value: form.category, label: form.category }] : [])]} />
             </Field>
             <Field label="Amount (USD)" required>
               <input className="input w-full" type="number" min="0" step="0.01" value={form.amount}

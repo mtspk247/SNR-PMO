@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -95,7 +96,7 @@ export default function Workload() {
                 className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
             </div>
             <div className="w-auto"><Select value={projectF} onChange={(v) => setProjectF(v)} options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]} /></div>
-            <div className="w-auto"><Select value={priorityF} onChange={(v) => setPriorityF(v)} options={[{ value: 'all', label: 'All priorities' }, ...['Urgent', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))]} /></div>
+            <div className="w-auto"><Select value={priorityF} onChange={(v) => setPriorityF(v)} options={[{ value: 'all', label: 'All priorities' }, ...['Urgent', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: titleCase(p) }))]} /></div>
             <button onClick={() => setOverdueOnly((v) => !v)}
               className={`btn h-9 ${overdueOnly ? 'border-rose-400 text-rose-600' : ''}`}>
               <Icon name="ti-alarm" className="text-sm" />Overdue only

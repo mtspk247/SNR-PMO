@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -162,7 +163,7 @@ export default function RecurringPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -292,7 +293,7 @@ export default function RecurringPage() {
               />
             </Field>
             <Field label="Cycle">
-              <Select value={editor.draft.cycle || 'monthly'} onChange={(v) => setD({ cycle: v })} options={[...CYCLES.map((c) => ({ value: c, label: c }))]} />
+              <Select value={editor.draft.cycle || 'monthly'} onChange={(v) => setD({ cycle: v })} options={[...CYCLES.map((c) => ({ value: c, label: titleCase(c) }))]} />
             </Field>
             <Field label="Next due">
               <input
@@ -329,7 +330,7 @@ export default function RecurringPage() {
               <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} options={[{ value: '', label: 'None' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status || 'active'} onChange={(v) => setD({ status: v })} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
+              <Select value={editor.draft.status || 'active'} onChange={(v) => setD({ status: v })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
             </Field>
             <Field label="Notes">
               <input
