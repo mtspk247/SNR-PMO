@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -14,6 +15,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 
 export default function PortfoliosPage() {
+  const router = useRouter();
   const org = useActiveOrg();
   const userId = useAuthStore((s) => s.user?.id) || null;
   const admin = can.manageMembers(org);
@@ -129,20 +131,20 @@ export default function PortfoliosPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {portfolios.map((pf) => (
-            <div key={pf.id} className="card p-4">
+            <div key={pf.id} onClick={() => router.push(`/portfolios/${pf.id}`)} className="card card-interactive p-4 cursor-pointer">
               <div className="flex items-start gap-3">
                 <span className="w-9 h-9 rounded-md bg-neutral-100 grid place-items-center text-neutral-500 shrink-0"><Icon name="ti-stack-2" className="text-lg" /></span>
                 <div className="min-w-0 flex-1">
-                  <Link href={`/portfolios/${pf.id}`} className="text-sm font-medium truncate hover:text-accentstrong block">{pf.name}</Link>
+                  <span className="text-sm font-medium truncate text-content block">{pf.name}</span>
                   <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-building" /> {companyName(pf.company_id)}</p>
                 </div>
                 {canManage(pf) && (
-                  <button onClick={() => openMembers(pf)} className="text-2xs text-neutral-500 hover:text-ink inline-flex items-center gap-1 shrink-0" title="Manage members">
+                  <button onClick={(e) => { e.stopPropagation(); openMembers(pf); }} className="text-2xs text-neutral-500 hover:text-ink inline-flex items-center gap-1 shrink-0" title="Manage members">
                     <Icon name="ti-users" /> Members
                   </button>
                 )}
                 {canManage(pf) && (
-                  <button onClick={() => openEdit(pf)} className="text-neutral-300 hover:text-ink shrink-0" title="Rename portfolio">
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(pf); }} className="text-neutral-300 hover:text-ink shrink-0" title="Rename portfolio">
                     <Icon name="ti-pencil" />
                   </button>
                 )}

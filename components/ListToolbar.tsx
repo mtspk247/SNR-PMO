@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui';
+import Dropdown from '@/components/Dropdown';
 
 // Shared, config-driven list controls: search + Filter popover + Columns
 // (show/hide + reorder), with per-user view persisted to localStorage.
@@ -74,14 +75,15 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
           <button onClick={() => setFOpen((v) => !v)} className={`btn h-9 ${prefs.activeCount ? 'border-accent text-accentstrong' : ''}`}>
             <Icon name="ti-filter" className="text-sm" />Filter{prefs.activeCount > 0 && <span className="ml-0.5 text-2xs bg-accent/15 text-accentstrong rounded-full px-1.5">{prefs.activeCount}</span>}
           </button>
+          {fOpen && <div className="fixed inset-0 z-10" onClick={() => setFOpen(false)} aria-hidden />}
           {fOpen && (
             <div className="absolute right-0 top-10 z-20 w-64 bg-surface border border-line rounded-lg shadow-lg p-3 space-y-3">
-              {filters.map((f) => (
+              {filters.map((f) => { const cur = prefs.filters[f.id] || (f.options[0]?.value ?? ''); return (
                 <div key={f.id}><label className="label">{f.label}</label>
-                  <select value={prefs.filters[f.id] || ''} onChange={(e) => prefs.setFilter(f.id, e.target.value)} className="input h-9 w-full">
-                    {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select></div>
-              ))}
+                  <Dropdown value={cur} onChange={(v) => prefs.setFilter(f.id, v)} width={232}
+                    items={f.options.map((o) => ({ value: o.value, label: o.label }))}
+                    trigger={<span className="flex items-center justify-between gap-2 h-9 w-full px-3 rounded-md border border-line bg-surface text-sm cursor-pointer hover:border-borderstrong"><span className="truncate">{f.options.find((o) => o.value === cur)?.label || f.options[0]?.label}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} /></div>
+              ); })}
               {prefs.activeCount > 0 && <button onClick={prefs.clearFilters} className="text-2xs text-muted hover:text-content underline">Clear all filters</button>}
             </div>
           )}
@@ -89,6 +91,7 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
       )}
       <div className="relative">
         <button onClick={() => setCOpen((v) => !v)} className="btn h-9"><Icon name="ti-columns-3" className="text-sm" /><span className="hidden md:inline">Columns</span></button>
+        {cOpen && <div className="fixed inset-0 z-10" onClick={() => setCOpen(false)} aria-hidden />}
         {cOpen && (
           <div className="absolute right-0 top-10 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-1">
             <p className="px-2 py-1 text-2xs text-muted2">Show &amp; reorder columns</p>

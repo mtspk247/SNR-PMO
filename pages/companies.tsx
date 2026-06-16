@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -14,6 +15,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 
 export default function CompaniesPage() {
+  const router = useRouter();
   const org = useActiveOrg();
   const userId = useAuthStore((s) => s.user?.id) || null;
   const admin = can.manageMembers(org);
@@ -121,20 +123,20 @@ export default function CompaniesPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {companies.map((c) => (
-            <div key={c.id} className="card p-4">
+            <div key={c.id} onClick={() => router.push(`/companies/${c.id}`)} className="card card-interactive p-4 cursor-pointer">
               <div className="flex items-start gap-3">
                 <span className="w-9 h-9 rounded-md bg-neutral-100 grid place-items-center text-neutral-500 shrink-0"><Icon name="ti-building" className="text-lg" /></span>
                 <div className="min-w-0 flex-1">
-                  <Link href={`/companies/${c.id}`} className="text-sm font-medium truncate hover:text-accentstrong block">{c.name}</Link>
+                  <span className="text-sm font-medium truncate text-content block">{c.name}</span>
                   <p className="text-2xs text-neutral-400">{projectCount(c.id)} projects</p>
                 </div>
                 {canManage(c) && (
-                  <button onClick={() => openMembers(c)} className="text-2xs text-neutral-500 hover:text-ink inline-flex items-center gap-1 shrink-0" title="Manage members">
+                  <button onClick={(e) => { e.stopPropagation(); openMembers(c); }} className="text-2xs text-neutral-500 hover:text-ink inline-flex items-center gap-1 shrink-0" title="Manage members">
                     <Icon name="ti-users" /> Members
                   </button>
                 )}
                 {admin && (
-                  <button onClick={() => openEdit(c)} className="text-neutral-300 hover:text-ink shrink-0" title="Rename company">
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(c); }} className="text-neutral-300 hover:text-ink shrink-0" title="Rename company">
                     <Icon name="ti-pencil" />
                   </button>
                 )}
