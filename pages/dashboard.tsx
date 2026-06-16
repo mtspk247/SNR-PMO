@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import GridLayout, { WidthProvider } from 'react-grid-layout';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import FirstRunChecklist from '@/components/FirstRunChecklist';
@@ -129,10 +130,14 @@ const VARIANTS: Record<string, { id: string; label: string; icon: string }[]> = 
   pipeline_stage: [{ id: 'bars', label: 'Bars', icon: 'ti-chart-bar' }, { id: 'funnel', label: 'Funnel', icon: 'ti-filter' }],
   headcount:      [{ id: 'bars', label: 'Bars', icon: 'ti-chart-bar' }, { id: 'donut', label: 'Donut', icon: 'ti-chart-donut' }],
 };
+const GridW = WidthProvider(GridLayout);
 const defVariant = (k: string) => VARIANTS[k]?.[0]?.id || '';
 const splitKey = (entry: string): [string, string] => { const p = entry.split(':'); return [p[0], p[1] || defVariant(p[0])]; };
-const entrySpanOf = (entry: string): number => { const p = entry.split(':'); return p[2] ? Number(p[2]) : (WIDGET_META[p[0]]?.span || 1); };
-const rebuildEntry = (k: string, variant: string, span: number): string => { const defV = defVariant(k); const defS = WIDGET_META[k]?.span || 1; const v = variant && variant !== defV ? variant : ''; const sp = span && span !== defS ? String(span) : ''; return sp ? `${k}:${v}:${sp}` : (v ? `${k}:${v}` : k); };
+type Coords = { x: number; y: number; w: number; h: number };
+const defW = (k: string) => (WIDGET_META[k]?.span === 2 ? 6 : 3);
+const defH = (k: string) => (k.startsWith('kpi_') ? 2 : 4);
+const coordsOf = (entry: string): Coords | null => { const p = entry.split(':'); return p.length >= 6 ? { x: +p[2], y: +p[3], w: +p[4], h: +p[5] } : null; };
+const makeEntry = (k: string, variant: string, c: Coords): string => { const v = variant && variant !== defVariant(k) ? variant : ''; return `${k}:${v}:${c.x}:${c.y}:${c.w}:${c.h}`; };
 
 const DEFAULT_KEYS = [
   'kpi_projects', 'kpi_tasks', 'kpi_deals', 'kpi_pipeline',
@@ -481,13 +486,20 @@ export default function Dashboard() {
   const shown = order.filter(visible);
   const available = Object.keys(WIDGET_META).filter((k) => visible(k) && !baseKeys.includes(k));
 
-  const move = (entry: string, dir: -1 | 1) => setOrder((prev) => { const i = prev.indexOf(entry); const j = i + dir; if (i < 0 || j < 0 || j >= prev.length) return prev; const next = [...prev]; [next[i], next[j]] = [next[j], next[i]]; return next; });
   const remove = (entry: string) => setOrder((prev) => prev.filter((x) => x !== entry));
   const add = (k: string) => { setOrder((prev) => [...prev, k]); setAddOpen(false); };
-  const setVariant = (key: string, vid: string) => { setVarOpen(''); setOrder((prev) => prev.map((e) => { const [k] = splitKey(e); if (k !== key) return e; return rebuildEntry(k, vid, entrySpanOf(e)); })); };
-  const SPAN_OPTS = [1, 2, 4];
-  const cycleSpan = (entry: string) => setOrder((prev) => prev.map((e) => { if (e !== entry) return e; const [k, v] = splitKey(e); const cur = entrySpanOf(e); const next = SPAN_OPTS[(SPAN_OPTS.indexOf(cur) + 1) % SPAN_OPTS.length] || 1; return rebuildEntry(k, v, next); }));
-  const reorderTo = (target: string) => setOrder((prev) => { if (!dragEntry || dragEntry === target) return prev; const a = [...prev]; const from = a.indexOf(dragEntry); const to = a.indexOf(target); if (from < 0 || to < 0) return prev; a.splice(from, 1); a.splice(to, 0, dragEntry); return a; });
+  const setVariant = (key: string, vid: string) => { setVarOpen(''); setOrder((prev) => prev.map((e) => { const [k] = splitKey(e); if (k !== key) return e; const c = coordsOf(e); return c ? makeEntry(k, vid, c) : (vid && vid !== defVariant(k) ? `${k}:${vid}` : k); })); };
+  // Persist drag/resize results back into the layout entries (key:variant:x:y:w:h).
+  const applyLayout = (l: any[]) => { setOrder((prev) => prev.map((e) => { const it = l.find((x) => x.i === e); if (!it) return e; const [k, v] = splitKey(e); return makeEntry(k, v, { x: it.x, y: it.y, w: it.w, h: it.h }); })); };
+  // Build the free-form RGL layout from the order (auto-pack entries that lack coords).
+  let _cx = 0, _cy = 0;
+  const rglLayout = shown.map((entry) => {
+    const [k] = splitKey(entry); const c = coordsOf(entry);
+    const w = c?.w ?? defW(k); const h = c?.h ?? defH(k);
+    let x: number; let y: number;
+    if (c) { x = c.x; y = c.y; } else { if (_cx + w > 12) { _cx = 0; _cy += 4; } x = _cx; y = _cy; _cx += w; }
+    return { i: entry, x, y, w, h, minW: 2, minH: 2 };
+  });
   const flash = (m: string) => { setMsg(m); window.setTimeout(() => setMsg(''), 2200); };
   const savePersonal = async () => { if (!activeOrg) return; try { await saveUserDashboard(activeOrg.id, order); setSource('personal'); setEditing(false); flash('Saved your dashboard'); } catch (e: any) { flash(e.message || 'Save failed'); } };
   const saveOrgDefault = async () => { if (!activeOrg) return; try { await saveOrgDashboard(activeOrg.id, order); flash('Saved as workspace default'); } catch (e: any) { flash(e.message || 'Save failed'); } };
@@ -518,7 +530,7 @@ export default function Dashboard() {
 
       {editing && (
         <div className="card p-3 mb-4 flex flex-wrap items-center gap-2 bg-accent/5 border-accent/30">
-          <span className="text-xs text-muted inline-flex items-center gap-1.5"><Icon name="ti-info-circle" className="text-sm" />Editing — drag cards to reorder (or ↑↓), resize width (↔), change a card&rsquo;s visual (palette), remove (×), then save.</span>
+          <span className="text-xs text-muted inline-flex items-center gap-1.5"><Icon name="ti-info-circle" className="text-sm" />Editing — drag cards to move (others rearrange to fit), drag a card&rsquo;s bottom-right corner to resize, change its visual (palette), remove (×), then save.</span>
           <div className="flex-1" />
           <div className="relative">
             <button onClick={() => setAddOpen((v) => !v)} disabled={available.length === 0} className="btn btn-ghost border border-line h-8 py-0 disabled:opacity-50"><Icon name="ti-plus" />Add widget</button>
@@ -535,49 +547,39 @@ export default function Dashboard() {
         </div>
       )}
 
-      {loading ? <Spinner /> : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-stretch">
+      {loading ? <Spinner /> : shown.length === 0 ? (
+        <EmptyState text="No widgets to show — click Customize to add some." icon="ti-layout-dashboard" />
+      ) : (
+        <GridW className="layout" layout={rglLayout} cols={12} rowHeight={64} margin={[12, 12]} containerPadding={[0, 0]}
+          isDraggable={editing} isResizable={editing} draggableCancel=".rgl-no-drag" compactType="vertical"
+          onDragStop={(l: any[]) => applyLayout(l)} onResizeStop={(l: any[]) => applyLayout(l)}>
           {shown.map((entry) => {
             const [k, variant] = splitKey(entry);
             const variants = VARIANTS[k];
-            const span = entrySpanOf(entry);
             return (
-              <div key={entry} draggable={editing}
-                onDragStart={() => { if (editing) setDragEntry(entry); }}
-                onDragEnd={() => setDragEntry(null)}
-                onDragOver={(e) => { if (editing) e.preventDefault(); }}
-                onDrop={() => { if (editing) reorderTo(entry); }}
-                className={`relative ${spanCls(span)} ${editing ? 'cursor-move' : ''} ${dragEntry === entry ? 'opacity-40' : ''}`}>
+              <div key={entry} className={`relative h-full ${editing ? 'ring-1 ring-dashed ring-line rounded-xl cursor-move' : ''}`}>
                 {editing && (
-                  <>
-                    <div className="absolute inset-0 z-10 rounded-xl bg-transparent" />
-                    <div className="absolute -top-2 left-1 z-20 w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted2 shadow-sm" title="Drag to reorder"><Icon name="ti-grip-vertical" className="text-xs" /></div>
-                    <div className="absolute -top-2 right-1 z-20 flex items-center gap-1">
-                      {variants && variants.length > 1 && (
-                        <div className="relative">
-                          <button onClick={() => setVarOpen((o) => (o === entry ? '' : entry))} title="Change visual" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-palette" className="text-xs" /></button>
-                          {varOpen === entry && <button type="button" aria-hidden className="fixed inset-0 z-20 cursor-default" onClick={() => setVarOpen('')} />}
-                          {varOpen === entry && (
-                            <div className="absolute right-0 mt-1 z-30 w-40 card p-1 shadow-lg">
-                              <p className="px-2 py-1 text-2xs text-muted2">Visual</p>
-                              {variants.map((vv) => (<button key={vv.id} onClick={() => setVariant(k, vv.id)} className={`w-full text-left px-2 py-1.5 rounded-md text-sm hover:bg-surface2 flex items-center gap-2 ${vv.id === variant ? 'text-accentstrong' : ''}`}><Icon name={vv.icon} className="text-muted2" />{vv.label}{vv.id === variant && <Icon name="ti-check" className="ml-auto text-xs" />}</button>))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <button onClick={() => cycleSpan(entry)} title={`Resize width (now ${span >= 4 ? 'full' : span === 2 ? 'wide' : 'normal'})`} className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrows-horizontal" className="text-xs" /></button>
-                      <button onClick={() => move(entry, -1)} title="Move earlier" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrow-up" className="text-xs" /></button>
-                      <button onClick={() => move(entry, 1)} title="Move later" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrow-down" className="text-xs" /></button>
-                      <button onClick={() => remove(entry)} title="Remove" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-rose-500 hover:bg-rose-50 shadow-sm"><Icon name="ti-x" className="text-xs" /></button>
-                    </div>
-                  </>
+                  <div className="absolute -top-2 right-1 z-20 flex items-center gap-1 rgl-no-drag">
+                    {variants && variants.length > 1 && (
+                      <div className="relative">
+                        <button onClick={() => setVarOpen((o) => (o === entry ? '' : entry))} title="Change visual" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-palette" className="text-xs" /></button>
+                        {varOpen === entry && <button type="button" aria-hidden className="fixed inset-0 z-20 cursor-default" onClick={() => setVarOpen('')} />}
+                        {varOpen === entry && (
+                          <div className="absolute right-0 mt-1 z-30 w-40 card p-1 shadow-lg">
+                            <p className="px-2 py-1 text-2xs text-muted2">Visual</p>
+                            {variants.map((vv) => (<button key={vv.id} onClick={() => setVariant(k, vv.id)} className={`w-full text-left px-2 py-1.5 rounded-md text-sm hover:bg-surface2 flex items-center gap-2 ${vv.id === variant ? 'text-accentstrong' : ''}`}><Icon name={vv.icon} className="text-muted2" />{vv.label}{vv.id === variant && <Icon name="ti-check" className="ml-auto text-xs" />}</button>))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <button onClick={() => remove(entry)} title="Remove" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-rose-500 hover:bg-rose-50 shadow-sm"><Icon name="ti-x" className="text-xs" /></button>
+                  </div>
                 )}
-                <div className={editing ? 'ring-1 ring-dashed ring-line rounded-xl pointer-events-none' : ''}>{W[k](variant)}</div>
+                <div className={`h-full overflow-auto ${editing ? 'pointer-events-none' : ''}`}>{W[k](variant)}</div>
               </div>
             );
           })}
-          {shown.length === 0 && <div className="lg:col-span-4"><EmptyState text="No widgets to show — click Customize to add some." icon="ti-layout-dashboard" /></div>}
-        </div>
+        </GridW>
       )}
     </Layout>
   );
