@@ -1168,8 +1168,23 @@ export async function campaignPreview(segment: string): Promise<number> {
   const { data, error } = await sb.rpc('platform_campaign_preview', { p_segment: segment });
   if (error) throw new Error(error.message); return (data as number) ?? 0;
 }
-export async function sendCampaign(segment: string, subject: string, body: string, link?: string): Promise<number> {
-  const { data, error } = await sb.rpc('platform_send_campaign', { p_segment: segment, p_subject: subject, p_body: body, p_link: link || null });
+export interface CampaignRow { id: string; subject: string; segment: string; status: string; recipient_count: number; scheduled_for: string | null; sent_at: string | null; created_at: string; link: string | null; opens: number; clicks: number; }
+export interface CampaignTemplate { id: string; name: string; subject: string | null; body: string | null; link: string | null; created_at: string; }
+export async function listCampaigns(): Promise<CampaignRow[]> {
+  const { data, error } = await sb.rpc('platform_campaigns_list'); if (error) throw new Error(error.message); return (data as CampaignRow[]) || [];
+}
+export async function listCampaignTemplates(): Promise<CampaignTemplate[]> {
+  const { data, error } = await sb.from('platform_campaign_templates').select('id, name, subject, body, link, created_at').order('name'); if (error) throw new Error(error.message); return (data as CampaignTemplate[]) || [];
+}
+export async function saveCampaignTemplate(t: { id?: string | null; name: string; subject?: string; body?: string; link?: string }): Promise<string> {
+  const { data, error } = await sb.rpc('campaign_template_save', { p_id: t.id ?? null, p_name: t.name, p_subject: t.subject ?? null, p_body: t.body ?? null, p_link: t.link ?? null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function deleteCampaignTemplate(id: string): Promise<void> {
+  const { error } = await sb.rpc('campaign_template_delete', { p_id: id }); if (error) throw new Error(error.message);
+}
+export async function sendCampaign(segment: string, subject: string, body: string, link?: string, scheduledFor?: string | null): Promise<number> {
+  const { data, error } = await sb.rpc('platform_send_campaign', { p_segment: segment, p_subject: subject, p_body: body, p_link: link || null, p_scheduled_for: scheduledFor || null });
   if (error) throw new Error(error.message); return (data as number) ?? 0;
 }
 export async function emailTenant(orgId: string, subject: string, body: string, link?: string): Promise<number> {

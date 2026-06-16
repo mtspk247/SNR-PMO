@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listPlanLimits, setPlanLimit, PlanLimit } from '@/lib/db';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit } from '@/lib/db';
 import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
@@ -682,167 +682,107 @@ function CampaignsTab() {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [link, setLink] = useState('');
+  const [scheduleAt, setScheduleAt] = useState('');
   const [count, setCount] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [templates, setTemplates] = useState<CampaignTemplate[]>([]);
+  const [history, setHistory] = useState<CampaignRow[]>([]);
+
+  const loadAux = () => { listCampaignTemplates().then(setTemplates).catch(() => {}); listCampaigns().then(setHistory).catch(() => {}); };
+  useEffect(() => { loadAux(); }, []);
   useEffect(() => { let on = true; setCount(null); campaignPreview(segment).then((n) => on && setCount(n)).catch(() => on && setCount(null)); return () => { on = false; }; }, [segment]);
+
+  const loadTemplate = (id: string) => { const t = templates.find((x) => x.id === id); if (!t) return; setSubject(t.subject || ''); setBody(t.body || ''); setLink(t.link || ''); setMsg(`Loaded template “${t.name}”.`); };
+  const saveTpl = async () => {
+    const name = window.prompt('Save this campaign as a template — name:'); if (!name || !name.trim()) return;
+    setErr(''); setMsg('');
+    try { await saveCampaignTemplate({ name: name.trim(), subject, body, link }); loadAux(); setMsg('Template saved.'); }
+    catch (e: any) { setErr(e.message || 'Could not save template'); }
+  };
+  const delTpl = async (id: string) => { if (!confirm('Delete this template?')) return; try { await deleteCampaignTemplate(id); loadAux(); } catch (e: any) { setErr(e.message); } };
+
   const send = async () => {
     if (!subject.trim() || !body.trim()) return;
-    if (!confirm(`Queue this campaign to ~${count ?? '?'} tenant owner(s) in the "${segment}" segment?`)) return;
+    const scheduledIso = scheduleAt ? new Date(scheduleAt).toISOString() : null;
+    const ok = confirm(scheduledIso
+      ? `Schedule this campaign to the "${segment}" segment for ${new Date(scheduleAt).toLocaleString()}?`
+      : `Queue this campaign to ~${count ?? '?'} tenant owner(s) in the "${segment}" segment now?`);
+    if (!ok) return;
     setSending(true); setErr(''); setMsg('');
-    try { const n = await sendCampaign(segment, subject.trim(), body.trim(), link.trim() || undefined); setMsg(`Queued ${n} email(s) — they send via your configured provider (Email tab).`); setSubject(''); setBody(''); setLink(''); }
-    catch (e: any) { setErr(e.message || 'Could not send'); } finally { setSending(false); }
-  };
-  return (
-    <div className="card rounded-t-none p-5 max-w-2xl space-y-4">
-      <p className="text-2xs text-muted">Send a branded broadcast (offer, newsletter, subscription update) to a tenant segment. Each email is rendered with that tenant’s logo/colour and queued in the outbox; the configured provider sends them. Each send is logged on the tenant’s Lifecycle timeline.</p>
-      <div>
-        <p className="text-2xs uppercase tracking-wide text-muted2 mb-1.5">Audience</p>
-        <div className="flex flex-wrap gap-1.5">
-          {SEGMENTS.map((sg) => (
-            <button key={sg.id} onClick={() => setSegment(sg.id)} className={`btn h-8 py-0 ${segment === sg.id ? 'btn-primary' : ''}`}>{sg.label}</button>
-          ))}
-        </div>
-        <p className="text-2xs text-muted mt-2">{count == null ? 'Counting recipients…' : `${count} tenant owner${count === 1 ? '' : 's'} will receive this.`}</p>
-      </div>
-      <Field label="Subject"><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. 20% off Pro this month" /></Field>
-      <Field label="Message" hint="Plain text — sent as a tenant-branded email."><textarea className="textarea h-32" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your announcement, offer or newsletter…" /></Field>
-      <Field label="Button link (optional)" hint="Adds a branded call-to-action button"><input className="input" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://snr-pmo.vercel.app/settings?tab=billing" /></Field>
-      {err && <p className="text-sm text-rose-600">{err}</p>}
-      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
-      <button className="btn btn-primary" disabled={sending || !subject.trim() || !body.trim()} onClick={send}><Icon name="ti-send" />{sending ? 'Queuing…' : 'Send campaign'}</button>
-    </div>
-  );
-}
-
-export default function PlatformPage() {
-  const platformAdmin = useAuthStore((s) => s.platformAdmin);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [features, setFeatures] = useState<Feature[]>([]);
-  const [pf, setPf] = useState<PlanFeature[]>([]);
-  const [planLimits, setPlanLimits] = useState<PlanLimit[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>('plans');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const [planModal, setPlanModal] = useState<Plan | 'new' | null>(null);
-
-  const load = async () => {
-    const [p, f, m, l] = await Promise.all([listPlans(), listFeatures(), listPlanFeatures(), listPlanLimits()]);
-    setPlans(p); setFeatures(f); setPf(m); setPlanLimits(l);
-  };
-  useEffect(() => { if (platformAdmin) load().catch((e) => setErr(e.message)).finally(() => setLoading(false)); else setLoading(false); }, [platformAdmin]);
-
-  if (!platformAdmin) {
-    return <Layout title="Platform"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />Platform administration is restricted to the platform team.</div></Layout>;
-  }
-
-  const enabled = (planId: string, fk: string) => pf.some((x) => x.plan_id === planId && x.feature_key === fk && x.enabled);
-
-  const toggleFeature = async (planId: string, fk: string, on: boolean) => {
-    setBusy(true); setErr('');
-    setPf((prev) => {
-      const i = prev.findIndex((x) => x.plan_id === planId && x.feature_key === fk);
-      if (i >= 0) { const c = prev.slice(); c[i] = { ...c[i], enabled: on }; return c; }
-      return [...prev, { plan_id: planId, feature_key: fk, enabled: on }];
-    });
-    try { await setPlanFeature(planId, fk, on); } catch (e: any) { setErr(e.message); await load(); }
-    finally { setBusy(false); }
+    try {
+      const n = await sendCampaign(segment, subject.trim(), body.trim(), link.trim() || undefined, scheduledIso);
+      setMsg(scheduledIso ? 'Campaign scheduled — it sends automatically at the set time.' : `Queued ${n} email(s) — they send via your configured provider (Email tab).`);
+      setSubject(''); setBody(''); setLink(''); setScheduleAt(''); loadAux();
+    } catch (e: any) { setErr(e.message || 'Could not send'); } finally { setSending(false); }
   };
 
+  const STATUS_PILL: Record<string, string> = { sent: 'bg-emerald-500/10 text-emerald-600', scheduled: 'bg-amber-500/10 text-amber-600', sending: 'bg-sky-500/10 text-sky-600', draft: 'bg-surface2 text-muted' };
 
   return (
-    <Layout title="Platform">
-      {loading ? <Spinner /> : (
-        <>
-          <PageHeader title="Plans & billing" subtitle="Cross-tenant administration — plans, seats, features, billing and ops. Manage individual tenants under Tenants."
-            action={tab === 'plans' ? (
-              <button className="btn btn-primary" onClick={() => setPlanModal('new')}>
-                <Icon name="ti-plus" className="text-base" /> New plan
-              </button>
-            ) : undefined} />
+    <div className="space-y-4">
+      <div className="card rounded-t-none p-5 max-w-2xl space-y-4">
+        <p className="text-2xs text-muted">Send a branded broadcast (offer, newsletter, subscription update) to a tenant segment. Each email is tenant-branded, tracked for opens/clicks, and queued in the outbox. Save reusable templates and schedule sends for later.</p>
 
-          {/* Tabs */}
-          <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'campaigns'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  tab === t
-                    ? 'border-b-accent text-content'
-                    : 'border-b-transparent text-muted hover:text-content'
-                }`}
-              >
-                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : 'Campaigns'}
-              </button>
+        {templates.length > 0 && (
+          <div>
+            <p className="text-2xs uppercase tracking-wide text-muted2 mb-1.5">Templates</p>
+            <div className="flex flex-wrap gap-1.5">
+              {templates.map((t) => (
+                <span key={t.id} className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface pl-2.5 pr-1 h-8 text-sm">
+                  <button className="text-content hover:text-accentstrong" onClick={() => loadTemplate(t.id)}>{t.name}</button>
+                  <button className="text-muted2 hover:text-rose-600 px-1" title="Delete template" onClick={() => delTpl(t.id)}><Icon name="ti-x" className="text-2xs" /></button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <p className="text-2xs uppercase tracking-wide text-muted2 mb-1.5">Audience</p>
+          <div className="flex flex-wrap gap-1.5">
+            {SEGMENTS.map((sg) => (
+              <button key={sg.id} onClick={() => setSegment(sg.id)} className={`btn h-8 py-0 ${segment === sg.id ? 'btn-primary' : ''}`}>{sg.label}</button>
             ))}
           </div>
+          <p className="text-2xs text-muted mt-2">{count == null ? 'Counting recipients…' : `${count} tenant owner${count === 1 ? '' : 's'} will receive this.`}</p>
+        </div>
+        <Field label="Subject"><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. 20% off Pro this month" /></Field>
+        <Field label="Message" hint="Plain text — sent as a tenant-branded email."><textarea className="textarea h-32" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your announcement, offer or newsletter…" /></Field>
+        <Field label="Button link (optional)" hint="Adds a tracked branded call-to-action button"><input className="input" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://snr-pmo.vercel.app/settings?tab=billing" /></Field>
+        <Field label="Schedule (optional)" hint="Leave blank to send now"><input className="input" type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} /></Field>
+        {err && <p className="text-sm text-rose-600">{err}</p>}
+        {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+        <div className="flex items-center gap-2">
+          <button className="btn btn-primary" disabled={sending || !subject.trim() || !body.trim()} onClick={send}><Icon name={scheduleAt ? 'ti-clock' : 'ti-send'} />{sending ? 'Working…' : (scheduleAt ? 'Schedule campaign' : 'Send campaign')}</button>
+          <button className="btn" disabled={!subject.trim() && !body.trim()} onClick={saveTpl}><Icon name="ti-bookmark" />Save as template</button>
+        </div>
+      </div>
 
-          {err && <p className="text-sm text-rose-600 mb-3 px-4 pt-4 card rounded-t-none">{err}</p>}
-
-          {tab === 'plans' ? (
-            <div className="card overflow-x-auto rounded-t-none">
-              <div className="overflow-x-auto"><table className="w-full text-sm">
-                <thead className="bg-surface2 text-left">
-                  <tr>
-                    <th className="px-4 py-3 font-medium text-2xs uppercase tracking-wide text-muted">Feature</th>
-                    {plans.map((p) => (
-                      <th key={p.id} className="px-4 py-3 text-center">
-                        <span className="flex items-center justify-center gap-1.5">
-                          <span className="font-semibold text-content">{p.name}</span>
-                          {!p.is_active && <span className="pill pill-gray">inactive</span>}
-                          <button className="text-muted2 hover:text-accentstrong transition-colors" title={`Edit ${p.name}`}
-                            onClick={() => setPlanModal(p)}>
-                            <Icon name="ti-pencil" className="text-sm" />
-                          </button>
-                        </span>
-                        <span className="block text-2xs text-muted font-normal">{formatPrice(p.price_cents, p.pricing_model)}{p.billing_period === 'annual' ? ' (annual)' : ''}</span>
-                        <span className="block text-2xs text-muted font-normal">{p.user_limit == null ? 'unlimited seats' : `${p.user_limit} seats`}</span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {features.map((f) => (
-                    <tr key={f.key} className="border-t border-line hover:bg-surface2/50">
-                      <td className="px-4 py-3">
-                        <span className="block font-medium text-content">{f.name}</span>
-                        <span className="block text-2xs text-muted">{f.description}</span>
-                      </td>
-                      {plans.map((p) => (
-                        <td key={p.id} className="px-4 py-3 text-center">
-                          <input type="checkbox" className="accent-accent w-4 h-4" disabled={busy}
-                            checked={enabled(p.id, f.key)}
-                            onChange={(e) => toggleFeature(p.id, f.key, e.target.checked)} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table></div>
-              <div className="px-4 py-3 text-2xs text-muted border-t border-line">Changes apply immediately to every tenant on that plan (enforced server-side via RLS).</div>
-            </div>
-          ) : tab === 'billing' ? (
-            <BillingTab plans={plans} onReload={load} />
-          ) : tab === 'email' ? (
-            <EmailTab />
-          ) : tab === 'backups' ? (
-            <BackupsTab />
-          ) : tab === 'errors' ? (
-            <ErrorsTab />
-          ) : tab === 'owners' ? (
-            <OwnersTab />
-          ) : (
-            <CampaignsTab />
-          )}
-
-          {planModal && (
-            <PlanModal plan={planModal === 'new' ? null : planModal} storageMb={planModal && planModal !== 'new' ? (planLimits.find((l) => l.plan_id === planModal.id && l.key === 'storage_mb')?.value ?? null) : null} onClose={() => setPlanModal(null)} onSaved={load} />
-          )}
-        </>
-      )}
-    </Layout>
+      <div className="card overflow-hidden">
+        <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold text-content">Campaign history</h3></div>
+        {history.length === 0 ? <div className="p-6 text-sm text-muted">No campaigns yet.</div> : (
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
+              <tr><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Segment</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Recipients</th><th className="px-4 py-3">Opens</th><th className="px-4 py-3">Clicks</th><th className="px-4 py-3">When</th></tr>
+            </thead>
+            <tbody>
+              {history.map((c) => (
+                <tr key={c.id} className="border-t border-line hover:bg-surface2/50">
+                  <td className="px-4 py-3 text-content font-medium max-w-[18rem] truncate">{c.subject}</td>
+                  <td className="px-4 py-3 text-muted capitalize">{c.segment}</td>
+                  <td className="px-4 py-3"><span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'} capitalize`}>{c.status}</span></td>
+                  <td className="px-4 py-3 text-muted tabular-nums">{c.recipient_count}</td>
+                  <td className="px-4 py-3 text-muted tabular-nums">{c.opens}{c.recipient_count > 0 && c.status === 'sent' ? ` (${Math.round((c.opens / c.recipient_count) * 100)}%)` : ''}</td>
+                  <td className="px-4 py-3 text-muted tabular-nums">{c.clicks}</td>
+                  <td className="px-4 py-3 text-2xs text-muted2">{c.status === 'scheduled' && c.scheduled_for ? `⏱ ${new Date(c.scheduled_for).toLocaleString()}` : c.sent_at ? new Date(c.sent_at).toLocaleString() : new Date(c.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        )}
+      </div>
+    </div>
   );
 }
