@@ -2,7 +2,8 @@ import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, StatCard, Icon, Spinner } from '@/components/ui';
-import { useTasks, useLeaves } from '@/lib/queries';
+import Dropdown from '@/components/Dropdown';
+import { useTasks, useLeaves, useProjects, useOrgCompanies } from '@/lib/queries';
 import { Task, Leave } from '@/lib/supabase';
 
 // ---------------------------------------------------------------------------
@@ -259,7 +260,13 @@ export default function CalendarPage() {
 
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: leaves = [], isLoading: leavesLoading } = useLeaves();
+  const { data: projects = [] } = useProjects();
+  const { data: companies = [] } = useOrgCompanies();
   const isLoading = tasksLoading || leavesLoading;
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const projCompany = useMemo(() => { const m = new Map<string, string>(); projects.forEach((p: any) => { if (p.company_id) m.set(p.id, p.company_id); }); return m; }, [projects]);
+  const fTasks = useMemo(() => tasks.filter((t) => (!companyFilter || projCompany.get(t.project_id || '') === companyFilter) && (!projectFilter || t.project_id === projectFilter)), [tasks, companyFilter, projectFilter, projCompany]);
 
   const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
@@ -288,9 +295,9 @@ export default function CalendarPage() {
 
   const eventMap = useMemo(() => {
     const map = new Map<string, CalEvent[]>();
-    for (const cell of visibleDays) map.set(isoDate(cell), buildDayEvents(cell, tasks, leaves, today));
+    for (const cell of visibleDays) map.set(isoDate(cell), buildDayEvents(cell, fTasks, leaves, today));
     return map;
-  }, [visibleDays, tasks, leaves, today]);
+  }, [visibleDays, fTasks, leaves, today]);
 
   // Active period drives the stat cards + the header title.
   const period = useMemo(() => {
@@ -304,12 +311,12 @@ export default function CalendarPage() {
 
   const stats = useMemo(() => {
     const { start, end } = period;
-    const inPeriod = tasks.filter((t) => {
+    const inPeriod = fTasks.filter((t) => {
       if (!t.due_date) return false;
       const d = parseLocal(t.due_date);
       return d >= start && d <= end;
     }).length;
-    const overdue = tasks.filter((t) => {
+    const overdue = fTasks.filter((t) => {
       if (!t.due_date || t.status === 'Done') return false;
       return parseLocal(t.due_date) < today;
     }).length;
@@ -319,7 +326,7 @@ export default function CalendarPage() {
       return s <= end && e >= start;
     }).length;
     return { inPeriod, overdue, leavesInPeriod };
-  }, [tasks, leaves, period, today]);
+  }, [fTasks, leaves, period, today]);
 
   // Navigation adapts to the active view.
   const goPrev = () => {
@@ -388,6 +395,20 @@ export default function CalendarPage() {
                 </button>
               ))}
             </div>
+            {(companies.length > 0 || projects.length > 0) && (
+              <div className="hidden md:flex items-center gap-2 shrink-0">
+                {companies.length > 0 && (
+                  <Dropdown value={companyFilter} onChange={(v) => { setCompanyFilter(v); setProjectFilter(''); }} width={190}
+                    items={[{ value: '', label: 'All companies' }, ...companies.map((c: any) => ({ value: c.id, label: c.name }))]}
+                    trigger={<span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-line bg-surface text-xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-building" className="text-sm text-muted2" />{companies.find((c: any) => c.id === companyFilter)?.name || 'All companies'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+                )}
+                {projects.length > 0 && (
+                  <Dropdown value={projectFilter} onChange={setProjectFilter} width={210}
+                    items={[{ value: '', label: 'All projects' }, ...projects.filter((p: any) => !companyFilter || p.company_id === companyFilter).map((p: any) => ({ value: p.id, label: p.name }))]}
+                    trigger={<span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-line bg-surface text-xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-folder" className="text-sm text-muted2" />{projects.find((p: any) => p.id === projectFilter)?.name || 'All projects'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+                )}
+              </div>
+            )}
           </div>
           {view === 'range' ? (
             <div className="flex items-center gap-2">
