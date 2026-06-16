@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit } from '@/lib/db';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow } from '@/lib/db';
 import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'campaigns';
+type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'campaigns' | 'activity';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -523,13 +523,26 @@ function OwnersTab() {
 
   const add = async () => {
     if (!email.trim() || busy) return;
-    setBusy(true); setErr(''); setMsg('');
+    setBusy(true); setErr(''); setMsg(''); setInvLink(null);
+    const target = email.trim();
     try {
-      await addPlatformAdmin(email.trim());
-      setMsg(`Added ${email.trim()} as a platform owner.`);
+      await addPlatformAdmin(target);
+      setMsg(`Added ${target} as a platform owner.`);
       setEmail('');
       await load();
-    } catch (e: any) { setErr(e?.message || 'Could not add owner'); }
+    } catch (e: any) {
+      const m = e?.message || '';
+      if (/No user with email/i.test(m)) {
+        // No account yet -> send a co-owner invitation instead (keep both, fix the error)
+        try {
+          const r = await createPlatformInvite(target);
+          setInvLink(r.link);
+          setMsg(`${target} has no account yet — sent a co-owner invitation instead.`);
+          setEmail('');
+          await load();
+        } catch (e2: any) { setErr(e2?.message || 'Could not invite co-owner'); }
+      } else { setErr(m || 'Could not add owner'); }
+    }
     finally { setBusy(false); }
   };
 
@@ -567,15 +580,16 @@ function OwnersTab() {
     <div className="card rounded-t-none p-5 sm:p-6 space-y-6">
       <div>
         <h3 className="text-sm font-semibold text-content">Platform owners</h3>
-        <p className="text-2xs text-muted mt-1 max-w-2xl">Platform owners have full cross-tenant administration access — this console, every tenant, plans and billing. Add a co-owner by the email of an existing user (they must have signed in to the app at least once). The primary owner can&rsquo;t be removed, and there must always be at least one owner.</p>
+        <p className="text-2xs text-muted mt-1 max-w-2xl">Platform owners have full cross-tenant administration access — this console, every tenant, plans and billing. Add a co-owner by email — if they don&rsquo;t have an account yet, we&rsquo;ll send them an invitation instead. Only the primary owner can add or invite co-owners. The primary owner can&rsquo;t be removed, and there must always be at least one owner.</p>
       </div>
 
       {err && <p className="text-sm text-rose-600">{err}</p>}
       {msg && <p className="text-sm text-emerald-600">{msg}</p>}
 
+      {iAmPrimary ? (<>
       <div className="flex flex-wrap items-end gap-2 max-w-xl">
         <div className="flex-1 min-w-[14rem]">
-          <Field label="Add co-owner by email" hint="Must be an existing user">
+          <Field label="Add co-owner by email" hint="No account? We'll invite them">
             <input className="input" type="email" autoComplete="off" placeholder="person@company.com" value={email}
               onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
           </Field>
@@ -617,6 +631,7 @@ function OwnersTab() {
           </div>
         )}
       </div>
+      </>) : (<p className="text-sm text-muted">Only the primary owner can add or invite co-owners; you can view the owner list below.</p>)}
 
       {pending.length > 0 && (
         <div className="rounded-lg border border-amber-300 bg-amber-50/50 p-4">
@@ -787,6 +802,46 @@ function CampaignsTab() {
   );
 }
 
+function ActivityTab() {
+  const [rows, setRows] = useState<PlatformActivityRow[] | null>(null);
+  const [org, setOrg] = useState('all');
+  const [err, setErr] = useState('');
+  useEffect(() => { platformActivity(250, null).then(setRows).catch((e) => { setErr(e?.message || 'Failed to load activity'); setRows([]); }); }, []);
+  const orgs = useMemo(() => Array.from(new Map((rows || []).filter((r) => r.org_id).map((r) => [r.org_id as string, r.org_name || (r.org_id as string)])).entries()), [rows]);
+  const filtered = (rows || []).filter((r) => org === 'all' || r.org_id === org);
+  if (rows === null) return <div className="card rounded-t-none p-6"><Spinner /></div>;
+  return (
+    <div className="card rounded-t-none p-5 sm:p-6 space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold text-content">Cross-tenant activity</h3>
+          <p className="text-2xs text-muted mt-0.5 max-w-2xl">Recent actions across every tenant — who did what, and where. Primary-owner oversight of tenants, users and co-owners.</p>
+        </div>
+        <div className="w-60"><Select value={org} onChange={setOrg} search placeholder="Filter by tenant…" options={[{ value: 'all', label: 'All tenants' }, ...orgs.map(([id, name]) => ({ value: id, label: name }))]} /></div>
+      </div>
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {filtered.length === 0 ? <EmptyState icon="ti-activity" text="No activity recorded yet." /> : (
+        <div className="overflow-x-auto"><table className="w-full text-sm">
+          <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
+            <tr><th className="px-4 py-3 font-medium">When</th><th className="px-4 py-3 font-medium">Tenant</th><th className="px-4 py-3 font-medium">Who</th><th className="px-4 py-3 font-medium">Action</th><th className="px-4 py-3 font-medium">Entity</th></tr>
+          </thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={r.id} className="border-t border-line hover:bg-surface2/50">
+                <td className="px-4 py-3 text-2xs text-muted2 whitespace-nowrap">{new Date(r.ts).toLocaleString()}</td>
+                <td className="px-4 py-3 text-content">{r.org_name || '—'}</td>
+                <td className="px-4 py-3 text-muted">{r.username || '—'}</td>
+                <td className="px-4 py-3"><span className="pill pill-gray">{r.action}</span></td>
+                <td className="px-4 py-3 text-2xs text-muted2">{r.entity_type || ''}{r.entity_id ? ' · ' + String(r.entity_id).slice(0, 8) : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+      )}
+    </div>
+  );
+}
+
 export default function PlatformPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -836,7 +891,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'campaigns'] as const).map((t) => (
+            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'campaigns', 'activity'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -846,7 +901,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : 'Campaigns'}
+                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : t === 'campaigns' ? 'Campaigns' : 'Activity'}
               </button>
             ))}
           </div>
@@ -905,8 +960,10 @@ export default function PlatformPage() {
             <ErrorsTab />
           ) : tab === 'owners' ? (
             <OwnersTab />
-          ) : (
+          ) : tab === 'campaigns' ? (
             <CampaignsTab />
+          ) : (
+            <ActivityTab />
           )}
 
           {planModal && (

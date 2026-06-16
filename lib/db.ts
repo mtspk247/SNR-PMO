@@ -2434,6 +2434,9 @@ export async function createOrgInvite(email: string, orgName: string, planKey = 
   const { data, error } = await sb.rpc('create_org_invite', { p_email: email, p_org_name: orgName, p_plan_key: planKey, p_role: role, p_org_id: orgId });
   if (error) throw new Error(error.message); return data as { id: string; token: string; email: string; link: string; expires_at: string };
 }
+export async function setOrgInviteSource(id: string, source: string): Promise<void> {
+  const { error } = await sb.rpc('set_org_invite_source', { p_id: id, p_source: source }); if (error) throw new Error(error.message);
+}
 export async function revokeOrgInvite(id: string): Promise<void> {
   const { error } = await sb.rpc('revoke_org_invite', { p_id: id }); if (error) throw new Error(error.message);
 }
@@ -2457,6 +2460,13 @@ export async function createPlatformInvite(email: string): Promise<{ id: string;
 }
 export async function revokePlatformInvite(id: string): Promise<void> {
   const { error } = await sb.rpc('revoke_platform_invite', { p_id: id }); if (error) throw new Error(error.message);
+}
+
+// ---- #11 Cross-tenant activity oversight (platform owners) ----
+export interface PlatformActivityRow { id: number; ts: string; org_id: string | null; org_name: string | null; user_id: string | null; username: string | null; action: string; entity_type: string | null; entity_id: string | null; }
+export async function platformActivity(limit = 100, orgId: string | null = null): Promise<PlatformActivityRow[]> {
+  const { data, error } = await sb.rpc('platform_activity', { p_limit: limit, p_org: orgId });
+  if (error) throw new Error(error.message); return (data as PlatformActivityRow[]) || [];
 }
 
 export interface TenantDomain { custom_domain: string | null; verified: boolean; token: string | null; }

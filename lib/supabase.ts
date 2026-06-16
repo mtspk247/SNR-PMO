@@ -267,7 +267,7 @@ export interface AppNotification {
 export interface OrgInvite {
   id: string; token: string; email: string; org_id: string | null; org_name: string | null;
   plan_key: string; role: string; status: 'pending' | 'accepted' | 'revoked';
-  invited_by: string | null; created_at: string; expires_at: string; accepted_at: string | null;
+  invited_by: string | null; created_at: string; expires_at: string; accepted_at: string | null; source?: string | null;
 }
 
 export interface Tag {
