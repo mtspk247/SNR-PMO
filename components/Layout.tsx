@@ -52,7 +52,6 @@ export default function Layout({ title, children, flat = false }: { title: strin
   const sections = [
     ...SECTIONS,
     ...(can.manageMembers(activeOrg) ? [ADMIN_SECTION] : []),
-    ...(platformAdmin ? [PLATFORM_SECTION] : []),
   ]
     .map((s) => s.kind === 'menu'
       ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href) && (!i.adminOnly || can.manageMembers(activeOrg))) }
@@ -214,6 +213,12 @@ export default function Layout({ title, children, flat = false }: { title: strin
               ? <NavLink key={s.item.href} {...s.item} />
               : <Menu key={s.key} section={s} />;
           })}
+          {platformAdmin && PLATFORM_SECTION.kind === 'menu' && (
+            <div className="mt-3 pt-3 border-t border-line">
+              {!collapsed && <p className="px-2.5 pb-1 text-2xs font-semibold uppercase tracking-wider text-amber-600/80 flex items-center gap-1.5"><Icon name="ti-building-skyscraper" className="text-xs" />Platform operator</p>}
+              {PLATFORM_SECTION.items.map((i) => <NavLink key={i.href} {...i} />)}
+            </div>
+          )}
         </nav>
 
         {/* User */}
