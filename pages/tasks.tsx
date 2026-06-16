@@ -702,6 +702,7 @@ export default function Tasks() {
               <button onClick={() => setFilterMenu((v) => !v)} className={`btn h-9 ${activeFilters ? 'border-accent text-accentstrong' : ''}`}>
                 <Icon name="ti-filter" className="text-sm" />Filter{activeFilters > 0 && <span className="ml-0.5 text-2xs bg-accent/15 text-accentstrong rounded-full px-1.5">{activeFilters}</span>}
               </button>
+              {filterMenu && <div className="fixed inset-0 z-10" onClick={() => setFilterMenu(false)} aria-hidden />}
               {filterMenu && (
                 <div className="absolute right-0 top-10 z-20 w-64 bg-surface border border-line rounded-lg shadow-lg p-3 space-y-3">
                   <div><label className="label">Project</label>
@@ -741,6 +742,7 @@ export default function Tasks() {
             </div>
             <div className="relative">
               <button onClick={() => setColMenu((v) => !v)} className="btn h-9"><Icon name="ti-columns-3" className="text-sm" /><span className="hidden md:inline">Columns</span></button>
+              {colMenu && <div className="fixed inset-0 z-10" onClick={() => setColMenu(false)} aria-hidden />}
               {colMenu && (
                 <div className="absolute right-0 top-10 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-1">
                   <p className="px-2 py-1 text-2xs text-muted2">Show &amp; reorder columns</p>
@@ -764,19 +766,19 @@ export default function Tasks() {
 
           <div className="flex-1 min-h-0">
             {view === 'board' ? <BoardView /> : (
-            <div className="h-full overflow-auto bg-surface">
+            <div className="h-full overflow-auto">
               <div className="min-w-[960px]">
               {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
                 groupedPage.map(([label, items]) => {
                   const gcol = collapsedGroups.has(label);
                   return (
-                  <div key={label} className="mt-2 first:mt-0">
+                  <div key={label} className="mt-5 first:mt-1">
                     <div draggable={groupBy === 'status' && taskStatuses.length > 0}
                       onDragStart={() => setDragGroup(label)}
                       onDragOver={(e) => { if (dragGroup && groupBy === 'status') e.preventDefault(); }}
                       onDrop={() => { if (dragGroup) reorderStatuses(dragGroup, label); setDragGroup(null); }}
                       onDragEnd={() => setDragGroup(null)}
-                      className={`sticky top-0 z-10 px-4 py-2.5 bg-surface2 border-y border-line flex items-center gap-2.5 ${groupBy === 'status' && taskStatuses.length > 0 ? 'cursor-grab' : ''} ${dragGroup === label ? 'ring-1 ring-inset ring-accent/50' : ''}`}>
+                      className={`px-1 py-2 mb-2 flex items-center gap-2.5 ${groupBy === 'status' && taskStatuses.length > 0 ? 'cursor-grab' : ''} ${dragGroup === label ? 'opacity-60' : ''}`}>
                       <button onClick={() => setCollapsedGroups((pr) => { const n = new Set(pr); n.has(label) ? n.delete(label) : n.add(label); return n; })}
                         className="shrink-0 text-muted2 hover:text-content" title={gcol ? 'Expand' : 'Collapse'}>
                         <Icon name={gcol ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" />
@@ -792,12 +794,16 @@ export default function Tasks() {
                         </button>
                       )}
                     </div>
-                    {!gcol && <ColHeader />}
-                    {!gcol && items.map(renderTask)}
+                    {!gcol && (
+                      <div className="card overflow-hidden">
+                        <ColHeader />
+                        {items.map(renderTask)}
+                      </div>
+                    )}
                   </div>
                   );
                 })
-              ) : (<><ColHeader />{pg.pageItems.map(renderTask)}</>)}
+              ) : (<div className="card overflow-hidden"><ColHeader />{pg.pageItems.map(renderTask)}</div>)}
               {filtered.length > 0 && (
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}
