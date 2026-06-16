@@ -25,6 +25,7 @@ const isOverdue = (d: string | null) => !!d && new Date(d) < new Date(new Date()
 const STATUS_COLOR: Record<string, string> = {
   Active: '#3ECF8E', Planning: '#38bdf8', 'On Hold': '#f59e0b', Completed: '#a78bfa', Cancelled: '#f43f5e',
 };
+const DEPT_COLOR = ['#3ECF8E', '#38bdf8', '#a78bfa', '#f59e0b', '#f43f5e', '#22d3ee'];
 const STAGE_ORDER = ['Lead', 'Qualified', 'Proposal', 'Negotiation'];
 
 function last6Months(): string[] {
@@ -69,6 +70,19 @@ function Spark({ data, color }: { data: number[]; color: string }) {
     </svg>
   );
 }
+// Radial gauge (0–100). Used as an alternate KPI visual.
+function Gauge({ pct, label, color = 'var(--accent)' }: { pct: number; label: string; color?: string }) {
+  const r = 34, c = 2 * Math.PI * r, off = c * (1 - Math.max(0, Math.min(100, pct)) / 100);
+  return (
+    <div className="relative w-[88px] h-[88px] shrink-0">
+      <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+        <circle cx="40" cy="40" r={r} fill="none" stroke="rgb(var(--border))" strokeWidth="8" />
+        <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} />
+      </svg>
+      <div className="absolute inset-0 grid place-items-center"><div className="text-center"><p className="text-lg font-semibold leading-none tabular-nums">{Math.round(pct)}%</p><p className="text-[9px] text-muted mt-0.5">{label}</p></div></div>
+    </div>
+  );
+}
 function Kpi({ href, label, value, hint, hintTone = 'muted', icon, series, seriesColor = 'var(--accent)' }:
   { href: string; label: string; value: React.ReactNode; hint?: string; hintTone?: 'muted' | 'up' | 'down'; icon: string; series?: number[]; seriesColor?: string }) {
   const router = useRouter();
@@ -86,7 +100,6 @@ function Kpi({ href, label, value, hint, hintTone = 'muted', icon, series, serie
   );
 }
 
-// Widget catalog — gated by plan feature + RBAC role. span is columns in the lg 4-col grid.
 interface WidgetMeta { title: string; icon: string; span: 1 | 2; feature?: FeatureKey; minRole?: OrgRole }
 const WIDGET_META: Record<string, WidgetMeta> = {
   kpi_projects:  { title: 'Active projects', icon: 'ti-folder', span: 1, feature: 'projects' },
@@ -99,6 +112,7 @@ const WIDGET_META: Record<string, WidgetMeta> = {
   kpi_spend_month:{ title: 'Spend / month', icon: 'ti-calendar-stats', span: 1, feature: 'financial', minRole: 'admin' },
   finance_trend: { title: 'Income vs. Expenses', icon: 'ti-chart-bar', span: 2, feature: 'financial', minRole: 'admin' },
   project_status:{ title: 'Project status', icon: 'ti-chart-donut-3', span: 1, feature: 'projects' },
+  task_progress: { title: 'Task completion', icon: 'ti-progress', span: 1, feature: 'projects' },
   pipeline_stage:{ title: 'Pipeline by stage', icon: 'ti-target-arrow', span: 1, feature: 'crm' },
   due_soon:      { title: 'Due soon', icon: 'ti-calendar-due', span: 2, feature: 'projects' },
   my_tasks:      { title: 'My tasks', icon: 'ti-user-check', span: 2 },
@@ -107,11 +121,22 @@ const WIDGET_META: Record<string, WidgetMeta> = {
   leave:         { title: 'Leave', icon: 'ti-beach', span: 1, feature: 'attendance' },
   onboarding:    { title: 'Onboarding', icon: 'ti-user-plus', span: 1, feature: 'hr', minRole: 'admin' },
 };
+// Per-widget visual variants — first entry is the default.
+const VARIANTS: Record<string, { id: string; label: string; icon: string }[]> = {
+  finance_trend:  [{ id: 'bars', label: 'Bars', icon: 'ti-chart-bar' }, { id: 'area', label: 'Area', icon: 'ti-chart-area' }],
+  project_status: [{ id: 'donut', label: 'Donut', icon: 'ti-chart-donut-3' }, { id: 'bars', label: 'Bars', icon: 'ti-chart-bar' }],
+  task_progress:  [{ id: 'gauge', label: 'Gauge', icon: 'ti-gauge' }, { id: 'bars', label: 'Bars', icon: 'ti-chart-bar' }],
+  pipeline_stage: [{ id: 'bars', label: 'Bars', icon: 'ti-chart-bar' }, { id: 'funnel', label: 'Funnel', icon: 'ti-filter' }],
+  headcount:      [{ id: 'bars', label: 'Bars', icon: 'ti-chart-bar' }, { id: 'donut', label: 'Donut', icon: 'ti-chart-donut' }],
+};
+const defVariant = (k: string) => VARIANTS[k]?.[0]?.id || '';
+const splitKey = (entry: string): [string, string] => { const i = entry.indexOf(':'); return i < 0 ? [entry, defVariant(entry)] : [entry.slice(0, i), entry.slice(i + 1)]; };
+
 const DEFAULT_KEYS = [
   'kpi_projects', 'kpi_tasks', 'kpi_deals', 'kpi_pipeline',
   'kpi_income', 'kpi_expenses', 'kpi_net', 'kpi_spend_month',
-  'finance_trend', 'project_status', 'pipeline_stage', 'due_soon',
-  'my_tasks', 'projects_list', 'headcount', 'leave', 'onboarding',
+  'finance_trend', 'project_status', 'pipeline_stage', 'task_progress',
+  'due_soon', 'my_tasks', 'projects_list', 'headcount', 'leave', 'onboarding',
 ];
 
 export default function Dashboard() {
@@ -128,11 +153,11 @@ export default function Dashboard() {
   const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // layout state
   const [order, setOrder] = useState<string[]>(DEFAULT_KEYS);
-  const [source, setSource] = useState<'personal' | 'org' | 'default'>('default');
+  const [, setSource] = useState<'personal' | 'org' | 'default'>('default');
   const [editing, setEditing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [varOpen, setVarOpen] = useState('');
   const [msg, setMsg] = useState('');
 
   useEffect(() => {
@@ -149,7 +174,6 @@ export default function Dashboard() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // load the saved layout (personal > org default > built-in)
   useEffect(() => {
     if (!activeOrg?.id || !user?.id) return;
     getDashboardLayouts(activeOrg.id, user.id).then((dl) => {
@@ -162,6 +186,8 @@ export default function Dashboard() {
   // ── derived ───────────────────────────────────────────────────────────────
   const activeProjects = projects.filter((p) => p.status === 'Active').length;
   const openTasks = tasks.filter((t) => t.status !== 'Done' && t.status !== 'Cancelled');
+  const doneTasks = tasks.filter((t) => t.status === 'Done').length;
+  const taskPct = tasks.length ? (doneTasks / tasks.length) * 100 : 0;
   const overdue = openTasks.filter((t) => isOverdue(t.due_date)).length;
   const openDeals = deals.filter((d) => d.stage !== 'Won' && d.stage !== 'Lost');
   const pipeline = openDeals.reduce((s, d) => s + (d.value || 0), 0);
@@ -188,15 +214,27 @@ export default function Dashboard() {
   const maxStage = Math.max(1, ...stageTotals.map((s) => s.value));
   const headcount = employees.filter((e) => e.status === 'active').length;
   const deptMap = employees.filter((e) => e.status === 'active' && e.department).reduce<Record<string, number>>((m, e) => { const d = e.department!; m[d] = (m[d] || 0) + 1; return m; }, {});
-  const topDepts = Object.entries(deptMap).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const topDepts = Object.entries(deptMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  let dacc = 0;
+  const deptGradient = topDepts.length
+    ? topDepts.map(([, c], i) => { const start = (dacc / (headcount || 1)) * 360; dacc += c; const end = (dacc / (headcount || 1)) * 360; return `${DEPT_COLOR[i % DEPT_COLOR.length]} ${start}deg ${end}deg`; }).join(', ')
+    : 'rgb(var(--border)) 0deg 360deg';
   const pendingLeaves = leaves.filter((l) => l.status === 'Pending').length;
   const today = new Date().toISOString().slice(0, 10);
   const onLeaveToday = leaves.filter((l) => l.status === 'Approved' && l.start_date <= today && l.end_date >= today);
   const onboardingByUser = onboardingTasks.reduce<Record<string, OnboardingTask[]>>((m, t) => { (m[t.user_id] = m[t.user_id] || []).push(t); return m; }, {});
   const activeHires = Object.entries(onboardingByUser).map(([uid, ts]) => ({ uid, name: ts[0]?.hire?.full_name || 'New hire', done: ts.filter((t) => t.status === 'Done').length, total: ts.length })).filter((h) => h.done < h.total).slice(0, 4);
 
-  // ── widget renderers ────────────────────────────────────────────────────
-  const W: Record<string, () => JSX.Element> = {
+  // points for the area variant of the finance trend
+  const n = trendBuckets.length;
+  const ax = (i: number) => (n > 1 ? (i / (n - 1)) * 300 : 150);
+  const ay = (val: number) => 115 - (val / maxTrend) * 105;
+  const lineInc = trendBuckets.map((b, i) => `${ax(i).toFixed(1)},${ay(b.income).toFixed(1)}`).join(' ');
+  const lineExp = trendBuckets.map((b, i) => `${ax(i).toFixed(1)},${ay(b.expense).toFixed(1)}`).join(' ');
+  const areaInc = `0,115 ${lineInc} 300,115`;
+
+  // ── widget renderers (v = visual variant) ─────────────────────────────────
+  const W: Record<string, (v?: string) => JSX.Element> = {
     kpi_projects: () => <Kpi href="/projects" label="Active projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />,
     kpi_tasks: () => <Kpi href="/tasks" label="Open tasks" value={openTasks.length} hint={overdue ? `${overdue} overdue` : 'On schedule'} hintTone={overdue ? 'down' : 'up'} icon="ti-checkbox" />,
     kpi_deals: () => <Kpi href="/crm" label="Open deals" value={openDeals.length} hint={`${deals.length} total`} icon="ti-target" />,
@@ -205,13 +243,26 @@ export default function Dashboard() {
     kpi_expenses: () => <Kpi href="/accounting" label="Expenses" value={money(expense)} hint="Incl. payroll" icon="ti-trending-down" series={trendBuckets.map((b) => b.expense)} seriesColor="#f43f5e" />,
     kpi_net: () => <Kpi href="/accounting" label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" series={trendBuckets.map((b) => b.income - b.expense)} />,
     kpi_spend_month: () => <Kpi href="/accounting" label="Spend / month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" series={trendBuckets.map((b) => b.expense)} seriesColor="#f43f5e" />,
-    finance_trend: () => (
+    finance_trend: (v) => (
       <ClickCard href="/accounting" className="card p-5 h-full">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-bar" className="text-base text-muted2" />Income vs. Expenses &mdash; last 6 months</span>
           <span className="text-xs font-medium text-accentstrong">Accounting &rarr;</span>
         </div>
-        {!hasLedger ? <EmptyState text="No ledger entries yet" icon="ti-chart-bar" /> : (
+        {!hasLedger ? <EmptyState text="No ledger entries yet" icon="ti-chart-bar" /> : v === 'area' ? (
+          <div>
+            <svg viewBox="0 0 300 120" preserveAspectRatio="none" className="w-full h-40">
+              <polygon points={areaInc} fill="rgb(var(--accent))" fillOpacity="0.12" />
+              <polyline points={lineInc} fill="none" stroke="rgb(var(--accent))" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+              <polyline points={lineExp} fill="none" stroke="#f43f5e" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+            </svg>
+            <div className="flex gap-3 mt-1">{trendBuckets.map((b) => (<div key={b.month} className="flex-1 text-center text-2xs text-muted2 tabular-nums">{shortMonth(b.month)}</div>))}</div>
+            <div className="flex items-center gap-4 mt-2 justify-end">
+              <span className="flex items-center gap-1.5 text-xs text-contentsoft"><span className="w-3 h-2 rounded-sm bg-accent inline-block" />Income</span>
+              <span className="flex items-center gap-1.5 text-xs text-contentsoft"><span className="w-3 h-2 rounded-sm bg-rose-500/70 inline-block" />Expenses</span>
+            </div>
+          </div>
+        ) : (
           <div className="w-full overflow-x-auto"><div className="min-w-[420px]">
             <div className="flex items-end gap-3 h-40 border-b border-line pb-px">
               {trendBuckets.map((b) => {
@@ -234,10 +285,19 @@ export default function Dashboard() {
         )}
       </ClickCard>
     ),
-    project_status: () => (
+    project_status: (v) => (
       <ClickCard href="/projects" className="card p-5 h-full">
         <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-chart-donut-3" className="text-base text-muted2" />Project status</span>
-        {projects.length === 0 ? <EmptyState text="No data" icon="ti-chart-donut" /> : (
+        {projects.length === 0 ? <EmptyState text="No data" icon="ti-chart-donut" /> : v === 'bars' ? (
+          <div className="space-y-3 mt-4">
+            {statusEntries.map(([st, c]) => (
+              <div key={st}>
+                <div className="flex items-center justify-between text-xs mb-1"><span className="text-contentsoft">{st}</span><span className="font-medium text-content tabular-nums">{c}</span></div>
+                <div className="h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(c / totalProjects) * 100}%`, background: STATUS_COLOR[st] || '#94a3b8' }} /></div>
+              </div>
+            ))}
+          </div>
+        ) : (
           <div className="flex items-center gap-5 mt-4">
             <div className="relative w-24 h-24 shrink-0 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
               <div className="absolute inset-[13px] rounded-full bg-surface grid place-items-center"><div className="text-center"><p className="text-lg font-semibold leading-none">{projects.length}</p><p className="text-2xs text-muted mt-0.5">total</p></div></div>
@@ -249,10 +309,39 @@ export default function Dashboard() {
         )}
       </ClickCard>
     ),
-    pipeline_stage: () => (
+    task_progress: (v) => (
+      <ClickCard href="/tasks" className="card p-5 h-full">
+        <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-progress" className="text-base text-muted2" />Task completion</span>
+        {tasks.length === 0 ? <EmptyState text="No tasks yet" icon="ti-checkbox" /> : v === 'bars' ? (
+          <div className="mt-4 space-y-3">
+            <div><div className="flex justify-between text-xs mb-1"><span className="text-contentsoft">Done</span><span className="tabular-nums font-medium">{doneTasks}</span></div><div className="h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${taskPct}%` }} /></div></div>
+            <div><div className="flex justify-between text-xs mb-1"><span className="text-contentsoft">Open</span><span className="tabular-nums font-medium">{openTasks.length}</span></div><div className="h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-amber-400" style={{ width: `${100 - taskPct}%` }} /></div></div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-5 mt-4">
+            <Gauge pct={taskPct} label="done" />
+            <div className="flex-1 space-y-2 text-xs">
+              <div className="flex items-center gap-2.5"><span className="w-2.5 h-2.5 rounded-sm bg-accent shrink-0" /><span className="flex-1 text-contentsoft">Done</span><span className="font-medium tabular-nums">{doneTasks}</span></div>
+              <div className="flex items-center gap-2.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400 shrink-0" /><span className="flex-1 text-contentsoft">Open</span><span className="font-medium tabular-nums">{openTasks.length}</span></div>
+              <div className="flex items-center gap-2.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-500 shrink-0" /><span className="flex-1 text-contentsoft">Overdue</span><span className="font-medium tabular-nums">{overdue}</span></div>
+            </div>
+          </div>
+        )}
+      </ClickCard>
+    ),
+    pipeline_stage: (v) => (
       <ClickCard href="/crm" className="card p-5 h-full">
         <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-target-arrow" className="text-base text-muted2" />Pipeline by stage</span>
-        {openDeals.length === 0 ? <EmptyState text="No open deals" icon="ti-target" /> : (
+        {openDeals.length === 0 ? <EmptyState text="No open deals" icon="ti-target" /> : v === 'funnel' ? (
+          <div className="space-y-2 mt-4">
+            {stageTotals.map((s) => { const w = Math.max((s.value / maxStage) * 100, 10); return (
+              <div key={s.stage} className="flex items-center gap-2">
+                <span className="w-20 text-2xs text-muted2 truncate shrink-0">{s.stage}</span>
+                <div className="flex-1 flex justify-center"><div className="h-8 rounded bg-accent/85 grid place-items-center text-2xs text-white font-medium tabular-nums px-2" style={{ width: `${w}%` }}>{money(s.value)}</div></div>
+              </div>
+            ); })}
+          </div>
+        ) : (
           <div className="space-y-3.5 mt-4">
             {stageTotals.map((s) => (
               <div key={s.stage}>
@@ -320,10 +409,19 @@ export default function Dashboard() {
         )}
       </div>
     ),
-    headcount: () => (
+    headcount: (v) => (
       <ClickCard href="/employees" className="card p-5 h-full">
         <span className="text-sm font-semibold inline-flex items-center gap-2 mb-4"><Icon name="ti-users" className="text-base text-muted2" />Headcount</span>
-        {employees.length === 0 ? <EmptyState text="No employees yet" icon="ti-users" /> : (
+        {employees.length === 0 ? <EmptyState text="No employees yet" icon="ti-users" /> : v === 'donut' ? (
+          <div className="flex items-center gap-5">
+            <div className="relative w-24 h-24 shrink-0 rounded-full" style={{ background: `conic-gradient(${deptGradient})` }}>
+              <div className="absolute inset-[13px] rounded-full bg-surface grid place-items-center"><div className="text-center"><p className="text-lg font-semibold leading-none">{headcount}</p><p className="text-2xs text-muted mt-0.5">active</p></div></div>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              {topDepts.map(([dept, c], i) => (<div key={dept} className="flex items-center gap-2 text-xs"><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: DEPT_COLOR[i % DEPT_COLOR.length] }} /><span className="flex-1 truncate text-contentsoft">{dept}</span><span className="font-medium tabular-nums">{c}</span></div>))}
+            </div>
+          </div>
+        ) : (
           <>
             <div className="flex items-end gap-2 mb-4"><p className="text-3xl font-semibold text-content tabular-nums">{headcount}</p><p className="text-sm text-muted mb-1">active</p></div>
             {topDepts.length > 0 && (
@@ -368,27 +466,22 @@ export default function Dashboard() {
     ),
   };
 
-  // visibility = catalog has it + plan grants the feature + role is high enough
-  const visible = (k: string) => {
+  const visible = (entry: string) => {
+    const [k] = splitKey(entry);
     const m = WIDGET_META[k];
     if (!m || !W[k]) return false;
     if (!hasFeature(activeOrg, m.feature)) return false;
     if (m.minRole && !atLeast(activeOrg?.member_role, m.minRole)) return false;
     return true;
   };
+  const baseKeys = order.map((e) => splitKey(e)[0]);
   const shown = order.filter(visible);
-  const available = Object.keys(WIDGET_META).filter((k) => visible(k) && !order.includes(k));
+  const available = Object.keys(WIDGET_META).filter((k) => visible(k) && !baseKeys.includes(k));
 
-  // edit ops
-  const move = (k: string, dir: -1 | 1) => {
-    setOrder((prev) => {
-      const i = prev.indexOf(k); if (i < 0) return prev;
-      const j = i + dir; if (j < 0 || j >= prev.length) return prev;
-      const next = [...prev]; [next[i], next[j]] = [next[j], next[i]]; return next;
-    });
-  };
-  const remove = (k: string) => setOrder((prev) => prev.filter((x) => x !== k));
+  const move = (entry: string, dir: -1 | 1) => setOrder((prev) => { const i = prev.indexOf(entry); const j = i + dir; if (i < 0 || j < 0 || j >= prev.length) return prev; const next = [...prev]; [next[i], next[j]] = [next[j], next[i]]; return next; });
+  const remove = (entry: string) => setOrder((prev) => prev.filter((x) => x !== entry));
   const add = (k: string) => { setOrder((prev) => [...prev, k]); setAddOpen(false); };
+  const setVariant = (key: string, vid: string) => { setVarOpen(''); setOrder((prev) => prev.map((e) => { const [k] = splitKey(e); if (k !== key) return e; return vid && vid !== defVariant(k) ? `${k}:${vid}` : k; })); };
   const flash = (m: string) => { setMsg(m); window.setTimeout(() => setMsg(''), 2200); };
   const savePersonal = async () => { if (!activeOrg) return; try { await saveUserDashboard(activeOrg.id, order); setSource('personal'); setEditing(false); flash('Saved your dashboard'); } catch (e: any) { flash(e.message || 'Save failed'); } };
   const saveOrgDefault = async () => { if (!activeOrg) return; try { await saveOrgDashboard(activeOrg.id, order); flash('Saved as workspace default'); } catch (e: any) { flash(e.message || 'Save failed'); } };
@@ -419,7 +512,7 @@ export default function Dashboard() {
 
       {editing && (
         <div className="card p-3 mb-4 flex flex-wrap items-center gap-2 bg-accent/5 border-accent/30">
-          <span className="text-xs text-muted inline-flex items-center gap-1.5"><Icon name="ti-info-circle" className="text-sm" />Editing — reorder with the arrows, remove with ×, then save.</span>
+          <span className="text-xs text-muted inline-flex items-center gap-1.5"><Icon name="ti-info-circle" className="text-sm" />Editing — reorder (↑↓), change a card&rsquo;s visual (palette), remove (×), then save.</span>
           <div className="flex-1" />
           <div className="relative">
             <button onClick={() => setAddOpen((v) => !v)} disabled={available.length === 0} className="btn btn-ghost border border-line h-8 py-0 disabled:opacity-50"><Icon name="ti-plus" />Add widget</button>
@@ -437,21 +530,34 @@ export default function Dashboard() {
 
       {loading ? <Spinner /> : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-stretch">
-          {shown.map((k) => {
+          {shown.map((entry) => {
+            const [k, variant] = splitKey(entry);
             const m = WIDGET_META[k];
+            const variants = VARIANTS[k];
             return (
-              <div key={k} className={`relative ${spanCls(m.span)}`}>
+              <div key={entry} className={`relative ${spanCls(m.span)}`}>
                 {editing && (
                   <>
                     <div className="absolute inset-0 z-10 rounded-xl bg-transparent" />
                     <div className="absolute -top-2 right-1 z-20 flex items-center gap-1">
-                      <button onClick={() => move(k, -1)} title="Move earlier" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrow-up" className="text-xs" /></button>
-                      <button onClick={() => move(k, 1)} title="Move later" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrow-down" className="text-xs" /></button>
-                      <button onClick={() => remove(k)} title="Remove" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-rose-500 hover:bg-rose-50 shadow-sm"><Icon name="ti-x" className="text-xs" /></button>
+                      {variants && variants.length > 1 && (
+                        <div className="relative">
+                          <button onClick={() => setVarOpen((o) => (o === entry ? '' : entry))} title="Change visual" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-palette" className="text-xs" /></button>
+                          {varOpen === entry && (
+                            <div className="absolute right-0 mt-1 z-30 w-40 card p-1 shadow-lg">
+                              <p className="px-2 py-1 text-2xs text-muted2">Visual</p>
+                              {variants.map((vv) => (<button key={vv.id} onClick={() => setVariant(k, vv.id)} className={`w-full text-left px-2 py-1.5 rounded-md text-sm hover:bg-surface2 flex items-center gap-2 ${vv.id === variant ? 'text-accentstrong' : ''}`}><Icon name={vv.icon} className="text-muted2" />{vv.label}{vv.id === variant && <Icon name="ti-check" className="ml-auto text-xs" />}</button>))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <button onClick={() => move(entry, -1)} title="Move earlier" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrow-up" className="text-xs" /></button>
+                      <button onClick={() => move(entry, 1)} title="Move later" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrow-down" className="text-xs" /></button>
+                      <button onClick={() => remove(entry)} title="Remove" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-rose-500 hover:bg-rose-50 shadow-sm"><Icon name="ti-x" className="text-xs" /></button>
                     </div>
                   </>
                 )}
-                <div className={editing ? 'ring-1 ring-dashed ring-line rounded-xl pointer-events-none' : ''}>{W[k]()}</div>
+                <div className={editing ? 'ring-1 ring-dashed ring-line rounded-xl pointer-events-none' : ''}>{W[k](variant)}</div>
               </div>
             );
           })}
