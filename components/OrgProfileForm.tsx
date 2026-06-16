@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { OrgProfile, ORG_PROFILE_KEYS } from '@/lib/supabase';
 import { Icon } from '@/components/ui';
+import Select from '@/components/Select';
+import { INDUSTRIES, categoriesFor, withCurrent } from '@/lib/taxonomy';
 
 // Reusable tenant-profile editor. Same form for the owner (/settings) and the
 // operator (/tenants/[id]); the caller supplies load + save (RLS direct vs RPC).
@@ -54,8 +56,18 @@ export default function OrgProfileForm({ load, onSave, readOnly = false }: {
       <div className="pt-2 border-t border-line">
         <p className="text-2xs uppercase tracking-wide text-muted mb-3 mt-4 font-medium">Classification</p>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Row label="Industry">{inp('industry', 'text', 'e.g. IT Services')}</Row>
-          <Row label="Category">{inp('category', 'text', 'e.g. MSP')}</Row>
+          <Row label="Industry">
+            <Select search placeholder="Select industry…" value={v.industry || ''}
+              options={withCurrent(INDUSTRIES, v.industry)}
+              onChange={(ind) => setV({ ...v, industry: ind, category: categoriesFor(ind).includes(v.category || '') ? v.category : '' })}
+              disabled={readOnly} />
+          </Row>
+          <Row label="Category">
+            <Select search placeholder={v.industry ? 'Select category…' : 'Pick an industry first'} value={v.category || ''}
+              options={withCurrent(categoriesFor(v.industry), v.category)}
+              onChange={(c) => setV({ ...v, category: c })}
+              disabled={readOnly || (!v.industry && !v.category)} />
+          </Row>
         </div>
         <Row label="About"><textarea className="input min-h-[72px]" value={v.about || ''} onChange={set('about')} placeholder="Short description of the business" disabled={readOnly} /></Row>
       </div>
