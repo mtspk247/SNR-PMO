@@ -2723,3 +2723,9 @@ export async function glProjectsSummary(orgId: string, from?: string | null, to?
   const { data, error } = await sb.rpc('gl_projects_summary', { p_org: orgId, p_from: from || null, p_to: to || null });
   if (error) throw new Error(error.message); return (data as ProjectSummaryRow[]) || [];
 }
+
+// ---- Accounting P11: financial-risk metrics ----
+export interface RiskMetrics { cash?: number; ar_outstanding?: number; ar_overdue?: number; ap_outstanding?: number; ap_overdue?: number; current_ratio?: number | null; quick_ratio?: number | null; runway_months?: number | null; dso_days?: number | null; top_client?: string | null; revenue_concentration_pct?: number | null; }
+export async function glRiskMetrics(orgId: string): Promise<RiskMetrics> {
+  const { data, error } = await sb.rpc('gl_risk_metrics', { p_org: orgId }); if (error) throw new Error(error.message); return (data as RiskMetrics) || {};
+}

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { Pill, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
-import { getRisks } from '@/lib/db';
+import { getRisks, glRiskMetrics, RiskMetrics } from '@/lib/db';
 import { Risk } from '@/lib/supabase';
+import { useActiveOrg } from '@/lib/store';
+import { hasFeature } from '@/lib/entitlements';
 
 const STATUSES = ['Open', 'Mitigating', 'Monitoring', 'Accepted', 'Closed'];
 const exposure = (r: Risk) => r.impact * r.probability;
@@ -17,13 +19,23 @@ const cellTone = (s: number, active: boolean) => {
   return `${base} ${active ? '' : 'opacity-80'}`;
 };
 
+
+const finFmt = (n?: number) => n == null ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+function FinMetric({ label, value, tone }: { label: string; value: string; tone?: 'ok' | 'warn' | 'bad' }) {
+  const c = tone === 'bad' ? 'text-rose-600' : tone === 'warn' ? 'text-amber-600' : 'text-content';
+  return <div className="rounded-lg border border-line p-3"><p className="text-2xs text-muted">{label}</p><p className={`text-base font-semibold tabular-nums ${c}`}>{value}</p></div>;
+}
+
 export default function RiskAnalysis() {
   const [risks, setRisks] = useState<Risk[]>([]);
   const [loading, setLoading] = useState(true);
   const [cell, setCell] = useState<{ i: number; p: number } | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+  const org = useActiveOrg();
+  const [fin, setFin] = useState<RiskMetrics | null>(null);
 
   useEffect(() => { getRisks().then(setRisks).finally(() => setLoading(false)); }, []);
+  useEffect(() => { if (org?.id && hasFeature(org, 'financial')) glRiskMetrics(org.id).then(setFin).catch(() => {}); }, [org?.id]);
 
   const open = risks.filter((r) => r.status !== 'Closed');
   const highExp = risks.filter((r) => exposure(r) >= 13);
@@ -60,6 +72,22 @@ export default function RiskAnalysis() {
             <StatCard label="Open" value={open.length} hint={`${risks.filter(r => r.status === 'Mitigating').length} mitigating`} icon="ti-progress-alert" />
             <StatCard label="Avg exposure" value={avgExp} hint="impact × probability" icon="ti-activity" />
           </div>
+
+          {fin && (
+            <div className="card p-5">
+              <div className="flex items-center gap-2 mb-3"><Icon name="ti-shield-dollar" className="text-muted" /><h3 className="text-sm font-semibold text-content">Financial risk</h3><span className="text-2xs text-muted2">live from the ledger</span></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                <FinMetric label="Cash" value={finFmt(fin.cash)} />
+                <FinMetric label="Runway" value={fin.runway_months != null ? `${fin.runway_months} mo` : '—'} tone={fin.runway_months != null && fin.runway_months < 3 ? 'bad' : fin.runway_months != null && fin.runway_months < 6 ? 'warn' : 'ok'} />
+                <FinMetric label="A/R overdue" value={finFmt(fin.ar_overdue)} tone={(fin.ar_overdue || 0) > 0 ? 'warn' : 'ok'} />
+                <FinMetric label="A/P overdue" value={finFmt(fin.ap_overdue)} tone={(fin.ap_overdue || 0) > 0 ? 'warn' : 'ok'} />
+                <FinMetric label="Current ratio" value={fin.current_ratio != null ? String(fin.current_ratio) : '—'} tone={fin.current_ratio != null && fin.current_ratio < 1 ? 'bad' : 'ok'} />
+                <FinMetric label="Quick ratio" value={fin.quick_ratio != null ? String(fin.quick_ratio) : '—'} tone={fin.quick_ratio != null && fin.quick_ratio < 1 ? 'warn' : 'ok'} />
+                <FinMetric label="DSO" value={fin.dso_days != null ? `${fin.dso_days}d` : '—'} tone={fin.dso_days != null && fin.dso_days > 60 ? 'warn' : 'ok'} />
+                <FinMetric label="Top-client share" value={fin.revenue_concentration_pct != null ? `${fin.revenue_concentration_pct}%` : '—'} tone={(fin.revenue_concentration_pct || 0) > 40 ? 'warn' : 'ok'} />
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             {/* Heatmap */}
