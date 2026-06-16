@@ -10,7 +10,8 @@ const LISTS = [
   { key: 'task_priority', label: 'Task priorities', icon: 'ti-flag', hint: 'Tasks board grouping, the priority filter and the task form.' },
   { key: 'ledger_income', label: 'Income categories', icon: 'ti-cash', hint: 'Accounting — income entries.' },
   { key: 'ledger_expense', label: 'Expense categories', icon: 'ti-receipt-2', hint: 'Accounting — expense entries.' },
-  { key: 'industry', label: 'Industries', icon: 'ti-building-factory-2', hint: 'Welcome wizard — industry picker.' },
+  { key: 'industry', label: 'Industries', icon: 'ti-building-factory-2', hint: 'Welcome wizard + tenant profile industry picker.' },
+  { key: 'category', label: 'Business categories', icon: 'ti-category', hint: 'Tenant profile category picker (merged with the built-in taxonomy).' },
   { key: 'use_case', label: 'Use cases', icon: 'ti-target-arrow', hint: 'Welcome wizard — primary use-case.' },
 ];
 

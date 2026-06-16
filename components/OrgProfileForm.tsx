@@ -3,6 +3,7 @@ import { OrgProfile, ORG_PROFILE_KEYS } from '@/lib/supabase';
 import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
 import { INDUSTRIES, categoriesFor, withCurrent } from '@/lib/taxonomy';
+import { getOrgOptions } from '@/lib/db';
 
 // Reusable, multi-tab tenant-profile editor. Same form for the owner (/settings) and
 // the operator (/tenants/[id]); the caller supplies load + save (RLS direct vs RPC).
@@ -25,22 +26,35 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export default function OrgProfileForm({ load, onSave, readOnly = false }: {
+export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }: {
   load: () => Promise<OrgProfile>;
   onSave: (patch: Partial<OrgProfile>) => Promise<void>;
   readOnly?: boolean;
+  orgId?: string;
 }) {
   const [v, setV] = useState<OrgProfile | null>(null);
   const [tab, setTab] = useState('contact');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
+  const [mInd, setMInd] = useState<string[]>([]);
+  const [mCat, setMCat] = useState<string[]>([]);
 
   useEffect(() => { load().then((d) => setV({ ...empty(), ...Object.fromEntries(Object.entries(d || {}).map(([k, val]) => [k, val ?? ''])) } as OrgProfile)).catch((e) => setErr(e.message)); }, []);
+  // Merge the org's admin-managed lists (org_options) with the built-in taxonomy.
+  // Falls back silently to the static taxonomy when not readable (e.g. operator on another tenant).
+  useEffect(() => {
+    if (!orgId) return;
+    getOrgOptions(orgId, 'industry').then((o) => setMInd(o.filter((x) => x.active).map((x) => x.label))).catch(() => {});
+    getOrgOptions(orgId, 'category').then((o) => setMCat(o.filter((x) => x.active).map((x) => x.label))).catch(() => {});
+  }, [orgId]);
 
   if (err && !v) return <p className="text-sm text-rose-600">{err}</p>;
   if (!v) return <p className="text-sm text-muted">Loading…</p>;
 
+  const uniq = (a: string[]) => Array.from(new Set(a.filter(Boolean)));
+  const indList = uniq([...mInd, ...INDUSTRIES]);
+  const catList = uniq([...mCat, ...categoriesFor(v.industry)]);
   const set = (k: keyof OrgProfile) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV({ ...v, [k]: e.target.value });
   const inp = (k: keyof OrgProfile, type = 'text', ph = '') =>
     <input className="input" type={type} value={(v[k] as string) || ''} onChange={set(k)} placeholder={ph} disabled={readOnly} />;
@@ -77,15 +91,15 @@ export default function OrgProfileForm({ load, onSave, readOnly = false }: {
             <div className="grid sm:grid-cols-2 gap-4">
               <Row label="Industry">
                 <Select search placeholder="Select industry…" value={v.industry || ''}
-                  options={withCurrent(INDUSTRIES, v.industry)}
+                  options={withCurrent(indList, v.industry)}
                   onChange={(ind) => setV({ ...v, industry: ind, category: categoriesFor(ind).includes(v.category || '') ? v.category : '' })}
                   disabled={readOnly} />
               </Row>
               <Row label="Category">
-                <Select search placeholder={v.industry ? 'Select category…' : 'Pick an industry first'} value={v.category || ''}
-                  options={withCurrent(categoriesFor(v.industry), v.category)}
+                <Select search placeholder="Select category…" value={v.category || ''}
+                  options={withCurrent(catList, v.category)}
                   onChange={(c) => setV({ ...v, category: c })}
-                  disabled={readOnly || (!v.industry && !v.category)} />
+                  disabled={readOnly} />
               </Row>
             </div>
             <Row label="About"><textarea className="input min-h-[72px]" value={v.about || ''} onChange={set('about')} placeholder="Short description of the business" disabled={readOnly} /></Row>

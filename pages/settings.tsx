@@ -478,7 +478,7 @@ export default function SettingsPage() {
       {admin && tab === 'billing' && <PlanHistory org={org} />}
       {admin && tab === 'profile' && org && (
         <div className="space-y-6">
-          <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} />
+          <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
           {isOwner && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
         </div>
       )}

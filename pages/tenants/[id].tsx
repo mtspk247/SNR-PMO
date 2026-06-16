@@ -322,7 +322,7 @@ export default function TenantDetail() {
       )}
 
       {tab === 'profile' && (
-        <OrgProfileForm load={() => platformGetOrgProfile(orgId)} onSave={(patch) => platformSaveOrgProfile(orgId, patch)} />
+        <OrgProfileForm load={() => platformGetOrgProfile(orgId)} onSave={(patch) => platformSaveOrgProfile(orgId, patch)} orgId={orgId} />
       )}
 
       {tab === 'domain' && (
