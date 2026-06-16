@@ -6,7 +6,8 @@ import Select from '@/components/Select';
 import { useActiveOrg } from '@/lib/store';
 import {
   glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
-  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow,
+  taxRates, taxRateSave, taxRateDelete, glTaxSummary,
+  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow,
 } from '@/lib/db';
 
 const TYPES = [
@@ -25,12 +26,17 @@ type JLine = { account_id: string; debit: string; credit: string; description: s
 
 export default function LedgerPage() {
   const org = useActiveOrg();
-  const [tab, setTab] = useState<'coa' | 'journal' | 'tb'>('coa');
+  const [tab, setTab] = useState<'coa' | 'journal' | 'tb' | 'taxes'>('coa');
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
   const [journal, setJournal] = useState<JournalEntryRow[]>([]);
   const [tb, setTb] = useState<TrialBalanceRow[]>([]);
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
+  const [taxList, setTaxList] = useState<TaxRate[]>([]);
+  const [taxSum, setTaxSum] = useState<TaxSummaryRow[]>([]);
+  const [taxFrom, setTaxFrom] = useState('');
+  const [taxTo, setTaxTo] = useState(new Date().toISOString().slice(0, 10));
+  const [taxDraft, setTaxDraft] = useState<{ id?: string; name: string; rate: string; kind: string; account_id: string; is_active: boolean } | null>(null);
   const [industry, setIndustry] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -47,6 +53,7 @@ export default function LedgerPage() {
   }, [orgId]);
   useEffect(() => { if (orgId && tab === 'journal') glJournal(orgId).then(setJournal).catch((e) => setErr(e.message)); }, [orgId, tab]);
   useEffect(() => { if (orgId && tab === 'tb') glTrialBalance(orgId, asOf).then(setTb).catch((e) => setErr(e.message)); }, [orgId, tab, asOf]);
+  useEffect(() => { if (orgId && tab === 'taxes') { taxRates(orgId).then(setTaxList).catch((e) => setErr(e.message)); glTaxSummary(orgId, taxFrom || null, taxTo || null).then(setTaxSum).catch(() => {}); } }, [orgId, tab, taxFrom, taxTo]);
 
   // ── seed ──
   const seed = async () => {
@@ -104,6 +111,15 @@ export default function LedgerPage() {
 
   const grouped = useMemo(() => TYPE_ORDER.map((t) => ({ type: t, items: accounts.filter((a) => a.type === t) })).filter((g) => g.items.length), [accounts]);
   const tbTotals = useMemo(() => tb.reduce((t, r) => ({ d: t.d + Number(r.debit), c: t.c + Number(r.credit) }), { d: 0, c: 0 }), [tb]);
+  const taxOut = useMemo(() => taxSum.filter((r) => r.kind === 'output').reduce((s2, r) => s2 + Number(r.amount), 0), [taxSum]);
+  const taxIn = useMemo(() => taxSum.filter((r) => r.kind === 'input').reduce((s2, r) => s2 + Number(r.amount), 0), [taxSum]);
+  const saveTax = async () => {
+    if (!orgId || !taxDraft || busy) return;
+    setBusy(true); setErr('');
+    try { await taxRateSave(orgId, { id: taxDraft.id, name: taxDraft.name, rate: (parseFloat(taxDraft.rate) || 0) / 100, kind: taxDraft.kind, account_id: taxDraft.account_id || null, is_active: taxDraft.is_active }); setTaxDraft(null); taxRates(orgId).then(setTaxList); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const delTax = async (id: string) => { if (!orgId || !confirm('Delete this tax rate?')) return; try { await taxRateDelete(orgId, id); taxRates(orgId).then(setTaxList); } catch (e: any) { setErr(e.message); } };
 
   if (!org) return <Layout flat title="General Ledger"><Spinner /></Layout>;
 
@@ -117,7 +133,8 @@ export default function LedgerPage() {
         { key: 'coa', label: 'Chart of Accounts', icon: 'ti-list-tree' },
         { key: 'journal', label: 'Journal', icon: 'ti-notebook' },
         { key: 'tb', label: 'Trial Balance', icon: 'ti-scale' },
-      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb')} />
+        { key: 'taxes', label: 'Taxes', icon: 'ti-receipt-tax' },
+      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb' | 'taxes')} />
 
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {loading ? <Spinner /> : (
@@ -217,6 +234,50 @@ export default function LedgerPage() {
           )}
         </>
       )}
+
+      {tab === 'taxes' && (
+        <div className="space-y-5">
+          <div className="card overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-line flex items-center justify-between"><span className="text-sm font-semibold text-content">Tax rates</span><button className="btn btn-primary h-8 py-0" onClick={() => setTaxDraft({ name: '', rate: '', kind: 'output', account_id: '', is_active: true })}><Icon name="ti-plus" />New rate</button></div>
+            {taxList.length === 0 ? <EmptyState icon="ti-receipt-tax" text="No tax rates yet." /> : (
+              <table className="w-full text-sm list-card">
+                <thead><tr><th className="px-4 py-2 text-left">Name</th><th className="px-4 py-2 text-right w-24">Rate</th><th className="px-4 py-2 text-left w-28">Kind</th><th className="px-4 py-2 text-left">Account</th><th className="px-4 py-2"></th></tr></thead>
+                <tbody>{taxList.map((t) => (
+                  <tr key={t.id}>
+                    <td className="px-4 py-2 text-content">{t.name}{!t.is_active && <span className="pill pill-gray ml-2">off</span>}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{(Number(t.rate) * 100).toFixed(2)}%</td>
+                    <td className="px-4 py-2 capitalize">{t.kind}</td>
+                    <td className="px-4 py-2 text-2xs text-muted2">{accounts.find((a) => a.id === t.account_id) ? `${accounts.find((a) => a.id === t.account_id)!.code} ${accounts.find((a) => a.id === t.account_id)!.name}` : '—'}</td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap"><button className="btn-ghost text-2xs" onClick={() => setTaxDraft({ id: t.id, name: t.name, rate: String(Number(t.rate) * 100), kind: t.kind, account_id: t.account_id || '', is_active: t.is_active })}><Icon name="ti-pencil" /></button><button className="btn-ghost text-2xs text-rose-600 ml-1" onClick={() => delTax(t.id)}><Icon name="ti-trash" /></button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+          <div className="card overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-line flex items-center gap-2 flex-wrap"><span className="text-sm font-semibold text-content">Tax summary</span><span className="text-2xs text-muted ml-2">From</span><input type="date" className="input h-8 w-36" value={taxFrom} onChange={(e) => setTaxFrom(e.target.value)} /><span className="text-2xs text-muted">To</span><input type="date" className="input h-8 w-36" value={taxTo} onChange={(e) => setTaxTo(e.target.value)} /></div>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-line p-3"><p className="text-2xs text-muted">Output tax (collected)</p><p className="text-lg font-semibold tabular-nums text-content">{money(taxOut)}</p></div>
+              <div className="rounded-lg border border-line p-3"><p className="text-2xs text-muted">Input tax (paid)</p><p className="text-lg font-semibold tabular-nums text-content">{money(taxIn)}</p></div>
+              <div className="rounded-lg border border-line p-3"><p className="text-2xs text-muted">Net payable</p><p className={`text-lg font-semibold tabular-nums ${taxOut - taxIn >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{money(taxOut - taxIn)}</p></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tax rate modal */}
+      <Modal open={!!taxDraft} onClose={() => setTaxDraft(null)} size="sm" icon="ti-receipt-tax" title={taxDraft?.id ? 'Edit tax rate' : 'New tax rate'}
+        footer={<><button className="btn" onClick={() => setTaxDraft(null)}>Cancel</button><button className="btn btn-primary" disabled={busy || !taxDraft?.name.trim()} onClick={saveTax}>{busy ? 'Saving…' : 'Save'}</button></>}>
+        {taxDraft && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Name" required className="col-span-2"><input className="input" value={taxDraft.name} onChange={(e) => setTaxDraft({ ...taxDraft, name: e.target.value })} placeholder="VAT 20%" /></Field>
+            <Field label="Rate %" required><input className="input text-right" inputMode="decimal" value={taxDraft.rate} onChange={(e) => setTaxDraft({ ...taxDraft, rate: e.target.value })} placeholder="20" /></Field>
+            <Field label="Kind"><Select value={taxDraft.kind} onChange={(v) => setTaxDraft({ ...taxDraft, kind: v })} options={[{ value: 'output', label: 'Output (sales)' }, { value: 'input', label: 'Input (purchases)' }, { value: 'both', label: 'Both' }]} /></Field>
+            <Field label="Linked account" className="col-span-2"><Select value={taxDraft.account_id} onChange={(v) => setTaxDraft({ ...taxDraft, account_id: v })} options={[{ value: '', label: 'None' }, ...acctOptions]} search /></Field>
+            <label className="col-span-2 flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="accent-accent w-4 h-4" checked={taxDraft.is_active} onChange={(e) => setTaxDraft({ ...taxDraft, is_active: e.target.checked })} />Active</label>
+          </div>
+        )}
+      </Modal>
 
       {/* Account modal */}
       <Modal open={!!acct} onClose={() => setAcct(null)} size="md" icon="ti-list-tree" title={acct?.id ? 'Edit account' : 'New account'}

@@ -2548,3 +2548,34 @@ export async function glBackfill(orgId: string): Promise<{ entries: number; by_s
   const { data, error } = await sb.rpc('gl_backfill', { p_org: orgId });
   if (error) throw new Error(error.message); return (data as { entries: number; by_source?: Record<string, number> }) || { entries: 0 };
 }
+
+// ---- Accounting P2a: tax rates + liabilities ----
+export interface TaxRate { id: string; org_id: string; name: string; rate: number; kind: 'output' | 'input' | 'both'; account_id: string | null; is_active: boolean; }
+export async function taxRates(orgId: string): Promise<TaxRate[]> {
+  const { data, error } = await sb.from('tax_rates').select('*').eq('org_id', orgId).order('name');
+  if (error) throw new Error(error.message); return (data as TaxRate[]) || [];
+}
+export async function taxRateSave(orgId: string, p: { id?: string | null; name: string; rate: number; kind: string; account_id?: string | null; is_active?: boolean }): Promise<string> {
+  const { data, error } = await sb.rpc('tax_rate_save', { p_org: orgId, p_id: p.id || null, p_name: p.name, p_rate: p.rate, p_kind: p.kind, p_account: p.account_id || null, p_active: p.is_active ?? true });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function taxRateDelete(orgId: string, id: string): Promise<void> {
+  const { error } = await sb.rpc('tax_rate_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
+}
+export interface Liability { id: string; org_id: string; name: string; type: string; lender: string | null; principal: number; balance: number; interest_rate: number | null; start_date: string | null; due_date: string | null; account_id: string | null; status: string; notes: string | null; created_at: string; }
+export async function liabilities(orgId: string): Promise<Liability[]> {
+  const { data, error } = await sb.from('liabilities').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as Liability[]) || [];
+}
+export async function liabilitySave(orgId: string, p: { id?: string | null; name: string; type: string; lender?: string | null; principal: number; balance: number; interest_rate?: number | null; start_date?: string | null; due_date?: string | null; account_id?: string | null; status: string; notes?: string | null; post_opening?: boolean }): Promise<string> {
+  const { data, error } = await sb.rpc('liability_save', { p_org: orgId, p_id: p.id || null, p_name: p.name, p_type: p.type, p_lender: p.lender || null, p_principal: p.principal, p_balance: p.balance, p_interest: p.interest_rate ?? null, p_start: p.start_date || null, p_due: p.due_date || null, p_account: p.account_id || null, p_status: p.status, p_notes: p.notes || null, p_post_opening: p.post_opening ?? false });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function liabilityDelete(orgId: string, id: string): Promise<void> {
+  const { error } = await sb.rpc('liability_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
+}
+export interface TaxSummaryRow { kind: 'output' | 'input'; account_id: string; code: string; name: string; amount: number; }
+export async function glTaxSummary(orgId: string, from?: string | null, to?: string | null): Promise<TaxSummaryRow[]> {
+  const { data, error } = await sb.rpc('gl_tax_summary', { p_org: orgId, p_from: from || null, p_to: to || null });
+  if (error) throw new Error(error.message); return (data as TaxSummaryRow[]) || [];
+}
