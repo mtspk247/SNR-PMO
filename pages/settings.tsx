@@ -4,6 +4,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import { updateOrgSettings, setOrgTheme, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
+import ProfileSettings from '@/components/ProfileSettings';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin } from '@/lib/skin';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -365,6 +366,7 @@ export default function SettingsPage() {
   return (
     <Layout flat title="Settings">
       <PageHeader title="Settings" subtitle="Your preferences, subscription, and white-label settings" />
+      <ProfileSettings />
       {admin && (
         <Tabs tabs={[
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },

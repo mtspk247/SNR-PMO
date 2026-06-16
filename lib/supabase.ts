@@ -95,6 +95,7 @@ export interface AppUser {
   role: Role;
   department?: string;
   feature_access?: string[];   // role-template feature/form access; empty = all entitled
+  avatar_url?: string | null;
 }
 
 // Custom role templates — org-scoped reusable permission bundles + feature access.
@@ -116,6 +117,7 @@ export interface OrgUser {
   id: string;
   full_name: string;
   email: string;
+  avatar_url?: string | null;
 }
 
 export interface Project {

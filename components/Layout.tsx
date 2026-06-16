@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { sb } from '@/lib/supabase';
-import { signOut, recordGuestActivity } from '@/lib/db';
+import { signOut, recordGuestActivity, avatarSrc } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
 import { hasFeature, roleAllowsFeature, navVisible, isUpsellLocked } from '@/lib/entitlements';
@@ -219,7 +219,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
         {/* User */}
         <div className="p-2 border-t border-line">
           <div className={`flex items-center gap-2.5 px-1 ${collapsed ? 'justify-center' : ''}`}>
-            <Avatar name={user?.full_name || 'U'} size={32} />
+            <Avatar name={user?.full_name || 'U'} size={32} src={avatarSrc(user?.avatar_url)} />
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate side-fg">{user?.full_name}</p>

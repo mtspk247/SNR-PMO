@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '@/components/ui';
+import { Icon, Avatar } from '@/components/ui';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
-import { getMyProfile, updateMyProfile, MyProfile } from '@/lib/db';
+import { getMyProfile, updateMyProfile, uploadAvatar, avatarSrc, MyProfile } from '@/lib/db';
 
 /**
  * Dashboard nudge to fill in the rest of a user's profile after onboarding.
@@ -38,6 +38,12 @@ export default function ProfileCompletion() {
   const filled = required.length - missing;
   const pct = Math.round((filled / required.length) * 100);
   const dismiss = () => { if (typeof window !== 'undefined' && key) window.localStorage.setItem(key, '1'); setDone(true); };
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f || !me?.id || !org?.id) return;
+    setBusy(true); setErr('');
+    try { const path = await uploadAvatar(org.id, me.id, f); setAvatar(path); }
+    catch (er: any) { setErr(er.message); } finally { setBusy(false); }
+  };
   const save = async () => {
     if (!me?.id) return; setBusy(true); setErr('');
     try {
@@ -60,7 +66,12 @@ export default function ProfileCompletion() {
         <div><label className="label">Full name</label><input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" /></div>
         <div><label className="label">Job title</label><input className="input" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="Project Manager" /></div>
         <div><label className="label">Phone</label><input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 555 000 1234" /></div>
-        <div><label className="label">Avatar URL <span className="text-muted2">(optional)</span></label><input className="input" value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="https://…" /></div>
+        <div className="sm:col-span-2"><label className="label">Photo <span className="text-muted2">(optional)</span></label>
+          <div className="flex items-center gap-3">
+            <Avatar name={fullName || me?.full_name || 'U'} size={44} src={avatarSrc(avatar)} />
+            <label className="btn cursor-pointer"><Icon name="ti-upload" className="text-sm" />Upload photo<input type="file" accept="image/*" className="hidden" onChange={onFile} /></label>
+            {avatar && <button type="button" onClick={() => setAvatar('')} className="btn-ghost text-xs text-muted">Remove</button>}
+          </div></div>
       </div>
       {err && <p className="text-sm text-rose-600 mt-2">{err}</p>}
       <div className="flex items-center gap-2 mt-3">

@@ -8,7 +8,7 @@ import { Modal, Field, useModalTabs } from '@/components/Modal';
 import StatusManager from '@/components/StatusManager';
 import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
-import { getOrgUsers, createTask, updateTask, deleteTask, notify, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions } from '@/lib/db';
+import { getOrgUsers, createTask, updateTask, deleteTask, notify, avatarSrc, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -54,7 +54,7 @@ const EMPTY_FORM: TaskForm = { name: '', description: '', project_id: '', assign
 
 type GroupBy = 'none' | 'project' | 'priority' | 'status';
 
-function BoardCardInner({ task, projectName, assigneeName, overdue }: { task: Task; projectName: string; assigneeName: string; overdue: boolean }) {
+function BoardCardInner({ task, projectName, assigneeName, assigneeSrc, overdue }: { task: Task; projectName: string; assigneeName: string; assigneeSrc?: string; overdue: boolean }) {
   return (
     <>
       <p className="text-sm font-medium text-content truncate">{task.name}</p>
@@ -62,18 +62,18 @@ function BoardCardInner({ task, projectName, assigneeName, overdue }: { task: Ta
       <div className="flex items-center gap-2 mt-2.5">
         <Pill label={task.priority} />
         {task.due_date && <span className={`text-2xs tnum ${overdue ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{task.due_date}</span>}
-        {assigneeName && <span className="ml-auto shrink-0"><Avatar name={assigneeName} size={20} /></span>}
+        {assigneeName && <span className="ml-auto shrink-0"><Avatar name={assigneeName} size={20} src={assigneeSrc} /></span>}
       </div>
     </>
   );
 }
 
-function BoardCard({ task, selected, projectName, assigneeName, overdue, onOpen }: { task: Task; selected: boolean; projectName: string; assigneeName: string; overdue: boolean; onOpen: () => void }) {
+function BoardCard({ task, selected, projectName, assigneeName, assigneeSrc, overdue, onOpen }: { task: Task; selected: boolean; projectName: string; assigneeName: string; assigneeSrc?: string; overdue: boolean; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
   return (
     <button ref={setNodeRef} type="button" data-card="1" {...attributes} {...listeners} onClick={onOpen}
       className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selected ? 'border-accent' : ''} ${isDragging ? 'opacity-40' : ''}`}>
-      <BoardCardInner task={task} projectName={projectName} assigneeName={assigneeName} overdue={overdue} />
+      <BoardCardInner task={task} projectName={projectName} assigneeName={assigneeName} assigneeSrc={assigneeSrc} overdue={overdue} />
     </button>
   );
 }
@@ -145,6 +145,7 @@ export default function Tasks() {
   const loading = tasksLoading || usersLoading;
 
   const userName = (id?: string | null) => users.find((u) => u.id === id)?.full_name || (id ? '—' : 'Unassigned');
+  const userAvatar = (id?: string | null) => avatarSrc(users.find((u) => u.id === id)?.avatar_url);
   // Patch the RQ cache in place with the authoritative row db.ts returned —
   // same data flow as the old setTasks local state, no extra refetch.
   const setCache = (fn: (prev: Task[]) => Task[]) =>
@@ -422,7 +423,7 @@ export default function Tasks() {
           <div className="flex items-center">
             {assigneeIds.map((uid) => (
               <span key={uid} className="group relative -ml-1.5 first:ml-0" title={userName(uid)}>
-                <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(uid)} size={28} /></span>
+                <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(uid)} size={28} src={userAvatar(uid)} /></span>
                 <button onClick={() => removeAssignee(uid)} disabled={busy} className="absolute -top-1 -right-1 hidden group-hover:grid h-4 w-4 place-items-center rounded-full bg-rose-500 text-white text-[8px]"><Icon name="ti-x" /></button>
               </span>
             ))}
@@ -471,7 +472,7 @@ export default function Tasks() {
             <div className="flex items-center">
               {(selected.followers || []).map((fid) => (
                 <span key={fid} className="group relative -ml-1.5 first:ml-0" title={userName(fid)}>
-                  <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(fid)} size={24} /></span>
+                  <span className="inline-block rounded-full ring-2 ring-surface"><Avatar name={userName(fid)} size={24} src={userAvatar(fid)} /></span>
                   <button onClick={() => removeFollower(fid)} disabled={busy} className="absolute -top-1 -right-1 hidden group-hover:grid h-3.5 w-3.5 place-items-center rounded-full bg-rose-500 text-white text-[8px]"><Icon name="ti-x" /></button>
                 </span>
               ))}
@@ -560,7 +561,7 @@ export default function Tasks() {
                   onAdd={() => { setForm({ ...EMPTY_FORM, status: st }); setModal({ mode: 'create' }); }}>
                   {items.map((t) => (
                     <BoardCard key={t.id} task={t} selected={selectedId === t.id}
-                      projectName={t.projects?.name || ''} assigneeName={t.assignee_id ? userName(t.assignee_id) : ''}
+                      projectName={t.projects?.name || ''} assigneeName={t.assignee_id ? userName(t.assignee_id) : ''} assigneeSrc={userAvatar(t.assignee_id)}
                       overdue={isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled'}
                       onOpen={() => selectTask(t.id)} />
                   ))}
@@ -573,7 +574,7 @@ export default function Tasks() {
         <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(.16,1,.3,1)' }}>
           {activeTask ? (
             <div className="card p-3 w-72 shadow-lg ring-2 ring-accent/50 rotate-1 cursor-grabbing">
-              <BoardCardInner task={activeTask} projectName={activeTask.projects?.name || ''} assigneeName={activeTask.assignee_id ? userName(activeTask.assignee_id) : ''} overdue={isOverdue(activeTask.due_date) && activeTask.status !== 'Done' && activeTask.status !== 'Cancelled'} />
+              <BoardCardInner task={activeTask} projectName={activeTask.projects?.name || ''} assigneeName={activeTask.assignee_id ? userName(activeTask.assignee_id) : ''} assigneeSrc={userAvatar(activeTask.assignee_id)} overdue={isOverdue(activeTask.due_date) && activeTask.status !== 'Done' && activeTask.status !== 'Cancelled'} />
             </div>
           ) : null}
         </DragOverlay>
@@ -597,7 +598,7 @@ export default function Tasks() {
           </select>
         );
       case 'assignee':
-        return <div key={id} className="flex items-center min-w-0">{t.assignee_id ? <span title={userName(t.assignee_id)} className="inline-flex cursor-default"><Avatar name={userName(t.assignee_id)} size={22} /></span> : <span className="text-muted2 text-2xs">—</span>}</div>;
+        return <div key={id} className="flex items-center min-w-0">{t.assignee_id ? <span title={userName(t.assignee_id)} className="inline-flex cursor-default"><Avatar name={userName(t.assignee_id)} size={22} src={userAvatar(t.assignee_id)} /></span> : <span className="text-muted2 text-2xs">—</span>}</div>;
       case 'priority':
         return <div key={id}><Pill label={t.priority} /></div>;
       case 'project':

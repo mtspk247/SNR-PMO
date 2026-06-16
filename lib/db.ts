@@ -36,7 +36,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   if (!sess.session) return null;
   const { data, error } = await sb
     .from('users')
-    .select('id, auth_user_id, username, email, full_name, role, department, feature_access')
+    .select('id, auth_user_id, username, email, full_name, role, department, feature_access, avatar_url')
     .eq('auth_user_id', sess.session.user.id)
     .maybeSingle();
   if (error) throw error;
@@ -104,7 +104,7 @@ export async function setOrgTheme(orgId: string, skin: string): Promise<{ id: st
 }
 
 export async function getOrgUsers(): Promise<OrgUser[]> {
-  const { data, error } = await sb.from('users').select('id, full_name, email').order('full_name');
+  const { data, error } = await sb.from('users').select('id, full_name, email, avatar_url').order('full_name');
   if (error) throw error;
   return (data as OrgUser[]) || [];
 }
@@ -1344,6 +1344,13 @@ export async function uploadAvatar(orgId: string, userId: string, file: File): P
   const { error: e2 } = await sb.from('users').update({ avatar_url: path }).eq('id', userId);
   if (e2) throw new Error(e2.message);
   return path;
+}
+// Resolve a renderable avatar src: pass through full URLs, else a public bucket URL
+// (the avatars bucket is public, so no per-image signing needed for lists).
+export function avatarSrc(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (/^https?:\/\//i.test(url)) return url;
+  return sb.storage.from('avatars').getPublicUrl(url).data.publicUrl || undefined;
 }
 export async function getAvatarUrl(path?: string | null): Promise<string | null> {
   if (!path) return null;
