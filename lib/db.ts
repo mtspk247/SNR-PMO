@@ -967,7 +967,7 @@ export async function deleteReconciliation(id: string): Promise<void> {
 export interface RecurringExpense { id: string; org_id: string; name: string; category: string | null; amount: number; currency: string; cycle: string; next_due: string | null; vendor: string | null; payment_method: string | null; paid_by_company: string | null; status: string; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
 export interface Domain { id: string; org_id: string; domain: string; registrar: string | null; owner_id: string | null; purchased_on: string | null; expires_on: string | null; auto_renew: boolean; cost: number; currency: string; total_spending: number; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
 export interface Asset { id: string; org_id: string; name: string; asset_type: string; category: string | null; owner_id: string | null; acquired_on: string | null; value: number; revenue: number; currency: string; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
-export interface BankAccount { id: string; org_id: string; label: string; bank_name: string | null; account_type: string; last4: string | null; currency: string; balance: number; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface BankAccount { id: string; org_id: string; label: string; bank_name: string | null; account_type: string; last4: string | null; currency: string; balance: number; account_id: string | null; owner_id: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
 
 async function _list<T>(table: string, orgId: string, orderBy = 'created_at', asc = false): Promise<T[]> {
   const { data, error } = await sb.from(table).select('*').eq('org_id', orgId).order(orderBy, { ascending: asc });
@@ -1030,7 +1030,7 @@ export async function listPayments(invoiceId: string): Promise<Payment[]> {
   const { data, error } = await sb.from('payments').select('*').eq('invoice_id', invoiceId).order('paid_on', { ascending: false });
   if (error) throw new Error(error.message); return (data as Payment[]) || [];
 }
-export const addPayment = (row: { org_id: string; invoice_id: string; amount: number; paid_on: string; method?: string; reference?: string; notes?: string; created_by: string }) => _create<Payment>('payments', row);
+export const addPayment = (row: { org_id: string; invoice_id: string; amount: number; paid_on: string; method?: string; reference?: string; notes?: string; created_by: string; bank_account_id?: string | null }) => _create<Payment>('payments', row);
 export const deletePayment = (id: string) => _del('payments', id);
 
 export const listCreditNotes = (orgId: string) => _list<CreditNote>('credit_notes', orgId);
@@ -2605,7 +2605,7 @@ export async function listBillPayments(billId: string): Promise<BillPayment[]> {
   const { data, error } = await sb.from('bill_payments').select('*').eq('bill_id', billId).order('paid_on', { ascending: false });
   if (error) throw new Error(error.message); return (data as BillPayment[]) || [];
 }
-export const addBillPayment = (row: { org_id: string; bill_id: string; amount: number; paid_on: string; method?: string; reference?: string; notes?: string; created_by: string }) => _create<BillPayment>('bill_payments', row);
+export const addBillPayment = (row: { org_id: string; bill_id: string; amount: number; paid_on: string; method?: string; reference?: string; notes?: string; created_by: string; bank_account_id?: string | null }) => _create<BillPayment>('bill_payments', row);
 export const deleteBillPayment = (id: string) => _del('bill_payments', id);
 
 // ---- Accounting P3a: statements ----
@@ -2695,4 +2695,19 @@ export interface SubscriptionRun { id: string; schedule_id: string; period: stri
 export async function subscriptionRuns(orgId: string, limit = 50): Promise<SubscriptionRun[]> {
   const { data, error } = await sb.from('subscription_runs').select('*').eq('org_id', orgId).order('generated_at', { ascending: false }).limit(limit);
   if (error) throw new Error(error.message); return (data as SubscriptionRun[]) || [];
+}
+
+// ---- Accounting P6: bank <-> GL ----
+export async function bankEnsureAccount(orgId: string, bankId: string): Promise<string> {
+  const { data, error } = await sb.rpc('bank_ensure_account', { p_org: orgId, p_bank: bankId }); if (error) throw new Error(error.message); return data as string;
+}
+export async function bankGlBalance(orgId: string, accountId: string): Promise<number> {
+  const { data, error } = await sb.rpc('bank_gl_balance', { p_org: orgId, p_account: accountId }); if (error) throw new Error(error.message); return Number(data) || 0;
+}
+export interface BankReconLine { id: string; entry_no: number; entry_date: string; memo: string | null; debit: number; credit: number; reconciled: boolean; }
+export async function bankRecon(orgId: string, accountId: string): Promise<BankReconLine[]> {
+  const { data, error } = await sb.rpc('bank_recon', { p_org: orgId, p_account: accountId }); if (error) throw new Error(error.message); return (data as BankReconLine[]) || [];
+}
+export async function bankLineReconcile(orgId: string, lineId: string, on: boolean): Promise<void> {
+  const { error } = await sb.rpc('bank_line_reconcile', { p_org: orgId, p_line: lineId, p_on: on }); if (error) throw new Error(error.message);
 }

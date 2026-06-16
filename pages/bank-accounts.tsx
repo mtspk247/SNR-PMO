@@ -7,7 +7,8 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import {
   listBankAccounts, createBankAccount, updateBankAccount, deleteBankAccount, getOrgUsers,
-  BankAccount,
+  bankEnsureAccount, bankGlBalance, bankRecon, bankLineReconcile,
+  BankAccount, BankReconLine,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 
@@ -37,6 +38,9 @@ export default function BankAccountsPage() {
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [glBalances, setGlBalances] = useState<Record<string, number>>({});
+  const [reconAcct, setReconAcct] = useState<BankAccount | null>(null);
+  const [reconLines, setReconLines] = useState<BankReconLine[]>([]);
 
   const load = () => {
     if (!org) return;
@@ -49,6 +53,15 @@ export default function BankAccountsPage() {
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
+  useEffect(() => {
+    if (!org || !accounts) return;
+    const linked = accounts.filter((a) => a.account_id);
+    Promise.all(linked.map((a) => bankGlBalance(org.id, a.account_id!).then((b) => [a.id, b] as [string, number]).catch(() => [a.id, 0] as [string, number]))).then((pairs) => setGlBalances(Object.fromEntries(pairs)));
+    // eslint-disable-next-line
+  }, [accounts]);
+  const linkLedger = async (a: BankAccount) => { if (!org) return; try { await bankEnsureAccount(org.id, a.id); load(); } catch (e: any) { setErr(e.message); } };
+  const openRecon = async (a: BankAccount) => { if (!org || !a.account_id) return; setReconAcct(a); try { setReconLines(await bankRecon(org.id, a.account_id)); } catch (e: any) { setErr(e.message); } };
+  const toggleRecon = async (line: BankReconLine) => { if (!org) return; try { await bankLineReconcile(org.id, line.id, !line.reconciled); setReconLines((ls) => ls.map((l) => l.id === line.id ? { ...l, reconciled: !l.reconciled } : l)); } catch (e: any) { setErr(e.message); } };
 
   const name = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
 
@@ -141,7 +154,9 @@ export default function BankAccountsPage() {
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Account</th>
                   <th className="px-4 py-3 text-right">Balance</th>
+                  <th className="px-4 py-3 text-right">Ledger balance</th>
                   <th className="px-4 py-3">Owner</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
@@ -159,7 +174,13 @@ export default function BankAccountsPage() {
                     <td className={`px-4 py-3 text-right tabular-nums font-medium ${Number(a.balance) < 0 ? 'text-rose-600' : ''}`}>
                       {fmtMoney(Number(a.balance || 0), a.currency || 'USD')}
                     </td>
+                    <td className="px-4 py-3 text-right tabular-nums" onClick={(e) => e.stopPropagation()}>
+                      {a.account_id ? <span className="text-content font-medium">{fmtMoney(glBalances[a.id] ?? 0, a.currency || 'USD')}</span> : <button className="btn-ghost text-2xs" onClick={() => linkLedger(a)}><Icon name="ti-link" />Link to ledger</button>}
+                    </td>
                     <td className="px-4 py-3 text-2xs text-muted">{name(a.owner_id)}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      {a.account_id && <button className="btn-ghost text-2xs" onClick={() => openRecon(a)}><Icon name="ti-checkbox" />Reconcile</button>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -167,6 +188,30 @@ export default function BankAccountsPage() {
           </div>
         )}
       </div>
+
+      {reconAcct && (() => {
+        const book = reconLines.reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0);
+        const cleared = reconLines.filter((l) => l.reconciled).reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0);
+        return (
+          <Modal open onClose={() => setReconAcct(null)} size="lg" icon="ti-checkbox" title={`Reconcile — ${reconAcct.label}`} subtitle={`Book ${fmtMoney(book, reconAcct.currency || 'USD')} · Cleared ${fmtMoney(cleared, reconAcct.currency || 'USD')}`}
+            footer={<button className="btn" onClick={() => setReconAcct(null)}>Done</button>}>
+            {reconLines.length === 0 ? <EmptyState icon="ti-checkbox" text="No ledger movement on this account yet." /> : (
+              <table className="w-full text-sm list-card">
+                <thead><tr><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Entry</th><th className="px-3 py-2 text-right">In</th><th className="px-3 py-2 text-right">Out</th><th className="px-3 py-2 text-center">Cleared</th></tr></thead>
+                <tbody>{reconLines.map((l) => (
+                  <tr key={l.id}>
+                    <td className="px-3 py-1.5 text-2xs text-muted2">{l.entry_date}</td>
+                    <td className="px-3 py-1.5 text-content"><span className="font-mono text-2xs text-muted2 mr-1">#{l.entry_no}</span>{l.memo}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{Number(l.debit) ? fmtMoney(Number(l.debit), reconAcct.currency || 'USD') : ''}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{Number(l.credit) ? fmtMoney(Number(l.credit), reconAcct.currency || 'USD') : ''}</td>
+                    <td className="px-3 py-1.5 text-center"><input type="checkbox" className="accent-accent w-4 h-4" checked={l.reconciled} onChange={() => toggleRecon(l)} /></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </Modal>
+        );
+      })()}
 
       {editor && (
         <Modal open onClose={() => setEditor(null)} size="lg" icon="ti-building-bank"

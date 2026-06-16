@@ -10,7 +10,7 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listInvoices, createInvoice, updateInvoice, deleteInvoice, getInvoice,
   listInvoiceLines, addInvoiceLine, deleteInvoiceLine, listPayments, addPayment, deletePayment,
-  Invoice, InvoiceLine, Payment, products, Product,
+  Invoice, InvoiceLine, Payment, products, Product, listBankAccounts, BankAccount,
 } from '@/lib/db';
 
 const STATUS_PILL: Record<string, string> = { draft: 'pill-gray', sent: 'pill-blue', partial: 'pill-amber', paid: 'pill-green', overdue: 'pill-red', void: 'pill-gray' };
@@ -103,15 +103,16 @@ function InvoiceDetail({ id, orgId, me, onClose, onDeleted }: { id: string; orgI
   const [hdr, setHdr] = useState<Partial<Invoice>>({});
   const [line, setLine] = useState<{ description: string; qty: number; unit_price: number; product_id: string }>({ description: '', qty: 1, unit_price: 0, product_id: '' });
   const [prods, setProds] = useState<Product[]>([]);
-  const [pay, setPay] = useState({ amount: 0, paid_on: new Date().toISOString().slice(0, 10), method: '', reference: '' });
+  const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [pay, setPay] = useState<{ amount: number; paid_on: string; method: string; reference: string; bank_account_id: string }>({ amount: 0, paid_on: new Date().toISOString().slice(0, 10), method: '', reference: '', bank_account_id: '' });
 
   const reload = async () => { const i = await getInvoice(id); setInv(i); if (i) setHdr(i); setLines(await listInvoiceLines(id)); setPays(await listPayments(id)); };
-  useEffect(() => { reload().catch((e) => setErr(e.message)); if (orgId) products(orgId).then(setProds).catch(() => {}); /* eslint-disable-next-line */ }, [id]);
+  useEffect(() => { reload().catch((e) => setErr(e.message)); if (orgId) { products(orgId).then(setProds).catch(() => {}); listBankAccounts(orgId).then(setBanks).catch(() => {}); } /* eslint-disable-next-line */ }, [id]);
 
   const saveHdr = async () => { setBusy(true); setErr(''); try { await updateInvoice(id, { client_name: hdr.client_name || null, client_email: hdr.client_email || null, issue_date: hdr.issue_date || null, due_date: hdr.due_date || null, currency: hdr.currency || 'USD', tax_rate: Number(hdr.tax_rate) || 0, status: hdr.status, notes: hdr.notes || null }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const addLn = async () => { if (!orgId || !me || !line.description.trim()) return; setBusy(true); try { await addInvoiceLine({ org_id: orgId, invoice_id: id, description: line.description.trim(), qty: Number(line.qty) || 0, unit_price: Number(line.unit_price) || 0, created_by: me, product_id: line.product_id || null }); setLine({ description: '', qty: 1, unit_price: 0, product_id: '' }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const delLn = async (lid: string) => { setBusy(true); try { await deleteInvoiceLine(lid); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
-  const addPay = async () => { if (!orgId || !me || !pay.amount) return; setBusy(true); try { await addPayment({ org_id: orgId, invoice_id: id, amount: Number(pay.amount), paid_on: pay.paid_on, method: pay.method || undefined, reference: pay.reference || undefined, created_by: me }); setPay({ amount: 0, paid_on: new Date().toISOString().slice(0, 10), method: '', reference: '' }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const addPay = async () => { if (!orgId || !me || !pay.amount) return; setBusy(true); try { await addPayment({ org_id: orgId, invoice_id: id, amount: Number(pay.amount), paid_on: pay.paid_on, method: pay.method || undefined, reference: pay.reference || undefined, created_by: me, bank_account_id: pay.bank_account_id || null }); setPay({ amount: 0, paid_on: new Date().toISOString().slice(0, 10), method: '', reference: '', bank_account_id: '' }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const delPay = async (pid: string) => { setBusy(true); try { await deletePayment(pid); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
   const cur = inv?.currency || 'USD';
@@ -170,6 +171,7 @@ function InvoiceDetail({ id, orgId, me, onClose, onDeleted }: { id: string; orgI
             </div>
           ))}
           <div className="flex items-end gap-1.5 mt-2">
+            {banks.length > 0 && <div className="w-32"><Select value={pay.bank_account_id} onChange={(v) => setPay({ ...pay, bank_account_id: v })} options={[{ value: '', label: 'Bank…' }, ...banks.map((b) => ({ value: b.id, label: b.label }))]} /></div>}
             <input className="input h-8 text-xs w-28" type="date" value={pay.paid_on} onChange={(e) => setPay({ ...pay, paid_on: e.target.value })} />
             <input className="input h-8 text-xs w-24" type="number" placeholder="Amount" value={pay.amount || ''} onChange={(e) => setPay({ ...pay, amount: Number(e.target.value) })} />
             <input className="input h-8 text-xs flex-1" placeholder="Method / ref" value={pay.method} onChange={(e) => setPay({ ...pay, method: e.target.value })} />
