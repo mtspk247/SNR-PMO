@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listTenants, listPlans, listOrgInvites, createOrgInvite, revokeOrgInvite } from '@/lib/db';
+import { listTenants, listPlans, listOrgInvites, createOrgInvite, revokeOrgInvite, platformAccounts, PlatformAccount } from '@/lib/db';
 import { Plan, OrgInvite } from '@/lib/supabase';
 
 export default function TenantsPage() {
@@ -19,10 +19,11 @@ export default function TenantsPage() {
   const [invEmail, setInvEmail] = useState(''); const [invName, setInvName] = useState(''); const [invPlan, setInvPlan] = useState('free');
   const [invBusy, setInvBusy] = useState(false); const [invErr, setInvErr] = useState(''); const [invLink, setInvLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [orphans, setOrphans] = useState<PlatformAccount[]>([]);
 
   const load = () => { listTenants().then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   const loadInvites = () => listOrgInvites().then(setInvites).catch(() => {});
-  useEffect(() => { if (platformAdmin) { load(); loadInvites(); listPlans().then(setPlans).catch(() => {}); } }, [platformAdmin]);
+  useEffect(() => { if (platformAdmin) { load(); loadInvites(); listPlans().then(setPlans).catch(() => {}); platformAccounts().then((a) => setOrphans(a.filter((x) => x.org_count === 0))).catch(() => {}); } }, [platformAdmin]);
 
   const copyLink = (link: string) => { try { navigator.clipboard?.writeText(link); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const submitInvite = async () => {
@@ -96,6 +97,28 @@ export default function TenantsPage() {
           </table></div>
         )}
       </div>
+
+      {orphans.length > 0 && (
+        <div className="card overflow-hidden mt-4">
+          <div className="px-4 py-3 border-b border-line">
+            <h3 className="text-sm font-semibold text-content">Accounts without a workspace</h3>
+            <p className="text-2xs text-muted">{orphans.length} {orphans.length === 1 ? 'person has' : 'people have'} signed in but don&rsquo;t belong to any tenant yet.</p>
+          </div>
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
+              <tr><th className="px-4 py-3">Person</th><th className="px-4 py-3">Signed up</th></tr>
+            </thead>
+            <tbody>
+              {orphans.map((a) => (
+                <tr key={a.user_id} className="border-t border-line">
+                  <td className="px-4 py-3"><span className="block font-medium text-content">{a.full_name || a.email}</span><span className="block text-2xs text-muted">{a.email}</span></td>
+                  <td className="px-4 py-3 text-2xs text-muted2">{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        </div>
+      )}
 
       {invOpen && (
         <Modal open onClose={() => setInvOpen(false)} size="md" icon="ti-mail-plus" title="Invite an owner" subtitle="Provision a new tenant via a secure signup link"

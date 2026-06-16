@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
@@ -12,7 +12,7 @@ import {
   listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot,
   getTenantUsage, getOrgActivity, TenantUsage, ActivityItem,
   getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain,
-  getOrgFeatures, getOrgPlanFeatures,
+  getOrgFeatures, getOrgPlanFeatures, tenantUsers, TenantUser, avatarSrc,
 } from '@/lib/db';
 import { Plan, MyOrg } from '@/lib/supabase';
 
@@ -50,6 +50,7 @@ export default function TenantDetail() {
   const [usage, setUsage] = useState<TenantUsage | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [snaps, setSnaps] = useState<TenantSnapshot[]>([]);
+  const [users, setUsers] = useState<TenantUser[] | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [wipeName, setWipeName] = useState(''); const [wiping, setWiping] = useState(false);
@@ -90,6 +91,7 @@ export default function TenantDetail() {
         setTenant(t);
         refreshUsage(); refreshSnaps(); loadDomain();
         getOrgActivity(orgId).then(setActivity).catch(() => {});
+        tenantUsers(orgId).then(setUsers).catch(() => setUsers([]));
         listPlans().then(setPlans).catch(() => {});
         setInfo(await getTenantInfo(orgId));
         refreshEvents();
@@ -176,6 +178,7 @@ export default function TenantDetail() {
 
       <Tabs active={tab} onChange={setTab} tabs={[
         { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
+        { key: 'users', label: 'Users', icon: 'ti-users' },
         { key: 'plan', label: 'Plan & features', icon: 'ti-package' },
         { key: 'lifecycle', label: 'Lifecycle & billing', icon: 'ti-timeline' },
         { key: 'domain', label: 'Custom domain', icon: 'ti-world' },
@@ -219,6 +222,44 @@ export default function TenantDetail() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {tab === 'users' && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-3 border-b border-line">
+            <p className="text-sm font-semibold text-content">People in this workspace</p>
+            <p className="text-2xs text-muted mt-0.5">{users === null ? 'Loading…' : `${users.length} ${users.length === 1 ? 'person' : 'people'} — members and guests of ${tenant.org_name}.`}</p>
+          </div>
+          {users === null ? <div className="p-8"><Spinner /></div> : users.length === 0 ? (
+            <div className="p-8"><EmptyState icon="ti-users" text="No users in this workspace yet." /></div>
+          ) : (
+            <div className="overflow-x-auto"><table className="w-full text-sm">
+              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
+                <tr><th className="px-4 py-3 font-medium">Person</th><th className="px-4 py-3 font-medium">Role</th><th className="px-4 py-3 font-medium">Title</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Last login</th></tr>
+              </thead>
+              <tbody>
+                {users.map((u) => {
+                  const isGuest = !!u.guest_level;
+                  const roleLabel = u.org_role === 'owner' ? 'Owner' : u.org_role === 'admin' ? 'Admin' : isGuest ? 'Guest' : 'Member';
+                  return (
+                    <tr key={u.user_id} className="border-t border-line hover:bg-surface2/50">
+                      <td className="px-4 py-3">
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <Avatar name={u.full_name || u.email} src={avatarSrc(u.avatar_url)} size={28} />
+                          <span className="min-w-0"><span className="block font-medium text-content truncate">{u.full_name || u.email}</span><span className="block text-2xs text-muted truncate">{u.email}</span></span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-3"><span className={`pill ${u.org_role === 'owner' ? 'pill-green' : isGuest ? 'pill-gray' : 'pill-gray'}`}>{roleLabel}{isGuest && u.guest_level ? ` · ${u.guest_level}` : ''}</span></td>
+                      <td className="px-4 py-3 text-muted">{u.job_title || '—'}</td>
+                      <td className="px-4 py-3">{u.status ? <span className={`pill ${u.status === 'active' ? 'pill-green' : 'pill-gray'} capitalize`}>{u.status}</span> : <span className="text-muted2">—</span>}</td>
+                      <td className="px-4 py-3 text-2xs text-muted2">{u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table></div>
+          )}
         </div>
       )}
 

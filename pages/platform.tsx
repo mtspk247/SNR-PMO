@@ -5,11 +5,11 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, platformAccounts, PlatformAccount, campaignPreview, sendCampaign } from '@/lib/db';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign } from '@/lib/db';
 import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'accounts' | 'campaigns';
+type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'campaigns';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -466,40 +466,6 @@ function BackupsTab() {
   );
 }
 
-function AccountsTab() {
-  const [rows, setRows] = useState<PlatformAccount[] | null>(null);
-  const [err, setErr] = useState('');
-  useEffect(() => { platformAccounts().then(setRows).catch((e) => { setErr(e?.message || 'Failed to load accounts'); setRows([]); }); }, []);
-  if (rows === null) return <div className="card rounded-t-none p-6"><Spinner /></div>;
-  const orphans = rows.filter((r) => r.org_count === 0).length;
-  return (
-    <div className="card rounded-t-none p-5 sm:p-6 space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold text-content">Accounts</h3>
-        <p className="text-2xs text-muted mt-1 max-w-2xl">Everyone who has signed in across the platform, newest first. {orphans > 0 ? `${orphans} ${orphans === 1 ? 'account has' : 'accounts have'} no workspace yet.` : 'Everyone belongs to a workspace.'}</p>
-      </div>
-      {err && <p className="text-sm text-rose-600">{err}</p>}
-      <div className="overflow-x-auto"><table className="w-full text-sm">
-        <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-          <tr><th className="px-4 py-3 font-medium">Person</th><th className="px-4 py-3 font-medium">Workspaces</th><th className="px-4 py-3 font-medium">Signed up</th></tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.user_id} className="border-t border-line hover:bg-surface2/50">
-              <td className="px-4 py-3"><span className="block font-medium text-content">{r.full_name || r.email}</span><span className="block text-2xs text-muted">{r.email}</span></td>
-              <td className="px-4 py-3">
-                {r.org_count === 0
-                  ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium bg-amber-500/10 text-amber-600">No workspace</span>
-                  : <span className="flex flex-wrap gap-1">{r.orgs.map((o) => <span key={o} className="pill pill-gray">{o}</span>)}</span>}
-              </td>
-              <td className="px-4 py-3 text-2xs text-muted2">{r.created_at ? new Date(r.created_at).toLocaleString() : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table></div>
-    </div>
-  );
-}
 
 function OwnersTab() {
   const [rows, setRows] = useState<PlatformAdminRow[] | null>(null);
@@ -718,7 +684,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'accounts', 'campaigns'] as const).map((t) => (
+            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'campaigns'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -728,7 +694,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : t === 'accounts' ? 'Accounts' : 'Campaigns'}
+                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : 'Campaigns'}
               </button>
             ))}
           </div>
@@ -787,8 +753,6 @@ export default function PlatformPage() {
             <ErrorsTab />
           ) : tab === 'owners' ? (
             <OwnersTab />
-          ) : tab === 'accounts' ? (
-            <AccountsTab />
           ) : (
             <CampaignsTab />
           )}

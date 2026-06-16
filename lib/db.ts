@@ -175,6 +175,12 @@ export async function platformAccounts(): Promise<PlatformAccount[]> {
   if (error) throw new Error(error.message);
   return (data as PlatformAccount[]) || [];
 }
+export interface TenantUser { user_id: string; email: string; full_name: string | null; avatar_url: string | null; job_title: string | null; status: string | null; org_role: string; guest_level: string | null; last_login: string | null; joined_at: string | null; }
+export async function tenantUsers(orgId: string): Promise<TenantUser[]> {
+  const { data, error } = await sb.rpc('tenant_users', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  return (data as TenantUser[]) || [];
+}
 export async function saveOnboarding(orgId: string, name: string, meta: Record<string, any>): Promise<void> {
   const { error } = await sb.rpc('save_onboarding', { p_org: orgId, p_name: name, p_meta: meta });
   if (error) throw new Error(error.message);
