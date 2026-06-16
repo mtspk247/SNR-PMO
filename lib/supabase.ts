@@ -45,10 +45,17 @@ export interface OrgProfile {
   state_region: string | null;
   postal_code: string | null;
   country: string | null;
+  tax_id: string | null;
+  registration_no: string | null;
+  social_linkedin: string | null;
+  social_twitter: string | null;
+  social_facebook: string | null;
+  social_instagram: string | null;
 }
 export const ORG_PROFILE_KEYS: (keyof OrgProfile)[] = [
   'website','contact_email','contact_phone','industry','category','about',
   'address_line1','address_line2','city','state_region','postal_code','country',
+  'tax_id','registration_no','social_linkedin','social_twitter','social_facebook','social_instagram',
 ];
 
 export interface MyOrg extends Organization {

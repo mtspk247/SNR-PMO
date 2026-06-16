@@ -4,9 +4,17 @@ import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
 import { INDUSTRIES, categoriesFor, withCurrent } from '@/lib/taxonomy';
 
-// Reusable tenant-profile editor. Same form for the owner (/settings) and the
-// operator (/tenants/[id]); the caller supplies load + save (RLS direct vs RPC).
+// Reusable, multi-tab tenant-profile editor. Same form for the owner (/settings) and
+// the operator (/tenants/[id]); the caller supplies load + save (RLS direct vs RPC).
 const empty = (): OrgProfile => Object.fromEntries(ORG_PROFILE_KEYS.map((k) => [k, ''])) as unknown as OrgProfile;
+
+const TABS = [
+  { id: 'contact', label: 'Contact', icon: 'ti-address-book' },
+  { id: 'classification', label: 'Classification', icon: 'ti-category' },
+  { id: 'address', label: 'Address', icon: 'ti-map-pin' },
+  { id: 'tax', label: 'Tax & legal', icon: 'ti-receipt' },
+  { id: 'social', label: 'Social', icon: 'ti-share' },
+];
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -23,6 +31,7 @@ export default function OrgProfileForm({ load, onSave, readOnly = false }: {
   readOnly?: boolean;
 }) {
   const [v, setV] = useState<OrgProfile | null>(null);
+  const [tab, setTab] = useState('contact');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
@@ -44,51 +53,80 @@ export default function OrgProfileForm({ load, onSave, readOnly = false }: {
   };
 
   return (
-    <div className="card p-6 max-w-3xl space-y-6">
-      <div>
-        <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Contact</p>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Row label="Website">{inp('website', 'url', 'https://acme.com')}</Row>
-          <Row label="Contact email">{inp('contact_email', 'email', 'hello@acme.com')}</Row>
-          <Row label="Phone">{inp('contact_phone', 'tel', '+1 555 0100')}</Row>
-        </div>
+    <div className="card p-0 max-w-3xl overflow-hidden">
+      <div className="flex gap-1 px-3 pt-3 border-b border-line bg-surface2/40 overflow-x-auto">
+        {TABS.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap ${tab === t.id ? 'border-b-accent text-content' : 'border-b-transparent text-muted hover:text-content'}`}>
+            <Icon name={t.icon} className="text-sm" />{t.label}
+          </button>
+        ))}
       </div>
-      <div className="pt-2 border-t border-line">
-        <p className="text-2xs uppercase tracking-wide text-muted mb-3 mt-4 font-medium">Classification</p>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Row label="Industry">
-            <Select search placeholder="Select industry…" value={v.industry || ''}
-              options={withCurrent(INDUSTRIES, v.industry)}
-              onChange={(ind) => setV({ ...v, industry: ind, category: categoriesFor(ind).includes(v.category || '') ? v.category : '' })}
-              disabled={readOnly} />
-          </Row>
-          <Row label="Category">
-            <Select search placeholder={v.industry ? 'Select category…' : 'Pick an industry first'} value={v.category || ''}
-              options={withCurrent(categoriesFor(v.industry), v.category)}
-              onChange={(c) => setV({ ...v, category: c })}
-              disabled={readOnly || (!v.industry && !v.category)} />
-          </Row>
-        </div>
-        <Row label="About"><textarea className="input min-h-[72px]" value={v.about || ''} onChange={set('about')} placeholder="Short description of the business" disabled={readOnly} /></Row>
+
+      <div className="p-6 space-y-4">
+        {tab === 'contact' && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Row label="Website">{inp('website', 'url', 'https://acme.com')}</Row>
+            <Row label="Contact email">{inp('contact_email', 'email', 'hello@acme.com')}</Row>
+            <Row label="Phone">{inp('contact_phone', 'tel', '+1 555 0100')}</Row>
+          </div>
+        )}
+
+        {tab === 'classification' && (
+          <div className="space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Row label="Industry">
+                <Select search placeholder="Select industry…" value={v.industry || ''}
+                  options={withCurrent(INDUSTRIES, v.industry)}
+                  onChange={(ind) => setV({ ...v, industry: ind, category: categoriesFor(ind).includes(v.category || '') ? v.category : '' })}
+                  disabled={readOnly} />
+              </Row>
+              <Row label="Category">
+                <Select search placeholder={v.industry ? 'Select category…' : 'Pick an industry first'} value={v.category || ''}
+                  options={withCurrent(categoriesFor(v.industry), v.category)}
+                  onChange={(c) => setV({ ...v, category: c })}
+                  disabled={readOnly || (!v.industry && !v.category)} />
+              </Row>
+            </div>
+            <Row label="About"><textarea className="input min-h-[72px]" value={v.about || ''} onChange={set('about')} placeholder="Short description of the business" disabled={readOnly} /></Row>
+          </div>
+        )}
+
+        {tab === 'address' && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Row label="Address line 1">{inp('address_line1')}</Row>
+            <Row label="Address line 2">{inp('address_line2')}</Row>
+            <Row label="City">{inp('city')}</Row>
+            <Row label="State / region">{inp('state_region')}</Row>
+            <Row label="Postal code">{inp('postal_code')}</Row>
+            <Row label="Country">{inp('country')}</Row>
+          </div>
+        )}
+
+        {tab === 'tax' && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Row label="Tax / VAT ID">{inp('tax_id', 'text', 'e.g. GB123456789')}</Row>
+            <Row label="Registration no.">{inp('registration_no', 'text', 'Company reg. number')}</Row>
+          </div>
+        )}
+
+        {tab === 'social' && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Row label="LinkedIn">{inp('social_linkedin', 'url', 'https://linkedin.com/company/…')}</Row>
+            <Row label="Twitter / X">{inp('social_twitter', 'url', 'https://x.com/…')}</Row>
+            <Row label="Facebook">{inp('social_facebook', 'url', 'https://facebook.com/…')}</Row>
+            <Row label="Instagram">{inp('social_instagram', 'url', 'https://instagram.com/…')}</Row>
+          </div>
+        )}
+
+        {err && <p className="text-sm text-rose-600">{err}</p>}
+        {!readOnly && (
+          <div className="flex items-center gap-3 pt-2 border-t border-line">
+            <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save profile'}</button>
+            {ok && <span className="text-sm text-emerald-600 inline-flex items-center gap-1"><Icon name="ti-check" />Saved</span>}
+          </div>
+        )}
       </div>
-      <div className="pt-2 border-t border-line">
-        <p className="text-2xs uppercase tracking-wide text-muted mb-3 mt-4 font-medium">Address</p>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Row label="Address line 1">{inp('address_line1')}</Row>
-          <Row label="Address line 2">{inp('address_line2')}</Row>
-          <Row label="City">{inp('city')}</Row>
-          <Row label="State / region">{inp('state_region')}</Row>
-          <Row label="Postal code">{inp('postal_code')}</Row>
-          <Row label="Country">{inp('country')}</Row>
-        </div>
-      </div>
-      {err && <p className="text-sm text-rose-600">{err}</p>}
-      {!readOnly && (
-        <div className="flex items-center gap-3 pt-2">
-          <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save profile'}</button>
-          {ok && <span className="text-sm text-emerald-600 inline-flex items-center gap-1"><Icon name="ti-check" />Saved</span>}
-        </div>
-      )}
     </div>
   );
 }
