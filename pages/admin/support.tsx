@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import Select from '@/components/Select';
+import Dropdown from '@/components/Dropdown';
 import { useAuthStore } from '@/lib/store';
 import {
   supportQueue, assignTicket, setTicketStatus, listTicketReplies, addTicketReply,
-  supportAgentList, SupportQueueRow, SupportReply, SupportAgent,
+  supportAgentList, listCannedReplies, saveCannedReply, SupportQueueRow, SupportReply, SupportAgent, CannedReply,
 } from '@/lib/db';
 
 const STATUSES = ['open', 'pending', 'resolved', 'closed'];
@@ -21,12 +22,13 @@ export default function SupportQueuePage() {
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [canned, setCanned] = useState<CannedReply[]>([]);
 
   const load = useCallback(() => {
     supportQueue(filter === 'all' ? null : filter).then(setRows).catch((e) => { setErr(e?.message || 'Failed to load queue'); setRows([]); });
   }, [filter]);
   useEffect(() => { if (platformAdmin) load(); }, [platformAdmin, load]);
-  useEffect(() => { if (platformAdmin) supportAgentList().then(setAgents).catch(() => {}); }, [platformAdmin]);
+  useEffect(() => { if (platformAdmin) { supportAgentList().then(setAgents).catch(() => {}); listCannedReplies().then(setCanned).catch(() => {}); } }, [platformAdmin]);
 
   const t = rows?.find((r) => r.id === sel) || null;
   useEffect(() => {
@@ -46,6 +48,10 @@ export default function SupportQueuePage() {
     if (!t || !reply.trim() || busy) return; setBusy(true); setErr('');
     try { await addTicketReply(t.id, reply.trim()); setReply(''); setReplies(await listTicketReplies(t.id)); await load(); }
     catch (e: any) { setErr(e?.message || 'Could not send reply'); } finally { setBusy(false); }
+  };
+  const saveCanned = async () => {
+    if (!reply.trim()) return; const title = window.prompt('Save this reply as a canned reply — title:'); if (!title || !title.trim()) return;
+    try { await saveCannedReply(null, title.trim(), reply.trim()); listCannedReplies().then(setCanned).catch(() => {}); } catch (e: any) { setErr(e?.message || 'Could not save'); }
   };
 
   if (!platformAdmin) return <Layout flat title="Support queue"><EmptyState icon="ti-lock" title="Platform staff only" text="The cross-tenant support queue is available to platform administrators and support agents." /></Layout>;
@@ -74,6 +80,7 @@ export default function SupportQueuePage() {
                   className={`w-full text-left px-4 py-3 border-b border-line last:border-0 transition ${sel === r.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2 border-l-2 border-l-transparent'}`}>
                   <div className="flex items-center gap-2">
                     <span className={`pill ${PRIO[r.priority] || 'pill-gray'} capitalize`}>{r.priority}</span>
+                    {r.awaiting_response && <span className="pill bg-amber-500/10 text-amber-600" title="No staff reply yet">Awaiting</span>}
                     <span className="text-sm font-medium text-content truncate flex-1">{r.subject}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1 text-2xs text-muted">
@@ -120,9 +127,20 @@ export default function SupportQueuePage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 flex items-end gap-2">
-                  <textarea className="input flex-1 min-h-[60px]" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Write a reply to the tenant…" disabled={busy} />
-                  <button className="btn btn-primary shrink-0" disabled={busy || !reply.trim()} onClick={sendReply}><Icon name="ti-send" />Send</button>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    {canned.length > 0 && (
+                      <Dropdown value="" onChange={(id) => { const c = canned.find((x) => x.id === id); if (c) setReply((r) => (r ? r + '\n\n' : '') + c.body); }}
+                        items={canned.map((c) => ({ value: c.id, label: c.title }))}
+                        trigger={<span className="btn h-8 py-0 cursor-pointer"><Icon name="ti-message-bolt" />Canned reply</span>} />
+                    )}
+                    <button className="btn h-8 py-0" disabled={!reply.trim()} onClick={saveCanned}><Icon name="ti-bookmark" />Save as canned</button>
+                    <span className="text-2xs text-muted2 ml-auto">Resolved tickets auto-close after 7 days.</span>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <textarea className="input flex-1 min-h-[60px]" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Write a reply to the tenant…" disabled={busy} />
+                    <button className="btn btn-primary shrink-0" disabled={busy || !reply.trim()} onClick={sendReply}><Icon name="ti-send" />Send</button>
+                  </div>
                 </div>
               </div>
             </div>

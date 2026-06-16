@@ -1214,7 +1214,7 @@ export interface SupportQueueRow {
   id: string; org_id: string; org_name: string | null; subject: string; body: string | null;
   category: string | null; priority: string; status: string;
   requester_id: string; requester_name: string | null; assignee_id: string | null; assignee_name: string | null;
-  created_at: string; updated_at: string; reply_count: number;
+  created_at: string; updated_at: string; reply_count: number; awaiting_response: boolean;
 }
 export async function supportQueue(status?: string | null): Promise<SupportQueueRow[]> {
   const { data, error } = await sb.rpc('support_queue', { p_status: status ?? null });
@@ -1225,6 +1225,16 @@ export async function assignTicket(ticketId: string, agentId: string | null): Pr
 }
 export async function setTicketStatus(ticketId: string, status: string): Promise<void> {
   const { error } = await sb.rpc('support_set_status', { p_ticket: ticketId, p_status: status }); if (error) throw new Error(error.message);
+}
+export interface CannedReply { id: string; title: string; body: string; }
+export async function listCannedReplies(): Promise<CannedReply[]> {
+  const { data, error } = await sb.from('support_canned_replies').select('id, title, body').order('title'); if (error) throw new Error(error.message); return (data as CannedReply[]) || [];
+}
+export async function saveCannedReply(id: string | null, title: string, body: string): Promise<string> {
+  const { data, error } = await sb.rpc('support_canned_save', { p_id: id, p_title: title, p_body: body }); if (error) throw new Error(error.message); return data as string;
+}
+export async function deleteCannedReply(id: string): Promise<void> {
+  const { error } = await sb.rpc('support_canned_delete', { p_id: id }); if (error) throw new Error(error.message);
 }
 
 // ---- 2.6 Audit log --------------------------------------------------------
