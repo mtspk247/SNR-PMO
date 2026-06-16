@@ -136,6 +136,7 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
   { href: '/admin/support-agents', label: 'Support agents', icon: 'ti-headset', platformOnly: true },
+  { href: '/admin/support', label: 'Support queue', icon: 'ti-lifebuoy', platformOnly: true },
   { href: '/lists', label: 'Lists & options', icon: 'ti-list-details' },
   { href: '/admin/notifications', label: 'Notifications', icon: 'ti-bell-cog' },
   { href: '/approvals', label: 'Approvals', icon: 'ti-checks' },

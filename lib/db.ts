@@ -1194,6 +1194,24 @@ export async function addTicketReply(ticketId: string, body: string): Promise<st
   const { data, error } = await sb.rpc('support_reply', { p_ticket: ticketId, p_body: body }); if (error) throw new Error(error.message); return data as string;
 }
 
+// ---- #13 Support queue (operator; round-robin auto-assign + manual override) ----
+export interface SupportQueueRow {
+  id: string; org_id: string; org_name: string | null; subject: string; body: string | null;
+  category: string | null; priority: string; status: string;
+  requester_id: string; requester_name: string | null; assignee_id: string | null; assignee_name: string | null;
+  created_at: string; updated_at: string; reply_count: number;
+}
+export async function supportQueue(status?: string | null): Promise<SupportQueueRow[]> {
+  const { data, error } = await sb.rpc('support_queue', { p_status: status ?? null });
+  if (error) throw new Error(error.message); return (data as SupportQueueRow[]) || [];
+}
+export async function assignTicket(ticketId: string, agentId: string | null): Promise<void> {
+  const { error } = await sb.rpc('support_assign', { p_ticket: ticketId, p_agent: agentId }); if (error) throw new Error(error.message);
+}
+export async function setTicketStatus(ticketId: string, status: string): Promise<void> {
+  const { error } = await sb.rpc('support_set_status', { p_ticket: ticketId, p_status: status }); if (error) throw new Error(error.message);
+}
+
 // ---- 2.6 Audit log --------------------------------------------------------
 export async function getAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await sb.from('audit_log').select('*')
