@@ -2389,12 +2389,26 @@ export async function createOrgInvite(email: string, orgName: string, planKey = 
 export async function revokeOrgInvite(id: string): Promise<void> {
   const { error } = await sb.rpc('revoke_org_invite', { p_id: id }); if (error) throw new Error(error.message);
 }
-export interface InvitePreview { valid: boolean; reason?: string; email?: string; role?: string; plan?: string; new_org?: boolean; org_name?: string | null; }
+export interface InvitePreview { valid: boolean; reason?: string; email?: string; role?: string; plan?: string; new_org?: boolean; org_name?: string | null; kind?: 'org' | 'platform'; }
 export async function invitePreview(token: string): Promise<InvitePreview> {
   const { data, error } = await sb.rpc('invite_preview', { p_token: token }); if (error) throw new Error(error.message); return data as InvitePreview;
 }
 export async function acceptOrgInvite(token: string): Promise<string> {
   const { data, error } = await sb.rpc('accept_org_invite', { p_token: token }); if (error) throw new Error(error.message); return data as string;
+}
+
+// ---- #12 Platform co-owner invites (token; invite a co-owner with no account yet) ----
+export interface PlatformInvite { id: string; email: string; token: string; status: string; created_at: string; expires_at: string; }
+export async function listPlatformInvites(): Promise<PlatformInvite[]> {
+  const { data, error } = await sb.from('platform_invites').select('id, email, token, status, created_at, expires_at').order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as PlatformInvite[]) || [];
+}
+export async function createPlatformInvite(email: string): Promise<{ id: string; token: string; email: string; link: string; expires_at: string }> {
+  const { data, error } = await sb.rpc('create_platform_invite', { p_email: email });
+  if (error) throw new Error(error.message); return data as { id: string; token: string; email: string; link: string; expires_at: string };
+}
+export async function revokePlatformInvite(id: string): Promise<void> {
+  const { error } = await sb.rpc('revoke_platform_invite', { p_id: id }); if (error) throw new Error(error.message);
 }
 
 export interface TenantDomain { custom_domain: string | null; verified: boolean; token: string | null; }

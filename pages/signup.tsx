@@ -103,8 +103,8 @@ export default function SignupPage() {
     <Shell>
       <div className="space-y-5">
         <div>
-          <h2 className="text-xl font-semibold">{preview.new_org ? 'Set up ' + (preview.org_name || 'your workspace') : 'Join ' + (preview.org_name || 'your workspace')}</h2>
-          <p className="text-sm text-muted mt-1">Invited as <span className="font-medium text-content">{preview.email}</span>{preview.new_org ? ' · workspace owner' : ' · ' + preview.role}.</p>
+          <h2 className="text-xl font-semibold">{preview.kind === 'platform' ? 'Become a platform co-owner' : preview.new_org ? 'Set up ' + (preview.org_name || 'your workspace') : 'Join ' + (preview.org_name || 'your workspace')}</h2>
+          <p className="text-sm text-muted mt-1">Invited as <span className="font-medium text-content">{preview.email}</span>{preview.kind === 'platform' ? ' · platform co-owner' : preview.new_org ? ' · workspace owner' : ' · ' + preview.role}.</p>
         </div>
 
         {error && <div className="flex items-center gap-2 text-sm text-rose-600 bg-rose-500/10 border border-rose-500/20 rounded-md px-3 py-2"><Icon name="ti-alert-circle" />{error}</div>}
@@ -112,7 +112,7 @@ export default function SignupPage() {
 
         {sessionEmail && emailMatches ? (
           <>
-            <p className="text-sm text-muted">You're signed in as <span className="font-medium text-content">{sessionEmail}</span>. Accept to {preview.new_org ? 'create' : 'join'} {preview.org_name || 'the workspace'}.</p>
+            <p className="text-sm text-muted">You're signed in as <span className="font-medium text-content">{sessionEmail}</span>. Accept to {preview.kind === 'platform' ? 'become a platform co-owner' : (preview.new_org ? 'create ' : 'join ') + (preview.org_name || 'the workspace')}.</p>
             <button className="btn btn-primary w-full" disabled={busy} onClick={accept}>{busy ? <Icon name="ti-loader-2" className="animate-spin" /> : 'Accept & continue'}</button>
           </>
         ) : sessionEmail && !emailMatches ? (
@@ -134,7 +134,7 @@ export default function SignupPage() {
               <label className="label">Create a password</label>
               <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" minLength={8} required disabled={busy} />
             </div>
-            <button className="btn btn-primary w-full" disabled={busy || password.length < 8}>{busy ? <Icon name="ti-loader-2" className="animate-spin" /> : (preview.new_org ? 'Create account & workspace' : 'Create account & join')}</button>
+            <button className="btn btn-primary w-full" disabled={busy || password.length < 8}>{busy ? <Icon name="ti-loader-2" className="animate-spin" /> : (preview.kind === 'platform' ? 'Create account & accept' : preview.new_org ? 'Create account & workspace' : 'Create account & join')}</button>
             <p className="text-2xs text-muted2 text-center">Already have an account? <a href="/login" className="text-content hover:underline">Sign in</a> with this email, then reopen this link.</p>
           </form>
         )}

@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listPlanLimits, setPlanLimit, PlanLimit } from '@/lib/db';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listPlanLimits, setPlanLimit, PlanLimit } from '@/lib/db';
 import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
@@ -499,11 +499,17 @@ function OwnersTab() {
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
   const [pending, setPending] = useState<OwnerDeletionRequest[]>([]);
+  const [invites, setInvites] = useState<PlatformInvite[]>([]);
+  const [invEmail, setInvEmail] = useState('');
+  const [invBusy, setInvBusy] = useState(false);
+  const [invLink, setInvLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = async () => {
     try { setRows(await listPlatformAdmins()); }
     catch (e: any) { setErr(e?.message || 'Failed to load owners'); setRows([]); }
     try { setPending(await ownerDeletionPending()); } catch { /* ignore */ }
+    try { setInvites(await listPlatformInvites()); } catch { /* ignore */ }
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
   const iAmPrimary = !!rows?.some((r) => r.is_self && r.is_primary);
@@ -526,6 +532,20 @@ function OwnersTab() {
     } catch (e: any) { setErr(e?.message || 'Could not add owner'); }
     finally { setBusy(false); }
   };
+
+  const sendInvite = async () => {
+    if (!invEmail.trim() || invBusy) return;
+    setInvBusy(true); setErr(''); setMsg(''); setInvLink(null);
+    try { const r = await createPlatformInvite(invEmail.trim()); setInvLink(r.link); setMsg(`Invitation sent to ${r.email}.`); setInvEmail(''); await load(); }
+    catch (e: any) { setErr(e?.message || 'Could not send invite'); }
+    finally { setInvBusy(false); }
+  };
+  const revokeInvite = async (id: string) => {
+    if (invBusy) return;
+    setInvBusy(true); setErr('');
+    try { await revokePlatformInvite(id); await load(); } catch (e: any) { setErr(e?.message || 'Could not revoke'); } finally { setInvBusy(false); }
+  };
+  const copyInvite = (link: string) => { navigator.clipboard?.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {}); };
 
   const remove = async (r: PlatformAdminRow) => {
     if (busy) return;
@@ -561,6 +581,41 @@ function OwnersTab() {
           </Field>
         </div>
         <button className="btn btn-primary" disabled={busy || !email.trim()} onClick={add}><Icon name="ti-user-plus" className="text-base" />Add owner</button>
+      </div>
+
+      <div className="rounded-lg border border-line bg-surface2/40 p-4 max-w-xl space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-content">Invite a co-owner without an account</p>
+          <p className="text-2xs text-muted mt-0.5">Sends a secure signup link (email also queued). They create their account and become a platform owner on accept — no prior sign-in required.</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex-1 min-w-[14rem]">
+            <Field label="Invite by email">
+              <input className="input" type="email" autoComplete="off" placeholder="newcoowner@company.com" value={invEmail}
+                onChange={(e) => setInvEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendInvite(); }} />
+            </Field>
+          </div>
+          <button className="btn btn-primary" disabled={invBusy || !invEmail.trim()} onClick={sendInvite}><Icon name="ti-mail-plus" className="text-base" />Send invite</button>
+        </div>
+        {invLink && (
+          <div className="flex items-center gap-2">
+            <input className="input flex-1 font-mono text-2xs" readOnly value={invLink} onFocus={(e) => e.currentTarget.select()} />
+            <button className="btn shrink-0" onClick={() => copyInvite(invLink)}>{copied ? 'Copied!' : 'Copy link'}</button>
+          </div>
+        )}
+        {invites.filter((i) => i.status === 'pending').length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-2xs uppercase tracking-wide text-muted2 font-medium">Pending invites</p>
+            {invites.filter((i) => i.status === 'pending').map((iv) => (
+              <div key={iv.id} className="flex items-center gap-2 text-sm bg-surface border border-line rounded-md px-3 py-2">
+                <Icon name="ti-mail" className="text-muted2" />
+                <span className="text-content">{iv.email}</span>
+                <span className="text-2xs text-muted2">expires {new Date(iv.expires_at).toLocaleDateString()}</span>
+                <button className="btn-ghost text-2xs text-rose-600 ml-auto" disabled={invBusy} onClick={() => revokeInvite(iv.id)}><Icon name="ti-x" />Revoke</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {pending.length > 0 && (
