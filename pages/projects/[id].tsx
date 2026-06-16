@@ -6,6 +6,7 @@ import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs, StatusBadg
 import CommentsThread from '@/components/Comments';
 import EntityTags from '@/components/EntityTags';
 import { Modal, Field } from '@/components/Modal';
+import Select from '@/components/Select';
 import { createGuest } from '@/lib/db';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import {
@@ -419,10 +420,7 @@ function RequestsPanel({ projectId, orgId, meId, isOrgAdmin, isGuest }: { projec
           <p className="text-sm font-semibold text-content mb-3">{isGuest ? 'Raise a request' : 'New request / suggestion'}</p>
           {err && <p className="text-sm text-rose-600 mb-2">{err}</p>}
           <div className="space-y-2.5">
-            <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
-              <option value="request">Request something</option>
-              <option value="suggestion">Suggest a change</option>
-            </select>
+            <Select value={type} onChange={setType} options={[{ value: 'request', label: 'Request something' }, { value: 'suggestion', label: 'Suggest a change' }]} />
             <input className="input" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
             <textarea className="input min-h-[80px] py-2" placeholder="Details (optional)" value={body} onChange={(e) => setBody(e.target.value)} />
             <button className="btn btn-primary w-full" disabled={busy || !title.trim()} onClick={submit}><Icon name="ti-send" />Submit</button>

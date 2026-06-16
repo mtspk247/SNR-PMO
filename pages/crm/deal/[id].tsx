@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
+import Select from '@/components/Select';
 import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs, Avatar } from '@/components/ui';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import EntityLink from '@/components/EntityLink';
@@ -157,9 +158,7 @@ export default function DealDetail() {
       {tab === 'activity' && (
         <div className="card p-5 max-w-2xl">
           <div className="flex gap-2 mb-4">
-            <select value={actKind} onChange={(e) => setActKind(e.target.value)} className="input w-28 py-1.5 text-sm">
-              {ACT_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
-            </select>
+            <div className="w-32"><Select value={actKind} onChange={setActKind} options={ACT_KINDS.map((k) => ({ value: k.id, label: k.label }))} /></div>
             <input value={actBody} onChange={(e) => setActBody(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && logActivity()}
               placeholder="Log an activity…" className="input flex-1 py-1.5 text-sm" />
             <button onClick={logActivity} disabled={actBusy || !actBody.trim()} className="btn btn-primary"><Icon name="ti-plus" />Log</button>
