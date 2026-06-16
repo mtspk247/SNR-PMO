@@ -8,6 +8,10 @@ export interface DropItem { value: string; label: string; icon?: string; dot?: s
  * Renders the menu fixed-positioned (anchored to the trigger) so it never clips
  * inside scrolling modal panes. Single-select (value/onChange) or multi-select
  * (multiple + values/onToggle). Optional search box and a footer (e.g. "create").
+ *
+ * The menu auto-flips above the trigger and caps its own height to the available
+ * viewport space, so the last options are always reachable and scrollable even
+ * when the trigger sits near the bottom of the screen or a modal.
  */
 export default function Dropdown({
   items, value, onChange, trigger, align = 'left', width = 224, search = false,
@@ -30,25 +34,37 @@ export default function Dropdown({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
 
   const place = () => {
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
     let left = align === 'right' ? r.right - width : r.left;
     left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
-    const top = Math.min(r.bottom + 6, window.innerHeight - 80);
-    setPos({ top, left });
+    const margin = 8, gap = 6, cap = 288;
+    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+    // Flip up only when there isn't enough room below and there's more room above.
+    const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(160, Math.min(cap, (openUp ? spaceAbove : spaceBelow) - gap));
+    const top = openUp ? Math.max(margin, r.top - gap - maxHeight) : r.bottom + gap;
+    setPos({ top, left, maxHeight });
   };
   useLayoutEffect(() => { if (open) { place(); setQ(''); } /* eslint-disable-next-line */ }, [open]);
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
+    // Close on page scroll, but NOT when the scroll happens inside the menu itself.
+    const onScroll = (e: Event) => {
+      if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onResize = () => setOpen(false);
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); window.removeEventListener('keydown', onKey); };
+    return () => { window.removeEventListener('scroll', onScroll, true); window.removeEventListener('resize', onResize); window.removeEventListener('keydown', onKey); };
   }, [open]);
 
   const filtered = q ? items.filter((i) => i.label.toLowerCase().includes(q.toLowerCase())) : items;
@@ -61,8 +77,8 @@ export default function Dropdown({
       {open && pos && (
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} aria-hidden />
-          <div className="fixed z-[61] animate-in" style={{ top: pos.top, left: pos.left, width }}>
-            <div className="bg-surface border border-line rounded-lg shadow-lg p-1.5 max-h-[18rem] overflow-y-auto">
+          <div ref={menuRef} className="fixed z-[61] animate-in" style={{ top: pos.top, left: pos.left, width }}>
+            <div className="bg-surface border border-line rounded-lg shadow-lg p-1.5 overflow-y-auto" style={{ maxHeight: pos.maxHeight }}>
               {search && (
                 <div className="px-0.5 pb-1.5">
                   <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onClick={(e) => e.stopPropagation()}

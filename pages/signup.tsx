@@ -11,6 +11,31 @@ import { useHostBranding } from '@/lib/useHostBranding';
  * /signup?token=<invite> validates the invite, lets the invitee create their
  * account (email locked to the invite), then accepts it -> provisions their org.
  */
+function Shell({ brand, children }: { brand: ReturnType<typeof useHostBranding>; children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen grid lg:grid-cols-2 bg-bg">
+      <Head><title>Set up your workspace — SNR-PMO</title></Head>
+      <div className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden text-white"
+        style={{ background: 'linear-gradient(160deg, #0d2018 0%, #0b2a1d 52%, #06110c 100%)' }}>
+        <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(62,207,142,.28), transparent 62%)' }} />
+        <div className="relative flex items-center gap-2.5">
+          {brand.logoUrl
+            ? <img src={brand.logoUrl} alt={brand.name} className="h-9 w-auto max-w-[180px] object-contain" />
+            : <><span className="w-9 h-9 rounded-lg grid place-items-center font-bold text-accentfg shadow-lg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>{brand.name.charAt(0).toUpperCase()}</span>
+              <span className="font-semibold text-lg tracking-tight">{brand.name}</span></>}
+        </div>
+        <div className="relative">
+          <h1 className="text-[2.6rem] font-semibold leading-[1.08] tracking-tight">You're invited.<br />Let's set up<br />your workspace.</h1>
+          <p className="text-white/65 mt-5 max-w-sm text-[15px] leading-relaxed">Create your account to access your organization — projects, tasks, CRM, HR and financials, scoped securely to your tenant.</p>
+        </div>
+        <p className="relative text-2xs text-white/40">© 2026 {brand.name} · Secure multi-tenant SaaS</p>
+      </div>
+      <div className="flex items-center justify-center p-6"><div className="w-full max-w-sm">{children}</div></div>
+    </div>
+  );
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [token, setToken] = useState('');
@@ -57,30 +82,8 @@ export default function SignupPage() {
   const signOut = async () => { await sb.auth.signOut(); setSessionEmail(null); };
   const emailMatches = !!sessionEmail && !!preview?.email && sessionEmail.toLowerCase() === preview.email.toLowerCase();
 
-  const Shell = ({ children }: { children: React.ReactNode }) => (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-bg">
-      <Head><title>Set up your workspace — SNR-PMO</title></Head>
-      <div className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden text-white"
-        style={{ background: 'linear-gradient(160deg, #0d2018 0%, #0b2a1d 52%, #06110c 100%)' }}>
-        <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(circle, rgba(62,207,142,.28), transparent 62%)' }} />
-        <div className="relative flex items-center gap-2.5">
-          {brand.logoUrl
-            ? <img src={brand.logoUrl} alt={brand.name} className="h-9 w-auto max-w-[180px] object-contain" />
-            : <><span className="w-9 h-9 rounded-lg grid place-items-center font-bold text-accentfg shadow-lg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>{brand.name.charAt(0).toUpperCase()}</span>
-              <span className="font-semibold text-lg tracking-tight">{brand.name}</span></>}
-        </div>
-        <div className="relative">
-          <h1 className="text-[2.6rem] font-semibold leading-[1.08] tracking-tight">You're invited.<br />Let's set up<br />your workspace.</h1>
-          <p className="text-white/65 mt-5 max-w-sm text-[15px] leading-relaxed">Create your account to access your organization — projects, tasks, CRM, HR and financials, scoped securely to your tenant.</p>
-        </div>
-        <p className="relative text-2xs text-white/40">© 2026 {brand.name} · Secure multi-tenant SaaS</p>
-      </div>
-      <div className="flex items-center justify-center p-6"><div className="w-full max-w-sm">{children}</div></div>
-    </div>
-  );
 
-  if (loadingPreview) return <Shell><div className="flex items-center gap-2 text-sm text-muted"><Icon name="ti-loader-2" className="animate-spin" />Checking your invitation…</div></Shell>;
+  if (loadingPreview) return <Shell brand={brand}><div className="flex items-center gap-2 text-sm text-muted"><Icon name="ti-loader-2" className="animate-spin" />Checking your invitation…</div></Shell>;
 
   if (!token || !preview || !preview.valid) {
     const reason = !token ? 'no_token' : preview?.reason || 'invalid';
@@ -88,7 +91,7 @@ export default function SignupPage() {
       : reason === 'used' ? 'This invitation has already been used. Try signing in instead.'
       : 'This invitation link is invalid. Check the link in your email, or ask your administrator to re-send it.';
     return (
-      <Shell>
+      <Shell brand={brand}>
         <div className="space-y-4">
           <span className="w-11 h-11 rounded-xl grid place-items-center bg-rose-500/10 text-rose-500"><Icon name="ti-mail-x" className="text-xl" /></span>
           <h2 className="text-xl font-semibold">Invitation unavailable</h2>
@@ -100,7 +103,7 @@ export default function SignupPage() {
   }
 
   return (
-    <Shell>
+    <Shell brand={brand}>
       <div className="space-y-5">
         <div>
           <h2 className="text-xl font-semibold">{preview.kind === 'platform' ? 'Become a platform co-owner' : preview.new_org ? 'Set up ' + (preview.org_name || 'your workspace') : 'Join ' + (preview.org_name || 'your workspace')}</h2>

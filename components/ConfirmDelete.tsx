@@ -35,9 +35,9 @@ export default function ConfirmDelete({
   return (
     <>
       {iconOnly ? (
-        <button onClick={() => setOpen(true)} title={label} className={className || 'text-muted2 hover:text-rose-600'}><Icon name="ti-trash" className="text-base" /></button>
+        <button onClick={(e) => { e.stopPropagation(); setOpen(true); }} title={label} className={className || 'text-muted2 hover:text-rose-600'}><Icon name="ti-trash" className="text-base" /></button>
       ) : (
-        <button onClick={() => setOpen(true)} className={className || 'btn btn-danger'}><Icon name="ti-trash" />{label}</button>
+        <button onClick={(e) => { e.stopPropagation(); setOpen(true); }} className={className || 'btn btn-danger'}><Icon name="ti-trash" />{label}</button>
       )}
       {open && (
         <Modal open onClose={close} size="sm" icon="ti-alert-triangle" title={`Delete ${name ? `“${name}”` : 'this item'}?`}

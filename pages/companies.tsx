@@ -142,7 +142,7 @@ export default function CompaniesPage() {
                   </button>
                 )}
                 {admin && (projectCount(c.id) > 0 ? (
-                  <button onClick={() => alert('Reassign or remove this company\u2019s projects first.')} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete company">
+                  <button onClick={(e) => { e.stopPropagation(); alert('Reassign or remove this company\u2019s projects first.'); }} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete company">
                     <Icon name="ti-trash" />
                   </button>
                 ) : (
