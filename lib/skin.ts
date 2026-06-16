@@ -45,3 +45,19 @@ export function applySkin(s?: string | null): Skin {
   try { localStorage.setItem(KEY, skin); } catch { /* ignore */ }
   return skin;
 }
+
+// ---- Per-USER skin override (opt-in; only honored when the tenant allows it) ----
+const USER_KEY = 'snr-user-skin';
+export function getUserSkin(): Skin | '' {
+  if (typeof localStorage === 'undefined') return '';
+  try { const v = localStorage.getItem(USER_KEY); return (VALID as string[]).includes(v || '') ? (v as Skin) : ''; } catch { return ''; }
+}
+export function setUserSkin(s: Skin | '') {
+  try { if (s) localStorage.setItem(USER_KEY, s); else localStorage.removeItem(USER_KEY); } catch { /* ignore */ }
+}
+// Resolve the skin to actually paint: a user's personal pick wins ONLY when the
+// tenant has allow_user_themes on; otherwise the workspace skin is used.
+export function effectiveSkin(orgSkin?: string | null, allowUser?: boolean): Skin {
+  const us = getUserSkin();
+  return normalizeSkin(allowUser && us ? us : orgSkin);
+}

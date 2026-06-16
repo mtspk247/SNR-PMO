@@ -7,11 +7,12 @@ import { applySkin } from './skin';
 // bars all recolour to the tenant. Used pre-auth (subdomain, in _app) and post-auth
 // (active org, in Layout). We inject a <style> element rather than inline root vars
 // so we can give light and dark themes their own readable accent-strong shade.
-export function applyBranding(org: (Pick<Organization, 'name' | 'branding'> & { theme_skin?: string | null }) | null) {
+export function applyBranding(org: (Pick<Organization, 'name' | 'branding'> & { theme_skin?: string | null }) | null, skinOverride?: string | null) {
   if (typeof document === 'undefined') return;
+  if (!org) return; // FOUC fix: never reset the skin to 'classic' while the active org is still loading
   const root = document.documentElement;
   const b = org?.branding || {};
-  applySkin(org?.theme_skin);
+  applySkin(skinOverride ?? org?.theme_skin);
   if (org?.name) root.dataset.orgName = org.name;
 
   // A primary colour equal to the stock default is treated as "not customised"

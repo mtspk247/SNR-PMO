@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
-import { updateOrgSettings, setOrgTheme, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
+import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
-import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin } from '@/lib/skin';
+import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { FEATURE_LABELS, formatPrice } from '@/lib/entitlements';
@@ -329,6 +329,8 @@ export default function SettingsPage() {
   const [accent, setAccent] = useState(DEFAULTS.accent);
   const [skin, setSkin] = useState<Skin>('classic');
   const [skinMsg, setSkinMsg] = useState('');
+  const [uSkin, setUSkin] = useState<Skin | ''>('');
+  const [allowUserThemes, setAllowUserThemes] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -340,6 +342,8 @@ export default function SettingsPage() {
     setPrimary(b.primary_color || DEFAULTS.primary);
     setAccent(b.accent_color || DEFAULTS.accent);
     setSkin(normalizeSkin(org.theme_skin));
+    setUSkin(getUserSkin());
+    setAllowUserThemes(!!org.allow_user_themes);
   }, [org?.id]);
 
   // Theme is saved on click via its own ungated path (not the white-label branding Save).
@@ -354,6 +358,20 @@ export default function SettingsPage() {
     } catch (e: any) {
       setSkin(prev); applySkin(prev); setSkinMsg(e.message || 'Could not save theme');
     }
+  };
+
+  // Personal theme (per user, only when the tenant allows it). Light/dark stays the
+  // existing per-user toggle in the top bar; this is the skin override.
+  const pickUserSkin = (k: Skin | '') => {
+    if (!org) return;
+    setUSkin(k); setUserSkin(k);
+    applySkin(k || normalizeSkin(org.theme_skin));
+  };
+  const toggleAllowUserThemes = async () => {
+    if (!org) return;
+    const next = !allowUserThemes; setAllowUserThemes(next);
+    try { await setOrgAllowUserThemes(org.id, next); patchOrg({ id: org.id, allow_user_themes: next }); }
+    catch { setAllowUserThemes(!next); }
   };
 
   if (!org) return <Layout flat title="Settings"><Spinner /></Layout>;
@@ -384,6 +402,28 @@ export default function SettingsPage() {
     <Layout flat title="Settings">
       <PageHeader title="Settings" subtitle="Your preferences, subscription, and white-label settings" />
       <ProfileSettings />
+      {org.allow_user_themes && (
+        <div className="card p-6 mb-6 max-w-4xl">
+          <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Your theme</p>
+          <p className="text-sm text-muted mb-4">This workspace lets you choose your own theme. Pick one, or follow the workspace default. Light vs dark is always your choice (toggle in the top bar).</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <button type="button" onClick={() => pickUserSkin('')}
+              className={`text-left rounded-lg border p-3 transition ${uSkin === '' ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
+              <div className="mb-2"><div className="h-16 rounded-md border border-line bg-surface2 flex items-center justify-center"><Icon name="ti-building" className="text-muted text-xl" /></div></div>
+              <div className="flex items-center gap-2 mb-1.5"><span className="text-sm font-medium">Follow workspace</span>{uSkin === '' && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}</div>
+              <p className="text-2xs text-muted">Use the workspace default theme</p>
+            </button>
+            {SKINS.map((sk) => (
+              <button key={sk.key} type="button" onClick={() => pickUserSkin(sk.key)}
+                className={`text-left rounded-lg border p-3 transition ${uSkin === sk.key ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
+                <div className="mb-2"><SkinThumb sk={sk} /></div>
+                <div className="flex items-center gap-2 mb-1.5"><span className="w-4 h-4 rounded" style={{ background: sk.swatch }} /><span className="text-sm font-medium">{sk.label}</span>{uSkin === sk.key && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}</div>
+                <p className="text-2xs text-muted">{sk.blurb}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {admin && (
         <Tabs tabs={[
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
@@ -415,6 +455,11 @@ export default function SettingsPage() {
             ))}
           </div>
           <p className="text-2xs text-muted mt-3">Saved instantly for the whole workspace. Light vs dark stays a personal choice.{skinMsg && <span className="ml-2 text-emerald-600 font-medium">{skinMsg}</span>}</p>
+          <label className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-line cursor-pointer">
+            <input type="checkbox" checked={allowUserThemes} onChange={toggleAllowUserThemes} className="accent-accent" />
+            <span className="text-sm text-content">Allow members to choose their own theme</span>
+            <span className="text-2xs text-muted">members can override the workspace theme from their own Settings; light/dark is always personal.</span>
+          </label>
         </div>
       )}
       {admin && tab === 'branding' && <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">

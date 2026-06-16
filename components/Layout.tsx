@@ -21,6 +21,7 @@ import UpgradeScreen from '@/components/UpgradeScreen';
 import Toaster from '@/components/Toaster';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
+import { effectiveSkin } from '@/lib/skin';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
 
 
@@ -76,7 +77,10 @@ export default function Layout({ title, children, flat = false }: { title: strin
   }, [router.pathname, sections.length]);
 
   // Re-apply branding when the active org changes (covers org switch + apex domain).
-  useEffect(() => { applyBranding(activeOrg); }, [activeOrg?.id, JSON.stringify(activeOrg?.branding)]);
+  useEffect(() => {
+    if (!activeOrg) return;
+    applyBranding(activeOrg, effectiveSkin(activeOrg.theme_skin, activeOrg.allow_user_themes));
+  }, [activeOrg?.id, JSON.stringify(activeOrg?.branding), activeOrg?.allow_user_themes]);
 
   // Lightweight guest check-in (once per browser session per org).
   useEffect(() => {
@@ -229,7 +233,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
               {!collapsed && (
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate side-fg">{user?.full_name}</p>
-                  <p className="text-2xs side-dim truncate">{roleLabel(activeOrg?.member_role)}</p>
+                  <p className="text-2xs side-dim truncate">{platformAdmin ? 'Platform owner' : roleLabel(activeOrg?.member_role)}</p>
                 </div>
               )}
             </Link>

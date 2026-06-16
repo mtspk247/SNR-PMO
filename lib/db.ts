@@ -49,7 +49,7 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin)')
+    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -101,6 +101,11 @@ export async function setOrgTheme(orgId: string, skin: string): Promise<{ id: st
     .single();
   if (error) throw new Error(error.message);
   return data as { id: string; theme_skin: string | null };
+}
+// Tenant toggle: let members pick their own skin (ungated column; owner/admin via org_update RLS).
+export async function setOrgAllowUserThemes(orgId: string, allow: boolean): Promise<void> {
+  const { error } = await sb.from('organizations').update({ allow_user_themes: allow }).eq('id', orgId);
+  if (error) throw new Error(error.message);
 }
 
 export async function getOrgUsers(): Promise<OrgUser[]> {
