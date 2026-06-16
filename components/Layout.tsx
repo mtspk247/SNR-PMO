@@ -55,7 +55,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
     ...(can.manageMembers(activeOrg) ? [ADMIN_SECTION] : []),
   ]
     .map((s) => s.kind === 'menu'
-      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href) && (!i.adminOnly || can.manageMembers(activeOrg))) }
+      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href) && (!i.adminOnly || can.manageMembers(activeOrg)) && (!i.platformOnly || platformAdmin)) }
       : s)
     .filter((s) => s.kind === 'link'
       ? navVisible(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature) && guestOk(s.item.href)

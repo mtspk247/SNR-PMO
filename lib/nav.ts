@@ -23,7 +23,7 @@ export type SearchSpec = {
 // `search` (optional) makes the page searchable from the header.
 export type NavItem = {
   href: string; label: string; icon: string;
-  feature?: FeatureKey; adminOnly?: boolean; search?: SearchSpec;
+  feature?: FeatureKey; adminOnly?: boolean; platformOnly?: boolean; search?: SearchSpec;
 };
 export type NavSection =
   | { kind: 'link'; item: NavItem }
@@ -135,6 +135,7 @@ export const SECTIONS: NavSection[] = [
 export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
+  { href: '/admin/support-agents', label: 'Support agents', icon: 'ti-headset', platformOnly: true },
   { href: '/lists', label: 'Lists & options', icon: 'ti-list-details' },
   { href: '/admin/notifications', label: 'Notifications', icon: 'ti-bell-cog' },
   { href: '/approvals', label: 'Approvals', icon: 'ti-checks' },

@@ -2150,6 +2150,25 @@ export async function removePlatformAdmin(userId: string): Promise<{ status: str
   if (error) throw new Error(error.message);
   return (data as { status: string }) ?? { status: 'removed' };
 }
+export interface SupportAgent { user_id: string; email: string; full_name: string | null; avatar_url: string | null; active: boolean; created_at: string; }
+export async function supportAgentList(): Promise<SupportAgent[]> {
+  const { data, error } = await sb.rpc('support_agent_list');
+  if (error) throw new Error(error.message);
+  return (data as SupportAgent[]) || [];
+}
+export async function supportAgentAdd(email: string): Promise<string> {
+  const { data, error } = await sb.rpc('support_agent_add', { p_email: email });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+export async function supportAgentSetActive(userId: string, active: boolean): Promise<void> {
+  const { error } = await sb.rpc('support_agent_set_active', { p_user_id: userId, p_active: active });
+  if (error) throw new Error(error.message);
+}
+export async function supportAgentRemove(userId: string): Promise<void> {
+  const { error } = await sb.rpc('support_agent_remove', { p_user_id: userId });
+  if (error) throw new Error(error.message);
+}
 export interface OwnerDeletionRequest { id: string; target_email: string; target_name: string; requested_by: string | null; created_at: string; }
 export async function ownerDeletionPending(): Promise<OwnerDeletionRequest[]> {
   const { data, error } = await sb.rpc('owner_deletion_pending');
