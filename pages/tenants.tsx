@@ -3,6 +3,7 @@ import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
+import { PlanBadge } from '@/components/PlanBadge';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { listTenants, listPlans, listOrgInvites, createOrgInvite, revokeOrgInvite, platformAccounts, PlatformAccount } from '@/lib/db';
@@ -52,7 +53,7 @@ export default function TenantsPage() {
               {rows.map((t) => (
                 <tr key={t.org_id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => router.push(`/tenants/${t.org_id}`)}>
                   <td className="px-4 py-3"><span className="font-medium text-content">{t.org_name}</span><span className="block text-2xs text-muted2">{t.slug}</span></td>
-                  <td className="px-4 py-3"><span className="pill pill-gray">{t.plan_name || t.plan_key || '—'}</span></td>
+                  <td className="px-4 py-3"><PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" /></td>
                   <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
                   <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
                   <td className="px-4 py-3"><span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span></td>

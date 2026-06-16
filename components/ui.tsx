@@ -69,8 +69,8 @@ export const StatCard = ({ label, value, hint, hintTone = 'muted', icon }:
   </div>
 );
 
-export const PageHeader = ({ title, subtitle, action, icon }:
-  { title: string; subtitle?: string; action?: React.ReactNode; icon?: string }) => (
+export const PageHeader = ({ title, subtitle, action, icon, badge }:
+  { title: string; subtitle?: string; action?: React.ReactNode; icon?: string; badge?: React.ReactNode }) => (
   <div className="flex items-start justify-between gap-3 mb-5">
     <div className="flex items-start gap-3 min-w-0">
       {icon && (
@@ -79,7 +79,10 @@ export const PageHeader = ({ title, subtitle, action, icon }:
         </span>
       )}
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight truncate">{title}</h1>
+        <div className="flex items-center gap-2 min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight truncate">{title}</h1>
+          {badge && <span className="shrink-0">{badge}</span>}
+        </div>
         {subtitle && <p className="text-sm text-muted mt-0.5">{subtitle}</p>}
       </div>
     </div>

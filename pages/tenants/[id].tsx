@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs, Avatar } from '@/components/ui';
+import { PlanBadge } from '@/components/PlanBadge';
 import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
@@ -158,6 +159,7 @@ export default function TenantDetail() {
   return (
     <Layout flat title={tenant.org_name}>
       <PageHeader title={tenant.org_name} subtitle={tenant.slug} icon="ti-building-community"
+        badge={<PlanBadge planKey={tenant.plan_key} planName={usage?.plan || tenant.plan_name} />}
         action={<div className="flex items-center gap-2">
           <span className={`pill ${info?.active === false ? 'pill-red' : 'pill-green'}`}>{info?.active === false ? 'Suspended' : 'Active'}</span>
           <button className={`btn h-8 py-0 ${info?.active === false ? 'btn-primary' : 'btn-danger'}`} disabled={busy || !info} onClick={() => ask(info?.active === false ? 'Reactivate tenant?' : 'Suspend tenant?', info?.active === false ? `Reactivate ${tenant.org_name}? Members regain access.` : `Suspend ${tenant.org_name}? Members lose access until reactivated.`, toggleActive, info?.active !== false)}>
