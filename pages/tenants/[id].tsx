@@ -205,11 +205,11 @@ export default function TenantDetail() {
         <div className="grid lg:grid-cols-3 gap-4">
           <div className="space-y-4">
             <div className="card p-5 space-y-3">
-              <Field label="Plan" hint="Pick a plan, then Apply (you'll be asked to confirm).">
+              <Field label="Plan override (operator)" hint="Sets the plan directly — bypasses the tenant's paid self-serve upgrade. Use for comps, trials or support.">
                 <div className="flex items-center gap-2">
                   <div className="flex-1"><Select value={planSel} disabled={busy} onChange={setPlanSel} placeholder="Select a plan…" options={plans.map((p) => ({ value: p.key, label: p.name }))} /></div>
                   <button className="btn btn-primary shrink-0" disabled={busy || !planSel || planSel === (info.plan || '')}
-                    onClick={() => ask('Change plan?', `Switch ${tenant.org_name} to the "${plans.find((p) => p.key === planSel)?.name || planSel}" plan?`, () => changePlan(planSel))}>
+                    onClick={() => ask('Override plan?', `Override ${tenant.org_name}\u2019s plan to "${plans.find((p) => p.key === planSel)?.name || planSel}"? This bypasses their paid upgrade flow — for comps/support.`, () => changePlan(planSel))}>
                     {busy ? '…' : 'Apply'}
                   </button>
                 </div>

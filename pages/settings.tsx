@@ -45,7 +45,7 @@ function SkinThumb({ sk }: { sk: SkinMeta }) {
   );
 }
 
-function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
+function PlanPanel({ org, canBill }: { org: { id: string; features?: string[] }; canBill: boolean }) {
   const [info, setInfo] = useState<OrgPlanInfo | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [pf, setPf] = useState<PlanFeature[]>([]);
@@ -134,17 +134,21 @@ function PlanPanel({ org }: { org: { id: string; features?: string[] } }) {
       <div className="mt-6 pt-6 border-t border-line">
         <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Billing</p>
         {billErr && <p className="text-sm text-rose-600 mb-3">{billErr}</p>}
-        <div className="flex flex-wrap items-center gap-2">
-          {upgradeable.map((p) => (
-            <button key={p.id} className="btn btn-primary" disabled={!!busy} onClick={() => goCheckout(p.key)}>
-              {busy === p.key ? 'Redirecting…' : `Upgrade to ${p.name}`}
+        {canBill ? (<>
+          <div className="flex flex-wrap items-center gap-2">
+            {upgradeable.map((p) => (
+              <button key={p.id} className="btn btn-primary" disabled={!!busy} onClick={() => goCheckout(p.key)}>
+                {busy === p.key ? 'Redirecting…' : `Upgrade to ${p.name}`}
+              </button>
+            ))}
+            <button className="btn btn-ghost border border-line" disabled={!!busy} onClick={goPortal}>
+              {busy === 'portal' ? 'Opening…' : 'Manage billing'}
             </button>
-          ))}
-          <button className="btn btn-ghost border border-line" disabled={!!busy} onClick={goPortal}>
-            {busy === 'portal' ? 'Opening…' : 'Manage billing'}
-          </button>
-        </div>
-        <p className="text-2xs text-muted mt-3">Upgrades open secure Stripe Checkout. Manage billing opens the Stripe customer portal to change or cancel your plan. Seat counts sync automatically.</p>
+          </div>
+          <p className="text-2xs text-muted mt-3">Upgrades open secure Stripe Checkout — you review and confirm the charge there before paying. Manage billing opens the Stripe customer portal to change or cancel. Seat counts sync automatically.</p>
+        </>) : (
+          <p className="text-sm text-muted">Only the workspace owner can change the plan or manage billing. Ask an owner to upgrade.</p>
+        )}
       </div>
     </div>
   );
@@ -376,7 +380,7 @@ export default function SettingsPage() {
         ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'branding' | 'danger')} />
       )}
       {(!admin || tab === 'notifications') && <NotificationPrefs />}
-      {admin && tab === 'billing' && <PlanPanel org={org} />}
+      {admin && tab === 'billing' && <PlanPanel org={org} canBill={isOwner} />}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
       {admin && tab === 'branding' && <DeleteSafetyToggle org={org} />}
       {admin && tab === 'branding' && (
