@@ -1114,6 +1114,16 @@ export async function addTenantNote(orgId: string, text: string): Promise<void> 
   const { error } = await sb.rpc('tenant_add_note', { p_org: orgId, p_text: text }); if (error) throw new Error(error.message);
 }
 
+// ---- Platform marketing campaigns (queue branded emails to a tenant segment) ----
+export async function campaignPreview(segment: string): Promise<number> {
+  const { data, error } = await sb.rpc('platform_campaign_preview', { p_segment: segment });
+  if (error) throw new Error(error.message); return (data as number) ?? 0;
+}
+export async function sendCampaign(segment: string, subject: string, body: string, link?: string): Promise<number> {
+  const { data, error } = await sb.rpc('platform_send_campaign', { p_segment: segment, p_subject: subject, p_body: body, p_link: link || null });
+  if (error) throw new Error(error.message); return (data as number) ?? 0;
+}
+
 // ---- Support ticketing ----
 export interface SupportTicket { id: string; org_id: string; subject: string; body: string | null; category: string | null; priority: string; status: string; requester_id: string; assignee_id: string | null; created_at: string; updated_at: string; resolved_at: string | null; }
 export interface SupportReply { id: string; ticket_id: string; org_id: string; author_id: string; body: string; created_at: string; }

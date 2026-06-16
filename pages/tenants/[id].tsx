@@ -34,6 +34,7 @@ const EVENT_META = (t: string): { label: string; icon: string; dot: string } => 
   suspended: { label: 'Suspended', icon: 'ti-ban', dot: 'bg-rose-500' },
   reactivated: { label: 'Reactivated', icon: 'ti-circle-check', dot: 'bg-emerald-500' },
   payment: { label: 'Payment', icon: 'ti-credit-card', dot: 'bg-emerald-500' },
+  campaign: { label: 'Campaign sent', icon: 'ti-mail-forward', dot: 'bg-sky-500' },
   note: { label: 'Note', icon: 'ti-note', dot: 'bg-amber-400' },
 } as Record<string, { label: string; icon: string; dot: string }>)[t] || { label: t, icon: 'ti-point', dot: 'bg-muted2' });
 

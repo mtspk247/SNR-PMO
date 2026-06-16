@@ -5,11 +5,11 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, platformAccounts, PlatformAccount } from '@/lib/db';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, platformAccounts, PlatformAccount, campaignPreview, sendCampaign } from '@/lib/db';
 import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'accounts';
+type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'accounts' | 'campaigns';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -624,6 +624,52 @@ function OwnersTab() {
   );
 }
 
+function CampaignsTab() {
+  const SEGMENTS = [
+    { id: 'all', label: 'All tenants' },
+    { id: 'free', label: 'Free plan' },
+    { id: 'paid', label: 'Paid (Pro/Ent.)' },
+    { id: 'active', label: 'Active' },
+    { id: 'suspended', label: 'Suspended' },
+  ];
+  const [segment, setSegment] = useState('free');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [link, setLink] = useState('');
+  const [count, setCount] = useState<number | null>(null);
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  useEffect(() => { let on = true; setCount(null); campaignPreview(segment).then((n) => on && setCount(n)).catch(() => on && setCount(null)); return () => { on = false; }; }, [segment]);
+  const send = async () => {
+    if (!subject.trim() || !body.trim()) return;
+    if (!confirm(`Queue this campaign to ~${count ?? '?'} tenant owner(s) in the "${segment}" segment?`)) return;
+    setSending(true); setErr(''); setMsg('');
+    try { const n = await sendCampaign(segment, subject.trim(), body.trim(), link.trim() || undefined); setMsg(`Queued ${n} email(s) — they send via your configured provider (Email tab).`); setSubject(''); setBody(''); setLink(''); }
+    catch (e: any) { setErr(e.message || 'Could not send'); } finally { setSending(false); }
+  };
+  return (
+    <div className="card rounded-t-none p-5 max-w-2xl space-y-4">
+      <p className="text-2xs text-muted">Send a branded broadcast (offer, newsletter, subscription update) to a tenant segment. Each email is rendered with that tenant’s logo/colour and queued in the outbox; the configured provider sends them. Each send is logged on the tenant’s Lifecycle timeline.</p>
+      <div>
+        <p className="text-2xs uppercase tracking-wide text-muted2 mb-1.5">Audience</p>
+        <div className="flex flex-wrap gap-1.5">
+          {SEGMENTS.map((sg) => (
+            <button key={sg.id} onClick={() => setSegment(sg.id)} className={`btn h-8 py-0 ${segment === sg.id ? 'btn-primary' : ''}`}>{sg.label}</button>
+          ))}
+        </div>
+        <p className="text-2xs text-muted mt-2">{count == null ? 'Counting recipients…' : `${count} tenant owner${count === 1 ? '' : 's'} will receive this.`}</p>
+      </div>
+      <Field label="Subject"><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. 20% off Pro this month" /></Field>
+      <Field label="Message" hint="Plain text — sent as a tenant-branded email."><textarea className="textarea h-32" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your announcement, offer or newsletter…" /></Field>
+      <Field label="Button link (optional)" hint="Adds a branded call-to-action button"><input className="input" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://snr-pmo.vercel.app/settings?tab=billing" /></Field>
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+      <button className="btn btn-primary" disabled={sending || !subject.trim() || !body.trim()} onClick={send}><Icon name="ti-send" />{sending ? 'Queuing…' : 'Send campaign'}</button>
+    </div>
+  );
+}
+
 export default function PlatformPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -672,7 +718,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'accounts'] as const).map((t) => (
+            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'accounts', 'campaigns'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -682,7 +728,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : 'Accounts'}
+                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : t === 'accounts' ? 'Accounts' : 'Campaigns'}
               </button>
             ))}
           </div>
@@ -741,8 +787,10 @@ export default function PlatformPage() {
             <ErrorsTab />
           ) : tab === 'owners' ? (
             <OwnersTab />
-          ) : (
+          ) : tab === 'accounts' ? (
             <AccountsTab />
+          ) : (
+            <CampaignsTab />
           )}
 
           {planModal && (
