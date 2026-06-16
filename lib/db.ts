@@ -2674,3 +2674,25 @@ export async function productSave(orgId: string, p: { id?: string | null; sku?: 
 export async function productDelete(orgId: string, id: string): Promise<string> {
   const { data, error } = await sb.rpc('product_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message); return (data as string) || 'done';
 }
+
+// ---- Accounting P5: subscriptions / recurring billing ----
+export interface SubscriptionSchedule { id: string; org_id: string; name: string; direction: 'expense' | 'revenue'; status: string; counterparty: string | null; product_id: string | null; amount: number; currency: string; tax_rate: number; cycle: string; start_date: string; next_run: string | null; end_date: string | null; last_run: string | null; notes: string | null; }
+export async function subscriptionSchedules(orgId: string): Promise<SubscriptionSchedule[]> {
+  const { data, error } = await sb.from('subscription_schedules').select('*').eq('org_id', orgId).order('next_run', { nullsFirst: false });
+  if (error) throw new Error(error.message); return (data as SubscriptionSchedule[]) || [];
+}
+export async function subscriptionSave(orgId: string, p: { id?: string | null; name: string; direction: string; counterparty?: string | null; product_id?: string | null; amount: number; currency?: string | null; tax_rate?: number; cycle: string; start_date?: string | null; next_run?: string | null; end_date?: string | null; status: string; notes?: string | null }): Promise<string> {
+  const { data, error } = await sb.rpc('subscription_save', { p_org: orgId, p_id: p.id || null, p_name: p.name, p_direction: p.direction, p_counterparty: p.counterparty || null, p_product: p.product_id || null, p_amount: p.amount, p_currency: p.currency || null, p_tax_rate: p.tax_rate ?? 0, p_cycle: p.cycle, p_start: p.start_date || null, p_next: p.next_run || null, p_end: p.end_date || null, p_status: p.status, p_notes: p.notes || null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function subscriptionDelete(orgId: string, id: string): Promise<void> {
+  const { error } = await sb.rpc('subscription_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
+}
+export async function subscriptionGenerateDue(orgId: string): Promise<{ generated: number }> {
+  const { data, error } = await sb.rpc('subscription_generate_due', { p_org: orgId }); if (error) throw new Error(error.message); return (data as { generated: number }) || { generated: 0 };
+}
+export interface SubscriptionRun { id: string; schedule_id: string; period: string; document_type: string; document_id: string | null; amount: number; generated_at: string; }
+export async function subscriptionRuns(orgId: string, limit = 50): Promise<SubscriptionRun[]> {
+  const { data, error } = await sb.from('subscription_runs').select('*').eq('org_id', orgId).order('generated_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as SubscriptionRun[]) || [];
+}
