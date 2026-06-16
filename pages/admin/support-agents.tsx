@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
 import { useAuthStore } from '@/lib/store';
-import { supportAgentList, supportAgentAdd, supportAgentSetActive, supportAgentRemove, avatarSrc, SupportAgent } from '@/lib/db';
+import Select from '@/components/Select';
+import { supportAgentList, supportAgentAdd, supportAgentSetActive, supportAgentRemove, avatarSrc, SupportAgent, platformAccounts, PlatformAccount } from '@/lib/db';
 
 export default function SupportAgentsPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
@@ -11,9 +12,10 @@ export default function SupportAgentsPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  const [accounts, setAccounts] = useState<PlatformAccount[]>([]);
 
   const load = () => supportAgentList().then(setRows).catch((e) => { setErr(e?.message || 'Failed to load support agents'); setRows([]); });
-  useEffect(() => { if (platformAdmin) load(); }, [platformAdmin]);
+  useEffect(() => { if (platformAdmin) { load(); platformAccounts().then(setAccounts).catch(() => {}); } }, [platformAdmin]);
 
   const add = async () => {
     if (!email.trim() || busy) return;
@@ -45,7 +47,14 @@ export default function SupportAgentsPage() {
 
       <div className="card p-4 sm:p-5 mb-4">
         <h3 className="text-sm font-semibold text-content mb-1">Add a support agent</h3>
-        <p className="text-2xs text-muted mb-3">Add a member of the platform company by email. Tickets from all tenants (including white-label partners) are assigned round-robin among active agents.</p>
+        <p className="text-2xs text-muted mb-3">Pick an existing platform user, or add by email. Tickets from all tenants (including white-label partners) are assigned round-robin among active agents.</p>
+        {accounts.length > 0 && (
+          <div className="mb-2">
+            <Select value="" search placeholder="Choose a platform user\u2026"
+              onChange={(uid) => { const a = accounts.find((x) => x.user_id === uid); if (a) setEmail(a.email); }}
+              options={accounts.filter((a) => !(rows || []).some((r) => r.user_id === a.user_id)).map((a) => ({ value: a.user_id, label: `${a.full_name || a.email} \u2014 ${a.email}` }))} />
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <input className="input flex-1" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="agent@yourcompany.com" onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
           <button className="btn btn-primary shrink-0" disabled={busy || !email.trim()} onClick={add}><Icon name="ti-user-plus" />{busy ? 'Adding…' : 'Add agent'}</button>

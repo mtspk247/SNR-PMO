@@ -11,6 +11,7 @@ import { can } from '@/lib/authz';
 import { useTeams } from '@/lib/queries';
 import Dropdown from '@/components/Dropdown';
 import { buildGroups } from '@/components/ViewControls';
+import RolesManager from '@/components/RolesManager';
 import { FEATURE_LABELS } from '@/lib/entitlements';
 import qk from '@/lib/queryKeys';
 
@@ -146,7 +147,7 @@ export default function UsersPage() {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   useEffect(() => {
-    getAdminUsers().then((u) => { setUsers(u); if (u.length) setSel((s) => s || u[0].id); }).finally(() => setLoading(false));
+    getAdminUsers().then(setUsers).finally(() => setLoading(false));
     listRoleTemplates().then(setRoles).catch(() => {});
     if (org?.id) userAffiliations(org.id).then((rows: UserAffiliation[]) => setAffs(Object.fromEntries(rows.map((r) => [r.user_id, { companies: r.companies || [], projects: r.projects || [] }])))).catch(() => {});
   }, [org?.id]);
@@ -194,7 +195,7 @@ export default function UsersPage() {
 
   const tabLabel = (t: Tab) => {
     if (t === 'manage') return 'Manage users';
-    if (t === 'templates') return 'Role templates';
+    if (t === 'templates') return 'Roles';
     return `Teams${teams.length ? ` (${teams.length})` : ''}`;
   };
 
@@ -222,8 +223,8 @@ export default function UsersPage() {
           </div>
 
           {tab === 'manage' ? (
-            <div className={`flex flex-col gap-4 ${uView === 'list' ? 'lg:flex-row' : ''}`}>
-              <div className={uView === 'cards' ? 'w-full' : 'w-full lg:w-72 lg:shrink-0'}>
+            <div className="flex flex-col gap-4">
+              <div className="w-full">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xs text-muted2">{users.length} users</span>
                   <div className="flex items-center gap-1.5">
@@ -268,12 +269,8 @@ export default function UsersPage() {
                   ))}
                 </div>
               </div>
-              {u ? (
-                <div className="card flex-1 p-6 max-w-2xl rounded-t-none">
-                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-line">
-                    <Avatar name={u.full_name} size={44} />
-                    <div><h3 className="font-semibold text-content">{u.full_name}</h3><p className="text-sm text-muted">{u.email}{u.department ? ` · ${u.department}` : ''}</p></div>
-                  </div>
+              <Modal open={!!u} onClose={() => setSel(null)} size="lg" icon="ti-user" title={u?.full_name || 'User'} subtitle={u ? `${u.email}${u.department ? ' \u00b7 ' + u.department : ''}` : ''}>
+                {u && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div><label className="label">Role</label><Select value={u.role} disabled={busy} onChange={(v) => patch({ role: v as any })} options={ROLES.map((r) => ({ value: r, label: r.replace('_', ' ') }))} /></div>
@@ -317,13 +314,12 @@ export default function UsersPage() {
                       </div>
                     </div>
                   </div>
-                </div>
-              ) : <div className="card flex-1 p-6 rounded-t-none text-sm text-muted">Select a user</div>}
+                )}
+              </Modal>
             </div>
           ) : tab === 'templates' ? (
-            <div className="card rounded-t-none p-6">
-              <p className="text-sm text-muted mb-4">Switch to the Roles section to manage role templates.</p>
-              <button onClick={() => window.location.href = '/roles'} className="btn btn-primary">Manage roles</button>
+            <div className="card rounded-t-none p-5 sm:p-6">
+              <RolesManager />
             </div>
           ) : (
             /* ── Teams tab ─────────────────────────────────────────── */
