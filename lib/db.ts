@@ -1,4 +1,5 @@
 import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS } from './supabase';
+import { buildDemoPayload } from './demoSeed';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -87,6 +88,13 @@ export async function updateOrgSettings(
     .single();
   if (error) throw new Error(error.message);
   return data as Organization;
+}
+
+// ---- #8 Self-serve industry demo seed ----
+export async function seedDemoData(orgId: string, industry: string | null): Promise<Record<string, number>> {
+  const { data, error } = await sb.rpc('tenant_seed_demo', { p_org: orgId, p_payload: buildDemoPayload(industry) });
+  if (error) throw new Error(error.message);
+  return (data || {}) as Record<string, number>;
 }
 
 // ---- #5 Tenant profile (contact / web / location / classification) ----

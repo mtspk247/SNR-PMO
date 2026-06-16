@@ -8,6 +8,7 @@ import { getOrgProfile, saveOrgProfile } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
 import OrgProfileForm from '@/components/OrgProfileForm';
+import DemoDataCard from '@/components/DemoDataCard';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -476,7 +477,10 @@ export default function SettingsPage() {
       {admin && tab === 'billing' && <PlanPanel org={org} canBill={isOwner} />}
       {admin && tab === 'billing' && <PlanHistory org={org} />}
       {admin && tab === 'profile' && org && (
-        <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} />
+        <div className="space-y-6">
+          <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} />
+          {isOwner && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
+        </div>
       )}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
       {admin && tab === 'branding' && <DeleteSafetyToggle org={org} />}
