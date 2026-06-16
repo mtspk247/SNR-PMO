@@ -6,6 +6,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
+import { ViewControls, useViewPrefs } from '@/components/ViewControls';
 import {
   getPortfolios, createPortfolio, getOrgCompanies, getOrgUsers,
   getMyCompanyManagerships, getMyPortfolioManagerships, listPortfolioMembers, addPortfolioMember,
@@ -122,13 +123,32 @@ export default function PortfoliosPage() {
 
   const memberIds = new Set(members.map((m) => m.user_id));
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
+  const vp = useViewPrefs('snrpmo.portfolios.view', { view: 'cards' });
+  const VIEWS = [{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }];
 
   return (
     <Layout flat title="Portfolios">
       <PageHeader title="Portfolios" subtitle={`${portfolios.length} portfolios`}
-        action={canCreate ? <button onClick={() => { setErr(''); setNp({ name: '', company_id: createableCompanies[0]?.id || '', description: '' }); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New portfolio</button> : undefined} />
+        action={<div className="flex items-center gap-2"><ViewControls prefs={vp} views={VIEWS} />{canCreate && <button onClick={() => { setErr(''); setNp({ name: '', company_id: createableCompanies[0]?.id || '', description: '' }); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New portfolio</button>}</div>} />
       {loading ? <Spinner /> : portfolios.length === 0 ? (
         <EmptyState icon="ti-stack-2" text={canCreate ? 'No portfolios yet — create your first one' : 'No portfolios you can access yet'} />
+      ) : vp.view === 'list' ? (
+        <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
+          <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr><th className="px-4 py-3">Portfolio</th><th className="px-4 py-3">Company</th><th className="px-4 py-3"></th></tr></thead>
+          <tbody>
+            {portfolios.map((pf) => (
+              <tr key={pf.id} onClick={() => router.push(`/portfolios/${pf.id}`)} className="border-t border-line hover:bg-surface2/50 cursor-pointer">
+                <td className="px-4 py-3"><span className="inline-flex items-center gap-2 font-medium text-content"><Icon name="ti-stack-2" className="text-muted" />{pf.name}</span>{pf.description && <span className="block text-2xs text-muted truncate max-w-md">{pf.description}</span>}</td>
+                <td className="px-4 py-3 text-muted"><span className="inline-flex items-center gap-1"><Icon name="ti-building" />{companyName(pf.company_id)}</span></td>
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  {canManage(pf) && <button onClick={(e) => { e.stopPropagation(); openMembers(pf); }} className="btn-ghost text-2xs" title="Members"><Icon name="ti-users" /></button>}
+                  {canManage(pf) && <button onClick={(e) => { e.stopPropagation(); openEdit(pf); }} className="btn-ghost text-2xs" title="Rename"><Icon name="ti-pencil" /></button>}
+                  {canManage(pf) && <ConfirmDelete entityType="portfolio" id={pf.id} name={pf.name} iconOnly className="btn-ghost text-2xs text-rose-600 inline-flex" onDeleted={() => setPortfolios((prev) => prev.filter((x) => x.id !== pf.id))} />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div></div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {portfolios.map((pf) => (

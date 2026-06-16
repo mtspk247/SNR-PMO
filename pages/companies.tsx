@@ -6,6 +6,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
+import { ViewControls, useViewPrefs } from '@/components/ViewControls';
 import {
   getOrgCompanies, createOrgCompany, updateOrgCompany, deleteOrgCompany, getProjects, getOrgUsers,
   getMyCompanyManagerships, listCompanyMembers, addCompanyMember,
@@ -114,13 +115,34 @@ export default function CompaniesPage() {
 
   const memberIds = new Set(members.map((m) => m.user_id));
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
+  const vp = useViewPrefs('snrpmo.companies.view', { view: 'cards' });
+  const VIEWS = [{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }];
 
   return (
     <Layout flat title="Companies">
       <PageHeader title="Companies" subtitle={`${companies.length} companies`}
-        action={admin ? <button onClick={() => { setErr(''); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New company</button> : undefined} />
+        action={<div className="flex items-center gap-2"><ViewControls prefs={vp} views={VIEWS} />{admin && <button onClick={() => { setErr(''); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New company</button>}</div>} />
       {loading ? <Spinner /> : companies.length === 0 ? (
         <EmptyState icon="ti-building" text={admin ? 'No companies yet — create your first one' : 'No companies you can access yet'} />
+      ) : vp.view === 'list' ? (
+        <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
+          <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr><th className="px-4 py-3">Company</th><th className="px-4 py-3">Projects</th><th className="px-4 py-3"></th></tr></thead>
+          <tbody>
+            {companies.map((c) => (
+              <tr key={c.id} onClick={() => router.push(`/companies/${c.id}`)} className="border-t border-line hover:bg-surface2/50 cursor-pointer">
+                <td className="px-4 py-3"><span className="inline-flex items-center gap-2 font-medium text-content"><Icon name="ti-building" className="text-muted" />{c.name}</span>{c.description && <span className="block text-2xs text-muted truncate max-w-md">{c.description}</span>}</td>
+                <td className="px-4 py-3 text-muted tabular-nums">{projectCount(c.id)}</td>
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  {canManage(c) && <button onClick={(e) => { e.stopPropagation(); openMembers(c); }} className="btn-ghost text-2xs" title="Members"><Icon name="ti-users" /></button>}
+                  {admin && <button onClick={(e) => { e.stopPropagation(); openEdit(c); }} className="btn-ghost text-2xs" title="Rename"><Icon name="ti-pencil" /></button>}
+                  {admin && (projectCount(c.id) > 0
+                    ? <button onClick={(e) => { e.stopPropagation(); alert('Reassign or remove this company\u2019s projects first.'); }} className="btn-ghost text-2xs text-rose-600" title="Delete"><Icon name="ti-trash" /></button>
+                    : <ConfirmDelete entityType="company" id={c.id} name={c.name} iconOnly className="btn-ghost text-2xs text-rose-600 inline-flex" onDeleted={() => setCompanies((p) => p.filter((x) => x.id !== c.id))} />)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div></div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {companies.map((c) => (
