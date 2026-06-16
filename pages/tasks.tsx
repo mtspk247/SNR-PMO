@@ -14,7 +14,7 @@ import { getOrgUsers, createTask, updateTask, deleteTask, notify, avatarSrc, ens
 import { Task, OrgUser } from '@/lib/supabase';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
-import { useTasks, useProjects, useTeams } from '@/lib/queries';
+import { useTasks, useProjects, useTeams, useOrgCompanies } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { can } from '@/lib/authz';
@@ -54,7 +54,7 @@ interface TaskForm {
 }
 const EMPTY_FORM: TaskForm = { name: '', description: '', project_id: '', assignee_id: '', priority: 'Medium', status: 'To Do', due_date: '', estimated_hours: '' };
 
-type GroupBy = 'none' | 'project' | 'priority' | 'status';
+type GroupBy = 'none' | 'project' | 'priority' | 'status' | 'company';
 
 function BoardCardInner({ task, projectName, assigneeName, assigneeSrc, overdue }: { task: Task; projectName: string; assigneeName: string; assigneeSrc?: string; overdue: boolean }) {
   return (
@@ -104,6 +104,7 @@ export default function Tasks() {
   const qc = useQueryClient();
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: projects = [] } = useProjects();
+  const { data: companies = [] } = useOrgCompanies();
   const { data: teams = [] } = useTeams();
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -214,18 +215,21 @@ export default function Tasks() {
   }, [roots, query, statusFilter, priorityFilter, projectFilter, assigneeFilter, teamFilter, teams, overdueOnly, sort]);
   const pg = usePagination(filtered, 25);
 
+  const projCompany = useMemo(() => { const m = new Map<string, string>(); projects.forEach((p: any) => { if (p.company_id) m.set(p.id, p.company_id); }); return m; }, [projects]);
+  const compName = useMemo(() => { const m = new Map<string, string>(); companies.forEach((c: any) => m.set(c.id, c.name)); return m; }, [companies]);
   // Grouped view over the current page (header order: known rank lists, else A→Z).
   const groupedPage = useMemo(() => {
     if (groupBy === 'none') return null;
     const keyOf = (t: Task) =>
       groupBy === 'project' ? (t.projects?.name || 'No project') :
+      groupBy === 'company' ? (compName.get(projCompany.get(t.project_id || '') || '') || 'No company') :
       groupBy === 'priority' ? (t.priority || 'None') : (t.status || 'None');
     const m = new Map<string, Task[]>();
     pg.pageItems.forEach((t) => { const k = keyOf(t); m.set(k, [...(m.get(k) || []), t]); });
     const rank = groupBy === 'priority' ? priorities : groupBy === 'status' ? statuses : null;
     return Array.from(m.entries()).sort(([a], [b]) =>
       rank ? rank.indexOf(a) - rank.indexOf(b) : a.localeCompare(b));
-  }, [pg.pageItems, groupBy]);
+  }, [pg.pageItems, groupBy, projCompany, compName, priorities, statuses]);
 
   const selected = tasks.find((t) => t.id === selectedId) || null;
   const subtasks = useMemo(() => tasks.filter((t) => t.parent_task_id === selectedId), [tasks, selectedId]);
@@ -727,8 +731,8 @@ export default function Tasks() {
               )}
             </div>
             <Dropdown value={groupBy} onChange={(v) => setGroupBy(v as GroupBy)} width={180}
-              items={[{ value: 'none', label: 'No grouping' }, { value: 'project', label: 'Group: Project' }, { value: 'priority', label: 'Group: Priority' }, { value: 'status', label: 'Group: Status' }]}
-              trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{({ none: 'No grouping', project: 'Group: Project', priority: 'Group: Priority', status: 'Group: Status' } as Record<string, string>)[groupBy]}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+              items={[{ value: 'none', label: 'No grouping' }, { value: 'company', label: 'Group: Company' }, { value: 'project', label: 'Group: Project' }, { value: 'priority', label: 'Group: Priority' }, { value: 'status', label: 'Group: Status' }]}
+              trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{({ none: 'No grouping', company: 'Group: Company', project: 'Group: Project', priority: 'Group: Priority', status: 'Group: Status' } as Record<string, string>)[groupBy]}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
             <Dropdown value={sort} onChange={(v) => setSort(v as 'due' | 'priority' | 'name')} width={170}
               items={[{ value: 'priority', label: 'Sort: Priority' }, { value: 'due', label: 'Sort: Due date' }, { value: 'name', label: 'Sort: Name' }]}
               trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{({ priority: 'Sort: Priority', due: 'Sort: Due date', name: 'Sort: Name' } as Record<string, string>)[sort]}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
