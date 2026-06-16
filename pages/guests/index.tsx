@@ -94,7 +94,7 @@ export default function GuestsPage() {
 
   const GuestTable = ({ items }: { items: GuestRow[] }) => (
     <div className="card overflow-hidden">
-      <div className="overflow-x-auto"><table className="w-full text-sm">
+      <div className="overflow-x-auto"><table className="w-full text-sm list-card">
         <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
           <tr>
             <th className="px-4 py-3 font-medium">Guest</th>

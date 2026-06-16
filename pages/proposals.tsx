@@ -146,7 +146,7 @@ export default function ProposalsPage() {
           <div className="p-8"><EmptyState icon="ti-file-description" text="No proposals yet." /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm list-card">
               <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-3">Title</th>

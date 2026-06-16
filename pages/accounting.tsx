@@ -445,7 +445,7 @@ export default function AccountingPage() {
           {/* P&L table */}
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm list-card">
                 <thead>
                   <tr>
                     <th className="th text-left w-48">Category</th>

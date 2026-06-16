@@ -191,7 +191,7 @@ export default function OffersPage() {
           <div className="p-8"><EmptyState icon="ti-mail" text="No offer letters yet." /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm list-card">
               <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-3">Candidate</th>

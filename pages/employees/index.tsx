@@ -104,7 +104,7 @@ export default function EmployeesPage() {
         <EmptyState icon="ti-users" text={rows.length === 0 ? 'No employees yet' : 'No employees match your search'} />
       ) : (
         <div className="bg-surface overflow-hidden">
-          <div className="overflow-x-auto"><table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm list-card">
             <thead>
               <tr className="text-2xs uppercase tracking-wide text-muted border-b border-line">
                 {lp.ordered.map((id) => <th key={id} className="th text-left">{COLS.find((c) => c.id === id)?.label}</th>)}

@@ -375,7 +375,7 @@ export default function CRM() {
             {contactsFiltered.length === 0 ? <EmptyState text="No contacts match" icon="ti-user" /> : (
             <div className="bg-surface overflow-hidden">
               <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full list-card">
                 <thead><tr>
                   {clp.ordered.map((id) => <th key={id} className="th">{CONTACT_COLS.find((c) => c.id === id)?.label}</th>)}
                   <th className="th w-10"></th>

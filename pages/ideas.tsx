@@ -179,7 +179,7 @@ export default function IdeasPage() {
   );
   const IdeaTable = ({ items }: { items: Idea[] }) => (
     <div className="overflow-x-auto">
-      <table className="w-full">
+      <table className="w-full list-card">
         <thead>
           <tr>
             {lp.ordered.map((id) => <th key={id} className={`th ${id === 'votes' ? 'w-16 text-center' : ''}`}>{IDEA_COLS.find((c) => c.id === id)?.label}</th>)}
