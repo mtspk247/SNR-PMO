@@ -327,6 +327,14 @@ export default function TenantDetail() {
           </button></div>
         </div>
       )}
+
+      {confirmState && (
+        <Modal open onClose={() => setConfirmState(null)} size="sm" icon={confirmState.danger ? 'ti-alert-triangle' : 'ti-help-circle'} title={confirmState.title}
+          footer={<><button className="btn" onClick={() => setConfirmState(null)}>Cancel</button>
+            <button className={`btn ${confirmState.danger ? 'btn-danger' : 'btn-primary'}`} onClick={() => { const fn = confirmState.onYes; setConfirmState(null); fn(); }}>Confirm</button></>}>
+          <p className="text-sm text-content">{confirmState.body}</p>
+        </Modal>
+      )}
     </Layout>
   );
 }
