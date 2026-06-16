@@ -516,6 +516,7 @@ export default function Dashboard() {
           <div className="flex-1" />
           <div className="relative">
             <button onClick={() => setAddOpen((v) => !v)} disabled={available.length === 0} className="btn btn-ghost border border-line h-8 py-0 disabled:opacity-50"><Icon name="ti-plus" />Add widget</button>
+            {addOpen && <button type="button" aria-hidden className="fixed inset-0 z-20 cursor-default" onClick={() => setAddOpen(false)} />}
             {addOpen && available.length > 0 && (
               <div className="absolute right-0 mt-1 z-30 w-56 card p-1 shadow-lg">
                 {available.map((k) => (<button key={k} onClick={() => add(k)} className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-surface2 flex items-center gap-2"><Icon name={WIDGET_META[k].icon} className="text-muted2" />{WIDGET_META[k].title}</button>))}
@@ -543,6 +544,7 @@ export default function Dashboard() {
                       {variants && variants.length > 1 && (
                         <div className="relative">
                           <button onClick={() => setVarOpen((o) => (o === entry ? '' : entry))} title="Change visual" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-palette" className="text-xs" /></button>
+                          {varOpen === entry && <button type="button" aria-hidden className="fixed inset-0 z-20 cursor-default" onClick={() => setVarOpen('')} />}
                           {varOpen === entry && (
                             <div className="absolute right-0 mt-1 z-30 w-40 card p-1 shadow-lg">
                               <p className="px-2 py-1 text-2xs text-muted2">Visual</p>
