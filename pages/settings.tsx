@@ -359,9 +359,10 @@ export default function SettingsPage() {
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
-  const [tab, setTab] = useState<'notifications' | 'billing' | 'profile' | 'branding' | 'danger'>('notifications');
+  const [tab, setTab] = useState<'notifications' | 'billing' | 'profile' | 'danger'>('notifications');
+  const [psub, setPsub] = useState<'business' | 'branding' | 'themes' | 'workspace'>('business');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string' && ['notifications', 'billing', 'profile', 'branding', 'danger'].includes(q)) setTab(q as 'notifications' | 'billing' | 'profile' | 'branding' | 'danger'); }, [router.query.tab]);
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { if (q === 'branding') { setTab('profile'); setPsub('branding'); } else if (['notifications', 'billing', 'profile', 'danger'].includes(q)) setTab(q as 'notifications' | 'billing' | 'profile' | 'danger'); } }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -468,79 +469,101 @@ export default function SettingsPage() {
         <Tabs tabs={[
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
           { key: 'billing', label: 'Plan & billing', icon: 'ti-credit-card' },
-          ...(admin ? [{ key: 'profile', label: 'Profile', icon: 'ti-id-badge-2' }] : []),
-          { key: 'branding', label: 'Branding', icon: 'ti-palette' },
+          { key: 'profile', label: 'Profile', icon: 'ti-id-badge-2' },
           ...(isOwner ? [{ key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' }] : []),
-        ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'profile' | 'branding' | 'danger')} />
+        ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'profile' | 'danger')} />
       )}
       {(!admin || tab === 'notifications') && <NotificationPrefs />}
       {admin && tab === 'billing' && <PlanPanel org={org} canBill={isOwner} />}
       {admin && tab === 'billing' && <PlanHistory org={org} />}
-      {admin && tab === 'profile' && org && (
-        <div className="space-y-6">
-          <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
-          {isOwner && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
-        </div>
-      )}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
-      {admin && tab === 'branding' && <DeleteSafetyToggle org={org} />}
-      {admin && tab === 'branding' && (
-        <div className="card p-6 mb-6 max-w-4xl">
-          <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Workspace theme</p>
-          <p className="text-sm text-muted mb-4">Sets the layout, palette and density for everyone in this workspace. Light vs dark stays a personal choice per user.</p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {SKINS.map((sk) => (
-              <button key={sk.key} type="button" onClick={() => pickSkin(sk.key)}
-                className={`text-left rounded-lg border p-3 transition ${skin === sk.key ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
-                <div className="mb-2"><SkinThumb sk={sk} /></div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-4 h-4 rounded" style={{ background: sk.swatch }} />
-                  <span className="text-sm font-medium">{sk.label}</span>
-                  {skin === sk.key && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
-                </div>
-                <p className="text-2xs text-muted">{sk.blurb}</p>
-              </button>
-            ))}
-          </div>
-          <p className="text-2xs text-muted mt-3">Saved instantly for the whole workspace. Light vs dark stays a personal choice.{skinMsg && <span className="ml-2 text-emerald-600 font-medium">{skinMsg}</span>}</p>
-          <label className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-line cursor-pointer">
-            <input type="checkbox" checked={allowUserThemes} onChange={toggleAllowUserThemes} className="accent-accent" />
-            <span className="text-sm text-content">Allow members to choose their own theme</span>
-            <span className="text-2xs text-muted">members can override the workspace theme from their own Settings; light/dark is always personal.</span>
-          </label>
-        </div>
-      )}
-      {admin && tab === 'branding' && <div className="grid lg:grid-cols-3 gap-6 max-w-4xl">
-        {/* Form */}
-        <div className="lg:col-span-2 card p-6 space-y-5">
-          <div>
-            <label className="label">Workspace name</label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." />
-          </div>
-          <div>
-            <label className="label">Logo URL</label>
-            <input className="input" value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="https://…/logo.png" />
-            <p className="text-2xs text-muted mt-2">Square image works best. Leave blank to use the name initial.</p>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <ColorField label="Primary" value={primary} onChange={setPrimary} />
-            <ColorField label="Accent" value={accent} onChange={setAccent} />
-          </div>
-          <p className="text-2xs text-muted">Primary recolours buttons, links, focus rings and the active nav item. Accent is used for secondary highlights.</p>
-          <div className="pt-2">
-            <label className="label">Workspace subdomain</label>
-            <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface2 text-sm text-muted">
-              <Icon name="ti-world" /><span className="font-mono text-content">{org.slug}</span><span className="text-muted">.yourdomain.com</span>
-            </div>
-            <p className="text-2xs text-muted mt-2">Maps to your white-label URL once a custom domain is connected. Contact an owner to change.</p>
-          </div>
-          <div className="flex items-center gap-3 pt-4 border-t border-line">
-            <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving…' : 'Save changes'}</button>
-            <button onClick={reset} disabled={saving} className="btn btn-ghost">Reset colors</button>
-            {msg && <span className={`text-sm ml-auto ${msg === 'Saved' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</span>}
-          </div>
-        </div>
 
+      {admin && tab === 'profile' && org && (
+        <div className="space-y-6 max-w-4xl">
+          <Tabs tabs={[
+            { key: 'business', label: 'Business profile', icon: 'ti-id-badge-2' },
+            { key: 'branding', label: 'Branding', icon: 'ti-palette' },
+            { key: 'themes', label: 'Themes', icon: 'ti-color-swatch' },
+            { key: 'workspace', label: 'Workspace', icon: 'ti-building' },
+          ]} active={psub} onChange={(k) => setPsub(k as 'business' | 'branding' | 'themes' | 'workspace')} />
+
+          {psub === 'business' && (
+            <div className="space-y-6">
+              <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
+              {isOwner && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
+            </div>
+          )}
+
+          {psub === 'workspace' && (
+            <div className="space-y-6">
+              <div className="card p-6 space-y-5">
+                <div>
+                  <label className="label">Workspace name</label>
+                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." />
+                  <p className="text-2xs text-muted mt-2">The display name for this workspace across the app and white-label emails.</p>
+                </div>
+                <div>
+                  <label className="label">Workspace subdomain</label>
+                  <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface2 text-sm text-muted">
+                    <Icon name="ti-world" /><span className="font-mono text-content">{org.slug}</span><span className="text-muted">.yourdomain.com</span>
+                  </div>
+                  <p className="text-2xs text-muted mt-2">Maps to your white-label URL once a custom domain is connected.</p>
+                </div>
+                <div className="flex items-center gap-3 pt-4 border-t border-line">
+                  <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving\u2026' : 'Save changes'}</button>
+                  {msg && <span className={`text-sm ml-auto ${msg === 'Saved' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</span>}
+                </div>
+              </div>
+              <DeleteSafetyToggle org={org} />
+            </div>
+          )}
+
+          {psub === 'themes' && (
+            <div className="card p-6">
+              <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Workspace theme</p>
+              <p className="text-sm text-muted mb-4">Sets the layout, palette and density for everyone in this workspace. Light vs dark stays a personal choice per user.</p>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {SKINS.map((sk) => (
+                  <button key={sk.key} type="button" onClick={() => pickSkin(sk.key)}
+                    className={`text-left rounded-lg border p-3 transition ${skin === sk.key ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
+                    <div className="mb-2"><SkinThumb sk={sk} /></div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="w-4 h-4 rounded" style={{ background: sk.swatch }} />
+                      <span className="text-sm font-medium">{sk.label}</span>
+                      {skin === sk.key && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
+                    </div>
+                    <p className="text-2xs text-muted">{sk.blurb}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-2xs text-muted mt-3">Saved instantly for the whole workspace. Light vs dark stays a personal choice.{skinMsg && <span className="ml-2 text-emerald-600 font-medium">{skinMsg}</span>}</p>
+              <label className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-line cursor-pointer">
+                <input type="checkbox" checked={allowUserThemes} onChange={toggleAllowUserThemes} className="accent-accent" />
+                <span className="text-sm text-content">Allow members to choose their own theme</span>
+                <span className="text-2xs text-muted">members can override the workspace theme from their own Settings; light/dark is always personal.</span>
+              </label>
+            </div>
+          )}
+
+          {psub === 'branding' && (
+            <div className="grid lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 card p-6 space-y-5">
+                <div>
+                  <label className="label">Logo URL</label>
+                  <input className="input" value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="https://\u2026/logo.png" />
+                  <p className="text-2xs text-muted mt-2">Square image works best. Leave blank to use the name initial.</p>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <ColorField label="Primary" value={primary} onChange={setPrimary} />
+                  <ColorField label="Accent" value={accent} onChange={setAccent} />
+                </div>
+                <p className="text-2xs text-muted">Primary recolours buttons, links, focus rings and the active nav item. Accent is used for secondary highlights.</p>
+                <div className="flex items-center gap-3 pt-4 border-t border-line">
+                  <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving\u2026' : 'Save changes'}</button>
+                  <button onClick={reset} disabled={saving} className="btn btn-ghost">Reset colors</button>
+                  {msg && <span className={`text-sm ml-auto ${msg === 'Saved' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</span>}
+                </div>
+              </div>
         {/* Live preview */}
         <div className="card p-6">
           <p className="text-2xs uppercase tracking-wide text-muted mb-4 font-medium">Preview</p>
@@ -584,7 +607,10 @@ export default function SettingsPage() {
           </div>
           <p className="text-2xs text-neutral-400 mt-3">Live white-label preview — primary drives buttons, links and the active nav item.</p>
         </div>
-      </div>}
+            </div>
+          )}
+        </div>
+      )}
     </Layout>
   );
 }
