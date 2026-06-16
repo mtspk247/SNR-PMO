@@ -1006,7 +1006,7 @@ export const updateBankAccount = (id: string, patch: Partial<BankAccount>) => _u
 export const deleteBankAccount = (id: string) => _del('bank_accounts', id);
 
 // ---- Accounting billing (invoices / lines / payments / credit notes) ----
-export interface Invoice { id: string; org_id: string; invoice_number: string; client_name: string | null; client_email: string | null; issue_date: string | null; due_date: string | null; currency: string; tax_rate: number; subtotal: number; tax: number; total: number; amount_paid: number; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
+export interface Invoice { id: string; org_id: string; invoice_number: string; client_name: string | null; client_email: string | null; issue_date: string | null; due_date: string | null; currency: string; tax_rate: number; subtotal: number; tax: number; total: number; amount_paid: number; status: string; notes: string | null; project_id?: string | null; created_by: string | null; created_at: string; updated_at: string; }
 export interface InvoiceLine { id: string; org_id: string; invoice_id: string; description: string; qty: number; unit_price: number; amount: number; sort: number; }
 export interface Payment { id: string; org_id: string; invoice_id: string | null; amount: number; paid_on: string; method: string | null; reference: string | null; notes: string | null; created_at: string; }
 export interface CreditNote { id: string; org_id: string; credit_number: string; invoice_id: string | null; client_name: string | null; amount: number; issue_date: string | null; reason: string | null; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string; }
@@ -2581,7 +2581,7 @@ export async function glTaxSummary(orgId: string, from?: string | null, to?: str
 }
 
 // ---- Accounting P2b: Bills / Accounts Payable ----
-export interface Bill { id: string; org_id: string; bill_number: string | null; vendor_name: string | null; vendor_email: string | null; bill_date: string; due_date: string | null; currency: string; tax_rate: number; subtotal: number; tax: number; total: number; amount_paid: number; status: string; notes: string | null; created_by: string; created_at: string; }
+export interface Bill { id: string; org_id: string; bill_number: string | null; vendor_name: string | null; vendor_email: string | null; bill_date: string; due_date: string | null; currency: string; tax_rate: number; subtotal: number; tax: number; total: number; amount_paid: number; status: string; notes: string | null; project_id?: string | null; created_by: string; created_at: string; }
 export interface BillLine { id: string; org_id: string; bill_id: string; description: string; qty: number; unit_price: number; amount: number; sort: number; }
 export interface BillPayment { id: string; org_id: string; bill_id: string; amount: number; paid_on: string; method: string | null; reference: string | null; notes: string | null; }
 export async function listBills(orgId: string): Promise<Bill[]> {
@@ -2715,4 +2715,11 @@ export async function bankLineReconcile(orgId: string, lineId: string, on: boole
 // ---- Accounting P8: CRM deal -> invoice (revenue posts on the invoice, not on conversion) ----
 export async function dealToInvoice(orgId: string, dealId: string): Promise<string> {
   const { data, error } = await sb.rpc('deal_to_invoice', { p_org: orgId, p_deal: dealId }); if (error) throw new Error(error.message); return data as string;
+}
+
+// ---- Accounting P9: project job-costing ----
+export interface ProjectSummaryRow { project_id: string; project_name: string | null; revenue: number; cost: number; margin: number; }
+export async function glProjectsSummary(orgId: string, from?: string | null, to?: string | null): Promise<ProjectSummaryRow[]> {
+  const { data, error } = await sb.rpc('gl_projects_summary', { p_org: orgId, p_from: from || null, p_to: to || null });
+  if (error) throw new Error(error.message); return (data as ProjectSummaryRow[]) || [];
 }

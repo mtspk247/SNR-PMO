@@ -7,9 +7,9 @@ import { useActiveOrg } from '@/lib/store';
 import {
   glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
   taxRates, taxRateSave, taxRateDelete, glTaxSummary,
-  glPL, glBalanceSheet, glCashFlow, budgetSave, glBudgetVsActual, glCashForecast,
+  glPL, glBalanceSheet, glCashFlow, budgetSave, glBudgetVsActual, glCashForecast, glProjectsSummary,
   glPeriods, glClosePeriod, glReopenPeriod, glReverseEntry, glAudit,
-  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow, BudgetRow, ForecastRow, FiscalPeriod, AuditSummary,
+  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow, BudgetRow, ForecastRow, FiscalPeriod, AuditSummary, ProjectSummaryRow,
 } from '@/lib/db';
 
 const TYPES = [
@@ -39,7 +39,7 @@ export default function LedgerPage() {
   const [taxFrom, setTaxFrom] = useState('');
   const [taxTo, setTaxTo] = useState(new Date().toISOString().slice(0, 10));
   const [taxDraft, setTaxDraft] = useState<{ id?: string; name: string; rate: string; kind: string; account_id: string; is_active: boolean } | null>(null);
-  const [rptType, setRptType] = useState<'pl' | 'bs' | 'cf' | 'budget' | 'forecast'>('pl');
+  const [rptType, setRptType] = useState<'pl' | 'bs' | 'cf' | 'budget' | 'forecast' | 'projects'>('pl');
   const [rptFrom, setRptFrom] = useState('');
   const [rptTo, setRptTo] = useState(new Date().toISOString().slice(0, 10));
   const [rptAsOf, setRptAsOf] = useState(new Date().toISOString().slice(0, 10));
@@ -51,6 +51,7 @@ export default function LedgerPage() {
   const [budRows, setBudRows] = useState<BudgetRow[]>([]);
   const [budEdit, setBudEdit] = useState<Record<string, string>>({});
   const [fcRows, setFcRows] = useState<ForecastRow[]>([]);
+  const [projRows, setProjRows] = useState<ProjectSummaryRow[]>([]);
   const [auditData, setAuditData] = useState<AuditSummary>({});
   const [periods, setPeriods] = useState<FiscalPeriod[]>([]);
   const [closeMonth, setCloseMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -79,7 +80,8 @@ export default function LedgerPage() {
     else if (rptType === 'bs') glBalanceSheet(orgId, rptAsOf || null).then(setBsRows).catch((e) => setErr(e.message));
     else if (rptType === 'cf') glCashFlow(orgId, rptFrom || null, rptTo || null).then(setCfRows).catch((e) => setErr(e.message));
     else if (rptType === 'budget') loadBudget();
-    else glCashForecast(orgId, fcMonths).then(setFcRows).catch((e) => setErr(e.message));
+    else if (rptType === 'forecast') glCashForecast(orgId, fcMonths).then(setFcRows).catch((e) => setErr(e.message));
+    else glProjectsSummary(orgId, rptFrom || null, rptTo || null).then(setProjRows).catch((e) => setErr(e.message));
   }, [orgId, tab, rptType, rptFrom, rptTo, rptAsOf, rptMonth, fcMonths]);
   const loadAudit = () => { if (!orgId) return; glAudit(orgId).then(setAuditData).catch((e) => setErr(e.message)); glPeriods(orgId).then(setPeriods).catch(() => {}); };
   useEffect(() => { if (orgId && tab === 'audit') loadAudit(); /* eslint-disable-next-line */ }, [orgId, tab]);
@@ -317,7 +319,7 @@ export default function LedgerPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="inline-flex rounded-md border border-line bg-surface p-0.5">
-              {([['pl', 'P&L'], ['bs', 'Balance Sheet'], ['cf', 'Cash Flow'], ['budget', 'Budget'], ['forecast', 'Forecast']] as const).map(([v, l]) => (
+              {([['pl', 'P&L'], ['bs', 'Balance Sheet'], ['cf', 'Cash Flow'], ['budget', 'Budget'], ['forecast', 'Forecast'], ['projects', 'By project']] as const).map(([v, l]) => (
                 <button key={v} onClick={() => setRptType(v)} className={`h-8 px-3 rounded text-sm transition ${rptType === v ? 'bg-accent/15 text-accentstrong font-medium' : 'text-muted hover:text-content'}`}>{l}</button>
               ))}
             </div>
@@ -413,6 +415,25 @@ export default function LedgerPage() {
                   <td className="px-4 py-2 text-right tabular-nums text-rose-600">{money(Number(r.outflow))}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{money(Number(r.net))}</td>
                   <td className={`px-4 py-2 text-right tabular-nums font-medium ${Number(r.running) >= 0 ? 'text-content' : 'text-rose-600'}`}>{money(Number(r.running))}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab === 'reports' && rptType === 'projects' && (
+        <div className="card overflow-hidden mt-1">
+          <div className="px-4 py-2.5 border-b border-line"><span className="text-sm font-semibold text-content">Profitability by project</span><span className="text-2xs text-muted ml-2">revenue, cost and margin from the ledger (tag invoices/bills/expenses with a project)</span></div>
+          {projRows.length === 0 ? <EmptyState icon="ti-chart-bar" text="No project-tagged transactions yet." /> : (
+            <table className="w-full text-sm list-card">
+              <thead><tr><th className="px-4 py-2 text-left">Project</th><th className="px-4 py-2 text-right w-36">Revenue</th><th className="px-4 py-2 text-right w-36">Cost</th><th className="px-4 py-2 text-right w-36">Margin</th></tr></thead>
+              <tbody>{projRows.map((r) => (
+                <tr key={r.project_id}>
+                  <td className="px-4 py-2 text-content">{r.project_name || r.project_id.slice(0, 8)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-emerald-600">{money(Number(r.revenue))}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-rose-600">{money(Number(r.cost))}</td>
+                  <td className={`px-4 py-2 text-right tabular-nums font-medium ${Number(r.margin) >= 0 ? 'text-content' : 'text-rose-600'}`}>{money(Number(r.margin))}</td>
                 </tr>
               ))}</tbody>
             </table>
