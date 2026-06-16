@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
+import { ViewControls, useViewPrefs, buildGroups } from '@/components/ViewControls';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '@/lib/db';
 import { RoleTemplate, PermKey, FeatureKey } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
@@ -61,31 +62,67 @@ export default function RolesPage() {
   };
 
   const permCount = (r: RoleTemplate) => Object.values(r.permissions).filter(Boolean).length;
+  const prefs = useViewPrefs('snrpmo.roles.view', { view: 'cards', groupBy: 'none' });
+  const VIEWS = [{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }];
+  const GROUPS = [{ value: 'none', label: 'No grouping' }, { value: 'type', label: 'Group: Type' }];
+  const gKey = (r: RoleTemplate) => (r.is_system ? 'system' : 'custom');
+  const gLabel = (k: string) => (k === 'system' ? 'System roles' : 'Custom roles');
+
+  const RoleCard = (r: RoleTemplate) => (
+    <div key={r.id} className="card p-5 flex flex-col">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h3 className="font-semibold flex items-center gap-2"><Icon name="ti-shield-lock" className="text-muted" />{r.name}</h3>
+        {r.is_system && <span className="pill pill-gray">System</span>}
+      </div>
+      <p className="text-sm text-muted mb-3 min-h-[2.5rem]">{r.description || '—'}</p>
+      <div className="text-2xs text-muted space-y-1 mb-4">
+        <div><span className="text-content font-medium">{permCount(r)}</span> permission{permCount(r) === 1 ? '' : 's'}</div>
+        <div>Modules: {r.feature_access.length === 0 ? 'All' : r.feature_access.map((fk) => FEATURE_LABELS[fk as FeatureKey] || fk).join(', ')}</div>
+      </div>
+      <div className="flex gap-2 mt-auto">
+        <button onClick={() => openEdit(r)} className="btn flex-1"><Icon name="ti-pencil" />Edit</button>
+        {!r.is_system && <button onClick={() => remove(r)} className="btn text-rose-600" title="Delete"><Icon name="ti-trash" /></button>}
+      </div>
+    </div>
+  );
+
+  const RoleRow = (r: RoleTemplate) => (
+    <tr key={r.id} className="border-t border-line hover:bg-surface2/50">
+      <td className="px-4 py-3"><span className="font-medium text-content inline-flex items-center gap-2"><Icon name="ti-shield-lock" className="text-muted" />{r.name}</span>{r.is_system && <span className="pill pill-gray ml-2">System</span>}</td>
+      <td className="px-4 py-3 text-muted">{r.description || '—'}</td>
+      <td className="px-4 py-3 text-muted tabular-nums">{permCount(r)}</td>
+      <td className="px-4 py-3 text-muted">{r.feature_access.length === 0 ? 'All' : r.feature_access.map((fk) => FEATURE_LABELS[fk as FeatureKey] || fk).join(', ')}</td>
+      <td className="px-4 py-3 text-right whitespace-nowrap">
+        <button onClick={() => openEdit(r)} className="btn-ghost text-2xs"><Icon name="ti-pencil" />Edit</button>
+        {!r.is_system && <button onClick={() => remove(r)} className="btn-ghost text-2xs text-rose-600 ml-1" title="Delete"><Icon name="ti-trash" /></button>}
+      </td>
+    </tr>
+  );
+
+  const renderView = (list: RoleTemplate[]) => prefs.view === 'list' ? (
+    <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
+      <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
+        <tr><th className="px-4 py-3">Role</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Perms</th><th className="px-4 py-3">Modules</th><th className="px-4 py-3"></th></tr>
+      </thead>
+      <tbody>{list.map(RoleRow)}</tbody>
+    </table></div></div>
+  ) : (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{list.map(RoleCard)}</div>
+  );
 
   return (
     <Layout flat title="Roles">
       {loading ? <Spinner /> : (
         <>
           <PageHeader title="Roles & permissions" subtitle="Reusable permission templates and module access for your team"
-            action={<button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New role</button>} />
+            action={<div className="flex items-center gap-2"><ViewControls prefs={prefs} views={VIEWS} groupOptions={GROUPS} /><button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New role</button></div>} />
 
-          {roles.length === 0 ? <EmptyState text="No roles yet" /> : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {roles.map((r) => (
-                <div key={r.id} className="card p-5 flex flex-col">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <h3 className="font-semibold flex items-center gap-2"><Icon name="ti-shield-lock" className="text-muted" />{r.name}</h3>
-                    {r.is_system && <span className="pill pill-gray">System</span>}
-                  </div>
-                  <p className="text-sm text-muted mb-3 min-h-[2.5rem]">{r.description || '—'}</p>
-                  <div className="text-2xs text-muted space-y-1 mb-4">
-                    <div><span className="text-content font-medium">{permCount(r)}</span> permission{permCount(r) === 1 ? '' : 's'}</div>
-                    <div>Modules: {r.feature_access.length === 0 ? 'All' : r.feature_access.map((f) => FEATURE_LABELS[f as FeatureKey] || f).join(', ')}</div>
-                  </div>
-                  <div className="flex gap-2 mt-auto">
-                    <button onClick={() => openEdit(r)} className="btn flex-1"><Icon name="ti-pencil" />Edit</button>
-                    {!r.is_system && <button onClick={() => remove(r)} className="btn text-rose-600" title="Delete"><Icon name="ti-trash" /></button>}
-                  </div>
+          {roles.length === 0 ? <EmptyState text="No roles yet" /> : prefs.groupBy === 'none' ? renderView(roles) : (
+            <div className="space-y-6">
+              {buildGroups(roles, gKey, gLabel, ['system', 'custom']).map((grp) => (
+                <div key={grp.key}>
+                  <h3 className="text-sm font-semibold text-content mb-3">{grp.label} <span className="text-muted2 font-normal">({grp.items.length})</span></h3>
+                  {renderView(grp.items)}
                 </div>
               ))}
             </div>
