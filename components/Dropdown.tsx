@@ -62,7 +62,7 @@ export default function Dropdown({
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} aria-hidden />
           <div className="fixed z-[61] animate-in" style={{ top: pos.top, left: pos.left, width }}>
-            <div className="bg-surface border border-line rounded-xl shadow-lg p-1.5 max-h-[18rem] overflow-y-auto">
+            <div className="bg-surface border border-line rounded-lg shadow-lg p-1.5 max-h-[18rem] overflow-y-auto">
               {search && (
                 <div className="px-0.5 pb-1.5">
                   <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onClick={(e) => e.stopPropagation()}

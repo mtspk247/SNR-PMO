@@ -39,7 +39,7 @@ module.exports = {
           900: v('--content'),
         },
       },
-      borderRadius: { md: '7px', lg: '10px', xl: '14px', '2xl': '18px' },
+      borderRadius: { none: '0', sm: '6px', DEFAULT: '8px', md: '8px', lg: '10px', xl: '12px', '2xl': '14px', '3xl': '18px', full: '9999px' },
       fontSize: { '2xs': '11px' },
       boxShadow: {
         soft: 'var(--shadow)',
