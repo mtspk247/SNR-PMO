@@ -130,7 +130,9 @@ const VARIANTS: Record<string, { id: string; label: string; icon: string }[]> = 
   headcount:      [{ id: 'bars', label: 'Bars', icon: 'ti-chart-bar' }, { id: 'donut', label: 'Donut', icon: 'ti-chart-donut' }],
 };
 const defVariant = (k: string) => VARIANTS[k]?.[0]?.id || '';
-const splitKey = (entry: string): [string, string] => { const i = entry.indexOf(':'); return i < 0 ? [entry, defVariant(entry)] : [entry.slice(0, i), entry.slice(i + 1)]; };
+const splitKey = (entry: string): [string, string] => { const p = entry.split(':'); return [p[0], p[1] || defVariant(p[0])]; };
+const entrySpanOf = (entry: string): number => { const p = entry.split(':'); return p[2] ? Number(p[2]) : (WIDGET_META[p[0]]?.span || 1); };
+const rebuildEntry = (k: string, variant: string, span: number): string => { const defV = defVariant(k); const defS = WIDGET_META[k]?.span || 1; const v = variant && variant !== defV ? variant : ''; const sp = span && span !== defS ? String(span) : ''; return sp ? `${k}:${v}:${sp}` : (v ? `${k}:${v}` : k); };
 
 const DEFAULT_KEYS = [
   'kpi_projects', 'kpi_tasks', 'kpi_deals', 'kpi_pipeline',
@@ -156,6 +158,7 @@ export default function Dashboard() {
   const [order, setOrder] = useState<string[]>(DEFAULT_KEYS);
   const [, setSource] = useState<'personal' | 'org' | 'default'>('default');
   const [editing, setEditing] = useState(false);
+  const [dragEntry, setDragEntry] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [varOpen, setVarOpen] = useState('');
   const [msg, setMsg] = useState('');
@@ -481,7 +484,10 @@ export default function Dashboard() {
   const move = (entry: string, dir: -1 | 1) => setOrder((prev) => { const i = prev.indexOf(entry); const j = i + dir; if (i < 0 || j < 0 || j >= prev.length) return prev; const next = [...prev]; [next[i], next[j]] = [next[j], next[i]]; return next; });
   const remove = (entry: string) => setOrder((prev) => prev.filter((x) => x !== entry));
   const add = (k: string) => { setOrder((prev) => [...prev, k]); setAddOpen(false); };
-  const setVariant = (key: string, vid: string) => { setVarOpen(''); setOrder((prev) => prev.map((e) => { const [k] = splitKey(e); if (k !== key) return e; return vid && vid !== defVariant(k) ? `${k}:${vid}` : k; })); };
+  const setVariant = (key: string, vid: string) => { setVarOpen(''); setOrder((prev) => prev.map((e) => { const [k] = splitKey(e); if (k !== key) return e; return rebuildEntry(k, vid, entrySpanOf(e)); })); };
+  const SPAN_OPTS = [1, 2, 4];
+  const cycleSpan = (entry: string) => setOrder((prev) => prev.map((e) => { if (e !== entry) return e; const [k, v] = splitKey(e); const cur = entrySpanOf(e); const next = SPAN_OPTS[(SPAN_OPTS.indexOf(cur) + 1) % SPAN_OPTS.length] || 1; return rebuildEntry(k, v, next); }));
+  const reorderTo = (target: string) => setOrder((prev) => { if (!dragEntry || dragEntry === target) return prev; const a = [...prev]; const from = a.indexOf(dragEntry); const to = a.indexOf(target); if (from < 0 || to < 0) return prev; a.splice(from, 1); a.splice(to, 0, dragEntry); return a; });
   const flash = (m: string) => { setMsg(m); window.setTimeout(() => setMsg(''), 2200); };
   const savePersonal = async () => { if (!activeOrg) return; try { await saveUserDashboard(activeOrg.id, order); setSource('personal'); setEditing(false); flash('Saved your dashboard'); } catch (e: any) { flash(e.message || 'Save failed'); } };
   const saveOrgDefault = async () => { if (!activeOrg) return; try { await saveOrgDashboard(activeOrg.id, order); flash('Saved as workspace default'); } catch (e: any) { flash(e.message || 'Save failed'); } };
@@ -490,7 +496,7 @@ export default function Dashboard() {
   const _hr = new Date().getHours();
   const greeting = _hr < 12 ? 'Good morning' : _hr < 18 ? 'Good afternoon' : 'Good evening';
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const spanCls = (s: 1 | 2) => (s === 2 ? 'sm:col-span-2 lg:col-span-2' : '');
+  const spanCls = (s: number) => (s >= 4 ? 'sm:col-span-2 lg:col-span-4' : s === 2 ? 'sm:col-span-2 lg:col-span-2' : '');
 
   return (
     <Layout flat title="Dashboard">
@@ -512,7 +518,7 @@ export default function Dashboard() {
 
       {editing && (
         <div className="card p-3 mb-4 flex flex-wrap items-center gap-2 bg-accent/5 border-accent/30">
-          <span className="text-xs text-muted inline-flex items-center gap-1.5"><Icon name="ti-info-circle" className="text-sm" />Editing — reorder (↑↓), change a card&rsquo;s visual (palette), remove (×), then save.</span>
+          <span className="text-xs text-muted inline-flex items-center gap-1.5"><Icon name="ti-info-circle" className="text-sm" />Editing — drag cards to reorder (or ↑↓), resize width (↔), change a card&rsquo;s visual (palette), remove (×), then save.</span>
           <div className="flex-1" />
           <div className="relative">
             <button onClick={() => setAddOpen((v) => !v)} disabled={available.length === 0} className="btn btn-ghost border border-line h-8 py-0 disabled:opacity-50"><Icon name="ti-plus" />Add widget</button>
@@ -533,13 +539,19 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-stretch">
           {shown.map((entry) => {
             const [k, variant] = splitKey(entry);
-            const m = WIDGET_META[k];
             const variants = VARIANTS[k];
+            const span = entrySpanOf(entry);
             return (
-              <div key={entry} className={`relative ${spanCls(m.span)}`}>
+              <div key={entry} draggable={editing}
+                onDragStart={() => { if (editing) setDragEntry(entry); }}
+                onDragEnd={() => setDragEntry(null)}
+                onDragOver={(e) => { if (editing) e.preventDefault(); }}
+                onDrop={() => { if (editing) reorderTo(entry); }}
+                className={`relative ${spanCls(span)} ${editing ? 'cursor-move' : ''} ${dragEntry === entry ? 'opacity-40' : ''}`}>
                 {editing && (
                   <>
                     <div className="absolute inset-0 z-10 rounded-xl bg-transparent" />
+                    <div className="absolute -top-2 left-1 z-20 w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted2 shadow-sm" title="Drag to reorder"><Icon name="ti-grip-vertical" className="text-xs" /></div>
                     <div className="absolute -top-2 right-1 z-20 flex items-center gap-1">
                       {variants && variants.length > 1 && (
                         <div className="relative">
@@ -553,6 +565,7 @@ export default function Dashboard() {
                           )}
                         </div>
                       )}
+                      <button onClick={() => cycleSpan(entry)} title={`Resize width (now ${span >= 4 ? 'full' : span === 2 ? 'wide' : 'normal'})`} className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrows-horizontal" className="text-xs" /></button>
                       <button onClick={() => move(entry, -1)} title="Move earlier" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrow-up" className="text-xs" /></button>
                       <button onClick={() => move(entry, 1)} title="Move later" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-muted hover:text-content shadow-sm"><Icon name="ti-arrow-down" className="text-xs" /></button>
                       <button onClick={() => remove(entry)} title="Remove" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-rose-500 hover:bg-rose-50 shadow-sm"><Icon name="ti-x" className="text-xs" /></button>
