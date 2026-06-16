@@ -2711,3 +2711,8 @@ export async function bankRecon(orgId: string, accountId: string): Promise<BankR
 export async function bankLineReconcile(orgId: string, lineId: string, on: boolean): Promise<void> {
   const { error } = await sb.rpc('bank_line_reconcile', { p_org: orgId, p_line: lineId, p_on: on }); if (error) throw new Error(error.message);
 }
+
+// ---- Accounting P8: CRM deal -> invoice (revenue posts on the invoice, not on conversion) ----
+export async function dealToInvoice(orgId: string, dealId: string): Promise<string> {
+  const { data, error } = await sb.rpc('deal_to_invoice', { p_org: orgId, p_deal: dealId }); if (error) throw new Error(error.message); return data as string;
+}

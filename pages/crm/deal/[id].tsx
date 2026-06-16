@@ -9,7 +9,8 @@ import EntityLink from '@/components/EntityLink';
 import CustomFields from '@/components/CustomFields';
 import { DetailMeta } from '@/components/Detail';
 import EntityTags from '@/components/EntityTags';
-import { getDealActivities, createActivity, deleteActivity } from '@/lib/db';
+import { getDealActivities, createActivity, deleteActivity, dealToInvoice } from '@/lib/db';
+import { hasFeature } from '@/lib/entitlements';
 import { CrmActivity } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useDeals } from '@/lib/queries';
@@ -40,6 +41,12 @@ export default function DealDetail() {
   const [actKind, setActKind] = useState('note');
   const [actBody, setActBody] = useState('');
   const [actBusy, setActBusy] = useState(false);
+  const [invBusy, setInvBusy] = useState(false);
+  const createInvoice = async () => {
+    if (!org || !deal || invBusy) return; setInvBusy(true);
+    try { await dealToInvoice(org.id, deal.id); router.push('/invoicing'); }
+    catch (e: any) { alert(e.message || 'Could not create invoice'); setInvBusy(false); }
+  };
 
   useSetCrumbs(deal ? [{ label: 'CRM', href: '/crm' }, { label: deal.title }] : null);
 
@@ -91,6 +98,9 @@ export default function DealDetail() {
             {deal.company_id && (
               <EntityLink label={deal.crm_companies?.name || 'Company'} icon="ti-building"
                 href={`/crm/company/${deal.company_id}`} />
+            )}
+            {canManage && hasFeature(org, 'financial') && Number(deal.value) > 0 && (
+              <button onClick={createInvoice} disabled={invBusy} className={`btn ${deal.stage === 'Won' ? 'btn-primary' : ''}`} title="Generate an invoice from this deal (posts revenue when issued)"><Icon name="ti-file-invoice" />{invBusy ? 'Creating…' : 'Create invoice'}</button>
             )}
             <Pill label={deal.stage} />
           </div>
