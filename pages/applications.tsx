@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import Select from '@/components/Select';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Attachments from '@/components/Attachments';
@@ -21,6 +22,7 @@ const STAGE_PILL: Record<string, string> = {
   rejected: 'pill-red',
 };
 const STAGES = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'] as const;
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const ACTIVE_STAGES = new Set(['applied', 'screening', 'interview', 'offer']);
 
 type Draft = Partial<Application>;
@@ -136,10 +138,7 @@ export default function ApplicationsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input h-9 w-40" value={stageF} onChange={(e) => setStageF(e.target.value)}>
-          <option value="all">All stages</option>
-          {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="w-40"><Select value={stageF} onChange={setStageF} options={[{ value: 'all', label: 'All stages' }, ...STAGES.map((s) => ({ value: s, label: cap(s) }))]} /></div>
       </div>
 
       {/* Table */}
@@ -172,7 +171,7 @@ export default function ApplicationsPage() {
                     <td className="px-4 py-3 text-muted">{jobName(a.job_id)}</td>
                     <td className="px-4 py-3 text-muted">{a.email || '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`pill ${STAGE_PILL[a.stage] || 'pill-gray'}`}>{a.stage}</span>
+                      <span className={`pill capitalize ${STAGE_PILL[a.stage] || 'pill-gray'}`}>{a.stage}</span>
                     </td>
                     <td className="px-4 py-3 text-muted tabular-nums">
                       {a.rating != null ? `${a.rating}/5` : '—'}
@@ -220,24 +219,16 @@ export default function ApplicationsPage() {
               <input className="input" value={editor.draft.source || ''} onChange={(e) => setD({ source: e.target.value })} placeholder="LinkedIn, referral…" />
             </Field>
             <Field label="Job">
-              <select className="input" value={editor.draft.job_id || ''} onChange={(e) => setD({ job_id: e.target.value || undefined })}>
-                <option value="">—</option>
-                {jobs.map((j) => <option key={j.id} value={j.id}>{j.title}</option>)}
-              </select>
+              <Select value={editor.draft.job_id || ''} onChange={(v) => setD({ job_id: v || undefined })} search placeholder="No job" options={[{ value: '', label: 'No job' }, ...jobs.map((j) => ({ value: j.id, label: j.title }))]} />
             </Field>
             <Field label="Stage">
-              <select className="input" value={editor.draft.stage || 'applied'} onChange={(e) => setD({ stage: e.target.value as Application['stage'] })}>
-                {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={editor.draft.stage || 'applied'} onChange={(v) => setD({ stage: v as Application['stage'] })} options={STAGES.map((s) => ({ value: s, label: cap(s) }))} />
             </Field>
             <Field label="Rating (1–5)">
               <input className="input" type="number" min={1} max={5} value={editor.draft.rating ?? ''} onChange={(e) => setD({ rating: e.target.value ? Number(e.target.value) : undefined })} placeholder="—" />
             </Field>
             <Field label="Owner">
-              <select className="input" value={editor.draft.owner_id || ''} onChange={(e) => setD({ owner_id: e.target.value || undefined })}>
-                <option value="">—</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
+              <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || undefined })} search placeholder="Unassigned" options={[{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Notes" className="sm:col-span-2">
               <textarea className="input h-20 resize-none" value={editor.draft.notes || ''} onChange={(e) => setD({ notes: e.target.value })} placeholder="Any notes about this candidate…" />
@@ -352,26 +343,16 @@ function DetailModal({
           <input className="input" value={draft.source || ''} onChange={(e) => setD({ source: e.target.value })} disabled={!canEdit} />
         </Field>
         <Field label="Job">
-          <select className="input" value={draft.job_id || ''} onChange={(e) => setD({ job_id: e.target.value || undefined })} disabled={!canEdit}>
-            <option value="">—</option>
-            {jobs.map((j) => <option key={j.id} value={j.id}>{j.title}</option>)}
-          </select>
+          <Select value={draft.job_id || ''} onChange={(v) => setD({ job_id: v || undefined })} disabled={!canEdit} search placeholder="No job" options={[{ value: '', label: 'No job' }, ...jobs.map((j) => ({ value: j.id, label: j.title }))]} />
         </Field>
         <Field label="Stage">
-          <select className="input" value={draft.stage || 'applied'} onChange={(e) => setD({ stage: e.target.value as Application['stage'] })} disabled={!canEdit}>
-            {(['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'] as const).map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <Select value={draft.stage || 'applied'} onChange={(v) => setD({ stage: v as Application['stage'] })} disabled={!canEdit} options={STAGES.map((s) => ({ value: s, label: cap(s) }))} />
         </Field>
         <Field label="Rating (1–5)">
           <input className="input" type="number" min={1} max={5} value={draft.rating ?? ''} onChange={(e) => setD({ rating: e.target.value ? Number(e.target.value) : undefined })} disabled={!canEdit} placeholder="—" />
         </Field>
         <Field label="Owner">
-          <select className="input" value={draft.owner_id || ''} onChange={(e) => setD({ owner_id: e.target.value || undefined })} disabled={!canEdit}>
-            <option value="">—</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-          </select>
+          <Select value={draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || undefined })} disabled={!canEdit} search placeholder="Unassigned" options={[{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
         </Field>
         <Field label="Notes" className="sm:col-span-2">
           <textarea className="input h-20 resize-none" value={draft.notes || ''} onChange={(e) => setD({ notes: e.target.value })} disabled={!canEdit} />
