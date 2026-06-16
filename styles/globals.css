@@ -98,7 +98,7 @@ h1 { letter-spacing: -0.02em; }
   .textarea { @apply w-full px-3 py-2 rounded-md border border-line bg-surface text-sm text-content placeholder:text-muted2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25 resize-none; }
   .label { @apply block text-xs font-medium text-contentsoft mb-1.5; }
 
-  .pill { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-2xs font-medium leading-5 ring-1 ring-inset; }
+  .pill { @apply inline-flex items-center rounded-md px-2.5 py-0.5 text-2xs font-medium leading-5 ring-1 ring-inset; }
   .pill-green { @apply bg-emerald-500/10 text-emerald-600 ring-emerald-500/20; }
   .pill-amber { @apply bg-amber-500/10 text-amber-600 ring-amber-500/20; }
   .pill-blue  { @apply bg-sky-500/10 text-sky-600 ring-sky-500/20; }
@@ -201,7 +201,7 @@ html[data-skin="vivid"][data-theme="dark"] body  { background: linear-gradient(1
 [data-skin="vivid"] .stat:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
 [data-skin="vivid"] .btn-primary { background-image: linear-gradient(120deg, rgb(var(--accent)), #EC4899); border-color: transparent; box-shadow: 0 6px 18px rgb(124 58 237 / .30); }
 [data-skin="vivid"] .btn-primary:hover { filter: brightness(1.05); box-shadow: 0 8px 22px rgb(124 58 237 / .38); }
-[data-skin="vivid"] .pill { border-radius: 9999px; font-weight: 600; }
+[data-skin="vivid"] .pill { border-radius: 8px; font-weight: 600; }
 [data-skin="vivid"] .sb-item-active { background: linear-gradient(120deg, rgb(var(--accent) / .16), rgb(236 72 153 / .12)); }
 
 /* ---- MIDNIGHT (dark-first glassmorphism · violet + cyan neon) ---- */
@@ -236,4 +236,4 @@ html[data-skin="midnight"][data-theme="dark"] body  { background: radial-gradien
 [data-skin="midnight"][data-theme="light"] .side { background: rgb(255 255 255 / .5); }
 [data-skin="midnight"][data-theme="dark"] .input, [data-skin="midnight"][data-theme="dark"] .textarea { background: rgb(255 255 255 / .05); border-color: rgb(255 255 255 / .14); }
 [data-skin="midnight"] .btn-primary { background-image: linear-gradient(120deg, #7C5CFF, #5B3FE0); border-color: transparent; color: #fff; box-shadow: 0 8px 22px rgb(124 92 255 / .40); }
-[data-skin="midnight"] .pill { border-radius: 9999px; }
+[data-skin="midnight"] .pill { border-radius: 8px; }

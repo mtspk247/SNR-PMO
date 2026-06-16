@@ -417,7 +417,7 @@ export default function Tasks() {
         {/* TITLE ROW */}
         <div className="flex items-center gap-3 flex-wrap">
           <Dropdown value={selected.status} onChange={(v) => setStatus(selected.id, v)} items={statusItems} width={200}
-            trigger={<span className="inline-flex items-center gap-2 h-8 px-3 rounded-full text-sm font-medium bg-surface2 text-content hover:brightness-95 transition"><span className="w-2 h-2 rounded-full" style={{ background: statusColor(selected.status) || '#9ca3af' }} />{selected.status}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+            trigger={<span className="inline-flex items-center gap-2 h-8 px-3 rounded-md text-sm font-medium bg-surface2 text-content hover:brightness-95 transition"><span className="w-2 h-2 rounded-full" style={{ background: statusColor(selected.status) || '#9ca3af' }} />{selected.status}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
           <h3 className="text-lg sm:text-xl font-semibold leading-snug tracking-tight text-content min-w-0">{selected.name}</h3>
           <div className="flex items-center">
             {assigneeIds.map((uid) => (
@@ -592,7 +592,7 @@ export default function Tasks() {
       case 'status':
         return (
           <select key={id} value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
-            className={`w-full rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
+            className={`w-full rounded-md px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
             {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         );
@@ -705,35 +705,32 @@ export default function Tasks() {
               {filterMenu && (
                 <div className="absolute right-0 top-10 z-20 w-64 bg-surface border border-line rounded-lg shadow-lg p-3 space-y-3">
                   <div><label className="label">Project</label>
-                    <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="input h-9 w-full">
-                      <option value="">All projects</option><option value="none">No project</option>
-                      {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select></div>
+                    <Dropdown value={projectFilter} onChange={setProjectFilter} width={224} search placeholder="Find project…"
+                      items={[{ value: '', label: 'All projects' }, { value: 'none', label: 'No project' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                      trigger={<span className="flex items-center justify-between gap-2 h-9 w-full px-3 rounded-md border border-line bg-surface text-sm cursor-pointer hover:border-borderstrong"><span className="truncate">{projectFilter === '' ? 'All projects' : projectFilter === 'none' ? 'No project' : (projects.find((p) => p.id === projectFilter)?.name || '—')}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} /></div>
                   <div><label className="label">Priority</label>
-                    <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="input h-9 w-full">
-                      <option value="">All priorities</option>{priorities.map((p) => <option key={p}>{p}</option>)}
-                    </select></div>
+                    <Dropdown value={priorityFilter} onChange={setPriorityFilter} width={224}
+                      items={[{ value: '', label: 'All priorities' }, ...priorities.map((p) => ({ value: p, label: p }))]}
+                      trigger={<span className="flex items-center justify-between gap-2 h-9 w-full px-3 rounded-md border border-line bg-surface text-sm cursor-pointer hover:border-borderstrong"><span className="truncate">{priorityFilter || 'All priorities'}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} /></div>
                   <div><label className="label">Assignee</label>
-                    <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input h-9 w-full">
-                      <option value="">All assignees</option><option value="unassigned">Unassigned</option>
-                      {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                    </select></div>
+                    <Dropdown value={assigneeFilter} onChange={setAssigneeFilter} width={224} search placeholder="Find person…"
+                      items={[{ value: '', label: 'All assignees' }, { value: 'unassigned', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]}
+                      trigger={<span className="flex items-center justify-between gap-2 h-9 w-full px-3 rounded-md border border-line bg-surface text-sm cursor-pointer hover:border-borderstrong"><span className="truncate">{assigneeFilter === '' ? 'All assignees' : assigneeFilter === 'unassigned' ? 'Unassigned' : (users.find((u) => u.id === assigneeFilter)?.full_name || '—')}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} /></div>
                   <div><label className="label">Team</label>
-                    <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="input h-9 w-full">
-                      <option value="">All teams</option>
-                      {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select></div>
+                    <Dropdown value={teamFilter} onChange={setTeamFilter} width={224}
+                      items={[{ value: '', label: 'All teams' }, ...teams.map((t: any) => ({ value: t.id, label: t.name }))]}
+                      trigger={<span className="flex items-center justify-between gap-2 h-9 w-full px-3 rounded-md border border-line bg-surface text-sm cursor-pointer hover:border-borderstrong"><span className="truncate">{teamFilter === '' ? 'All teams' : (teams.find((t: any) => t.id === teamFilter)?.name || '—')}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} /></div>
                   <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={overdueOnly} onChange={() => setOverdueOnly((v) => !v)} className="accent-accentstrong" />Overdue only</label>
                   {activeFilters > 0 && <button onClick={() => { setProjectFilter(''); setPriorityFilter(''); setAssigneeFilter(''); setTeamFilter(''); setOverdueOnly(false); }} className="text-2xs text-muted hover:text-content underline">Clear all filters</button>}
                 </div>
               )}
             </div>
-            <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} className="input h-9 w-auto">
-              <option value="none">No grouping</option><option value="project">Group: Project</option><option value="priority">Group: Priority</option><option value="status">Group: Status</option>
-            </select>
-            <select value={sort} onChange={(e) => setSort(e.target.value as 'due' | 'priority' | 'name')} className="input h-9 w-auto">
-              <option value="priority">Sort: Priority</option><option value="due">Sort: Due date</option><option value="name">Sort: Name</option>
-            </select>
+            <Dropdown value={groupBy} onChange={(v) => setGroupBy(v as GroupBy)} width={180}
+              items={[{ value: 'none', label: 'No grouping' }, { value: 'project', label: 'Group: Project' }, { value: 'priority', label: 'Group: Priority' }, { value: 'status', label: 'Group: Status' }]}
+              trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{({ none: 'No grouping', project: 'Group: Project', priority: 'Group: Priority', status: 'Group: Status' } as Record<string, string>)[groupBy]}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+            <Dropdown value={sort} onChange={(v) => setSort(v as 'due' | 'priority' | 'name')} width={170}
+              items={[{ value: 'priority', label: 'Sort: Priority' }, { value: 'due', label: 'Sort: Due date' }, { value: 'name', label: 'Sort: Name' }]}
+              trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{({ priority: 'Sort: Priority', due: 'Sort: Due date', name: 'Sort: Name' } as Record<string, string>)[sort]}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
             <div className="flex items-center rounded-lg border border-line overflow-hidden h-9 shrink-0">
               {(['list', 'board'] as const).map((vw) => (
                 <button key={vw} onClick={() => setView(vw)}

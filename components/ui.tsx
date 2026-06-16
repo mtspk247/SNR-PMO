@@ -27,12 +27,16 @@ export const Pill = ({ label }: { label: string }) => (
   <span className={`pill ${COLOR[label] || 'pill-gray'}`}>{label}</span>
 );
 
-export const Avatar = ({ name, size = 28 }: { name: string; size?: number }) => {
-  const initials = name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+const AVATAR_COLORS = ['#6366F1', '#0EA5A4', '#EC8C36', '#E1568E', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4', '#7C3AED', '#0891B2'];
+export const Avatar = ({ name, size = 28, src }: { name: string; size?: number; src?: string | null }) => {
+  if (src) return <img src={src} alt={name} style={{ width: size, height: size }} className="rounded-full object-cover shrink-0" />;
+  const initials = (name || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+  const hash = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const bg = AVATAR_COLORS[hash % AVATAR_COLORS.length];
   return (
     <span
-      style={{ width: size, height: size, fontSize: size * 0.4 }}
-      className="inline-flex items-center justify-center rounded-full bg-surface2 text-content font-medium shrink-0"
+      style={{ width: size, height: size, fontSize: size * 0.4, background: bg }}
+      className="inline-flex items-center justify-center rounded-full text-white font-semibold shrink-0"
     >{initials}</span>
   );
 };
