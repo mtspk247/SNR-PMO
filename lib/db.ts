@@ -2543,3 +2543,8 @@ export async function glTrialBalance(orgId: string, asOf?: string): Promise<Tria
   const { data, error } = await sb.rpc('gl_trial_balance', { p_org: orgId, p_as_of: asOf || null });
   if (error) throw new Error(error.message); return (data as TrialBalanceRow[]) || [];
 }
+
+export async function glBackfill(orgId: string): Promise<{ entries: number; by_source?: Record<string, number> }> {
+  const { data, error } = await sb.rpc('gl_backfill', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as { entries: number; by_source?: Record<string, number> }) || { entries: 0 };
+}

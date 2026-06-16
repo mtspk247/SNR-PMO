@@ -5,7 +5,7 @@ import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
 import { useActiveOrg } from '@/lib/store';
 import {
-  glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance,
+  glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
   getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow,
 } from '@/lib/db';
 
@@ -54,6 +54,13 @@ export default function LedgerPage() {
     setBusy(true); setErr('');
     try { await glSeedCoa(orgId, industry); await loadAccounts(); }
     catch (e: any) { setErr(e.message || 'Could not seed accounts'); } finally { setBusy(false); }
+  };
+  const importExisting = async () => {
+    if (!orgId || busy) return;
+    if (!confirm('Import existing invoices, payments, expenses, credit notes and assets into the ledger? Safe to run repeatedly.')) return;
+    setBusy(true); setErr('');
+    try { const r = await glBackfill(orgId); glJournal(orgId).then(setJournal); alert(`Imported. ${r.entries} transaction(s) now in the ledger.`); }
+    catch (e: any) { setErr(e.message || 'Could not import'); } finally { setBusy(false); }
   };
 
   // ── account modal ──
@@ -104,7 +111,7 @@ export default function LedgerPage() {
     <Layout flat title="General Ledger">
       <PageHeader title="General Ledger" subtitle="Double-entry chart of accounts, journal and trial balance" icon="ti-book-2"
         action={tab === 'coa' && accounts.length > 0 ? <button onClick={openNewAcct} className="btn btn-primary"><Icon name="ti-plus" />New account</button>
-          : tab === 'journal' && accounts.length > 0 ? <button onClick={openJournal} className="btn btn-primary"><Icon name="ti-plus" />New journal entry</button> : undefined} />
+          : tab === 'journal' && accounts.length > 0 ? <div className="flex items-center gap-2"><button onClick={importExisting} disabled={busy} className="btn"><Icon name="ti-download" />Import existing</button><button onClick={openJournal} className="btn btn-primary"><Icon name="ti-plus" />New journal entry</button></div> : undefined} />
 
       <Tabs tabs={[
         { key: 'coa', label: 'Chart of Accounts', icon: 'ti-list-tree' },
