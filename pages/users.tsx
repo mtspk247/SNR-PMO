@@ -9,6 +9,8 @@ import { AdminUser, RoleTemplate, Team } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { useTeams } from '@/lib/queries';
+import Dropdown from '@/components/Dropdown';
+import { buildGroups } from '@/components/ViewControls';
 import qk from '@/lib/queryKeys';
 
 const ROLES = ['super_admin', 'pm', 'team_member', 'viewer'];
@@ -95,6 +97,14 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('manage');
   const [sel, setSel] = useState<string | null>(null);
+  const [uGroup, setUGroup] = useState('none');
+  const uGroupOptions = [
+    { value: 'none', label: 'No grouping' },
+    { value: 'role', label: 'Group by role' },
+    { value: 'status', label: 'Group by status' },
+  ];
+  const ugKey = (x: AdminUser) => uGroup === 'role' ? (x.role || 'viewer') : uGroup === 'status' ? (x.status || 'active') : 'all';
+  const ugLabel = (k: string) => uGroup === 'role' ? k.replace('_', ' ') : uGroup === 'status' ? (k === 'suspended' ? 'Suspended' : 'Active') : k;
   const [busy, setBusy] = useState(false);
 
   // Teams state
@@ -181,15 +191,26 @@ export default function UsersPage() {
 
           {tab === 'manage' ? (
             <div className="flex flex-col lg:flex-row gap-4">
-              <div className="card w-full lg:w-72 lg:shrink-0 rounded-t-none overflow-y-auto" style={{ maxHeight: '72vh' }}>
-                {users.map((x) => (
-                  <button key={x.id} onClick={() => setSel(x.id)} className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line last:border-0 transition-colors ${sel === x.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2 border-l-2 border-l-transparent'}`}>
-                    <Avatar name={x.full_name} size={32} />
-                    <span className="min-w-0 flex-1"><span className="block text-sm font-medium truncate">{x.full_name}</span><span className="block text-2xs text-muted truncate">{x.email}</span></span>
-                    {x.status === 'suspended' && <span className="pill pill-red">susp</span>}
-                  </button>
-                ))}
-                {users.length === 0 && <EmptyState text="No users" />}
+              <div className="w-full lg:w-72 lg:shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-2xs text-muted2">{users.length} users</span>
+                  <Dropdown value={uGroup} onChange={setUGroup} width={170} items={uGroupOptions}
+                    trigger={<span className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-line bg-surface text-2xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-layout-rows" className="text-2xs" />{uGroupOptions.find((o) => o.value === uGroup)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+                </div>
+                <div className="card rounded-t-none overflow-y-auto" style={{ maxHeight: '72vh' }}>
+                  {users.length === 0 ? <EmptyState text="No users" /> : (uGroup === 'none' ? [{ key: 'all', label: '', items: users }] : buildGroups(users, ugKey, ugLabel)).map((g) => (
+                    <div key={g.key}>
+                      {g.label && <div className="px-4 py-1.5 bg-surface2/70 text-2xs font-medium text-muted2 uppercase tracking-wide sticky top-0 z-10 capitalize">{g.label} · {g.items.length}</div>}
+                      {g.items.map((x) => (
+                        <button key={x.id} onClick={() => setSel(x.id)} className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line last:border-0 transition-colors ${sel === x.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2 border-l-2 border-l-transparent'}`}>
+                          <Avatar name={x.full_name} size={32} />
+                          <span className="min-w-0 flex-1"><span className="block text-sm font-medium truncate">{x.full_name}</span><span className="block text-2xs text-muted truncate">{x.email}</span></span>
+                          {x.status === 'suspended' && <span className="pill pill-red">susp</span>}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
               {u ? (
                 <div className="card flex-1 p-6 max-w-2xl rounded-t-none">
