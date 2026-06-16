@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
@@ -114,18 +115,13 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
       {tabs.tab === 'pricing' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Pricing model" required>
-            <select className="input" value={pricingModel} onChange={(e) => setPricingModel(e.target.value as Plan['pricing_model'])}>
-              {PRICING_MODELS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+            <Select value={pricingModel} onChange={(v) => setPricingModel(v as Plan['pricing_model'])} options={[...PRICING_MODELS.map((m) => ({ value: m.value, label: m.label }))]} />
           </Field>
           <Field label="Price (USD)" required hint={pricingModel === 'per_user' ? 'Charged per seat per period' : 'Charged per org per period'}>
             <input className="input" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
           </Field>
           <Field label="Billing period" required>
-            <select className="input" value={billingPeriod} onChange={(e) => setBillingPeriod(e.target.value as Plan['billing_period'])}>
-              <option value="monthly">Monthly</option>
-              <option value="annual">Annual</option>
-            </select>
+            <Select value={billingPeriod} onChange={(v) => setBillingPeriod(v as Plan['billing_period'])} options={[{ value: 'monthly', label: 'Monthly' }, { value: 'annual', label: 'Annual' }]} />
           </Field>
           <Field label="Seat limit" hint="Blank = unlimited; enforced on member invites">
             <input className="input" type="number" min="1" placeholder="∞" value={userLimit} onChange={(e) => setUserLimit(e.target.value)} />
@@ -214,10 +210,7 @@ function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promis
           <input type="password" className="input" autoComplete="off" placeholder={status?.has_webhook ? '•••••••• (unchanged)' : 'whsec_…'} value={webhook} onChange={(e) => setWebhook(e.target.value)} />
         </Field>
         <Field label="Mode">
-          <select className="input" value={mode} onChange={(e) => setMode(e.target.value)}>
-            <option value="test">Test</option>
-            <option value="live">Live</option>
-          </select>
+          <Select value={mode} onChange={(v) => setMode(v)} options={[{ value: 'test', label: 'Test' }, { value: 'live', label: 'Live' }]} />
         </Field>
         <button className="btn btn-primary" disabled={saving} onClick={saveConfig}>
           {saving ? 'Saving…' : 'Save Stripe configuration'}
@@ -438,7 +431,7 @@ function BackupsTab() {
           <button className="btn btn-primary shrink-0" disabled={running} onClick={runNow}><Icon name="ti-player-play" />{running ? 'Backing up…' : 'Back up now'}</button>
         </div>
         <div className="grid sm:grid-cols-3 gap-3">
-          <Field label="Frequency"><select className="input" value={frequency} onChange={(e) => setFrequency(e.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></Field>
+          <Field label="Frequency"><Select value={frequency} onChange={(v) => setFrequency(v)} options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} /></Field>
           <Field label="Keep last (retention)"><input type="number" min={1} max={100} className="input" value={retention} onChange={(e) => setRetention(parseInt(e.target.value) || 1)} /></Field>
           <div className="flex items-end"><label className="flex items-center gap-2 text-sm h-9 cursor-pointer"><input type="checkbox" className="accent-accent w-4 h-4" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /><span className={enabled ? 'text-content' : 'text-muted'}>{enabled ? 'Auto-backup on' : 'Auto-backup off'}</span></label></div>
         </div>

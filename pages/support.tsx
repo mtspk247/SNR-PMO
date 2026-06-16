@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -117,10 +118,7 @@ export default function SupportPage() {
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <input className="input h-9 w-56" placeholder="Search tickets…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="input h-9 w-44" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-        </select>
+        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -178,15 +176,10 @@ export default function SupportPage() {
             </Field>
             <div className="grid sm:grid-cols-2 gap-3">
               <Field label="Category">
-                <select className="input" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}>
-                  <option value="">— none —</option>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select value={draft.category} onChange={(v) => setDraft({ ...draft, category: v })} options={[{ value: '', label: '— none —' }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]} />
               </Field>
               <Field label="Priority">
-                <select className="input" value={draft.priority} onChange={(e) => setDraft({ ...draft, priority: e.target.value })}>
-                  {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
+                <Select value={draft.priority} onChange={(v) => setDraft({ ...draft, priority: v })} options={[...PRIORITIES.map((p) => ({ value: p, label: p }))]} />
               </Field>
             </div>
             <Field label="Description">
@@ -330,20 +323,13 @@ function TicketDetailModal({
       {canAdminControl && (
         <div className="grid sm:grid-cols-3 gap-3 mb-4 p-3 rounded-lg border border-line bg-surface2/40">
           <Field label="Status">
-            <select className="input" value={status} onChange={(e) => setStatus(e.target.value as any)}>
-              {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-            </select>
+            <Select value={status} onChange={(v) => setStatus(v as any)} options={[...STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') }))]} />
           </Field>
           <Field label="Priority">
-            <select className="input" value={priority} onChange={(e) => setPriority(e.target.value as any)}>
-              {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            <Select value={priority} onChange={(v) => setPriority(v as any)} options={[...PRIORITIES.map((p) => ({ value: p, label: p }))]} />
           </Field>
           <Field label="Assignee">
-            <select className="input" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-              <option value="">— unassigned —</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-            </select>
+            <Select value={assigneeId} onChange={(v) => setAssigneeId(v)} options={[{ value: '', label: '— unassigned —' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
           </Field>
         </div>
       )}

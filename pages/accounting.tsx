@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import Select from '@/components/Select';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
@@ -579,14 +580,10 @@ export default function AccountingPage() {
         {modalTabs.tab === 'details' && (
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Type" required>
-              <select className="input w-full" value={form.type}
-                onChange={(e) => {
-                  const t = e.target.value as 'income' | 'expense';
+              <div className="w-full"><Select value={form.type} onChange={(v) => {
+                  const t = v as 'income' | 'expense';
                   set({ type: t, category: cats[t].includes(form.category) ? form.category : cats[t][0] });
-                }}>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-              </select>
+                }} options={[{ value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }]} /></div>
             </Field>
             <Field label="Category" required>
               <select className="input w-full" value={form.category} onChange={(e) => set({ category: e.target.value })}>
@@ -609,16 +606,10 @@ export default function AccountingPage() {
         {modalTabs.tab === 'links' && (
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Project" hint="Optional — links spend to a project">
-              <select className="input w-full" value={form.project_id} onChange={(e) => set({ project_id: e.target.value })}>
-                <option value="">—</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <div className="w-full"><Select value={form.project_id} onChange={(v) => set({ project_id: v })} options={[{ value: '', label: 'None' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]} /></div>
             </Field>
             <Field label="Company" hint="Optional">
-              <select className="input w-full" value={form.company_id} onChange={(e) => set({ company_id: e.target.value })}>
-                <option value="">—</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <div className="w-full"><Select value={form.company_id} onChange={(v) => set({ company_id: v })} options={[{ value: '', label: 'None' }, ...companies.map((c) => ({ value: c.id, label: c.name }))]} /></div>
             </Field>
           </div>
         )}

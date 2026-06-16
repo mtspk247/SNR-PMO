@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
@@ -84,7 +85,7 @@ export default function NoticesPage() {
           footer={<><button className="btn" onClick={() => setCompose(null)}>Cancel</button><button className="btn btn-primary" disabled={busy || !compose.title.trim()} onClick={submit}>{busy ? 'Posting…' : 'Post notice'}</button></>}>
           <Field label="Title" required><input className="input" autoFocus value={compose.title} onChange={(e) => setCompose({ ...compose, title: e.target.value })} /></Field>
           <Field label="Message"><textarea className="input min-h-[90px] py-2" value={compose.body} onChange={(e) => setCompose({ ...compose, body: e.target.value })} placeholder="Write your announcement… (you can attach a document after posting)" /></Field>
-          <Field label="Send to"><select className="input" value={compose.audience_type} onChange={(e) => setCompose({ ...compose, audience_type: e.target.value, ids: {}, department: '' })}>{AUD_TYPES.map((a) => <option key={a.v} value={a.v}>{a.label}</option>)}</select></Field>
+          <Field label="Send to"><Select value={compose.audience_type} onChange={(v) => setCompose({ ...compose, audience_type: v, ids: {}, department: '' })} options={[...AUD_TYPES.map((a) => ({ value: a.v, label: a.label }))]} /></Field>
           {compose.audience_type === 'team' && (
             <div className="max-h-40 overflow-y-auto border border-line rounded-lg divide-y divide-line">
               {teams.length === 0 ? <p className="text-2xs text-muted2 p-3">No teams.</p> : teams.map((t: any) => (
@@ -100,7 +101,7 @@ export default function NoticesPage() {
             </div>
           )}
           {compose.audience_type === 'department' && (
-            <Field label="Department"><select className="input" value={compose.department} onChange={(e) => setCompose({ ...compose, department: e.target.value })}><option value="">Select…</option>{departments.map((d) => <option key={d} value={d}>{d}</option>)}</select></Field>
+            <Field label="Department"><Select value={compose.department} onChange={(v) => setCompose({ ...compose, department: v })} options={[{ value: '', label: 'Select…' }, ...departments.map((d) => ({ value: d, label: d }))]} /></Field>
           )}
         </Modal>
       )}

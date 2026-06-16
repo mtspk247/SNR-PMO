@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
@@ -159,12 +160,7 @@ export default function PayrollPage() {
                       <Icon name="ti-users-plus" />Load active employees
                     </button>
                   )}
-                  <select value={run.status} disabled={busy} onChange={(e) => setStatus(run, e.target.value as PayrollRun['status'])} className="input w-36">
-                    <option>Draft</option>
-                    <option>Processed</option>
-                    <option>Paid</option>
-                    <option>Cancelled</option>
-                  </select>
+                  <div className="w-36"><Select value={run.status} onChange={(v) => setStatus(run, v as PayrollRun['status'])} disabled={busy} options={[{ value: '', label: 'Draft' }, { value: '', label: 'Processed' }, { value: '', label: 'Paid' }, { value: '', label: 'Cancelled' }]} /></div>
                   <button onClick={() => removeRun(run.id)} disabled={busy} className="btn btn-ghost h-9 px-2 text-rose-500"><Icon name="ti-trash" /></button>
                 </div>
               </div>
@@ -378,10 +374,7 @@ function AddPayslipModal({ employees, busy, onClose, onSubmit }: { employees: Em
       }>
       <div className="space-y-3.5">
         <Field label="Employee" required>
-          <select autoFocus value={userId} onChange={(e) => setUserId(e.target.value)} className="input">
-            <option value="">Select…</option>
-            {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-          </select>
+          <Select value={userId} onChange={(v) => setUserId(v)} options={[{ value: '', label: 'Select…' }, ...employees.map((e) => ({ value: e.id, label: e.full_name }))]} />
         </Field>
         <div className="flex gap-3">
           <Field label="Gross" required className="flex-1"><input type="number" value={gross} onChange={(e) => setGross(e.target.value)} className="input" /></Field>
@@ -444,10 +437,7 @@ function EditPayslipModal({ slip, busy, onClose, onSubmit }: { slip: Payslip; bu
             <input autoFocus type="number" value={bonus} onChange={(e) => setBonus(e.target.value)} className="input" />
           </Field>
           <Field label="Bonus tag">
-            <select value={bonusTag} onChange={(e) => setBonusTag(e.target.value)} className="input">
-              <option value="">None</option>
-              {BONUS_TAGS.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
-            </select>
+            <Select value={bonusTag} onChange={(v) => setBonusTag(v)} options={[{ value: '', label: 'None' }, ...BONUS_TAGS.map((tag) => ({ value: tag, label: tag }))]} />
           </Field>
           <Field label="Bonus note">
             <input type="text" value={bonusNote} onChange={(e) => setBonusNote(e.target.value)} placeholder="Optional note…" className="input" />

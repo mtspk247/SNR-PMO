@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -123,10 +124,7 @@ export default function CreditNotesPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input h-9 w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -230,13 +228,7 @@ export default function CreditNotesPage() {
               />
             </Field>
             <Field label="Status">
-              <select
-                className="input"
-                value={editor.draft.status || 'open'}
-                onChange={(e) => setD({ status: e.target.value as CreditNote['status'] })}
-              >
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={editor.draft.status || 'open'} onChange={(v) => setD({ status: v as CreditNote['status'] })} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
             </Field>
             <Field label="Reason">
               <input

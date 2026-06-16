@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -300,15 +301,7 @@ export default function IdeasPage() {
           )}
           {editing && (
             <Field label="Status" required>
-              <select
-                className="input w-full"
-                value={form.status}
-                onChange={(e) => set({ status: e.target.value as IdeaStatus })}
-              >
-                {IDEA_STATUSES.map((s) => (
-                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-                ))}
-              </select>
+              <div className="w-full"><Select value={form.status} onChange={(v) => set({ status: v as IdeaStatus })} options={[...IDEA_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))]} /></div>
             </Field>
           )}
         </div>

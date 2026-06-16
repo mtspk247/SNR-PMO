@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Select from '@/components/Select';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
@@ -218,10 +219,7 @@ export default function CompaniesPage() {
                   <p className="text-sm truncate">{m.users?.full_name || m.users?.email || m.user_id}</p>
                   {m.users?.full_name && m.users?.email && <p className="text-2xs text-neutral-400 truncate">{m.users.email}</p>}
                 </div>
-                <select value={m.role} onChange={(e) => doRole(m.user_id, e.target.value as MemberRole)} className="input w-32 py-1">
-                  <option value="member">Member</option>
-                  <option value="manager">Manager</option>
-                </select>
+                <div className="w-32"><Select value={m.role} onChange={(v) => doRole(m.user_id, v as MemberRole)} options={[{ value: 'member', label: 'Member' }, { value: 'manager', label: 'Manager' }]} /></div>
                 <button onClick={() => doRemove(m.user_id)} disabled={memBusy} className="text-neutral-400 hover:text-rose-600 shrink-0" title="Remove"><Icon name="ti-trash" /></button>
               </div>
             ))}
@@ -231,14 +229,8 @@ export default function CompaniesPage() {
         <div className="border-t border-line mt-4 pt-4">
           <Field label="Add member">
             <div className="flex gap-2">
-              <select value={addUser} onChange={(e) => setAddUser(e.target.value)} className="input flex-1">
-                <option value="">Select a user…</option>
-                {addable.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
-              </select>
-              <select value={addRole} onChange={(e) => setAddRole(e.target.value as MemberRole)} className="input w-32">
-                <option value="member">Member</option>
-                <option value="manager">Manager</option>
-              </select>
+              <Select value={addUser} onChange={(v) => setAddUser(v)} options={[{ value: '', label: 'Select a user…' }, ...addable.map((u) => ({ value: u.id, label: u.full_name || u.email }))]} />
+              <div className="w-32"><Select value={addRole} onChange={(v) => setAddRole(v as MemberRole)} options={[{ value: 'member', label: 'Member' }, { value: 'manager', label: 'Manager' }]} /></div>
               <button onClick={doAdd} disabled={memBusy || !addUser} className="btn btn-primary">Add</button>
             </div>
           </Field>

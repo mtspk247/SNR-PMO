@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -280,12 +281,7 @@ function TemplateCard({ tmpl, orgId, docs, onItemsChange, onDelete }:
           <Icon name="ti-paperclip" className="text-xs" />doc
         </label>
         {docs.length > 0 && (
-          <select value={docId} disabled={busy} onChange={(e) => setDocId(e.target.value)}
-            title="Attach a training doc to this step"
-            className="w-24 px-1 py-1 rounded border border-line bg-surface text-2xs outline-none">
-            <option value="">no training</option>
-            {docs.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-          </select>
+          <div className="w-24"><Select value={docId} onChange={(v) => setDocId(v)} disabled={busy} className="px-1 rounded border border-line bg-surface text-2xs outline-none" options={[{ value: '', label: 'no training' }, ...docs.map((d) => ({ value: d.id, label: d.title }))]} /></div>
         )}
         <button onClick={add} disabled={busy || !title.trim()} className="btn btn-sm">Add</button>
       </div>
@@ -342,15 +338,10 @@ function AssignModal({ people, templates, busy, onClose, onSubmit }:
       {noTmpl ? <p className="text-sm text-muted">Create a template first, then come back to assign it.</p> : (
         <div className="space-y-3.5">
           <Field label="Employee" required>
-            <select autoFocus value={userId} onChange={(e) => setUserId(e.target.value)} className="input">
-              <option value="">Select…</option>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-            </select>
+            <Select value={userId} onChange={(v) => setUserId(v)} options={[{ value: '', label: 'Select…' }, ...people.map((p) => ({ value: p.id, label: p.full_name }))]} />
           </Field>
           <Field label="Template" required>
-            <select value={tmplId} onChange={(e) => setTmplId(e.target.value)} className="input">
-              {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({(t.items || []).length} steps)</option>)}
-            </select>
+            <Select value={tmplId} onChange={(v) => setTmplId(v)} options={[...templates.map((t) => ({ value: t.id, label: '{t.name} ({(t.items || []).length} steps)' }))]} />
           </Field>
           <Field label="Start date" hint="Sets due dates for checklist items.">
             <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" />

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
@@ -158,8 +159,8 @@ export default function GuestsPage() {
           onSubmit={() => submitInvite()}>
           <Field label="Name" required><input className="input" value={invite.name} onChange={(e) => setInvite({ ...invite, name: e.target.value })} placeholder="Full name" autoFocus /></Field>
           <Field label="Email" required><input className="input" type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} placeholder="person@company.com" /></Field>
-          <Field label="Project" required hint="Guests get access to this project"><select className="input" value={invite.projectId} onChange={(e) => setInvite({ ...invite, projectId: e.target.value })}><option value="">Select a project…</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-          <Field label="Access level"><select className="input" value={invite.level} onChange={(e) => setInvite({ ...invite, level: e.target.value })}>{Object.entries(LEVEL_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select><p className="text-2xs text-muted mt-1">{LEVEL_META[invite.level].desc}</p></Field>
+          <Field label="Project" required hint="Guests get access to this project"><Select value={invite.projectId} onChange={(v) => setInvite({ ...invite, projectId: v })} options={[{ value: '', label: 'Select a project…' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]} /></Field>
+          <Field label="Access level"><Select value={invite.level} onChange={(v) => setInvite({ ...invite, level: v })} options={[...Object.entries(LEVEL_META).map(([k, v]) => ({ value: k, label: v.label }))]} /><p className="text-2xs text-muted mt-1">{LEVEL_META[invite.level].desc}</p></Field>
         </Modal>
       )}
 

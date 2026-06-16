@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -172,12 +173,12 @@ export default function Projects() {
             className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           {companies.length > 0 && (
             <Field label="Company">
-              <select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value, portfolio_id: '' })} className="input"><option value="">No company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+              <Select value={np.company_id} onChange={(v) => setNp({ ...np, company_id: v, portfolio_id: '' })} options={[{ value: '', label: 'No company' }, ...companies.map((c) => ({ value: c.id, label: c.name }))]} />
             </Field>
           )}
           {np.company_id && modalPortfolios.length > 0 && (
             <Field label="Portfolio">
-              <select value={np.portfolio_id} onChange={(e) => setNp({ ...np, portfolio_id: e.target.value })} className="input"><option value="">No portfolio</option>{modalPortfolios.map((pf) => <option key={pf.id} value={pf.id}>{pf.name}</option>)}</select>
+              <Select value={np.portfolio_id} onChange={(v) => setNp({ ...np, portfolio_id: v })} options={[{ value: '', label: 'No portfolio' }, ...modalPortfolios.map((pf) => ({ value: pf.id, label: pf.name }))]} />
             </Field>
           )}
           <Field label="Description" hint="Optional — a sentence on scope or goals.">
@@ -185,10 +186,10 @@ export default function Projects() {
           </Field>
           <div className="flex gap-3">
             <Field label="Status" className="flex-1">
-              <select value={np.status} onChange={(e) => setNp({ ...np, status: e.target.value })} className="input">{pNames.map(s => <option key={s}>{s}</option>)}</select>
+              <Select value={np.status} onChange={(v) => setNp({ ...np, status: v })} options={[...pNames.map(s => ({ value: '', label: s }))]} />
             </Field>
             <Field label="Priority" className="flex-1">
-              <select value={np.priority} onChange={(e) => setNp({ ...np, priority: e.target.value })} className="input">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
+              <Select value={np.priority} onChange={(v) => setNp({ ...np, priority: v })} options={[...PRIORITIES.map(p => ({ value: '', label: p }))]} />
             </Field>
           </div>
           <div className="flex gap-3">

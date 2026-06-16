@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -179,10 +180,7 @@ export default function OffersPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input h-9 w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -309,25 +307,10 @@ export default function OffersPage() {
               />
             </Field>
             <Field label="Status">
-              <select
-                className="input"
-                value={editor.draft.status || 'draft'}
-                onChange={(e) => setD({ status: e.target.value as OfferStatus })}
-              >
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as OfferStatus })} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
             </Field>
             <Field label="Application">
-              <select
-                className="input"
-                value={editor.draft.application_id || ''}
-                onChange={(e) => setD({ application_id: e.target.value || null })}
-              >
-                <option value="">—</option>
-                {applications.map((a) => (
-                  <option key={a.id} value={a.id}>{a.candidate_name}</option>
-                ))}
-              </select>
+              <Select value={editor.draft.application_id || ''} onChange={(v) => setD({ application_id: v || null })} options={[{ value: '', label: 'None' }, ...applications.map((a) => ({ value: a.id, label: a.candidate_name }))]} />
             </Field>
             <Field label="Notes" className="sm:col-span-2">
               <textarea
@@ -456,27 +439,10 @@ function DetailModal({
           />
         </Field>
         <Field label="Status">
-          <select
-            className="input"
-            value={draft.status || 'draft'}
-            onChange={(e) => setF({ status: e.target.value as OfferStatus })}
-            disabled={!canEdit}
-          >
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <Select value={draft.status || 'draft'} onChange={(v) => setF({ status: v as OfferStatus })} disabled={!canEdit} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
         </Field>
         <Field label="Application">
-          <select
-            className="input"
-            value={draft.application_id || ''}
-            onChange={(e) => setF({ application_id: e.target.value || null })}
-            disabled={!canEdit}
-          >
-            <option value="">—</option>
-            {applications.map((a) => (
-              <option key={a.id} value={a.id}>{a.candidate_name}</option>
-            ))}
-          </select>
+          <Select value={draft.application_id || ''} onChange={(v) => setF({ application_id: v || null })} disabled={!canEdit} options={[{ value: '', label: 'None' }, ...applications.map((a) => ({ value: a.id, label: a.candidate_name }))]} />
         </Field>
         <Field label="Notes" className="sm:col-span-2">
           <textarea

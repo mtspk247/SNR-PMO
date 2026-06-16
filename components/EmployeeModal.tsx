@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Select from '@/components/Select';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { Employee, OrgCompany, Role } from '@/lib/supabase';
 
@@ -84,16 +85,11 @@ export default function EmployeeModal({ initial, people, companies, busy, onClos
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className="input" />
           </Field>
           <Field label="Role">
-            <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="input">
-              {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+            <Select value={role} onChange={(v) => setRole(v as Role)} options={[...ROLES.map((r) => ({ value: r.value, label: r.label }))]} />
           </Field>
           {edit && (
             <Field label="Status">
-              <select value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'suspended')} className="input">
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-              </select>
+              <Select value={status} onChange={(v) => setStatus(v as 'active' | 'suspended')} options={[{ value: 'active', label: 'Active' }, { value: 'suspended', label: 'Suspended' }]} />
             </Field>
           )}
         </div>
@@ -110,16 +106,10 @@ export default function EmployeeModal({ initial, people, companies, busy, onClos
             <input type="date" value={hired} onChange={(e) => setHired(e.target.value)} className="input" />
           </Field>
           <Field label="Company">
-            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className="input">
-              <option value="">—</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <Select value={companyId} onChange={(v) => setCompanyId(v)} options={[{ value: '', label: 'None' }, ...companies.map((c) => ({ value: c.id, label: c.name }))]} />
           </Field>
           <Field label="Reports to">
-            <select value={reportsTo} onChange={(e) => setReportsTo(e.target.value)} className="input">
-              <option value="">—</option>
-              {people.filter((p) => p.id !== initial?.id).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-            </select>
+            <Select value={reportsTo} onChange={(v) => setReportsTo(v)} options={[{ value: '', label: 'None' }, ...people.filter((p) => p.id !== initial?.id).map((p) => ({ value: p.id, label: p.full_name }))]} />
           </Field>
         </div>
       )}

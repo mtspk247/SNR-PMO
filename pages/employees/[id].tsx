@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -657,10 +658,7 @@ function CompensationCard({ employee, comp, payslips, isAdmin, orgId, meId, onSa
           </div>
           <div>
             <label className="label">Pay type</label>
-            <select value={payType} onChange={(e) => setPayType(e.target.value as 'monthly' | 'hourly')} className="input">
-              <option value="monthly">Monthly salary</option>
-              <option value="hourly">Hourly</option>
-            </select>
+            <Select value={payType} onChange={(v) => setPayType(v as 'monthly' | 'hourly')} options={[{ value: 'monthly', label: 'Monthly salary' }, { value: 'hourly', label: 'Hourly' }]} />
           </div>
           {payType === 'hourly' && (
             <div>
@@ -670,11 +668,7 @@ function CompensationCard({ employee, comp, payslips, isAdmin, orgId, meId, onSa
           )}
           <div>
             <label className="label">Pay schedule</label>
-            <select value={schedule} onChange={(e) => setSchedule(e.target.value)} className="input">
-              <option>Monthly</option>
-              <option>Biweekly</option>
-              <option>Weekly</option>
-            </select>
+            <Select value={schedule} onChange={(v) => setSchedule(v)} options={[{ value: '', label: 'Monthly' }, { value: '', label: 'Biweekly' }, { value: '', label: 'Weekly' }]} />
           </div>
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)} className="btn flex-1">Cancel</button>

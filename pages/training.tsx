@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
@@ -475,10 +476,7 @@ function TdModal({ open, editing, form, setForm, busy, roleTemplates, onClose, o
           </div>
           {roleTemplates.length > 0 && (
             <Field label="Role template">
-              <select className="input w-full" value={form.role_template_id} onChange={(e) => setForm((f) => ({ ...f, role_template_id: e.target.value }))}>
-                <option value="">None</option>
-                {roleTemplates.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
+              <div className="w-full"><Select value={form.role_template_id} onChange={(v) => setForm((f) => ({ ...f, role_template_id: v }))} options={[{ value: '', label: 'None' }, ...roleTemplates.map((r) => ({ value: r.id, label: r.name }))]} /></div>
             </Field>
           )}
           <Field label="Description">
@@ -548,10 +546,7 @@ function JdModal({ open, editing, form, setForm, busy, roleTemplates, onClose, o
             </Field>
             {roleTemplates.length > 0 && (
               <Field label="Role template">
-                <select className="input w-full" value={form.role_template_id} onChange={(e) => setForm((f) => ({ ...f, role_template_id: e.target.value }))}>
-                  <option value="">None</option>
-                  {roleTemplates.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
+                <div className="w-full"><Select value={form.role_template_id} onChange={(v) => setForm((f) => ({ ...f, role_template_id: v }))} options={[{ value: '', label: 'None' }, ...roleTemplates.map((r) => ({ value: r.id, label: r.name }))]} /></div>
               </Field>
             )}
           </div>

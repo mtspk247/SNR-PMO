@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -208,12 +209,7 @@ export default function InterviewsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input h-9 w-44" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -297,29 +293,10 @@ export default function InterviewsPage() {
         >
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label="Candidate" required>
-              <select
-                className="input"
-                autoFocus
-                value={editor.draft.application_id}
-                onChange={(e) => setD({ application_id: e.target.value })}
-              >
-                <option value="">— select candidate —</option>
-                {applications.map((a) => (
-                  <option key={a.id} value={a.id}>{a.candidate_name}</option>
-                ))}
-              </select>
+              <Select value={editor.draft.application_id} onChange={(v) => setD({ application_id: v })} options={[{ value: '', label: '— select candidate —' }, ...applications.map((a) => ({ value: a.id, label: a.candidate_name }))]} />
             </Field>
             <Field label="Interviewer">
-              <select
-                className="input"
-                value={editor.draft.interviewer_id || ''}
-                onChange={(e) => setD({ interviewer_id: e.target.value || null })}
-              >
-                <option value="">—</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name}</option>
-                ))}
-              </select>
+              <Select value={editor.draft.interviewer_id || ''} onChange={(v) => setD({ interviewer_id: v || null })} options={[{ value: '', label: 'None' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Scheduled at">
               <input
@@ -330,15 +307,7 @@ export default function InterviewsPage() {
               />
             </Field>
             <Field label="Mode">
-              <select
-                className="input"
-                value={editor.draft.mode}
-                onChange={(e) => setD({ mode: e.target.value })}
-              >
-                {MODES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+              <Select value={editor.draft.mode} onChange={(v) => setD({ mode: v })} options={[...MODES.map((m) => ({ value: m, label: m }))]} />
             </Field>
             <Field label="Stage label">
               <input
@@ -349,15 +318,7 @@ export default function InterviewsPage() {
               />
             </Field>
             <Field label="Status">
-              <select
-                className="input"
-                value={editor.draft.status}
-                onChange={(e) => setD({ status: e.target.value })}
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s === 'no_show' ? 'No-show' : s}</option>
-                ))}
-              </select>
+              <Select value={editor.draft.status} onChange={(v) => setD({ status: v })} options={[...STATUSES.map((s) => ({ value: s, label: s === 'no_show' ? 'No-show' : s }))]} />
             </Field>
             <Field label="Rating (1–5)">
               <input

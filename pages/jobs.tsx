@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -120,10 +121,7 @@ export default function JobsPage() {
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <input className="input h-9 w-56" placeholder="Search jobs…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="input h-9 w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{fmtType(s)}</option>)}
-        </select>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: fmtType(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -188,23 +186,16 @@ export default function JobsPage() {
               <input className="input" value={editor.draft.location || ''} onChange={(e) => setD({ location: e.target.value })} placeholder="Remote / City" />
             </Field>
             <Field label="Employment type">
-              <select className="input" value={editor.draft.employment_type || 'full_time'} onChange={(e) => setD({ employment_type: e.target.value as JobPosting['employment_type'] })}>
-                {EMP_TYPES.map((t) => <option key={t} value={t}>{fmtType(t)}</option>)}
-              </select>
+              <Select value={editor.draft.employment_type || 'full_time'} onChange={(v) => setD({ employment_type: v as JobPosting['employment_type'] })} options={[...EMP_TYPES.map((t) => ({ value: t, label: fmtType(t) }))]} />
             </Field>
             <Field label="Openings">
               <input className="input" type="number" min={1} value={editor.draft.openings ?? 1} onChange={(e) => setD({ openings: Number(e.target.value) })} />
             </Field>
             <Field label="Owner">
-              <select className="input" value={editor.draft.owner_id || ''} onChange={(e) => setD({ owner_id: e.target.value || undefined })}>
-                <option value="">—</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
+              <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || undefined })} options={[{ value: '', label: 'None' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Status">
-              <select className="input" value={editor.draft.status || 'draft'} onChange={(e) => setD({ status: e.target.value as JobPosting['status'] })}>
-                {STATUSES.map((s) => <option key={s} value={s}>{fmtType(s)}</option>)}
-              </select>
+              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as JobPosting['status'] })} options={[...STATUSES.map((s) => ({ value: s, label: fmtType(s) }))]} />
             </Field>
             <Field label="Description" className="sm:col-span-2">
               <textarea className="input min-h-[90px]" value={editor.draft.description || ''} onChange={(e) => setD({ description: e.target.value })} placeholder="Role summary, responsibilities, requirements…" />

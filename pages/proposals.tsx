@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -134,10 +135,7 @@ export default function ProposalsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input h-9 w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -248,18 +246,13 @@ function EditorFields({ draft, setD, users }: { draft: Draft; setD: (p: Draft) =
         <input className="input" value={draft.currency || 'USD'} onChange={(e) => setD({ currency: e.target.value })} />
       </Field>
       <Field label="Status">
-        <select className="input" value={draft.status || 'draft'} onChange={(e) => setD({ status: e.target.value as Proposal['status'] })}>
-          {(['draft', 'sent', 'accepted', 'rejected', 'expired'] as const).map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <Select value={draft.status || 'draft'} onChange={(v) => setD({ status: v as Proposal['status'] })} options={[...(['draft', 'sent', 'accepted', 'rejected', 'expired'] as const).map((s) => ({ value: s, label: s }))]} />
       </Field>
       <Field label="Valid until">
         <input className="input" type="date" value={draft.valid_until || ''} onChange={(e) => setD({ valid_until: e.target.value || null })} />
       </Field>
       <Field label="Owner">
-        <select className="input" value={draft.owner_id || ''} onChange={(e) => setD({ owner_id: e.target.value || null })}>
-          <option value="">—</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-        </select>
+        <Select value={draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} options={[{ value: '', label: 'None' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
       </Field>
       <Field label="Notes">
         <input className="input" value={draft.notes || ''} onChange={(e) => setD({ notes: e.target.value })} placeholder="Any additional notes…" />

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon, StatCard } from '@/components/ui';
@@ -93,14 +94,8 @@ export default function Workload() {
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find row…"
                 className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
             </div>
-            <select value={projectF} onChange={(e) => setProjectF(e.target.value)} className="input h-9 w-auto">
-              <option value="all">All projects</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <select value={priorityF} onChange={(e) => setPriorityF(e.target.value)} className="input h-9 w-auto">
-              <option value="all">All priorities</option>
-              {['Urgent', 'High', 'Medium', 'Low'].map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            <div className="w-auto"><Select value={projectF} onChange={(v) => setProjectF(v)} options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]} /></div>
+            <div className="w-auto"><Select value={priorityF} onChange={(v) => setPriorityF(v)} options={[{ value: 'all', label: 'All priorities' }, ...['Urgent', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))]} /></div>
             <button onClick={() => setOverdueOnly((v) => !v)}
               className={`btn h-9 ${overdueOnly ? 'border-rose-400 text-rose-600' : ''}`}>
               <Icon name="ti-alarm" className="text-sm" />Overdue only

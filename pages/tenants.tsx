@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
@@ -115,7 +116,7 @@ export default function TenantsPage() {
             <div className="space-y-3">
               <Field label="Owner email" required><input className="input" type="email" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} placeholder="owner@company.com" /></Field>
               <Field label="Workspace name" required hint="The new tenant is provisioned when the owner accepts."><input className="input" value={invName} onChange={(e) => setInvName(e.target.value)} placeholder="Acme Inc" /></Field>
-              <Field label="Plan"><select className="input" value={invPlan} onChange={(e) => setInvPlan(e.target.value)}>{plans.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
+              <Field label="Plan"><Select value={invPlan} onChange={(v) => setInvPlan(v)} options={[...plans.map((p) => ({ value: p.key, label: p.name }))]} /></Field>
               {invErr && <p className="text-sm text-rose-600">{invErr}</p>}
             </div>
           )}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -181,9 +182,7 @@ export default function GuestDetailPage() {
         <Modal open onClose={() => setAcc(null)} title="Edit access" icon="ti-adjustments" size="sm"
           footer={<><button className="btn" onClick={() => setAcc(null)}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={saveAccess}>{busy ? 'Saving…' : 'Save'}</button></>}>
           <Field label="Level">
-            <select className="input" value={acc.level} onChange={(e) => { const level = e.target.value; setAcc({ level, directEdit: level === 'contributor', logWork: level === 'contributor' }); }}>
-              {Object.entries(LEVEL_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
+            <Select value={acc.level} onChange={(v) => { const level = v; setAcc({ level, directEdit: level === 'contributor', logWork: level === 'contributor' }); }} options={[...Object.entries(LEVEL_META).map(([k, v]) => ({ value: k, label: v.label }))]} />
           </Field>
           <Field label="Overrides">
             <label className="flex items-center gap-2 text-sm py-1"><input type="checkbox" className="accent-accent w-4 h-4" checked={acc.directEdit} onChange={(e) => setAcc({ ...acc, directEdit: e.target.checked })} />Allow direct edits</label>

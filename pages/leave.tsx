@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, StatCard, Spinner, EmptyState, Pill, Icon, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -180,7 +181,7 @@ export default function LeavePage() {
         }
       >
         <div className="space-y-3.5">
-          <Field label="Type"><select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className="input">{TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
+          <Field label="Type"><Select value={f.type} onChange={(v) => setF({ ...f, type: v })} options={[...TYPES.map((t) => ({ value: '', label: t }))]} /></Field>
           <div className="flex gap-3">
             <Field label="From" required className="flex-1"><input autoFocus type="date" value={f.start_date} onChange={(e) => setF({ ...f, start_date: e.target.value })} className="input" /></Field>
             <Field label="To" required className="flex-1"><input type="date" value={f.end_date} onChange={(e) => setF({ ...f, end_date: e.target.value })} className="input" /></Field>

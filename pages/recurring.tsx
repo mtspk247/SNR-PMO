@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -161,10 +162,7 @@ export default function RecurringPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input h-9 w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -294,13 +292,7 @@ export default function RecurringPage() {
               />
             </Field>
             <Field label="Cycle">
-              <select
-                className="input"
-                value={editor.draft.cycle || 'monthly'}
-                onChange={(e) => setD({ cycle: e.target.value })}
-              >
-                {CYCLES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <Select value={editor.draft.cycle || 'monthly'} onChange={(v) => setD({ cycle: v })} options={[...CYCLES.map((c) => ({ value: c, label: c }))]} />
             </Field>
             <Field label="Next due">
               <input
@@ -334,23 +326,10 @@ export default function RecurringPage() {
               />
             </Field>
             <Field label="Owner">
-              <select
-                className="input"
-                value={editor.draft.owner_id || ''}
-                onChange={(e) => setD({ owner_id: e.target.value || null })}
-              >
-                <option value="">—</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
+              <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} options={[{ value: '', label: 'None' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Status">
-              <select
-                className="input"
-                value={editor.draft.status || 'active'}
-                onChange={(e) => setD({ status: e.target.value })}
-              >
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={editor.draft.status || 'active'} onChange={(v) => setD({ status: v })} options={[...STATUSES.map((s) => ({ value: s, label: s }))]} />
             </Field>
             <Field label="Notes">
               <input

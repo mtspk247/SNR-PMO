@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { useActiveOrg } from '@/lib/store';
@@ -55,9 +56,7 @@ export default function NotificationPolicyPage() {
                 </span>
                 <span className="shrink-0 flex items-center gap-2">
                   {savingKey === r.key && <Icon name="ti-loader-2" className="text-muted animate-spin text-sm" />}
-                  <select className="input h-9 w-56 text-sm" value={r.policy} disabled={savingKey === r.key} onChange={(e) => change(r.key, e.target.value)}>
-                    {POLICY_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <div className="w-56"><Select value={r.policy} onChange={(v) => change(r.key, v)} disabled={savingKey === r.key} options={[...POLICY_OPTS.map((o) => ({ value: o.value, label: o.label }))]} /></div>
                 </span>
               </div>
             ))}

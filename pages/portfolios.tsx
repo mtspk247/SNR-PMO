@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
@@ -177,10 +178,7 @@ export default function PortfoliosPage() {
       >
         <div className="space-y-3.5">
           <Field label="Company" required>
-            <select value={np.company_id} onChange={(e) => setNp({ ...np, company_id: e.target.value })} className="input">
-              <option value="">Select a company…</option>
-              {createableCompanies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <Select value={np.company_id} onChange={(v) => setNp({ ...np, company_id: v })} options={[{ value: '', label: 'Select a company…' }, ...createableCompanies.map((c) => ({ value: c.id, label: c.name }))]} />
           </Field>
           <input autoFocus value={np.name} onChange={(e) => setNp({ ...np, name: e.target.value })} placeholder="Portfolio name" className="w-full text-lg font-semibold bg-transparent outline-none text-content placeholder:text-muted2 px-0 pb-1" />
           <Field label="Description" hint="Optional."><textarea value={np.description} onChange={(e) => setNp({ ...np, description: e.target.value })} className="textarea h-20" placeholder="Optional" /></Field>
@@ -228,10 +226,7 @@ export default function PortfoliosPage() {
                   <p className="text-sm truncate">{m.users?.full_name || m.users?.email || m.user_id}</p>
                   {m.users?.full_name && m.users?.email && <p className="text-2xs text-neutral-400 truncate">{m.users.email}</p>}
                 </div>
-                <select value={m.role} onChange={(e) => doRole(m.user_id, e.target.value as MemberRole)} className="input w-32 py-1">
-                  <option value="member">Member</option>
-                  <option value="manager">Manager</option>
-                </select>
+                <div className="w-32"><Select value={m.role} onChange={(v) => doRole(m.user_id, v as MemberRole)} options={[{ value: 'member', label: 'Member' }, { value: 'manager', label: 'Manager' }]} /></div>
                 <button onClick={() => doRemove(m.user_id)} disabled={memBusy} className="text-neutral-400 hover:text-rose-600 shrink-0" title="Remove"><Icon name="ti-trash" /></button>
               </div>
             ))}
@@ -241,14 +236,8 @@ export default function PortfoliosPage() {
         <div className="border-t border-line mt-4 pt-4">
           <Field label="Add member">
             <div className="flex gap-2">
-              <select value={addUser} onChange={(e) => setAddUser(e.target.value)} className="input flex-1">
-                <option value="">Select a user…</option>
-                {addable.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
-              </select>
-              <select value={addRole} onChange={(e) => setAddRole(e.target.value as MemberRole)} className="input w-32">
-                <option value="member">Member</option>
-                <option value="manager">Manager</option>
-              </select>
+              <Select value={addUser} onChange={(v) => setAddUser(v)} options={[{ value: '', label: 'Select a user…' }, ...addable.map((u) => ({ value: u.id, label: u.full_name || u.email }))]} />
+              <div className="w-32"><Select value={addRole} onChange={(v) => setAddRole(v as MemberRole)} options={[{ value: 'member', label: 'Member' }, { value: 'manager', label: 'Manager' }]} /></div>
               <button onClick={doAdd} disabled={memBusy || !addUser} className="btn btn-primary">Add</button>
             </div>
           </Field>

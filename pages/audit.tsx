@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
@@ -62,15 +63,9 @@ export default function AuditPage() {
               <Icon name="ti-search" className="text-muted" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search action, user, entity…" className="bg-transparent outline-none text-sm text-content placeholder:text-muted w-full" />
             </div>
-            <select className="input h-9 py-0 w-auto" value={action} onChange={(e) => setAction(e.target.value)}>
-              <option value="">All actions</option>{actions.map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
-            <select className="input h-9 py-0 w-auto" value={user} onChange={(e) => setUser(e.target.value)}>
-              <option value="">All users</option>{users.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
-            <select className="input h-9 py-0 w-auto" value={etype} onChange={(e) => setEType(e.target.value)}>
-              <option value="">All entities</option>{etypes.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <div className="w-auto"><Select value={action} onChange={(v) => setAction(v)} className="py-0" options={[{ value: '', label: 'All actions' }, ...actions.map((a) => ({ value: a, label: a }))]} /></div>
+            <div className="w-auto"><Select value={user} onChange={(v) => setUser(v)} className="py-0" options={[{ value: '', label: 'All users' }, ...users.map((u) => ({ value: u, label: u }))]} /></div>
+            <div className="w-auto"><Select value={etype} onChange={(v) => setEType(v)} className="py-0" options={[{ value: '', label: 'All entities' }, ...etypes.map((t) => ({ value: t, label: t }))]} /></div>
             <input type="date" className="input h-9 py-0 w-auto" value={from} onChange={(e) => setFrom(e.target.value)} title="From date" />
             <input type="date" className="input h-9 py-0 w-auto" value={to} onChange={(e) => setTo(e.target.value)} title="To date" />
             {hasFilters && <button className="btn btn-ghost h-9 py-0" onClick={reset}><Icon name="ti-x" />Clear</button>}
