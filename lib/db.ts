@@ -2579,3 +2579,31 @@ export async function glTaxSummary(orgId: string, from?: string | null, to?: str
   const { data, error } = await sb.rpc('gl_tax_summary', { p_org: orgId, p_from: from || null, p_to: to || null });
   if (error) throw new Error(error.message); return (data as TaxSummaryRow[]) || [];
 }
+
+// ---- Accounting P2b: Bills / Accounts Payable ----
+export interface Bill { id: string; org_id: string; bill_number: string | null; vendor_name: string | null; vendor_email: string | null; bill_date: string; due_date: string | null; currency: string; tax_rate: number; subtotal: number; tax: number; total: number; amount_paid: number; status: string; notes: string | null; created_by: string; created_at: string; }
+export interface BillLine { id: string; org_id: string; bill_id: string; description: string; qty: number; unit_price: number; amount: number; sort: number; }
+export interface BillPayment { id: string; org_id: string; bill_id: string; amount: number; paid_on: string; method: string | null; reference: string | null; notes: string | null; }
+export async function listBills(orgId: string): Promise<Bill[]> {
+  const { data, error } = await sb.from('bills').select('*').eq('org_id', orgId).order('bill_date', { ascending: false });
+  if (error) throw new Error(error.message); return (data as Bill[]) || [];
+}
+export async function getBill(id: string): Promise<Bill | null> {
+  const { data, error } = await sb.from('bills').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message); return data as Bill | null;
+}
+export const createBill = (row: Partial<Bill> & { org_id: string; created_by: string }) => _create<Bill>('bills', row);
+export const updateBill = (id: string, patch: Partial<Bill>) => _update('bills', id, patch);
+export const deleteBill = (id: string) => _del('bills', id);
+export async function listBillLines(billId: string): Promise<BillLine[]> {
+  const { data, error } = await sb.from('bill_lines').select('*').eq('bill_id', billId).order('sort').order('created_at');
+  if (error) throw new Error(error.message); return (data as BillLine[]) || [];
+}
+export const addBillLine = (row: { org_id: string; bill_id: string; description: string; qty: number; unit_price: number; created_by: string }) => _create<BillLine>('bill_lines', row);
+export const deleteBillLine = (id: string) => _del('bill_lines', id);
+export async function listBillPayments(billId: string): Promise<BillPayment[]> {
+  const { data, error } = await sb.from('bill_payments').select('*').eq('bill_id', billId).order('paid_on', { ascending: false });
+  if (error) throw new Error(error.message); return (data as BillPayment[]) || [];
+}
+export const addBillPayment = (row: { org_id: string; bill_id: string; amount: number; paid_on: string; method?: string; reference?: string; notes?: string; created_by: string }) => _create<BillPayment>('bill_payments', row);
+export const deleteBillPayment = (id: string) => _del('bill_payments', id);

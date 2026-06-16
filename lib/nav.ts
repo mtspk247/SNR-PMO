@@ -106,6 +106,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/liabilities', label: 'Liabilities', icon: 'ti-businessplan', feature: 'financial' },
     { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial', search: searchBankAccounts },
     { href: '/invoicing', label: 'Invoicing', icon: 'ti-file-invoice', feature: 'financial', search: searchInvoices },
+    { href: '/bills', label: 'Bills / Purchases', icon: 'ti-file-dollar', feature: 'financial' },
     { href: '/credit-notes', label: 'Credit notes', icon: 'ti-receipt-refund', feature: 'financial', search: searchCreditNotes },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
