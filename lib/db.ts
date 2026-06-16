@@ -108,6 +108,30 @@ export async function setOrgAllowUserThemes(orgId: string, allow: boolean): Prom
   if (error) throw new Error(error.message);
 }
 
+// ---- Customizable dashboard layouts (per-user + per-tenant default) ----
+export interface DashboardLayouts { personal: string[] | null; orgDefault: string[] | null; }
+export async function getDashboardLayouts(orgId: string, userId: string): Promise<DashboardLayouts> {
+  const { data, error } = await sb.from('dashboard_layouts').select('user_id, widget_keys').eq('org_id', orgId);
+  if (error) throw new Error(error.message);
+  const rows = (data || []) as { user_id: string | null; widget_keys: string[] }[];
+  return {
+    personal: rows.find((r) => r.user_id === userId)?.widget_keys ?? null,
+    orgDefault: rows.find((r) => r.user_id === null)?.widget_keys ?? null,
+  };
+}
+export async function saveUserDashboard(orgId: string, keys: string[]): Promise<void> {
+  const { error } = await sb.rpc('dashboard_save_user_layout', { p_org: orgId, p_keys: keys });
+  if (error) throw new Error(error.message);
+}
+export async function saveOrgDashboard(orgId: string, keys: string[]): Promise<void> {
+  const { error } = await sb.rpc('dashboard_save_org_layout', { p_org: orgId, p_keys: keys });
+  if (error) throw new Error(error.message);
+}
+export async function resetUserDashboard(orgId: string): Promise<void> {
+  const { error } = await sb.rpc('dashboard_reset_user_layout', { p_org: orgId });
+  if (error) throw new Error(error.message);
+}
+
 export async function getOrgUsers(): Promise<OrgUser[]> {
   const { data, error } = await sb.from('users').select('id, full_name, email, avatar_url').order('full_name');
   if (error) throw error;
