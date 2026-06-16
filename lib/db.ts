@@ -2531,10 +2531,10 @@ export async function glPostEntry(orgId: string, entryDate: string, memo: string
   if (error) throw new Error(error.message); return data as string;
 }
 export interface JournalLineRow { id: string; account_id: string; debit: number; credit: number; description: string | null; coa_accounts?: { code: string; name: string } | null; }
-export interface JournalEntryRow { id: string; entry_no: number | null; entry_date: string; memo: string | null; source: string; status: string; created_at: string; journal_lines: JournalLineRow[]; }
+export interface JournalEntryRow { id: string; entry_no: number | null; entry_date: string; memo: string | null; source: string; status: string; reversed_by: string | null; reverses: string | null; created_at: string; journal_lines: JournalLineRow[]; }
 export async function glJournal(orgId: string, limit = 100): Promise<JournalEntryRow[]> {
   const { data, error } = await sb.from('journal_entries')
-    .select('id, entry_no, entry_date, memo, source, status, created_at, journal_lines(id, account_id, debit, credit, description, coa_accounts(code, name))')
+    .select('id, entry_no, entry_date, memo, source, status, reversed_by, reverses, created_at, journal_lines(id, account_id, debit, credit, description, coa_accounts(code, name))')
     .eq('org_id', orgId).order('entry_date', { ascending: false }).order('entry_no', { ascending: false }).limit(limit);
   if (error) throw new Error(error.message); return (data as unknown as JournalEntryRow[]) || [];
 }
@@ -2639,4 +2639,24 @@ export interface ForecastRow { period: string; inflow: number; outflow: number; 
 export async function glCashForecast(orgId: string, months = 6): Promise<ForecastRow[]> {
   const { data, error } = await sb.rpc('gl_cash_forecast', { p_org: orgId, p_months: months });
   if (error) throw new Error(error.message); return (data as ForecastRow[]) || [];
+}
+
+// ---- Accounting P4: controls + audit ----
+export interface FiscalPeriod { id: string; period_start: string; period_end: string; label: string | null; status: string; closed_at: string | null; }
+export async function glPeriods(orgId: string): Promise<FiscalPeriod[]> {
+  const { data, error } = await sb.from('fiscal_periods').select('id, period_start, period_end, label, status, closed_at').eq('org_id', orgId).eq('status', 'closed').order('period_start', { ascending: false });
+  if (error) throw new Error(error.message); return (data as FiscalPeriod[]) || [];
+}
+export async function glClosePeriod(orgId: string, month: string): Promise<void> {
+  const { error } = await sb.rpc('gl_close_period', { p_org: orgId, p_month: month }); if (error) throw new Error(error.message);
+}
+export async function glReopenPeriod(orgId: string, month: string): Promise<void> {
+  const { error } = await sb.rpc('gl_reopen_period', { p_org: orgId, p_month: month }); if (error) throw new Error(error.message);
+}
+export async function glReverseEntry(orgId: string, entryId: string, date: string): Promise<string> {
+  const { data, error } = await sb.rpc('gl_reverse_entry', { p_org: orgId, p_entry: entryId, p_date: date }); if (error) throw new Error(error.message); return data as string;
+}
+export interface AuditSummary { entries?: number; posted?: number; reversals?: number; reversed?: number; closed_periods?: number; unbalanced?: number; by_source?: Record<string, number>; }
+export async function glAudit(orgId: string): Promise<AuditSummary> {
+  const { data, error } = await sb.rpc('gl_audit', { p_org: orgId }); if (error) throw new Error(error.message); return (data as AuditSummary) || {};
 }

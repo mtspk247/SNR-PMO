@@ -8,7 +8,8 @@ import {
   glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
   taxRates, taxRateSave, taxRateDelete, glTaxSummary,
   glPL, glBalanceSheet, glCashFlow, budgetSave, glBudgetVsActual, glCashForecast,
-  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow, BudgetRow, ForecastRow,
+  glPeriods, glClosePeriod, glReopenPeriod, glReverseEntry, glAudit,
+  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow, BudgetRow, ForecastRow, FiscalPeriod, AuditSummary,
 } from '@/lib/db';
 
 const TYPES = [
@@ -27,7 +28,7 @@ type JLine = { account_id: string; debit: string; credit: string; description: s
 
 export default function LedgerPage() {
   const org = useActiveOrg();
-  const [tab, setTab] = useState<'coa' | 'journal' | 'tb' | 'taxes' | 'reports'>('coa');
+  const [tab, setTab] = useState<'coa' | 'journal' | 'tb' | 'taxes' | 'reports' | 'audit'>('coa');
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
   const [journal, setJournal] = useState<JournalEntryRow[]>([]);
@@ -50,6 +51,9 @@ export default function LedgerPage() {
   const [budRows, setBudRows] = useState<BudgetRow[]>([]);
   const [budEdit, setBudEdit] = useState<Record<string, string>>({});
   const [fcRows, setFcRows] = useState<ForecastRow[]>([]);
+  const [auditData, setAuditData] = useState<AuditSummary>({});
+  const [periods, setPeriods] = useState<FiscalPeriod[]>([]);
+  const [closeMonth, setCloseMonth] = useState(new Date().toISOString().slice(0, 7));
   const monthBounds = (ym: string) => { const [y, m] = ym.split('-').map(Number); return { start: `${ym}-01`, end: new Date(y, m, 0).toISOString().slice(0, 10) }; };
   const loadBudget = () => { if (!orgId) return; const { start, end } = monthBounds(rptMonth); glBudgetVsActual(orgId, start, end).then((r) => { setBudRows(r); setBudEdit(Object.fromEntries(r.map((x) => [x.account_id, x.budget ? String(x.budget) : '']))); }).catch((e) => setErr(e.message)); };
   const [industry, setIndustry] = useState<string | null>(null);
@@ -77,6 +81,11 @@ export default function LedgerPage() {
     else if (rptType === 'budget') loadBudget();
     else glCashForecast(orgId, fcMonths).then(setFcRows).catch((e) => setErr(e.message));
   }, [orgId, tab, rptType, rptFrom, rptTo, rptAsOf, rptMonth, fcMonths]);
+  const loadAudit = () => { if (!orgId) return; glAudit(orgId).then(setAuditData).catch((e) => setErr(e.message)); glPeriods(orgId).then(setPeriods).catch(() => {}); };
+  useEffect(() => { if (orgId && tab === 'audit') loadAudit(); /* eslint-disable-next-line */ }, [orgId, tab]);
+  const reverseEntry = async (eid: string) => { if (!orgId || !confirm('Post a reversing entry for this journal entry?')) return; try { await glReverseEntry(orgId, eid, new Date().toISOString().slice(0, 10)); glJournal(orgId).then(setJournal); } catch (e: any) { setErr(e.message); } };
+  const closePeriod = async () => { if (!orgId) return; try { await glClosePeriod(orgId, closeMonth + '-01'); loadAudit(); } catch (e: any) { setErr(e.message); } };
+  const reopenPeriod = async (p: FiscalPeriod) => { if (!orgId) return; try { await glReopenPeriod(orgId, p.period_start); loadAudit(); } catch (e: any) { setErr(e.message); } };
   const saveBudget = async (accountId: string) => {
     if (!orgId) return; const { start } = monthBounds(rptMonth);
     try { await budgetSave(orgId, accountId, start, parseFloat(budEdit[accountId]) || 0); loadBudget(); } catch (e: any) { setErr(e.message); }
@@ -167,7 +176,8 @@ export default function LedgerPage() {
         { key: 'tb', label: 'Trial Balance', icon: 'ti-scale' },
         { key: 'taxes', label: 'Taxes', icon: 'ti-receipt-tax' },
         { key: 'reports', label: 'Reports', icon: 'ti-chart-bar' },
-      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb' | 'taxes' | 'reports')} />
+        { key: 'audit', label: 'Close / Audit', icon: 'ti-lock-check' },
+      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb' | 'taxes' | 'reports' | 'audit')} />
 
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {loading ? <Spinner /> : (
@@ -217,7 +227,12 @@ export default function LedgerPage() {
                       <span className="text-sm font-medium text-content">{e.memo || '—'}</span>
                       <span className="text-2xs text-muted2">{e.entry_date}</span>
                       <span className="text-2xs text-muted2 capitalize">· {e.source}</span>
-                      <span className="ml-auto text-2xs text-muted">Total {money(td)}</span>
+                      <span className="ml-auto inline-flex items-center gap-2">
+                        {e.reversed_by && <span className="pill pill-gray">reversed</span>}
+                        {e.source === 'reversal' && <span className="pill pill-violet">reversal</span>}
+                        {e.status === 'posted' && e.source !== 'reversal' && !e.reversed_by && <button className="btn-ghost text-2xs" onClick={() => reverseEntry(e.id)} title="Reverse"><Icon name="ti-arrow-back-up" />Reverse</button>}
+                        <span className="text-2xs text-muted">Total {money(td)}</span>
+                      </span>
                     </div>
                     <table className="w-full text-sm list-card">
                       <tbody>
@@ -402,6 +417,39 @@ export default function LedgerPage() {
               ))}</tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {tab === 'audit' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="card p-3"><p className="text-2xs text-muted">Journal entries</p><p className="text-lg font-semibold text-content">{auditData.entries || 0}</p></div>
+            <div className="card p-3"><p className="text-2xs text-muted">Reversals</p><p className="text-lg font-semibold text-content">{auditData.reversals || 0}</p></div>
+            <div className="card p-3"><p className="text-2xs text-muted">Closed periods</p><p className="text-lg font-semibold text-content">{auditData.closed_periods || 0}</p></div>
+            <div className="card p-3"><p className="text-2xs text-muted">Out of balance</p><p className={`text-lg font-semibold ${(auditData.unbalanced || 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{auditData.unbalanced || 0}</p></div>
+          </div>
+          <div className="card overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-line"><span className="text-sm font-semibold text-content">Entries by source</span></div>
+            <div className="p-4 flex flex-wrap gap-2">
+              {Object.entries(auditData.by_source || {}).map(([k, v]) => (<span key={k} className="pill pill-gray capitalize">{k.replace(/_/g, ' ')}: {v}</span>))}
+              {Object.keys(auditData.by_source || {}).length === 0 && <span className="text-2xs text-muted">No entries yet.</span>}
+            </div>
+          </div>
+          <div className="card overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-line flex items-center gap-2 flex-wrap"><span className="text-sm font-semibold text-content">Period close</span><span className="text-2xs text-muted ml-2">Closing a month locks it — no new entries can post into it.</span></div>
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <input type="month" className="input h-8 w-40" value={closeMonth} onChange={(e) => setCloseMonth(e.target.value)} />
+                <button className="btn btn-primary h-8 py-0" onClick={closePeriod}><Icon name="ti-lock" />Close month</button>
+              </div>
+              {periods.length > 0 && (
+                <table className="w-full text-sm list-card">
+                  <thead><tr><th className="px-4 py-2 text-left">Closed period</th><th className="px-4 py-2 text-left">Closed at</th><th className="px-4 py-2"></th></tr></thead>
+                  <tbody>{periods.map((p) => (<tr key={p.id}><td className="px-4 py-2 text-content">{p.label}</td><td className="px-4 py-2 text-2xs text-muted2">{p.closed_at ? new Date(p.closed_at).toLocaleDateString() : ''}</td><td className="px-4 py-2 text-right"><button className="btn-ghost text-2xs" onClick={() => reopenPeriod(p)}><Icon name="ti-lock-open" />Reopen</button></td></tr>))}</tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
