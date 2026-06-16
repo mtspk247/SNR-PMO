@@ -1123,6 +1123,10 @@ export async function sendCampaign(segment: string, subject: string, body: strin
   const { data, error } = await sb.rpc('platform_send_campaign', { p_segment: segment, p_subject: subject, p_body: body, p_link: link || null });
   if (error) throw new Error(error.message); return (data as number) ?? 0;
 }
+export async function emailTenant(orgId: string, subject: string, body: string, link?: string): Promise<number> {
+  const { data, error } = await sb.rpc('platform_email_tenant', { p_org: orgId, p_subject: subject, p_body: body, p_link: link || null });
+  if (error) throw new Error(error.message); return (data as number) ?? 0;
+}
 
 // ---- Support ticketing ----
 export interface SupportTicket { id: string; org_id: string; subject: string; body: string | null; category: string | null; priority: string; status: string; requester_id: string; assignee_id: string | null; created_at: string; updated_at: string; resolved_at: string | null; }

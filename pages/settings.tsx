@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
-import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
+import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getTenantEvents, TenantEvent } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
@@ -314,6 +314,43 @@ function WipeWorkspace({ org }: { org: { id: string; name: string } }) {
   );
 }
 
+function PlanHistory({ org }: { org: { id: string } }) {
+  const [events, setEvents] = useState<TenantEvent[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { getTenantEvents(org.id).then(setEvents).catch(() => setEvents([])).finally(() => setLoaded(true)); }, [org.id]);
+  const META: Record<string, { label: string; icon: string }> = {
+    signup: { label: 'Signed up', icon: 'ti-sparkles' },
+    plan_changed: { label: 'Plan changed', icon: 'ti-package' },
+    suspended: { label: 'Suspended', icon: 'ti-ban' },
+    reactivated: { label: 'Reactivated', icon: 'ti-circle-check' },
+    payment: { label: 'Payment', icon: 'ti-credit-card' },
+    email: { label: 'Message received', icon: 'ti-mail' },
+    campaign: { label: 'Message received', icon: 'ti-mail' },
+  };
+  if (!loaded || events.length === 0) return null;
+  return (
+    <div className="card p-6 mb-6 max-w-4xl">
+      <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Plan &amp; account history</p>
+      <p className="text-sm text-muted mb-4">Your signup, plan changes and billing events.</p>
+      <ol className="relative border-l border-line ml-2 space-y-3">
+        {events.map((ev) => { const m = META[ev.event_type] || { label: ev.event_type, icon: 'ti-point' }; return (
+          <li key={ev.id} className="ml-4 relative">
+            <span className="absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full bg-accent" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <Icon name={m.icon} className="text-sm text-muted2" />
+              <span className="text-sm font-medium text-content">{m.label}</span>
+              {ev.plan_from && ev.plan_to && <span className="text-2xs text-muted2 capitalize">{ev.plan_from} → {ev.plan_to}</span>}
+              {ev.amount_cents != null && <span className="text-2xs text-content font-medium">{(ev.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: ev.currency || 'USD' })}</span>}
+              <span className="text-2xs text-muted2 ml-auto whitespace-nowrap">{new Date(ev.created_at).toLocaleDateString()}</span>
+            </div>
+            {ev.reason && ev.event_type !== 'plan_changed' && <p className="text-2xs text-muted mt-0.5">{ev.reason}</p>}
+          </li>
+        ); })}
+      </ol>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
@@ -434,6 +471,7 @@ export default function SettingsPage() {
       )}
       {(!admin || tab === 'notifications') && <NotificationPrefs />}
       {admin && tab === 'billing' && <PlanPanel org={org} canBill={isOwner} />}
+      {admin && tab === 'billing' && <PlanHistory org={org} />}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
       {admin && tab === 'branding' && <DeleteSafetyToggle org={org} />}
       {admin && tab === 'branding' && (

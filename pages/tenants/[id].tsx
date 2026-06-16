@@ -8,7 +8,7 @@ import { useSetCrumbs } from '@/components/Breadcrumbs';
 import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
-  listTenants, getTenantInfo, setTenantPlan, setTenantActive, getTenantEvents, addTenantNote, TenantEvent, setTenantFeatureOverride, setTenantLimitOverride,
+  listTenants, getTenantInfo, setTenantPlan, setTenantActive, getTenantEvents, addTenantNote, emailTenant, TenantEvent, setTenantFeatureOverride, setTenantLimitOverride,
   listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot,
   getTenantUsage, getOrgActivity, TenantUsage, ActivityItem,
   getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain,
@@ -35,6 +35,7 @@ const EVENT_META = (t: string): { label: string; icon: string; dot: string } => 
   reactivated: { label: 'Reactivated', icon: 'ti-circle-check', dot: 'bg-emerald-500' },
   payment: { label: 'Payment', icon: 'ti-credit-card', dot: 'bg-emerald-500' },
   campaign: { label: 'Campaign sent', icon: 'ti-mail-forward', dot: 'bg-sky-500' },
+  email: { label: 'Email sent', icon: 'ti-mail', dot: 'bg-sky-500' },
   note: { label: 'Note', icon: 'ti-note', dot: 'bg-amber-400' },
 } as Record<string, { label: string; icon: string; dot: string }>)[t] || { label: t, icon: 'ti-point', dot: 'bg-muted2' });
 
@@ -65,6 +66,7 @@ export default function TenantDetail() {
   const [planReason, setPlanReason] = useState('');
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [emSubj, setEmSubj] = useState(''); const [emBody, setEmBody] = useState(''); const [emLink, setEmLink] = useState(''); const [emailing, setEmailing] = useState(false);
   useEffect(() => { setPlanSel(info?.plan || ''); }, [info?.plan]);
 
   useSetCrumbs(tenant ? [{ label: 'Tenants', href: '/tenants' }, { label: tenant.org_name }] : null);
@@ -101,6 +103,7 @@ export default function TenantDetail() {
   const changePlan = async (key: string, reason?: string) => { setBusy(true); try { await setTenantPlan(orgId, key, reason); await refreshInfo(); refreshUsage(); await refreshSessionOrg(key); refreshEvents(); setPlanReason(''); flash('Plan updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const toggleActive = async () => { if (!info) return; setBusy(true); try { await setTenantActive(orgId, !info.active); await refreshInfo(); refreshUsage(); refreshEvents(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const addNote = async () => { if (!noteText.trim()) return; setSavingNote(true); try { await addTenantNote(orgId, noteText.trim()); setNoteText(''); refreshEvents(); flash('Note added.'); } catch (e: any) { setErr(e.message); } finally { setSavingNote(false); } };
+  const emailOwner = async () => { if (!emSubj.trim() || !emBody.trim()) return; setEmailing(true); setErr(''); try { const n = await emailTenant(orgId, emSubj.trim(), emBody.trim(), emLink.trim() || undefined); setEmSubj(''); setEmBody(''); setEmLink(''); refreshEvents(); flash(`Queued ${n} email(s).`); } catch (e: any) { setErr(e.message); } finally { setEmailing(false); } };
   const setFeature = async (key: string, val: boolean | null) => { setBusy(true); try { await setTenantFeatureOverride(orgId, key, val); await refreshInfo(); await refreshSessionOrg(); flash('Feature access updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const saveQuota = async (mb: string) => { setBusy(true); try { await setTenantLimitOverride(orgId, 'storage_mb', mb === '' ? null : Number(mb)); await refreshInfo(); flash('Storage quota updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
@@ -350,6 +353,13 @@ export default function TenantDetail() {
               <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Add a note</p>
               <textarea className="textarea h-20 w-full" value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Log a call, churn reason, follow-up, discount offered…" />
               <button className="btn btn-primary mt-2 w-full" disabled={savingNote || !noteText.trim()} onClick={addNote}>{savingNote ? 'Saving…' : 'Add note'}</button>
+            </div>
+            <div className="card p-5">
+              <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Email this tenant</p>
+              <input className="input w-full mb-2" value={emSubj} onChange={(e) => setEmSubj(e.target.value)} placeholder="Subject" />
+              <textarea className="textarea h-20 w-full" value={emBody} onChange={(e) => setEmBody(e.target.value)} placeholder="Message (branded with the tenant's logo/colour)…" />
+              <input className="input w-full mt-2 text-sm" value={emLink} onChange={(e) => setEmLink(e.target.value)} placeholder="Button link (optional)" />
+              <button className="btn btn-primary mt-2 w-full" disabled={emailing || !emSubj.trim() || !emBody.trim()} onClick={emailOwner}><Icon name="ti-send" />{emailing ? 'Queuing…' : 'Send email'}</button>
             </div>
             <div className="card p-5">
               <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Billing</p>
