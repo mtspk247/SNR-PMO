@@ -1023,7 +1023,7 @@ export async function listInvoiceLines(invoiceId: string): Promise<InvoiceLine[]
   const { data, error } = await sb.from('invoice_lines').select('*').eq('invoice_id', invoiceId).order('sort').order('created_at');
   if (error) throw new Error(error.message); return (data as InvoiceLine[]) || [];
 }
-export const addInvoiceLine = (row: { org_id: string; invoice_id: string; description: string; qty: number; unit_price: number; created_by: string }) => _create<InvoiceLine>('invoice_lines', row);
+export const addInvoiceLine = (row: { org_id: string; invoice_id: string; description: string; qty: number; unit_price: number; created_by: string; product_id?: string | null }) => _create<InvoiceLine>('invoice_lines', row);
 export const updateInvoiceLine = (id: string, patch: Partial<InvoiceLine>) => _update('invoice_lines', id, patch);
 export const deleteInvoiceLine = (id: string) => _del('invoice_lines', id);
 export async function listPayments(invoiceId: string): Promise<Payment[]> {
@@ -2599,7 +2599,7 @@ export async function listBillLines(billId: string): Promise<BillLine[]> {
   const { data, error } = await sb.from('bill_lines').select('*').eq('bill_id', billId).order('sort').order('created_at');
   if (error) throw new Error(error.message); return (data as BillLine[]) || [];
 }
-export const addBillLine = (row: { org_id: string; bill_id: string; description: string; qty: number; unit_price: number; created_by: string }) => _create<BillLine>('bill_lines', row);
+export const addBillLine = (row: { org_id: string; bill_id: string; description: string; qty: number; unit_price: number; created_by: string; product_id?: string | null }) => _create<BillLine>('bill_lines', row);
 export const deleteBillLine = (id: string) => _del('bill_lines', id);
 export async function listBillPayments(billId: string): Promise<BillPayment[]> {
   const { data, error } = await sb.from('bill_payments').select('*').eq('bill_id', billId).order('paid_on', { ascending: false });
@@ -2659,4 +2659,18 @@ export async function glReverseEntry(orgId: string, entryId: string, date: strin
 export interface AuditSummary { entries?: number; posted?: number; reversals?: number; reversed?: number; closed_periods?: number; unbalanced?: number; by_source?: Record<string, number>; }
 export async function glAudit(orgId: string): Promise<AuditSummary> {
   const { data, error } = await sb.rpc('gl_audit', { p_org: orgId }); if (error) throw new Error(error.message); return (data as AuditSummary) || {};
+}
+
+// ---- Accounting P7: products / items catalog ----
+export interface Product { id: string; org_id: string; sku: string | null; name: string; description: string | null; type: 'service' | 'product' | 'subscription'; unit_price: number; currency: string; income_account_id: string | null; expense_account_id: string | null; tax_rate: number; track_inventory: boolean; stock_qty: number; is_active: boolean; }
+export async function products(orgId: string): Promise<Product[]> {
+  const { data, error } = await sb.from('products').select('*').eq('org_id', orgId).order('name');
+  if (error) throw new Error(error.message); return (data as Product[]) || [];
+}
+export async function productSave(orgId: string, p: { id?: string | null; sku?: string | null; name: string; description?: string | null; type: string; unit_price: number; currency?: string | null; income_account_id?: string | null; expense_account_id?: string | null; tax_rate?: number; track_inventory?: boolean; is_active?: boolean }): Promise<string> {
+  const { data, error } = await sb.rpc('product_save', { p_org: orgId, p_id: p.id || null, p_sku: p.sku || null, p_name: p.name, p_description: p.description || null, p_type: p.type, p_unit_price: p.unit_price, p_currency: p.currency || null, p_income: p.income_account_id || null, p_expense: p.expense_account_id || null, p_tax_rate: p.tax_rate ?? 0, p_track_inventory: p.track_inventory ?? false, p_active: p.is_active ?? true });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function productDelete(orgId: string, id: string): Promise<string> {
+  const { data, error } = await sb.rpc('product_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message); return (data as string) || 'done';
 }

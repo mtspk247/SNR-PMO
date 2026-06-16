@@ -8,7 +8,7 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listBills, createBill, updateBill, deleteBill, getBill,
   listBillLines, addBillLine, deleteBillLine, listBillPayments, addBillPayment, deleteBillPayment,
-  Bill, BillLine, BillPayment,
+  Bill, BillLine, BillPayment, products, Product,
 } from '@/lib/db';
 
 const STATUS_PILL: Record<string, string> = { draft: 'pill-gray', open: 'pill-blue', partial: 'pill-amber', paid: 'pill-green', overdue: 'pill-red', void: 'pill-gray' };
@@ -97,14 +97,15 @@ function BillDetail({ id, orgId, me, onClose, onDeleted }: { id: string; orgId?:
   const [pays, setPays] = useState<BillPayment[]>([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [hdr, setHdr] = useState<Partial<Bill>>({});
-  const [line, setLine] = useState({ description: '', qty: 1, unit_price: 0 });
+  const [line, setLine] = useState<{ description: string; qty: number; unit_price: number; product_id: string }>({ description: '', qty: 1, unit_price: 0, product_id: '' });
+  const [prods, setProds] = useState<Product[]>([]);
   const [pay, setPay] = useState({ amount: 0, paid_on: new Date().toISOString().slice(0, 10), method: '', reference: '' });
 
   const reload = async () => { const b = await getBill(id); setBill(b); if (b) setHdr(b); setLines(await listBillLines(id)); setPays(await listBillPayments(id)); };
-  useEffect(() => { reload().catch((e) => setErr(e.message)); /* eslint-disable-next-line */ }, [id]);
+  useEffect(() => { reload().catch((e) => setErr(e.message)); if (orgId) products(orgId).then(setProds).catch(() => {}); /* eslint-disable-next-line */ }, [id]);
 
   const saveHdr = async () => { setBusy(true); setErr(''); try { await updateBill(id, { vendor_name: hdr.vendor_name || null, vendor_email: hdr.vendor_email || null, bill_date: hdr.bill_date || null, due_date: hdr.due_date || null, currency: hdr.currency || 'USD', tax_rate: Number(hdr.tax_rate) || 0, status: hdr.status, notes: hdr.notes || null }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
-  const addLn = async () => { if (!orgId || !me || !line.description.trim()) return; setBusy(true); try { await addBillLine({ org_id: orgId, bill_id: id, description: line.description.trim(), qty: Number(line.qty) || 0, unit_price: Number(line.unit_price) || 0, created_by: me }); setLine({ description: '', qty: 1, unit_price: 0 }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const addLn = async () => { if (!orgId || !me || !line.description.trim()) return; setBusy(true); try { await addBillLine({ org_id: orgId, bill_id: id, description: line.description.trim(), qty: Number(line.qty) || 0, unit_price: Number(line.unit_price) || 0, created_by: me, product_id: line.product_id || null }); setLine({ description: '', qty: 1, unit_price: 0, product_id: '' }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const delLn = async (lid: string) => { setBusy(true); try { await deleteBillLine(lid); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const addPay = async () => { if (!orgId || !me || !pay.amount) return; setBusy(true); try { await addBillPayment({ org_id: orgId, bill_id: id, amount: Number(pay.amount), paid_on: pay.paid_on, method: pay.method || undefined, reference: pay.reference || undefined, created_by: me }); setPay({ amount: 0, paid_on: new Date().toISOString().slice(0, 10), method: '', reference: '' }); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const delPay = async (pid: string) => { setBusy(true); try { await deleteBillPayment(pid); await reload(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
@@ -140,6 +141,7 @@ function BillDetail({ id, orgId, me, onClose, onDeleted }: { id: string; orgId?:
             </div>
           ))}
           <div className="flex items-end gap-1.5 mt-2">
+            {prods.length > 0 && <div className="w-40"><Select value={line.product_id} onChange={(v) => { const p = prods.find((x) => x.id === v); setLine({ ...line, product_id: v, description: p ? p.name : line.description, unit_price: p ? Number(p.unit_price) : line.unit_price }); }} options={[{ value: '', label: '— item —' }, ...prods.filter((p) => p.is_active).map((p) => ({ value: p.id, label: p.name }))]} search /></div>}
             <input className="input h-8 text-xs flex-1" placeholder="Description" value={line.description} onChange={(e) => setLine({ ...line, description: e.target.value })} />
             <input className="input h-8 text-xs w-16" type="number" placeholder="Qty" value={line.qty} onChange={(e) => setLine({ ...line, qty: Number(e.target.value) })} />
             <input className="input h-8 text-xs w-24" type="number" placeholder="Price" value={line.unit_price} onChange={(e) => setLine({ ...line, unit_price: Number(e.target.value) })} />
