@@ -586,10 +586,7 @@ export default function AccountingPage() {
                 }} options={[{ value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }]} /></div>
             </Field>
             <Field label="Category" required>
-              <select className="input w-full" value={form.category} onChange={(e) => set({ category: e.target.value })}>
-                {cats[form.type].map((c) => <option key={c} value={c}>{c}</option>)}
-                {!cats[form.type].includes(form.category) && <option value={form.category}>{form.category}</option>}
-              </select>
+              <Select value={form.category} onChange={(v) => set({ category: v })} options={[...cats[form.type].map((c) => ({ value: c, label: c })), ...(!cats[form.type].includes(form.category) ? [{ value: form.category, label: form.category }] : [])]} />
             </Field>
             <Field label="Amount (USD)" required>
               <input className="input w-full" type="number" min="0" step="0.01" value={form.amount}

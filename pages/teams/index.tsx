@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -138,10 +139,7 @@ export default function TeamsHub() {
                       </div>
                     ))}
                     {available.length > 0 && (
-                      <select className="input h-8 w-full text-sm" disabled={busy} value="" onChange={(e) => { if (e.target.value) addMember(tm.id, e.target.value); }}>
-                        <option value="">+ Add member…</option>
-                        {available.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                      </select>
+                      <Select className="h-8 text-sm" disabled={busy} value="" onChange={(v) => { if (v) addMember(tm.id, v); }} placeholder="+ Add member…" options={[{ value: '', label: '+ Add member…' }, ...available.map((u) => ({ value: u.id, label: u.full_name }))]} />
                     )}
                   </div>
                 )}

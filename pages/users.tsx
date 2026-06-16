@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Select from '@/components/Select';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
@@ -80,17 +81,7 @@ function TeamMembersPanel({
         );
       })}
       {available.length > 0 && (
-        <select
-          value=""
-          disabled={busy}
-          onChange={(e) => add(e.target.value)}
-          className="input h-8 py-0 text-xs w-full mt-1"
-        >
-          <option value="">+ Add member…</option>
-          {available.map((u) => (
-            <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
-          ))}
-        </select>
+        <Select value="" disabled={busy} onChange={(v) => add(v)} className="h-8 py-0 text-xs mt-1" placeholder="+ Add member…" options={[{ value: '', label: '+ Add member…' }, ...available.map((u) => ({ value: u.id, label: `${u.full_name} (${u.email})` }))]} />
       )}
     </div>
   );
@@ -208,15 +199,12 @@ export default function UsersPage() {
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div><label className="label">Role</label><select value={u.role} disabled={busy} onChange={(e) => patch({ role: e.target.value as any })} className="input">{ROLES.map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}</select></div>
-                      <div><label className="label">Status</label><select value={u.status} disabled={busy} onChange={(e) => patch({ status: e.target.value as any })} className="input"><option value="active">Active</option><option value="suspended">Suspended</option></select></div>
+                      <div><label className="label">Role</label><Select value={u.role} disabled={busy} onChange={(v) => patch({ role: v as any })} options={ROLES.map((r) => ({ value: r, label: r.replace('_', ' ') }))} /></div>
+                      <div><label className="label">Status</label><Select value={u.status} disabled={busy} onChange={(v) => patch({ status: v as any })} options={[{ value: 'active', label: 'Active' }, { value: 'suspended', label: 'Suspended' }]} /></div>
                     </div>
                     <div>
                       <label className="label">Role template</label>
-                      <select value={u.role_template_id || ''} disabled={busy} onChange={(e) => patch({ role_template_id: (e.target.value || null) as any })} className="input">
-                        <option value="">— None (custom permissions) —</option>
-                        {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                      </select>
+                      <Select value={u.role_template_id || ''} disabled={busy} onChange={(v) => patch({ role_template_id: (v || null) as any })} options={[{ value: '', label: 'None (custom permissions)' }, ...roles.map((r) => ({ value: r.id, label: r.name }))]} />
                       <p className="text-2xs text-muted mt-1">Assigning a template applies its permissions and module access.</p>
                     </div>
                     <div className="pt-2">

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Select from '@/components/Select';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon, Spinner, Avatar, EmptyState } from '@/components/ui';
@@ -231,11 +232,7 @@ export function ChannelSelect({ channel, onChange, className = '' }: {
 }) {
   const { data: projects = [] } = useProjects();
   return (
-    <select value={channel ?? ''} onChange={(e) => onChange(e.target.value || null)}
-      className={`input ${className}`}>
-      <option value="">{'# General (everyone)'}</option>
-      {projects.map((p) => <option key={p.id} value={p.id}>{`# ${p.name}`}</option>)}
-    </select>
+    <Select value={channel ?? ''} onChange={(v) => onChange(v || null)} className={className} options={[{ value: '', label: '# General (everyone)' }, ...projects.map((p) => ({ value: p.id, label: `# ${p.name}` }))]} />
   );
 }
 

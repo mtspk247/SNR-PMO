@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
+import Select from '@/components/Select';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -376,16 +377,8 @@ export default function RoadmapPage() {
           {/* View options */}
           <div className="flex flex-wrap items-center gap-2 mb-5">
             <span className="text-2xs text-muted2">Group by</span>
-            <select value={groupBy} onChange={e => setGroupBy(e.target.value as any)} className="input h-9 w-auto">
-              <option value="portfolio">Portfolio</option>
-              <option value="status">Status</option>
-              <option value="priority">Priority</option>
-              <option value="none">None</option>
-            </select>
-            <select value={statusF} onChange={e => setStatusF(e.target.value)} className="input h-9 w-auto">
-              <option value="all">All statuses</option>
-              {STATUS_ORDER.map(st => <option key={st} value={st}>{st}</option>)}
-            </select>
+            <div className="w-auto"><Select value={groupBy} onChange={(v) => setGroupBy(v as any)} options={[{ value: 'portfolio', label: 'Portfolio' }, { value: 'status', label: 'Status' }, { value: 'priority', label: 'Priority' }, { value: 'none', label: 'None' }]} /></div>
+            <div className="w-auto"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUS_ORDER.map(st => ({ value: st, label: st }))]} /></div>
             <div className="hidden sm:block flex-1" />
             <button onClick={() => setShowAnalysis(v => !v)} className={`btn h-9 ${showAnalysis ? 'border-accent text-accentstrong' : ''}`}>
               <Icon name="ti-chart-histogram" className="text-sm" />Analysis
