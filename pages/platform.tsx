@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign } from '@/lib/db';
+import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listPlanLimits, setPlanLimit, PlanLimit } from '@/lib/db';
 import { Plan, Feature, PlanFeature } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
@@ -20,7 +20,7 @@ const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
 // Create / edit a subscription plan (platform admin only — enforced by plans_write RLS).
-function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () => void; onSaved: () => Promise<void> }) {
+function PlanModal({ plan, storageMb, onClose, onSaved }: { plan: Plan | null; storageMb?: number | null; onClose: () => void; onSaved: () => Promise<void> }) {
   const editing = !!plan;
   const tabs = useModalTabs('plan');
   const [name, setName] = useState(plan?.name || '');
@@ -33,6 +33,16 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
   const [userLimit, setUserLimit] = useState(plan?.user_limit != null ? String(plan.user_limit) : '');
   const [sortOrder, setSortOrder] = useState(String(plan?.sort_order ?? 0));
   const [isActive, setIsActive] = useState(plan?.is_active ?? true);
+  const STORAGE_GB_PRESETS = [1, 5, 10, 25, 50, 100, 250, 500, 1000];
+  const initGb = storageMb == null ? null : storageMb / 1024;
+  const initChoice = initGb == null ? 'unlimited' : (Number.isInteger(initGb) && STORAGE_GB_PRESETS.includes(initGb) ? String(initGb) : 'custom');
+  const [storageChoice, setStorageChoice] = useState<string>(initChoice);
+  const [customGb, setCustomGb] = useState<string>(initChoice === 'custom' && initGb != null ? String(initGb) : '');
+  const resolveStorageMb = (): number | null => {
+    if (storageChoice === 'unlimited') return null;
+    if (storageChoice === 'custom') { const n = parseFloat(customGb); return !isFinite(n) || n <= 0 ? null : Math.round(n * 1024); }
+    return Number(storageChoice) * 1024;
+  };
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
@@ -53,8 +63,9 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
     };
     setSaving(true); setErr('');
     try {
+      const planId = editing ? plan!.id : (await createPlan({ ...patch, key: (key.trim() || slugify(name)), name: name.trim() })).id;
       if (editing) await updatePlan(plan!.id, patch);
-      else await createPlan({ ...patch, key: (key.trim() || slugify(name)), name: name.trim() });
+      await setPlanLimit(planId, 'storage_mb', resolveStorageMb());
       await onSaved();
       onClose();
     } catch (e: any) { setErr(e.message); } finally { setSaving(false); }
@@ -125,6 +136,20 @@ function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () 
           </Field>
           <Field label="Seat limit" hint="Blank = unlimited; enforced on member invites">
             <input className="input" type="number" min="1" placeholder="∞" value={userLimit} onChange={(e) => setUserLimit(e.target.value)} />
+          </Field>
+          <Field label="Drive storage" hint="Total drive space tenants on this plan get" className="sm:col-span-2">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 max-w-[14rem]">
+                <Select value={storageChoice} onChange={setStorageChoice}
+                  options={[...STORAGE_GB_PRESETS.map((g) => ({ value: String(g), label: `${g} GB` })), { value: 'unlimited', label: 'Unlimited' }, { value: 'custom', label: 'Custom…' }]} />
+              </div>
+              {storageChoice === 'custom' && (
+                <div className="flex items-center gap-1.5">
+                  <input className="input w-28" type="number" min="1" step="1" autoFocus value={customGb} onChange={(e) => setCustomGb(e.target.value)} placeholder="e.g. 75" />
+                  <span className="text-sm text-muted">GB</span>
+                </div>
+              )}
+            </div>
           </Field>
         </div>
       )}
@@ -641,6 +666,7 @@ export default function PlatformPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [pf, setPf] = useState<PlanFeature[]>([]);
+  const [planLimits, setPlanLimits] = useState<PlanLimit[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('plans');
   const [busy, setBusy] = useState(false);
@@ -648,8 +674,8 @@ export default function PlatformPage() {
   const [planModal, setPlanModal] = useState<Plan | 'new' | null>(null);
 
   const load = async () => {
-    const [p, f, m] = await Promise.all([listPlans(), listFeatures(), listPlanFeatures()]);
-    setPlans(p); setFeatures(f); setPf(m);
+    const [p, f, m, l] = await Promise.all([listPlans(), listFeatures(), listPlanFeatures(), listPlanLimits()]);
+    setPlans(p); setFeatures(f); setPf(m); setPlanLimits(l);
   };
   useEffect(() => { if (platformAdmin) load().catch((e) => setErr(e.message)).finally(() => setLoading(false)); else setLoading(false); }, [platformAdmin]);
 
@@ -758,7 +784,7 @@ export default function PlatformPage() {
           )}
 
           {planModal && (
-            <PlanModal plan={planModal === 'new' ? null : planModal} onClose={() => setPlanModal(null)} onSaved={load} />
+            <PlanModal plan={planModal === 'new' ? null : planModal} storageMb={planModal && planModal !== 'new' ? (planLimits.find((l) => l.plan_id === planModal.id && l.key === 'storage_mb')?.value ?? null) : null} onClose={() => setPlanModal(null)} onSaved={load} />
           )}
         </>
       )}

@@ -292,6 +292,16 @@ export async function updatePlan(id: string, patch: PlanPatch): Promise<Plan> {
   if (error) throw new Error(error.message);
   return data as Plan;
 }
+export interface PlanLimit { plan_id: string; key: string; value: number; }
+export async function listPlanLimits(): Promise<PlanLimit[]> {
+  const { data, error } = await sb.rpc('plan_limits_all');
+  if (error) throw new Error(error.message);
+  return (data as PlanLimit[]) || [];
+}
+export async function setPlanLimit(planId: string, key: string, value: number | null): Promise<void> {
+  const { error } = await sb.rpc('plan_limit_set', { p_plan_id: planId, p_key: key, p_value: value });
+  if (error) throw new Error(error.message);
+}
 
 // ---------------------------------------------------------------------------
 // Data (RLS-scoped to the user's org + project access)
