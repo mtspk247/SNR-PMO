@@ -5,6 +5,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs, StatusBadge } from '@/components/ui';
 import CommentsThread from '@/components/Comments';
 import EntityTags from '@/components/EntityTags';
+import { DetailMeta } from '@/components/Detail';
 import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
 import { createGuest } from '@/lib/db';
@@ -243,16 +244,8 @@ export default function ProjectDetail() {
               {project.description
                 ? <p className="text-sm text-content whitespace-pre-line">{project.description}</p>
                 : <p className="text-sm text-muted2">No description.</p>}
-              <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 mt-5">
-                {meta.map((m) => (
-                  <div key={m.label} className="flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-md bg-surface2 grid place-items-center text-muted shrink-0"><Icon name={m.icon} /></span>
-                    <div className="min-w-0">
-                      <p className="text-2xs text-muted2">{m.label}</p>
-                      <p className="text-sm truncate">{m.label === 'Health' ? <Pill label={health} /> : m.value}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="mt-5 pt-4 border-t border-line">
+                <DetailMeta items={meta.map((m) => ({ icon: m.icon, label: m.label, value: m.label === 'Health' ? <Pill label={health} /> : m.value }))} />
               </div>
               <EntityTags entityType="project" entityId={project.id} orgId={org?.id} />
             </div>

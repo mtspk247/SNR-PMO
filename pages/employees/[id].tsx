@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon, StatCard } from '@/components/ui';
+import { DetailMeta } from '@/components/Detail';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import CustomFields from '@/components/CustomFields';
 import {
@@ -426,48 +427,18 @@ export default function EmployeeProfilePage() {
                   <p className="text-sm text-muted truncate">{employee.email}</p>
                 </div>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Role</p>
-                  <p className="capitalize">{(employee.role || '').replace('_', ' ')}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Department</p>
-                  <p>{employee.department || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Reports to</p>
-                  <p>{employee.manager?.full_name || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Status</p>
-                  <p className="capitalize">{employee.status}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Job title</p>
-                  <p>{employee.job_title || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Hire date</p>
-                  <p>{employee.hire_date || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Company</p>
-                  <p>{employee.company?.name || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Phone</p>
-                  <p>{employee.phone || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Address</p>
-                  <p>{employee.address || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Emergency contact</p>
-                  <p>{employee.emergency_contact || '—'}</p>
-                </div>
-              </div>
+              <DetailMeta items={[
+                { icon: 'ti-shield-lock', label: 'Role', value: <span className="capitalize">{(employee.role || '').replace('_', ' ')}</span> },
+                { icon: 'ti-building-community', label: 'Department', value: employee.department || 'None' },
+                { icon: 'ti-user-up', label: 'Reports to', value: employee.manager?.full_name || 'None' },
+                { icon: 'ti-circle-dot', label: 'Status', value: <span className="capitalize">{employee.status}</span> },
+                { icon: 'ti-briefcase', label: 'Job title', value: employee.job_title || 'None' },
+                { icon: 'ti-calendar-plus', label: 'Hire date', value: employee.hire_date || 'None' },
+                { icon: 'ti-building', label: 'Company', value: employee.company?.name || 'None' },
+                { icon: 'ti-phone', label: 'Phone', value: employee.phone || 'None' },
+                { icon: 'ti-map-pin', label: 'Address', value: employee.address || 'None' },
+                { icon: 'ti-urgent', label: 'Emergency contact', value: employee.emergency_contact || 'None' },
+              ]} />
             </div>
 
             {/* Onboarding */}

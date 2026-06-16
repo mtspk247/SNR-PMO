@@ -7,6 +7,7 @@ import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon, Tabs, Avatar } f
 import { useSetCrumbs } from '@/components/Breadcrumbs';
 import EntityLink from '@/components/EntityLink';
 import CustomFields from '@/components/CustomFields';
+import { DetailMeta } from '@/components/Detail';
 import EntityTags from '@/components/EntityTags';
 import { getDealActivities, createActivity, deleteActivity } from '@/lib/db';
 import { CrmActivity } from '@/lib/supabase';
@@ -115,16 +116,8 @@ export default function DealDetail() {
               <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Notes</p>
               {deal.notes ? <p className="text-sm text-content whitespace-pre-line leading-relaxed">{deal.notes}</p>
                 : <p className="text-sm text-muted2">No notes.</p>}
-              <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 mt-5">
-                {meta.map((m) => (
-                  <div key={m.label} className="flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-md bg-surface2 grid place-items-center text-muted shrink-0"><Icon name={m.icon} /></span>
-                    <div className="min-w-0">
-                      <p className="text-2xs text-muted2">{m.label}</p>
-                      <p className="text-sm truncate">{m.value}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="mt-5 pt-4 border-t border-line">
+                <DetailMeta items={meta.map((m) => ({ icon: m.icon, label: m.label, value: m.value }))} />
               </div>
             </div>
           </div>
