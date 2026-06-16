@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import Select from '@/components/Select';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
@@ -15,6 +16,7 @@ const STATUS_PILL: Record<string, string> = {
   unqualified: 'pill-gray', converted: 'pill-violet',
 };
 const STATUSES: Lead['status'][] = ['new', 'contacted', 'qualified', 'unqualified', 'converted'];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
@@ -135,10 +137,7 @@ export default function LeadsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input h-9 w-44" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="w-44"><Select value={statusF} onChange={setStatusF} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: cap(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -275,23 +274,10 @@ export default function LeadsPage() {
               />
             </Field>
             <Field label="Owner">
-              <select
-                className="input"
-                value={editor.draft.owner_id || ''}
-                onChange={(e) => setD({ owner_id: e.target.value || null })}
-              >
-                <option value="">—</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
+              <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} search placeholder="Unassigned" options={[{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Status">
-              <select
-                className="input"
-                value={editor.draft.status || 'new'}
-                onChange={(e) => setD({ status: e.target.value as Lead['status'] })}
-              >
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={editor.draft.status || 'new'} onChange={(v) => setD({ status: v as Lead['status'] })} options={STATUSES.map((s) => ({ value: s, label: cap(s) }))} />
             </Field>
             <Field label="Notes" className="sm:col-span-2">
               <textarea

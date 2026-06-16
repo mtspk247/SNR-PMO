@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import Select from '@/components/Select';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
@@ -14,6 +15,7 @@ import {
 
 const STATUS_PILL: Record<string, string> = { draft: 'pill-gray', sent: 'pill-blue', partial: 'pill-amber', paid: 'pill-green', overdue: 'pill-red', void: 'pill-gray' };
 const STATUSES = ['draft', 'sent', 'partial', 'paid', 'overdue', 'void'];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtMoney = (n: number, c = 'USD') => `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const isOverdue = (i: Invoice) => i.due_date && new Date(i.due_date) < new Date() && !['paid', 'void'].includes(i.status);
 
@@ -62,7 +64,7 @@ export default function InvoicingPage() {
       </div>
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <input className="input h-9 w-56" placeholder="Search invoices…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="input h-9 w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}><option value="all">All statuses</option>{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select>
+        <div className="w-40"><Select value={statusF} onChange={setStatusF} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: cap(s) }))]} /></div>
       </div>
       <div className="card overflow-hidden">
         {invoices === null ? <div className="p-8"><Spinner /></div> : shown.length === 0 ? (
@@ -126,7 +128,7 @@ function InvoiceDetail({ id, orgId, me, onClose, onDeleted }: { id: string; orgI
           <Field label="Due date"><input className="input" type="date" value={hdr.due_date || ''} onChange={(e) => setHdr({ ...hdr, due_date: e.target.value })} /></Field>
           <Field label="Currency"><input className="input" value={hdr.currency || 'USD'} onChange={(e) => setHdr({ ...hdr, currency: e.target.value })} /></Field>
           <Field label="Tax rate %"><input className="input" type="number" value={hdr.tax_rate ?? 0} onChange={(e) => setHdr({ ...hdr, tax_rate: Number(e.target.value) })} /></Field>
-          <Field label="Status"><select className="input" value={hdr.status || 'draft'} onChange={(e) => setHdr({ ...hdr, status: e.target.value })}>{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>
+          <Field label="Status"><Select value={hdr.status || 'draft'} onChange={(v) => setHdr({ ...hdr, status: v })} options={STATUSES.map((s) => ({ value: s, label: cap(s) }))} /></Field>
           <Field label="Notes"><input className="input" value={hdr.notes || ''} onChange={(e) => setHdr({ ...hdr, notes: e.target.value })} /></Field>
         </div>
 

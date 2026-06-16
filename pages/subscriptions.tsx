@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import Select from '@/components/Select';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Attachments from '@/components/Attachments';
@@ -15,6 +16,7 @@ import { OrgUser } from '@/lib/supabase';
 const STATUS_PILL: Record<string, string> = { requested: 'pill-violet', active: 'pill-green', trial: 'pill-blue', paused: 'pill-amber', cancelled: 'pill-gray', expired: 'pill-red', rejected: 'pill-red' };
 const STATUSES = ['active', 'trial', 'paused', 'cancelled', 'expired'];
 const PLAN_TYPES = ['monthly', 'annual', 'one-time', 'usage'];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtMoney = (n: number, c = 'USD') => `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const monthly = (s: VendorSubscription) => s.plan_type === 'annual' ? (s.cost || 0) / 12 : s.plan_type === 'one-time' ? 0 : (s.cost || 0);
 const daysTo = (d: string | null) => d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null;
@@ -81,9 +83,7 @@ export default function SubscriptionsPage() {
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <input className="input h-9 w-56" placeholder="Search subscriptions…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="input h-9 w-40" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="all">All statuses</option>{['requested', ...STATUSES, 'rejected'].map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="w-40"><Select value={statusF} onChange={setStatusF} options={[{ value: 'all', label: 'All statuses' }, ...['requested', ...STATUSES, 'rejected'].map((s) => ({ value: s, label: cap(s) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -120,7 +120,7 @@ export default function SubscriptionsPage() {
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label="Service" required><input className="input" autoFocus value={editor.draft.service || ''} onChange={(e) => setD({ service: e.target.value })} placeholder="e.g. Figma" /></Field>
             <Field label="Category"><input className="input" value={editor.draft.category || ''} onChange={(e) => setD({ category: e.target.value })} placeholder="Design" /></Field>
-            <Field label="Plan type"><select className="input" value={editor.draft.plan_type || ''} onChange={(e) => setD({ plan_type: e.target.value })}>{PLAN_TYPES.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
+            <Field label="Plan type"><Select value={editor.draft.plan_type || ''} onChange={(v) => setD({ plan_type: v })} options={PLAN_TYPES.map((pt) => ({ value: pt, label: cap(pt) }))} /></Field>
             <Field label="Plan name"><input className="input" value={editor.draft.plan_name || ''} onChange={(e) => setD({ plan_name: e.target.value })} placeholder="Professional" /></Field>
             <Field label="Cost"><input className="input" type="number" value={editor.draft.cost ?? 0} onChange={(e) => setD({ cost: Number(e.target.value) })} /></Field>
             <Field label="Currency"><input className="input" value={editor.draft.currency || 'USD'} onChange={(e) => setD({ currency: e.target.value })} /></Field>
@@ -131,8 +131,8 @@ export default function SubscriptionsPage() {
               <Field label="Next renewal"><input className="input" type="date" value={editor.draft.next_renewal || ''} onChange={(e) => setD({ next_renewal: e.target.value })} /></Field>
               <Field label="Payment method"><input className="input" value={editor.draft.payment_method || ''} onChange={(e) => setD({ payment_method: e.target.value })} placeholder="Visa ••42" /></Field>
               <Field label="Paid by (company)"><input className="input" value={editor.draft.paid_by_company || ''} onChange={(e) => setD({ paid_by_company: e.target.value })} /></Field>
-              <Field label="Owner"><select className="input" value={editor.draft.owner_id || ''} onChange={(e) => setD({ owner_id: e.target.value || null })}><option value="">—</option>{users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></Field>
-              <Field label="Status"><select className="input" value={editor.draft.status || 'active'} onChange={(e) => setD({ status: e.target.value })}>{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>
+              <Field label="Owner"><Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} search placeholder="Unassigned" options={[{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} /></Field>
+              <Field label="Status"><Select value={editor.draft.status || 'active'} onChange={(v) => setD({ status: v })} options={STATUSES.map((s) => ({ value: s, label: cap(s) }))} /></Field>
               <Field label="Total spending"><input className="input" type="number" value={editor.draft.total_spending ?? 0} onChange={(e) => setD({ total_spending: Number(e.target.value) })} /></Field>
             </>}
           </div>
