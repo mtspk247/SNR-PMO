@@ -7,8 +7,8 @@ import { useActiveOrg } from '@/lib/store';
 import {
   glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
   taxRates, taxRateSave, taxRateDelete, glTaxSummary,
-  glPL, glBalanceSheet, glCashFlow,
-  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow,
+  glPL, glBalanceSheet, glCashFlow, budgetSave, glBudgetVsActual, glCashForecast,
+  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow, BudgetRow, ForecastRow,
 } from '@/lib/db';
 
 const TYPES = [
@@ -38,13 +38,20 @@ export default function LedgerPage() {
   const [taxFrom, setTaxFrom] = useState('');
   const [taxTo, setTaxTo] = useState(new Date().toISOString().slice(0, 10));
   const [taxDraft, setTaxDraft] = useState<{ id?: string; name: string; rate: string; kind: string; account_id: string; is_active: boolean } | null>(null);
-  const [rptType, setRptType] = useState<'pl' | 'bs' | 'cf'>('pl');
+  const [rptType, setRptType] = useState<'pl' | 'bs' | 'cf' | 'budget' | 'forecast'>('pl');
   const [rptFrom, setRptFrom] = useState('');
   const [rptTo, setRptTo] = useState(new Date().toISOString().slice(0, 10));
   const [rptAsOf, setRptAsOf] = useState(new Date().toISOString().slice(0, 10));
   const [plRows, setPlRows] = useState<PLRow[]>([]);
   const [bsRows, setBsRows] = useState<BSRow[]>([]);
   const [cfRows, setCfRows] = useState<CashFlowRow[]>([]);
+  const [rptMonth, setRptMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [fcMonths, setFcMonths] = useState(6);
+  const [budRows, setBudRows] = useState<BudgetRow[]>([]);
+  const [budEdit, setBudEdit] = useState<Record<string, string>>({});
+  const [fcRows, setFcRows] = useState<ForecastRow[]>([]);
+  const monthBounds = (ym: string) => { const [y, m] = ym.split('-').map(Number); return { start: `${ym}-01`, end: new Date(y, m, 0).toISOString().slice(0, 10) }; };
+  const loadBudget = () => { if (!orgId) return; const { start, end } = monthBounds(rptMonth); glBudgetVsActual(orgId, start, end).then((r) => { setBudRows(r); setBudEdit(Object.fromEntries(r.map((x) => [x.account_id, x.budget ? String(x.budget) : '']))); }).catch((e) => setErr(e.message)); };
   const [industry, setIndustry] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -66,8 +73,14 @@ export default function LedgerPage() {
     if (!orgId || tab !== 'reports') return;
     if (rptType === 'pl') glPL(orgId, rptFrom || null, rptTo || null).then(setPlRows).catch((e) => setErr(e.message));
     else if (rptType === 'bs') glBalanceSheet(orgId, rptAsOf || null).then(setBsRows).catch((e) => setErr(e.message));
-    else glCashFlow(orgId, rptFrom || null, rptTo || null).then(setCfRows).catch((e) => setErr(e.message));
-  }, [orgId, tab, rptType, rptFrom, rptTo, rptAsOf]);
+    else if (rptType === 'cf') glCashFlow(orgId, rptFrom || null, rptTo || null).then(setCfRows).catch((e) => setErr(e.message));
+    else if (rptType === 'budget') loadBudget();
+    else glCashForecast(orgId, fcMonths).then(setFcRows).catch((e) => setErr(e.message));
+  }, [orgId, tab, rptType, rptFrom, rptTo, rptAsOf, rptMonth, fcMonths]);
+  const saveBudget = async (accountId: string) => {
+    if (!orgId) return; const { start } = monthBounds(rptMonth);
+    try { await budgetSave(orgId, accountId, start, parseFloat(budEdit[accountId]) || 0); loadBudget(); } catch (e: any) { setErr(e.message); }
+  };
 
   // ── seed ──
   const seed = async () => {
@@ -289,12 +302,16 @@ export default function LedgerPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="inline-flex rounded-md border border-line bg-surface p-0.5">
-              {([['pl', 'P&L'], ['bs', 'Balance Sheet'], ['cf', 'Cash Flow']] as const).map(([v, l]) => (
+              {([['pl', 'P&L'], ['bs', 'Balance Sheet'], ['cf', 'Cash Flow'], ['budget', 'Budget'], ['forecast', 'Forecast']] as const).map(([v, l]) => (
                 <button key={v} onClick={() => setRptType(v)} className={`h-8 px-3 rounded text-sm transition ${rptType === v ? 'bg-accent/15 text-accentstrong font-medium' : 'text-muted hover:text-content'}`}>{l}</button>
               ))}
             </div>
             {rptType === 'bs' ? (
               <><span className="text-2xs text-muted ml-1">As of</span><input type="date" className="input h-8 w-40" value={rptAsOf} onChange={(e) => setRptAsOf(e.target.value)} /></>
+            ) : rptType === 'budget' ? (
+              <><span className="text-2xs text-muted ml-1">Month</span><input type="month" className="input h-8 w-40" value={rptMonth} onChange={(e) => setRptMonth(e.target.value)} /></>
+            ) : rptType === 'forecast' ? (
+              <><span className="text-2xs text-muted ml-1">Horizon</span><Select value={String(fcMonths)} onChange={(v) => setFcMonths(Number(v))} options={[3, 6, 12].map((n) => ({ value: String(n), label: `${n} months` }))} /></>
             ) : (
               <><span className="text-2xs text-muted ml-1">From</span><input type="date" className="input h-8 w-36" value={rptFrom} onChange={(e) => setRptFrom(e.target.value)} /><span className="text-2xs text-muted">To</span><input type="date" className="input h-8 w-36" value={rptTo} onChange={(e) => setRptTo(e.target.value)} /></>
             )}
@@ -345,6 +362,45 @@ export default function LedgerPage() {
                 <tr className="font-semibold border-t-2 border-line"><td className="px-4 py-2.5">Closing cash</td><td className="px-4 py-2.5 text-right tabular-nums">{money(cfMap('closing'))}</td></tr>
               </tbody></table>
             </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'reports' && rptType === 'budget' && (
+        <div className="card overflow-hidden mt-1">
+          <div className="px-4 py-2.5 border-b border-line"><span className="text-sm font-semibold text-content">Budget vs Actual</span><span className="text-2xs text-muted ml-2">edit the budget column; saved per month</span></div>
+          {budRows.length === 0 ? <EmptyState icon="ti-chart-bar" text="No income or expense accounts yet." /> : (
+            <table className="w-full text-sm list-card">
+              <thead><tr><th className="px-4 py-2 text-left">Account</th><th className="px-4 py-2 text-right w-36">Budget</th><th className="px-4 py-2 text-right w-36">Actual</th><th className="px-4 py-2 text-right w-36">Variance</th></tr></thead>
+              <tbody>{budRows.map((r) => { const bud = parseFloat(budEdit[r.account_id]) || 0; const variance = r.type === 'expense' ? bud - Number(r.actual) : Number(r.actual) - bud; return (
+                <tr key={r.account_id}>
+                  <td className="px-4 py-1.5 text-content"><span className="font-mono text-2xs text-muted2 mr-2">{r.code}</span>{r.name}</td>
+                  <td className="px-4 py-1.5 text-right"><input className="input h-8 text-right tabular-nums w-28 ml-auto" inputMode="decimal" value={budEdit[r.account_id] ?? ''} onChange={(e) => setBudEdit({ ...budEdit, [r.account_id]: e.target.value })} onBlur={() => saveBudget(r.account_id)} onKeyDown={(e) => { if (e.key === 'Enter') saveBudget(r.account_id); }} placeholder="0.00" /></td>
+                  <td className="px-4 py-1.5 text-right tabular-nums">{money(Number(r.actual))}</td>
+                  <td className={`px-4 py-1.5 text-right tabular-nums ${variance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{money(variance)}</td>
+                </tr>
+              ); })}</tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab === 'reports' && rptType === 'forecast' && (
+        <div className="card overflow-hidden mt-1">
+          <div className="px-4 py-2.5 border-b border-line"><span className="text-sm font-semibold text-content">Cash-flow forecast</span><span className="text-2xs text-muted ml-2">projected from receivables due, payables due and recurring expenses</span></div>
+          {fcRows.length === 0 ? <EmptyState icon="ti-chart-line" text="Nothing to forecast yet." /> : (
+            <table className="w-full text-sm list-card">
+              <thead><tr><th className="px-4 py-2 text-left">Month</th><th className="px-4 py-2 text-right w-32">Cash in</th><th className="px-4 py-2 text-right w-32">Cash out</th><th className="px-4 py-2 text-right w-32">Net</th><th className="px-4 py-2 text-right w-36">Projected cash</th></tr></thead>
+              <tbody>{fcRows.map((r) => (
+                <tr key={r.period}>
+                  <td className="px-4 py-2 text-content">{r.period}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-emerald-600">{money(Number(r.inflow))}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-rose-600">{money(Number(r.outflow))}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{money(Number(r.net))}</td>
+                  <td className={`px-4 py-2 text-right tabular-nums font-medium ${Number(r.running) >= 0 ? 'text-content' : 'text-rose-600'}`}>{money(Number(r.running))}</td>
+                </tr>
+              ))}</tbody>
+            </table>
           )}
         </div>
       )}

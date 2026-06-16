@@ -2624,3 +2624,19 @@ export async function glCashFlow(orgId: string, from?: string | null, to?: strin
   const { data, error } = await sb.rpc('gl_cash_flow', { p_org: orgId, p_from: from || null, p_to: to || null });
   if (error) throw new Error(error.message); return (data as CashFlowRow[]) || [];
 }
+
+// ---- Accounting P3b: budgets + forecast ----
+export async function budgetSave(orgId: string, accountId: string, period: string, amount: number): Promise<void> {
+  const { error } = await sb.rpc('budget_save', { p_org: orgId, p_account: accountId, p_period: period, p_amount: amount });
+  if (error) throw new Error(error.message);
+}
+export interface BudgetRow { account_id: string; code: string; name: string; type: 'income' | 'expense'; budget: number; actual: number; }
+export async function glBudgetVsActual(orgId: string, from: string, to: string): Promise<BudgetRow[]> {
+  const { data, error } = await sb.rpc('gl_budget_vs_actual', { p_org: orgId, p_from: from, p_to: to });
+  if (error) throw new Error(error.message); return (data as BudgetRow[]) || [];
+}
+export interface ForecastRow { period: string; inflow: number; outflow: number; net: number; running: number; }
+export async function glCashForecast(orgId: string, months = 6): Promise<ForecastRow[]> {
+  const { data, error } = await sb.rpc('gl_cash_forecast', { p_org: orgId, p_months: months });
+  if (error) throw new Error(error.message); return (data as ForecastRow[]) || [];
+}
