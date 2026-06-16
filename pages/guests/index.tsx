@@ -8,6 +8,8 @@ import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { useProjects } from '@/lib/queries';
+import Dropdown from '@/components/Dropdown';
+import { buildGroups } from '@/components/ViewControls';
 import { listGuests, revokeGuest, createGuest, guestSetAccess, GuestRow } from '@/lib/db';
 
 const LEVEL_META: Record<string, { label: string; pill: string; desc: string }> = {
@@ -39,6 +41,15 @@ export default function GuestsPage() {
     const g = guests || [];
     return { total: g.length, active: g.filter((x) => x.is_linked).length, pending: g.filter((x) => !x.is_linked).length };
   }, [guests]);
+  const [groupBy, setGroupBy] = useState('none');
+  const groupOptions = [
+    { value: 'none', label: 'No grouping' },
+    { value: 'level', label: 'Group by access level' },
+    { value: 'status', label: 'Group by status' },
+  ];
+  const gKey = (g: GuestRow) => groupBy === 'level' ? (g.guest_level || 'viewer') : groupBy === 'status' ? (g.is_linked ? 'active' : 'pending') : 'all';
+  const gLabel = (k: string) => groupBy === 'level' ? (LEVEL_META[k]?.label || k) : groupBy === 'status' ? (k === 'active' ? 'Active' : 'Pending') : k;
+  const groups = groupBy === 'none' ? [{ key: 'all', label: '', items: guests || [] }] : buildGroups(guests || [], gKey, gLabel);
 
   const submitInvite = async () => {
     if (!invite || !org || !invite.name.trim() || !invite.email.trim() || !invite.projectId || busy) return;
@@ -81,6 +92,57 @@ export default function GuestsPage() {
     return <Layout flat title="Guests"><EmptyState icon="ti-lock" title="Admins only" text="Guest management is available to organization owners and admins." /></Layout>;
   }
 
+  const GuestTable = ({ items }: { items: GuestRow[] }) => (
+    <div className="card overflow-hidden">
+      <div className="overflow-x-auto"><table className="w-full text-sm">
+        <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
+          <tr>
+            <th className="px-4 py-3 font-medium">Guest</th>
+            <th className="px-4 py-3 font-medium">Access</th>
+            <th className="px-4 py-3 font-medium">Status</th>
+            <th className="px-4 py-3 font-medium">Projects</th>
+            <th className="px-4 py-3 font-medium">Added</th>
+            <th className="px-4 py-3 font-medium text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((g) => {
+            const meta = LEVEL_META[g.guest_level] || LEVEL_META.viewer;
+            const directEdit = g.guest_perms?.direct_edit ?? lvlDefault(g.guest_level || 'viewer', 'direct_edit');
+            return (
+              <tr key={g.user_id + g.org_id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => router.push(`/guests/${g.user_id}`)}>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Avatar name={g.full_name || g.email} size={26} />
+                    <div className="min-w-0"><Link href={`/guests/${g.user_id}`} className="block font-medium text-content hover:text-accent truncate">{g.full_name || g.email}</Link><span className="block text-2xs text-muted truncate">{g.email}</span></div>
+                  </div>
+                </td>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => openAccess(g)} className="inline-flex items-center gap-1.5 group" title="Edit access">
+                    <span className={`pill ${meta.pill}`}>{meta.label}</span>
+                    {directEdit && <span className="text-2xs text-amber-600" title="Can edit directly"><Icon name="ti-pencil" className="text-xs" /></span>}
+                    <Icon name="ti-settings" className="text-muted2 text-sm opacity-0 group-hover:opacity-100" />
+                  </button>
+                </td>
+                <td className="px-4 py-3"><span className={`pill ${g.is_linked ? 'pill-green' : 'pill-amber'}`}>{g.is_linked ? 'Active' : 'Pending'}</span></td>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  {g.projects.length === 0 ? <span className="text-2xs text-muted2">None</span> : (
+                    <div className="flex flex-wrap gap-1">{g.projects.map((pr) => <Link key={pr.id} href={`/projects/${pr.id}`} className="chip hover:text-content">{pr.name}</Link>)}</div>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-muted">{new Date(g.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <Link href={`/guests/${g.user_id}`} className="btn h-8 py-0 mr-1"><Icon name="ti-user" className="text-sm" />Details</Link>
+                  <button className="btn h-8 py-0 mr-1" disabled={busy} onClick={() => openAccess(g)}><Icon name="ti-adjustments" className="text-sm" />Access</button>
+                  <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => revoke(g)}><Icon name="ti-user-minus" className="text-sm" />Revoke</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table></div>
+    </div>
+  );
   return (
     <Layout flat title="Guests">
       <PageHeader title="Guests" subtitle="External people with limited, project-scoped access" icon="ti-user-question"
@@ -100,55 +162,20 @@ export default function GuestsPage() {
           {guests.length === 0 ? (
             <div className="card p-8"><EmptyState icon="ti-user-question" text="No guests yet — invite an external collaborator to a project." /></div>
           ) : (
-            <div className="card overflow-hidden">
-              <div className="overflow-x-auto"><table className="w-full text-sm">
-                <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Guest</th>
-                    <th className="px-4 py-3 font-medium">Access</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Projects</th>
-                    <th className="px-4 py-3 font-medium">Added</th>
-                    <th className="px-4 py-3 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {guests.map((g) => {
-                    const meta = LEVEL_META[g.guest_level] || LEVEL_META.viewer;
-                    const directEdit = g.guest_perms?.direct_edit ?? lvlDefault(g.guest_level || 'viewer', 'direct_edit');
-                    return (
-                      <tr key={g.user_id + g.org_id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => router.push(`/guests/${g.user_id}`)}>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Avatar name={g.full_name || g.email} size={26} />
-                            <div className="min-w-0"><Link href={`/guests/${g.user_id}`} className="block font-medium text-content hover:text-accent truncate">{g.full_name || g.email}</Link><span className="block text-2xs text-muted truncate">{g.email}</span></div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => openAccess(g)} className="inline-flex items-center gap-1.5 group" title="Edit access">
-                            <span className={`pill ${meta.pill}`}>{meta.label}</span>
-                            {directEdit && <span className="text-2xs text-amber-600" title="Can edit directly"><Icon name="ti-pencil" className="text-xs" /></span>}
-                            <Icon name="ti-settings" className="text-muted2 text-sm opacity-0 group-hover:opacity-100" />
-                          </button>
-                        </td>
-                        <td className="px-4 py-3"><span className={`pill ${g.is_linked ? 'pill-green' : 'pill-amber'}`}>{g.is_linked ? 'Active' : 'Pending'}</span></td>
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          {g.projects.length === 0 ? <span className="text-2xs text-muted2">None</span> : (
-                            <div className="flex flex-wrap gap-1">{g.projects.map((p) => <Link key={p.id} href={`/projects/${p.id}`} className="chip hover:text-content">{p.name}</Link>)}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-muted">{new Date(g.created_at).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          <Link href={`/guests/${g.user_id}`} className="btn h-8 py-0 mr-1"><Icon name="ti-user" className="text-sm" />Details</Link>
-                          <button className="btn h-8 py-0 mr-1" disabled={busy} onClick={() => openAccess(g)}><Icon name="ti-adjustments" className="text-sm" />Access</button>
-                          <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => revoke(g)}><Icon name="ti-user-minus" className="text-sm" />Revoke</button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table></div>
-            </div>
+            <>
+              <div className="flex items-center justify-end mb-3">
+                <Dropdown value={groupBy} onChange={setGroupBy} width={190} items={groupOptions}
+                  trigger={<span className="btn h-9 cursor-pointer"><Icon name="ti-layout-rows" className="text-sm" />{groupOptions.find((o) => o.value === groupBy)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+              </div>
+              <div className="space-y-5">
+                {groups.map((grp) => (
+                  <div key={grp.key}>
+                    {grp.label && <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-content">{grp.label}</h3><span className="text-2xs text-muted2 bg-surface2 rounded-full px-2 py-0.5">{grp.items.length}</span></div>}
+                    <GuestTable items={grp.items} />
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </>
       )}

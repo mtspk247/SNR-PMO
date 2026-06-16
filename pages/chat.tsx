@@ -2,13 +2,17 @@ import { useState } from 'react';
 import Layout from '@/components/Layout';
 import { Icon, Spinner } from '@/components/ui';
 import { ChatThread, ChannelSelect } from '@/components/ChatPanel';
-import { useProjects } from '@/lib/queries';
+import { useProjects, useOrgCompanies } from '@/lib/queries';
+import { buildGroups } from '@/components/ViewControls';
 
 // S5 — standalone chat page. Same ChatThread as the Layout slide-in panel;
 // here with a persistent channel rail (org channel + RLS-scoped projects).
 export default function ChatPage() {
   const { data: projects = [], isLoading } = useProjects();
+  const { data: companies = [] } = useOrgCompanies();
   const [channel, setChannel] = useState<string | null>(null);
+  const [groupCo, setGroupCo] = useState(false);
+  const compName = (id: string) => companies.find((c: any) => c.id === id)?.name;
 
   const ChannelButton = ({ id, name }: { id: string | null; name: string }) => (
     <button onClick={() => setChannel(id)}
@@ -32,9 +36,19 @@ export default function ChatPage() {
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
             <ChannelButton id={null} name="General (everyone)" />
-            <div className="px-3 pt-3 pb-1 text-2xs font-medium uppercase tracking-wide text-muted2">Projects</div>
+            <div className="flex items-center justify-between px-3 pt-3 pb-1">
+              <span className="text-2xs font-medium uppercase tracking-wide text-muted2">Projects</span>
+              {companies.length > 0 && <button onClick={() => setGroupCo((v) => !v)} title="Group by company" className={`text-2xs inline-flex items-center gap-1 ${groupCo ? 'text-accentstrong' : 'text-muted2 hover:text-content'}`}><Icon name="ti-building" className="text-xs" />{groupCo ? 'Grouped' : 'Group'}</button>}
+            </div>
             {isLoading ? <Spinner /> : projects.length === 0 ? (
               <p className="px-3 py-2 text-2xs text-muted2">No projects visible to you</p>
+            ) : groupCo ? (
+              buildGroups(projects, (p: any) => p.company_id || '', (k) => compName(k) || 'No company').map((g) => (
+                <div key={g.key} className="mb-1">
+                  <div className="px-3 pt-2 pb-0.5 text-2xs font-medium text-muted2 inline-flex items-center gap-1"><Icon name="ti-building" className="text-2xs" />{g.label}</div>
+                  {g.items.map((p: any) => <ChannelButton key={p.id} id={p.id} name={p.name} />)}
+                </div>
+              ))
             ) : projects.map((p) => <ChannelButton key={p.id} id={p.id} name={p.name} />)}
           </div>
         </aside>

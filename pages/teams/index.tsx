@@ -11,6 +11,7 @@ import { useTeams, useTasks } from '@/lib/queries';
 import qk from '@/lib/queryKeys';
 import { createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, getOrgUsers, getTimeEntriesRange } from '@/lib/db';
 import { Team, Task, OrgUser, TimeEntry } from '@/lib/supabase';
+import { ViewControls, useViewPrefs } from '@/components/ViewControls';
 
 const SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 const DAY = 86400000;
@@ -32,6 +33,7 @@ export default function TeamsHub() {
   const [draftId, setDraftId] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const vp = useViewPrefs('snr-teams-vp', { view: 'cards' });
 
   useEffect(() => {
     if (!org?.id) return;
@@ -79,6 +81,25 @@ export default function TeamsHub() {
     try { await removeTeamMember(teamId, userId); refresh(); } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
+  const TeamList = () => (
+    <div className="card overflow-hidden">
+      <div className="overflow-x-auto"><table className="w-full text-sm">
+        <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr>
+          <th className="px-4 py-3 font-medium">Team</th><th className="px-4 py-3 font-medium">Members</th><th className="px-4 py-3 font-medium text-right">Open</th><th className="px-4 py-3 font-medium text-right">Overdue</th><th className="px-4 py-3 font-medium text-right">Hours</th><th className="px-4 py-3 font-medium text-right">Actions</th>
+        </tr></thead>
+        <tbody>{teams.map((tm) => { const st = stats.get(tm.id) || { open: 0, overdue: 0, hours: 0 }; const members = tm.members || []; return (
+          <tr key={tm.id} className="border-t border-line hover:bg-surface2/50">
+            <td className="px-4 py-3"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: tm.color || '#64748b' }} /><Link href={`/teams/${tm.id}`} className="font-medium text-content hover:text-accent">{tm.name}</Link></div></td>
+            <td className="px-4 py-3"><div className="flex items-center gap-1"><div className="flex -space-x-1.5">{members.slice(0, 4).map((m) => <Avatar key={m.user_id} name={m.users?.full_name || '?'} size={20} />)}</div><span className="text-2xs text-muted ml-1">{members.length}</span></div></td>
+            <td className="px-4 py-3 text-right tabular-nums">{st.open}</td>
+            <td className={`px-4 py-3 text-right tabular-nums ${st.overdue > 0 ? 'text-rose-500' : ''}`}>{st.overdue}</td>
+            <td className="px-4 py-3 text-right tabular-nums text-muted">{st.hours}</td>
+            <td className="px-4 py-3 text-right whitespace-nowrap"><Link href={`/teams/${tm.id}`} className="btn h-8 py-0"><Icon name="ti-layout-dashboard" className="text-sm" />Overview</Link>{manage && <button onClick={() => openEdit(tm)} className="btn h-8 py-0 ml-1"><Icon name="ti-pencil" className="text-sm" /></button>}</td>
+          </tr>
+        ); })}</tbody>
+      </table></div>
+    </div>
+  );
   return (
     <Layout flat title="Teams">
       <PageHeader title="Teams" subtitle="Groups of people — see what each team is working on" icon="ti-users-group"
@@ -87,7 +108,12 @@ export default function TeamsHub() {
       {isLoading ? <Spinner /> : teams.length === 0 ? (
         <div className="card p-8"><EmptyState icon="ti-users-group" text={manage ? 'No teams yet — create one to group your people.' : 'No teams yet.'} /></div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <>
+          <div className="flex items-center justify-end mb-3">
+            <ViewControls prefs={vp} views={[{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }]} />
+          </div>
+          {vp.view === 'list' ? <TeamList /> : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {teams.map((tm) => {
             const st = stats.get(tm.id) || { open: 0, overdue: 0, hours: 0 };
             const members = tm.members || [];
@@ -147,6 +173,8 @@ export default function TeamsHub() {
             );
           })}
         </div>
+          )}
+        </>
       )}
 
       {draft && (
