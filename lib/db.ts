@@ -1183,8 +1183,8 @@ export async function saveCampaignTemplate(t: { id?: string | null; name: string
 export async function deleteCampaignTemplate(id: string): Promise<void> {
   const { error } = await sb.rpc('campaign_template_delete', { p_id: id }); if (error) throw new Error(error.message);
 }
-export async function sendCampaign(segment: string, subject: string, body: string, link?: string, scheduledFor?: string | null): Promise<number> {
-  const { data, error } = await sb.rpc('platform_send_campaign', { p_segment: segment, p_subject: subject, p_body: body, p_link: link || null, p_scheduled_for: scheduledFor || null });
+export async function sendCampaign(segment: string, subject: string, body: string, link?: string, scheduledFor?: string | null, recipients?: string[]): Promise<number> {
+  const { data, error } = await sb.rpc('platform_send_campaign', { p_segment: segment, p_subject: subject, p_body: body, p_link: link || null, p_scheduled_for: scheduledFor || null, p_recipients: recipients && recipients.length ? recipients : null });
   if (error) throw new Error(error.message); return (data as number) ?? 0;
 }
 export async function emailTenant(orgId: string, subject: string, body: string, link?: string): Promise<number> {

@@ -692,8 +692,11 @@ function CampaignsTab() {
     { id: 'paid', label: 'Paid (Pro/Ent.)' },
     { id: 'active', label: 'Active' },
     { id: 'suspended', label: 'Suspended' },
+    { id: 'custom', label: 'Custom / CSV' },
   ];
   const [segment, setSegment] = useState('free');
+  const [customEmails, setCustomEmails] = useState('');
+  const customList = useMemo(() => Array.from(new Set(customEmails.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter((x) => x.includes('@') && x.length > 3))), [customEmails]);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [link, setLink] = useState('');
@@ -707,7 +710,8 @@ function CampaignsTab() {
 
   const loadAux = () => { listCampaignTemplates().then(setTemplates).catch(() => {}); listCampaigns().then(setHistory).catch(() => {}); };
   useEffect(() => { loadAux(); }, []);
-  useEffect(() => { let on = true; setCount(null); campaignPreview(segment).then((n) => on && setCount(n)).catch(() => on && setCount(null)); return () => { on = false; }; }, [segment]);
+  useEffect(() => { if (segment === 'custom') { setCount(customList.length); return; } let on = true; setCount(null); campaignPreview(segment).then((n) => on && setCount(n)).catch(() => on && setCount(null)); return () => { on = false; }; }, [segment, customList]);
+  const onCsv = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setCustomEmails((prev) => (prev ? prev + '\n' : '') + String(reader.result || '')); reader.readAsText(file); e.target.value = ''; };
 
   const loadTemplate = (id: string) => { const t = templates.find((x) => x.id === id); if (!t) return; setSubject(t.subject || ''); setBody(t.body || ''); setLink(t.link || ''); setMsg(`Loaded template “${t.name}”.`); };
   const saveTpl = async () => {
@@ -720,16 +724,18 @@ function CampaignsTab() {
 
   const send = async () => {
     if (!subject.trim() || !body.trim()) return;
+    if (segment === 'custom' && customList.length === 0) { setErr('Add at least one recipient email or upload a CSV.'); return; }
+    const audLabel = segment === 'custom' ? 'custom audience' : `"${segment}" segment`;
     const scheduledIso = scheduleAt ? new Date(scheduleAt).toISOString() : null;
     const ok = confirm(scheduledIso
-      ? `Schedule this campaign to the "${segment}" segment for ${new Date(scheduleAt).toLocaleString()}?`
-      : `Queue this campaign to ~${count ?? '?'} tenant owner(s) in the "${segment}" segment now?`);
+      ? `Schedule this campaign to the ${audLabel} for ${new Date(scheduleAt).toLocaleString()}?`
+      : `Queue this campaign to ~${count ?? '?'} recipient(s) in the ${audLabel} now?`);
     if (!ok) return;
     setSending(true); setErr(''); setMsg('');
     try {
-      const n = await sendCampaign(segment, subject.trim(), body.trim(), link.trim() || undefined, scheduledIso);
+      const n = await sendCampaign(segment, subject.trim(), body.trim(), link.trim() || undefined, scheduledIso, segment === 'custom' ? customList : undefined);
       setMsg(scheduledIso ? 'Campaign scheduled — it sends automatically at the set time.' : `Queued ${n} email(s) — they send via your configured provider (Email tab).`);
-      setSubject(''); setBody(''); setLink(''); setScheduleAt(''); loadAux();
+      setSubject(''); setBody(''); setLink(''); setScheduleAt(''); if (segment === 'custom') setCustomEmails(''); loadAux();
     } catch (e: any) { setErr(e.message || 'Could not send'); } finally { setSending(false); }
   };
 
@@ -761,7 +767,16 @@ function CampaignsTab() {
               <button key={sg.id} onClick={() => setSegment(sg.id)} className={`btn h-8 py-0 ${segment === sg.id ? 'btn-primary' : ''}`}>{sg.label}</button>
             ))}
           </div>
-          <p className="text-2xs text-muted mt-2">{count == null ? 'Counting recipients…' : `${count} tenant owner${count === 1 ? '' : 's'} will receive this.`}</p>
+          {segment === 'custom' && (
+            <div className="mt-3 space-y-2">
+              <textarea className="textarea h-24" value={customEmails} onChange={(e) => setCustomEmails(e.target.value)} placeholder="Paste emails (comma, space or newline separated)…" />
+              <div className="flex items-center gap-2">
+                <label className="btn h-8 py-0 cursor-pointer"><Icon name="ti-upload" />Upload CSV<input type="file" accept=".csv,text/csv,text/plain" className="hidden" onChange={onCsv} /></label>
+                {customEmails && <button className="btn-ghost text-2xs text-rose-600" onClick={() => setCustomEmails('')}>Clear</button>}
+              </div>
+            </div>
+          )}
+          <p className="text-2xs text-muted mt-2">{count == null ? 'Counting recipients…' : segment === 'custom' ? `${count} valid recipient${count === 1 ? '' : 's'} will receive this.` : `${count} tenant owner${count === 1 ? '' : 's'} will receive this.`}</p>
         </div>
         <Field label="Subject"><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. 20% off Pro this month" /></Field>
         <Field label="Message" hint="Plain text — sent as a tenant-branded email."><textarea className="textarea h-32" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your announcement, offer or newsletter…" /></Field>
@@ -770,7 +785,7 @@ function CampaignsTab() {
         {err && <p className="text-sm text-rose-600">{err}</p>}
         {msg && <p className="text-sm text-emerald-600">{msg}</p>}
         <div className="flex items-center gap-2">
-          <button className="btn btn-primary" disabled={sending || !subject.trim() || !body.trim()} onClick={send}><Icon name={scheduleAt ? 'ti-clock' : 'ti-send'} />{sending ? 'Working…' : (scheduleAt ? 'Schedule campaign' : 'Send campaign')}</button>
+          <button className="btn btn-primary" disabled={sending || !subject.trim() || !body.trim() || (segment === 'custom' && customList.length === 0)} onClick={send}><Icon name={scheduleAt ? 'ti-clock' : 'ti-send'} />{sending ? 'Working…' : (scheduleAt ? 'Schedule campaign' : 'Send campaign')}</button>
           <button className="btn" disabled={!subject.trim() && !body.trim()} onClick={saveTpl}><Icon name="ti-bookmark" />Save as template</button>
         </div>
       </div>
