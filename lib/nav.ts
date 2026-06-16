@@ -95,6 +95,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/guests', label: 'Guests', icon: 'ti-user-question', adminOnly: true },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Accounting', icon: 'ti-report-money', items: [
+    { href: '/ledger', label: 'General Ledger', icon: 'ti-book-2', feature: 'financial' },
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
     { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
     { href: '/accounting', label: 'Ledger', icon: 'ti-report-money', feature: 'financial' },

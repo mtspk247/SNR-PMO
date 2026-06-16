@@ -1,0 +1,254 @@
+import { useEffect, useMemo, useState } from 'react';
+import Layout from '@/components/Layout';
+import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
+import { Modal, Field } from '@/components/Modal';
+import Select from '@/components/Select';
+import { useActiveOrg } from '@/lib/store';
+import {
+  glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance,
+  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow,
+} from '@/lib/db';
+
+const TYPES = [
+  { value: 'asset', label: 'Asset' },
+  { value: 'liability', label: 'Liability' },
+  { value: 'equity', label: 'Equity' },
+  { value: 'income', label: 'Income' },
+  { value: 'expense', label: 'Expense' },
+];
+const NB_DEFAULT: Record<string, string> = { asset: 'debit', expense: 'debit', liability: 'credit', equity: 'credit', income: 'credit' };
+const TYPE_ORDER = ['asset', 'liability', 'equity', 'income', 'expense'];
+const money = (n: number) => (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+type AcctDraft = { id?: string; code: string; name: string; type: string; subtype: string; normal_balance: string; currency: string; is_active: boolean };
+type JLine = { account_id: string; debit: string; credit: string; description: string };
+
+export default function LedgerPage() {
+  const org = useActiveOrg();
+  const [tab, setTab] = useState<'coa' | 'journal' | 'tb'>('coa');
+  const [loading, setLoading] = useState(true);
+  const [accounts, setAccounts] = useState<CoaAccount[]>([]);
+  const [journal, setJournal] = useState<JournalEntryRow[]>([]);
+  const [tb, setTb] = useState<TrialBalanceRow[]>([]);
+  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
+  const [industry, setIndustry] = useState<string | null>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const orgId = org?.id;
+  const loadAccounts = () => orgId ? glAccounts(orgId).then(setAccounts).catch((e) => setErr(e.message)) : Promise.resolve();
+  useEffect(() => {
+    if (!orgId) return;
+    setLoading(true);
+    Promise.all([
+      glAccounts(orgId).then(setAccounts),
+      getOrgProfile(orgId).then((p: any) => setIndustry(p?.industry || null)).catch(() => {}),
+    ]).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+  }, [orgId]);
+  useEffect(() => { if (orgId && tab === 'journal') glJournal(orgId).then(setJournal).catch((e) => setErr(e.message)); }, [orgId, tab]);
+  useEffect(() => { if (orgId && tab === 'tb') glTrialBalance(orgId, asOf).then(setTb).catch((e) => setErr(e.message)); }, [orgId, tab, asOf]);
+
+  // ── seed ──
+  const seed = async () => {
+    if (!orgId || busy) return;
+    setBusy(true); setErr('');
+    try { await glSeedCoa(orgId, industry); await loadAccounts(); }
+    catch (e: any) { setErr(e.message || 'Could not seed accounts'); } finally { setBusy(false); }
+  };
+
+  // ── account modal ──
+  const [acct, setAcct] = useState<AcctDraft | null>(null);
+  const openNewAcct = () => setAcct({ code: '', name: '', type: 'expense', subtype: '', normal_balance: 'debit', currency: 'USD', is_active: true });
+  const openEditAcct = (a: CoaAccount) => setAcct({ id: a.id, code: a.code, name: a.name, type: a.type, subtype: a.subtype || '', normal_balance: a.normal_balance, currency: a.currency, is_active: a.is_active });
+  const saveAcct = async () => {
+    if (!orgId || !acct || busy) return;
+    setBusy(true); setErr('');
+    try { await glAccountSave(orgId, acct); setAcct(null); await loadAccounts(); }
+    catch (e: any) { setErr(e.message || 'Could not save account'); } finally { setBusy(false); }
+  };
+  const delAcct = async (a: CoaAccount) => {
+    if (!orgId) return;
+    if (!confirm(`Delete account ${a.code} ${a.name}? If it has entries it will be archived instead.`)) return;
+    try { await glAccountDelete(orgId, a.id); await loadAccounts(); } catch (e: any) { setErr(e.message); }
+  };
+
+  // ── journal modal ──
+  const [jOpen, setJOpen] = useState(false);
+  const [jDate, setJDate] = useState(new Date().toISOString().slice(0, 10));
+  const [jMemo, setJMemo] = useState('');
+  const [jLines, setJLines] = useState<JLine[]>([{ account_id: '', debit: '', credit: '', description: '' }, { account_id: '', debit: '', credit: '', description: '' }]);
+  const acctOptions = useMemo(() => accounts.filter((a) => a.is_active).map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` })), [accounts]);
+  const jTotals = useMemo(() => jLines.reduce((t, l) => ({ d: t.d + (parseFloat(l.debit) || 0), c: t.c + (parseFloat(l.credit) || 0) }), { d: 0, c: 0 }), [jLines]);
+  const jBalanced = jTotals.d > 0 && Math.abs(jTotals.d - jTotals.c) < 0.005;
+  const jValid = jBalanced && jLines.filter((l) => l.account_id && ((parseFloat(l.debit) || 0) > 0 || (parseFloat(l.credit) || 0) > 0)).length >= 2;
+  const openJournal = () => { setJDate(new Date().toISOString().slice(0, 10)); setJMemo(''); setJLines([{ account_id: '', debit: '', credit: '', description: '' }, { account_id: '', debit: '', credit: '', description: '' }]); setJOpen(true); setErr(''); };
+  const setLine = (i: number, p: Partial<JLine>) => setJLines((ls) => ls.map((l, idx) => idx === i ? { ...l, ...p } : l));
+  const postJournal = async () => {
+    if (!orgId || !jValid || busy) return;
+    setBusy(true); setErr('');
+    try {
+      const lines = jLines.filter((l) => l.account_id && ((parseFloat(l.debit) || 0) > 0 || (parseFloat(l.credit) || 0) > 0))
+        .map((l) => ({ account_id: l.account_id, debit: parseFloat(l.debit) || 0, credit: parseFloat(l.credit) || 0, description: l.description || undefined }));
+      await glPostEntry(orgId, jDate, jMemo, lines);
+      setJOpen(false);
+      if (tab === 'journal') glJournal(orgId).then(setJournal);
+    } catch (e: any) { setErr(e.message || 'Could not post entry'); } finally { setBusy(false); }
+  };
+
+  const grouped = useMemo(() => TYPE_ORDER.map((t) => ({ type: t, items: accounts.filter((a) => a.type === t) })).filter((g) => g.items.length), [accounts]);
+  const tbTotals = useMemo(() => tb.reduce((t, r) => ({ d: t.d + Number(r.debit), c: t.c + Number(r.credit) }), { d: 0, c: 0 }), [tb]);
+
+  if (!org) return <Layout flat title="General Ledger"><Spinner /></Layout>;
+
+  return (
+    <Layout flat title="General Ledger">
+      <PageHeader title="General Ledger" subtitle="Double-entry chart of accounts, journal and trial balance" icon="ti-book-2"
+        action={tab === 'coa' && accounts.length > 0 ? <button onClick={openNewAcct} className="btn btn-primary"><Icon name="ti-plus" />New account</button>
+          : tab === 'journal' && accounts.length > 0 ? <button onClick={openJournal} className="btn btn-primary"><Icon name="ti-plus" />New journal entry</button> : undefined} />
+
+      <Tabs tabs={[
+        { key: 'coa', label: 'Chart of Accounts', icon: 'ti-list-tree' },
+        { key: 'journal', label: 'Journal', icon: 'ti-notebook' },
+        { key: 'tb', label: 'Trial Balance', icon: 'ti-scale' },
+      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb')} />
+
+      {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+      {loading ? <Spinner /> : (
+        <>
+          {tab === 'coa' && (accounts.length === 0 ? (
+            <div className="card p-10 text-center">
+              <Icon name="ti-book-2" className="text-3xl text-muted2 block mb-2" />
+              <p className="text-sm font-medium text-content mb-1">No chart of accounts yet</p>
+              <p className="text-2xs text-muted mb-4">Generate a ready-made chart of accounts{industry ? ` tailored for ${industry}` : ''}, then customise it.</p>
+              <button onClick={seed} disabled={busy} className="btn btn-primary mx-auto"><Icon name="ti-wand" />{busy ? 'Generating…' : 'Generate chart of accounts'}</button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {grouped.map((g) => (
+                <div key={g.type} className="card overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-line bg-surface2/50 flex items-center gap-2"><span className="text-sm font-semibold text-content capitalize">{g.type}s</span><span className="text-2xs text-muted2">{g.items.length}</span></div>
+                  <table className="w-full text-sm list-card">
+                    <thead><tr><th className="px-4 py-2 text-left w-24">Code</th><th className="px-4 py-2 text-left">Name</th><th className="px-4 py-2 text-left">Subtype</th><th className="px-4 py-2 text-left w-28">Normal</th><th className="px-4 py-2"></th></tr></thead>
+                    <tbody>
+                      {g.items.map((a) => (
+                        <tr key={a.id} className={a.is_active ? '' : 'opacity-50'}>
+                          <td className="px-4 py-2 font-mono text-2xs text-muted">{a.code}</td>
+                          <td className="px-4 py-2 text-content">{a.name}{a.is_system && <span className="pill pill-gray ml-2">system</span>}{!a.is_active && <span className="pill pill-gray ml-2">archived</span>}</td>
+                          <td className="px-4 py-2 text-2xs text-muted2">{(a.subtype || '').replace(/_/g, ' ')}</td>
+                          <td className="px-4 py-2"><span className={`pill ${a.normal_balance === 'debit' ? 'pill-blue' : 'pill-violet'}`}>{a.normal_balance}</span></td>
+                          <td className="px-4 py-2 text-right whitespace-nowrap">
+                            <button onClick={() => openEditAcct(a)} className="btn-ghost text-2xs" title="Edit"><Icon name="ti-pencil" /></button>
+                            <button onClick={() => delAcct(a)} className="btn-ghost text-2xs text-rose-600 ml-1" title="Delete / archive"><Icon name="ti-trash" /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          ))}
+
+          {tab === 'journal' && (journal.length === 0 ? <EmptyState icon="ti-notebook" text={accounts.length === 0 ? 'Set up your chart of accounts first.' : 'No journal entries yet.'} /> : (
+            <div className="space-y-3">
+              {journal.map((e) => {
+                const td = e.journal_lines.reduce((s, l) => s + Number(l.debit), 0);
+                return (
+                  <div key={e.id} className="card overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-line flex items-center gap-3 flex-wrap">
+                      <span className="pill pill-gray">#{e.entry_no}</span>
+                      <span className="text-sm font-medium text-content">{e.memo || '—'}</span>
+                      <span className="text-2xs text-muted2">{e.entry_date}</span>
+                      <span className="text-2xs text-muted2 capitalize">· {e.source}</span>
+                      <span className="ml-auto text-2xs text-muted">Total {money(td)}</span>
+                    </div>
+                    <table className="w-full text-sm list-card">
+                      <tbody>
+                        {e.journal_lines.map((l) => (
+                          <tr key={l.id}>
+                            <td className="px-4 py-1.5 w-1/2"><span className="font-mono text-2xs text-muted2 mr-2">{l.coa_accounts?.code}</span>{l.coa_accounts?.name}{l.description ? <span className="text-2xs text-muted2"> — {l.description}</span> : ''}</td>
+                            <td className="px-4 py-1.5 text-right tabular-nums text-content w-1/4">{Number(l.debit) ? money(Number(l.debit)) : ''}</td>
+                            <td className="px-4 py-1.5 text-right tabular-nums text-content w-1/4">{Number(l.credit) ? money(Number(l.credit)) : ''}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          {tab === 'tb' && (
+            <div className="card overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-line flex items-center gap-2">
+                <span className="text-2xs text-muted">As of</span>
+                <input type="date" className="input h-8 w-40" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
+                <span className={`ml-auto text-2xs font-medium ${Math.abs(tbTotals.d - tbTotals.c) < 0.005 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.abs(tbTotals.d - tbTotals.c) < 0.005 ? 'Balanced' : 'Out of balance'}</span>
+              </div>
+              {tb.length === 0 ? <EmptyState icon="ti-scale" text="No accounts to report." /> : (
+                <table className="w-full text-sm list-card">
+                  <thead><tr><th className="px-4 py-2 text-left w-24">Code</th><th className="px-4 py-2 text-left">Account</th><th className="px-4 py-2 text-right w-32">Debit</th><th className="px-4 py-2 text-right w-32">Credit</th></tr></thead>
+                  <tbody>
+                    {tb.filter((r) => Number(r.debit) || Number(r.credit)).map((r) => (
+                      <tr key={r.account_id}>
+                        <td className="px-4 py-2 font-mono text-2xs text-muted">{r.code}</td>
+                        <td className="px-4 py-2 text-content">{r.name}</td>
+                        <td className="px-4 py-2 text-right tabular-nums">{Number(r.debit) ? money(Number(r.debit)) : ''}</td>
+                        <td className="px-4 py-2 text-right tabular-nums">{Number(r.credit) ? money(Number(r.credit)) : ''}</td>
+                      </tr>
+                    ))}
+                    <tr className="font-semibold border-t-2 border-line">
+                      <td className="px-4 py-2.5" colSpan={2}>Total</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{money(tbTotals.d)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{money(tbTotals.c)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Account modal */}
+      <Modal open={!!acct} onClose={() => setAcct(null)} size="md" icon="ti-list-tree" title={acct?.id ? 'Edit account' : 'New account'}
+        footer={<><button className="btn" onClick={() => setAcct(null)}>Cancel</button><button className="btn btn-primary" disabled={busy || !acct?.code.trim() || !acct?.name.trim()} onClick={saveAcct}>{busy ? 'Saving…' : 'Save account'}</button></>}>
+        {acct && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Code" required><input className="input font-mono" value={acct.code} onChange={(e) => setAcct({ ...acct, code: e.target.value })} placeholder="6300" /></Field>
+            <Field label="Currency"><input className="input" value={acct.currency} onChange={(e) => setAcct({ ...acct, currency: e.target.value })} placeholder="USD" /></Field>
+            <Field label="Name" required className="col-span-2"><input className="input" value={acct.name} onChange={(e) => setAcct({ ...acct, name: e.target.value })} placeholder="Office Supplies" /></Field>
+            <Field label="Type" required><Select value={acct.type} onChange={(v) => setAcct({ ...acct, type: v, normal_balance: NB_DEFAULT[v] || acct.normal_balance })} options={TYPES} /></Field>
+            <Field label="Normal balance" required hint="Flip for contra accounts"><Select value={acct.normal_balance} onChange={(v) => setAcct({ ...acct, normal_balance: v })} options={[{ value: 'debit', label: 'Debit' }, { value: 'credit', label: 'Credit' }]} /></Field>
+            <Field label="Subtype" className="col-span-2"><input className="input" value={acct.subtype} onChange={(e) => setAcct({ ...acct, subtype: e.target.value })} placeholder="operating_expense" /></Field>
+            <label className="col-span-2 flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="accent-accent w-4 h-4" checked={acct.is_active} onChange={(e) => setAcct({ ...acct, is_active: e.target.checked })} />Active</label>
+          </div>
+        )}
+      </Modal>
+
+      {/* Journal entry modal */}
+      <Modal open={jOpen} onClose={() => setJOpen(false)} size="lg" icon="ti-notebook" title="New journal entry"
+        footer={<><span className={`text-2xs mr-auto ${jBalanced ? 'text-emerald-600' : 'text-muted2'}`}>Debits {money(jTotals.d)} · Credits {money(jTotals.c)} {jBalanced ? '· balanced' : ''}</span><button className="btn" onClick={() => setJOpen(false)}>Cancel</button><button className="btn btn-primary" disabled={busy || !jValid} onClick={postJournal}>{busy ? 'Posting…' : 'Post entry'}</button></>}>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Date" required><input type="date" className="input" value={jDate} onChange={(e) => setJDate(e.target.value)} /></Field>
+            <Field label="Memo"><input className="input" value={jMemo} onChange={(e) => setJMemo(e.target.value)} placeholder="Description of the entry" /></Field>
+          </div>
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-[1fr_7rem_7rem_2rem] gap-2 text-2xs uppercase tracking-wide text-muted2 px-1"><span>Account</span><span className="text-right">Debit</span><span className="text-right">Credit</span><span></span></div>
+            {jLines.map((l, i) => (
+              <div key={i} className="grid grid-cols-[1fr_7rem_7rem_2rem] gap-2 items-center">
+                <Select value={l.account_id} onChange={(v) => setLine(i, { account_id: v })} options={acctOptions} placeholder="Select account…" search />
+                <input className="input h-9 text-right tabular-nums" inputMode="decimal" value={l.debit} onChange={(e) => setLine(i, { debit: e.target.value, credit: e.target.value ? '' : l.credit })} placeholder="0.00" />
+                <input className="input h-9 text-right tabular-nums" inputMode="decimal" value={l.credit} onChange={(e) => setLine(i, { credit: e.target.value, debit: e.target.value ? '' : l.debit })} placeholder="0.00" />
+                <button className="btn-ghost text-2xs text-rose-600" title="Remove line" onClick={() => setJLines((ls) => ls.length > 2 ? ls.filter((_, idx) => idx !== i) : ls)}><Icon name="ti-x" /></button>
+              </div>
+            ))}
+            <button className="btn-ghost text-2xs" onClick={() => setJLines((ls) => [...ls, { account_id: '', debit: '', credit: '', description: '' }])}><Icon name="ti-plus" />Add line</button>
+          </div>
+        </div>
+      </Modal>
+    </Layout>
+  );
+}

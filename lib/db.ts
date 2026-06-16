@@ -2505,3 +2505,41 @@ export async function getOrgActivity(orgId: string, limit = 15): Promise<Activit
     .eq('org_id', orgId).order('ts', { ascending: false }).limit(limit);
   if (error) throw new Error(error.message); return (data as ActivityItem[]) || [];
 }
+
+
+// ---- Accounting: double-entry General Ledger (P0) ----
+export interface CoaAccount { id: string; org_id: string; code: string; name: string; type: string; subtype: string | null; normal_balance: 'debit' | 'credit'; parent_id: string | null; currency: string; description: string | null; is_system: boolean; is_active: boolean; created_at: string; }
+export async function glAccounts(orgId: string): Promise<CoaAccount[]> {
+  const { data, error } = await sb.from('coa_accounts').select('*').eq('org_id', orgId).order('code');
+  if (error) throw new Error(error.message); return (data as CoaAccount[]) || [];
+}
+export async function glSeedCoa(orgId: string, industry?: string | null): Promise<number> {
+  const { data, error } = await sb.rpc('gl_seed_default_coa', { p_org: orgId, p_industry: industry || null });
+  if (error) throw new Error(error.message); return (data as number) ?? 0;
+}
+export async function glAccountSave(orgId: string, p: { id?: string | null; code: string; name: string; type: string; subtype?: string | null; normal_balance: string; parent_id?: string | null; currency?: string | null; is_active?: boolean }): Promise<string> {
+  const { data, error } = await sb.rpc('gl_account_save', { p_org: orgId, p_id: p.id || null, p_code: p.code, p_name: p.name, p_type: p.type, p_subtype: p.subtype || null, p_normal_balance: p.normal_balance, p_parent: p.parent_id || null, p_currency: p.currency || null, p_active: p.is_active ?? true });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function glAccountDelete(orgId: string, id: string): Promise<string> {
+  const { data, error } = await sb.rpc('gl_account_delete', { p_org: orgId, p_id: id });
+  if (error) throw new Error(error.message); return (data as string) || 'done';
+}
+export interface JournalLineInput { account_id: string; debit: number; credit: number; description?: string; project_id?: string | null; company_id?: string | null; }
+export async function glPostEntry(orgId: string, entryDate: string, memo: string, lines: JournalLineInput[], source = 'manual', sourceId: string | null = null): Promise<string> {
+  const { data, error } = await sb.rpc('gl_post_entry', { p_org: orgId, p_entry_date: entryDate, p_memo: memo, p_source: source, p_source_id: sourceId, p_lines: lines });
+  if (error) throw new Error(error.message); return data as string;
+}
+export interface JournalLineRow { id: string; account_id: string; debit: number; credit: number; description: string | null; coa_accounts?: { code: string; name: string } | null; }
+export interface JournalEntryRow { id: string; entry_no: number | null; entry_date: string; memo: string | null; source: string; status: string; created_at: string; journal_lines: JournalLineRow[]; }
+export async function glJournal(orgId: string, limit = 100): Promise<JournalEntryRow[]> {
+  const { data, error } = await sb.from('journal_entries')
+    .select('id, entry_no, entry_date, memo, source, status, created_at, journal_lines(id, account_id, debit, credit, description, coa_accounts(code, name))')
+    .eq('org_id', orgId).order('entry_date', { ascending: false }).order('entry_no', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as unknown as JournalEntryRow[]) || [];
+}
+export interface TrialBalanceRow { account_id: string; code: string; name: string; type: string; subtype: string | null; normal_balance: string; debit: number; credit: number; balance: number; }
+export async function glTrialBalance(orgId: string, asOf?: string): Promise<TrialBalanceRow[]> {
+  const { data, error } = await sb.rpc('gl_trial_balance', { p_org: orgId, p_as_of: asOf || null });
+  if (error) throw new Error(error.message); return (data as TrialBalanceRow[]) || [];
+}
