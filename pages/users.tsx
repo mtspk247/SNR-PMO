@@ -11,6 +11,7 @@ import { can } from '@/lib/authz';
 import { useTeams } from '@/lib/queries';
 import Dropdown from '@/components/Dropdown';
 import { buildGroups } from '@/components/ViewControls';
+import { FEATURE_LABELS } from '@/lib/entitlements';
 import qk from '@/lib/queryKeys';
 
 const ROLES = ['super_admin', 'pm', 'team_member', 'viewer'];
@@ -102,9 +103,29 @@ export default function UsersPage() {
     { value: 'none', label: 'No grouping' },
     { value: 'role', label: 'Group by role' },
     { value: 'status', label: 'Group by status' },
+    { value: 'team', label: 'Group by team' },
+    { value: 'department', label: 'Group by department' },
   ];
-  const ugKey = (x: AdminUser) => uGroup === 'role' ? (x.role || 'viewer') : uGroup === 'status' ? (x.status || 'active') : 'all';
-  const ugLabel = (k: string) => uGroup === 'role' ? k.replace('_', ' ') : uGroup === 'status' ? (k === 'suspended' ? 'Suspended' : 'Active') : k;
+  // Teams the user belongs to (from the loaded teams + their members junction).
+  const teamsFor = (uid: string) => teams.filter((t) => (t.members || []).some((m) => m.user_id === uid)).map((t) => t.name);
+  const ugKey = (x: AdminUser) => {
+    switch (uGroup) {
+      case 'role': return x.role || 'viewer';
+      case 'status': return x.status || 'active';
+      case 'team': { const ts = teamsFor(x.id); return ts[0] || '__noteam__'; }
+      case 'department': return x.department || '__nodept__';
+      default: return 'all';
+    }
+  };
+  const ugLabel = (k: string) => {
+    switch (uGroup) {
+      case 'role': return k.replace('_', ' ');
+      case 'status': return k === 'suspended' ? 'Suspended' : 'Active';
+      case 'team': return k === '__noteam__' ? 'No team' : k;
+      case 'department': return k === '__nodept__' ? 'No department' : k;
+      default: return k;
+    }
+  };
   const [busy, setBusy] = useState(false);
 
   // Teams state
@@ -228,8 +249,29 @@ export default function UsersPage() {
                       <Select value={u.role_template_id || ''} disabled={busy} onChange={(v) => patch({ role_template_id: (v || null) as any })} options={[{ value: '', label: 'None (custom permissions)' }, ...roles.map((r) => ({ value: r.id, label: r.name }))]} />
                       <p className="text-2xs text-muted mt-1">Assigning a template applies its permissions and module access.</p>
                     </div>
+                    {(() => {
+                      const t = u.role_template_id ? roles.find((r) => r.id === u.role_template_id) : null;
+                      const isSuper = u.role === 'super_admin';
+                      const permLabels = isSuper ? ['Full access'] : (t ? PERMS.filter((p) => (t.permissions as any)[p.key as string]).map((p) => p.label) : PERMS.filter((p) => !!u[p.key]).map((p) => p.label));
+                      const modules = isSuper ? 'All modules' : (t ? (t.feature_access.length ? t.feature_access.map((fk) => FEATURE_LABELS[fk as keyof typeof FEATURE_LABELS] || fk).join(', ') : 'All modules') : 'All modules');
+                      const myTeams = teamsFor(u.id);
+                      return (
+                        <div className="rounded-lg border border-line bg-surface2/40 p-4">
+                          <p className="text-2xs uppercase tracking-wide text-muted mb-2 font-medium">Effective access
+                            {t && <span className="pill pill-gray ml-1.5 normal-case">via {t.name}</span>}
+                            {isSuper && <span className="pill pill-green ml-1.5 normal-case">Super admin</span>}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {permLabels.length ? permLabels.map((l) => <span key={l} className="pill pill-gray">{l}</span>) : <span className="text-2xs text-muted">No permissions granted</span>}
+                          </div>
+                          <p className="text-2xs text-muted"><span className="font-medium text-content">Modules:</span> {modules}</p>
+                          <p className="text-2xs text-muted mt-1"><span className="font-medium text-content">Teams:</span> {myTeams.length ? myTeams.join(', ') : 'None'}</p>
+                        </div>
+                      );
+                    })()}
                     <div className="pt-2">
-                      <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Permissions</p>
+                      <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Custom permissions</p>
+                      <p className="text-2xs text-muted mb-3">{u.role_template_id ? 'A role template is assigned — effective access is shown above. These toggles apply only when no template is set.' : 'Used as this user\u2019s effective access (no template assigned).'}</p>
                       <div className="space-y-2">
                         {PERMS.map((p) => (
                           <label key={String(p.key)} className="flex items-center justify-between text-sm py-1.5 cursor-pointer hover:bg-surface2/50 px-2 rounded">
