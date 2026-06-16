@@ -4,8 +4,10 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getTenantEvents, TenantEvent } from '@/lib/db';
+import { getOrgProfile, saveOrgProfile } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
+import OrgProfileForm from '@/components/OrgProfileForm';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -356,9 +358,9 @@ export default function SettingsPage() {
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
-  const [tab, setTab] = useState<'notifications' | 'billing' | 'branding' | 'danger'>('notifications');
+  const [tab, setTab] = useState<'notifications' | 'billing' | 'profile' | 'branding' | 'danger'>('notifications');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string' && ['notifications', 'billing', 'branding', 'danger'].includes(q)) setTab(q as 'notifications' | 'billing' | 'branding' | 'danger'); }, [router.query.tab]);
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string' && ['notifications', 'billing', 'profile', 'branding', 'danger'].includes(q)) setTab(q as 'notifications' | 'billing' | 'profile' | 'branding' | 'danger'); }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -465,13 +467,17 @@ export default function SettingsPage() {
         <Tabs tabs={[
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
           { key: 'billing', label: 'Plan & billing', icon: 'ti-credit-card' },
+          ...(admin ? [{ key: 'profile', label: 'Profile', icon: 'ti-id-badge-2' }] : []),
           { key: 'branding', label: 'Branding', icon: 'ti-palette' },
           ...(isOwner ? [{ key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' }] : []),
-        ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'branding' | 'danger')} />
+        ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'profile' | 'branding' | 'danger')} />
       )}
       {(!admin || tab === 'notifications') && <NotificationPrefs />}
       {admin && tab === 'billing' && <PlanPanel org={org} canBill={isOwner} />}
       {admin && tab === 'billing' && <PlanHistory org={org} />}
+      {admin && tab === 'profile' && org && (
+        <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} />
+      )}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
       {admin && tab === 'branding' && <DeleteSafetyToggle org={org} />}
       {admin && tab === 'branding' && (

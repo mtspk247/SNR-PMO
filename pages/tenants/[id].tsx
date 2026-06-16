@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs, Avatar } from '@/components/ui';
 import { PlanBadge } from '@/components/PlanBadge';
+import OrgProfileForm from '@/components/OrgProfileForm';
 import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
 import { useSetCrumbs } from '@/components/Breadcrumbs';
@@ -14,6 +15,7 @@ import {
   getTenantUsage, getOrgActivity, TenantUsage, ActivityItem,
   getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain,
   getOrgFeatures, getOrgPlanFeatures, tenantUsers, TenantUser, avatarSrc,
+  platformGetOrgProfile, platformSaveOrgProfile,
 } from '@/lib/db';
 import { Plan, MyOrg } from '@/lib/supabase';
 
@@ -183,6 +185,7 @@ export default function TenantDetail() {
         { key: 'users', label: 'Users', icon: 'ti-users' },
         { key: 'plan', label: 'Plan & features', icon: 'ti-package' },
         { key: 'lifecycle', label: 'Lifecycle & billing', icon: 'ti-timeline' },
+        { key: 'profile', label: 'Profile', icon: 'ti-id-badge-2' },
         { key: 'domain', label: 'Custom domain', icon: 'ti-world' },
         { key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' },
       ]} />
@@ -316,6 +319,10 @@ export default function TenantDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {tab === 'profile' && (
+        <OrgProfileForm load={() => platformGetOrgProfile(orgId)} onSave={(patch) => platformSaveOrgProfile(orgId, patch)} />
       )}
 
       {tab === 'domain' && (

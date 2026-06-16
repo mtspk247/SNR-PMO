@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo } from './supabase';
+import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -87,6 +87,31 @@ export async function updateOrgSettings(
     .single();
   if (error) throw new Error(error.message);
   return data as Organization;
+}
+
+// ---- #5 Tenant profile (contact / web / location / classification) ----
+// Owner/admin path: org_select RLS lets a member read; org_update lets owner/admin write.
+const PROFILE_SELECT = ORG_PROFILE_KEYS.join(', ');
+export async function getOrgProfile(orgId: string): Promise<OrgProfile> {
+  const { data, error } = await sb.from('organizations').select(PROFILE_SELECT).eq('id', orgId).single();
+  if (error) throw new Error(error.message);
+  return data as unknown as OrgProfile;
+}
+export async function saveOrgProfile(orgId: string, patch: Partial<OrgProfile>): Promise<void> {
+  const fields: Record<string, any> = {};
+  for (const k of ORG_PROFILE_KEYS) if (k in patch) fields[k] = (patch[k] ?? '') === '' ? null : patch[k];
+  const { error } = await sb.from('organizations').update(fields).eq('id', orgId);
+  if (error) throw new Error(error.message);
+}
+// Operator path: platform admins aren't org members, so they go through SECURITY DEFINER RPCs.
+export async function platformGetOrgProfile(orgId: string): Promise<OrgProfile> {
+  const { data, error } = await sb.rpc('platform_org_profile', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  return (data || {}) as OrgProfile;
+}
+export async function platformSaveOrgProfile(orgId: string, patch: Partial<OrgProfile>): Promise<void> {
+  const { error } = await sb.rpc('platform_update_org_profile', { p_org: orgId, p_patch: patch });
+  if (error) throw new Error(error.message);
 }
 
 // Theme skin is a free, per-tenant UI preference (NOT white-label branding, which is

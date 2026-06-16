@@ -31,6 +31,26 @@ export interface Organization {
   onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string } | null;
 }
 
+// #5 full tenant profile — editable contact/web/location/classification fields.
+export interface OrgProfile {
+  website: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  industry: string | null;
+  category: string | null;
+  about: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state_region: string | null;
+  postal_code: string | null;
+  country: string | null;
+}
+export const ORG_PROFILE_KEYS: (keyof OrgProfile)[] = [
+  'website','contact_email','contact_phone','industry','category','about',
+  'address_line1','address_line2','city','state_region','postal_code','country',
+];
+
 export interface MyOrg extends Organization {
   member_role: OrgRole;
   features?: string[];   // 3.3 entitlements: EFFECTIVE feature keys (plan minus overrides-off plus overrides-on)
