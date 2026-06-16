@@ -219,14 +219,16 @@ export default function Layout({ title, children, flat = false }: { title: strin
         {/* User */}
         <div className="p-2 border-t border-line">
           <div className={`flex items-center gap-2.5 px-1 ${collapsed ? 'justify-center' : ''}`}>
-            <Avatar name={user?.full_name || 'U'} size={32} src={avatarSrc(user?.avatar_url)} />
-            {!collapsed && (
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate side-fg">{user?.full_name}</p>
-                <p className="text-2xs side-dim truncate">{roleLabel(activeOrg?.member_role)}</p>
-              </div>
-            )}
-            <button onClick={logout} title="Sign out" className="p-1.5 rounded-md side-dim hover:text-content hover:bg-surface2">
+            <Link href="/settings" title="Your profile" className={`flex items-center gap-2.5 min-w-0 rounded-md p-1 -m-1 hover:bg-surface2 transition ${collapsed ? '' : 'flex-1'}`}>
+              <Avatar name={user?.full_name || 'U'} size={32} src={avatarSrc(user?.avatar_url)} />
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate side-fg">{user?.full_name}</p>
+                  <p className="text-2xs side-dim truncate">{roleLabel(activeOrg?.member_role)}</p>
+                </div>
+              )}
+            </Link>
+            <button onClick={logout} title="Sign out" className="p-1.5 rounded-md side-dim hover:text-content hover:bg-surface2 shrink-0">
               <Icon name="ti-logout" className="text-base" />
             </button>
           </div>

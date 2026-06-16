@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -8,6 +9,7 @@ import { listAssets, createAsset, updateAsset, deleteAsset, getOrgUsers, Asset }
 import { OrgUser } from '@/lib/supabase';
 
 const ASSET_TYPES = ['digital', 'physical', 'saas', 'domain', 'other'] as const;
+const lbl = (t: string) => (t === 'saas' ? 'SaaS' : t.charAt(0).toUpperCase() + t.slice(1));
 const STATUSES = ['active', 'retired', 'sold'] as const;
 const STATUS_PILL: Record<string, string> = { active: 'pill-green', retired: 'pill-gray', sold: 'pill-blue' };
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'PKR'];
@@ -135,10 +137,7 @@ export default function AssetsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select className="input h-9 w-40" value={typeF} onChange={(e) => setTypeF(e.target.value)}>
-          <option value="all">All types</option>
-          {ASSET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <div className="w-40"><Select value={typeF} onChange={setTypeF} options={[{ value: 'all', label: 'All types' }, ...ASSET_TYPES.map((t) => ({ value: t, label: lbl(t) }))]} /></div>
       </div>
 
       <div className="card overflow-hidden">
@@ -175,7 +174,7 @@ export default function AssetsPage() {
                         : <span className="text-muted2">—</span>}
                     </td>
                     <td className="px-4 py-3 text-2xs text-muted">{nameOf(a.owner_id)}</td>
-                    <td className="px-4 py-3"><span className={`pill ${STATUS_PILL[a.status] || 'pill-gray'}`}>{a.status}</span></td>
+                    <td className="px-4 py-3"><span className={`pill capitalize ${STATUS_PILL[a.status] || 'pill-gray'}`}>{a.status}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -219,9 +218,7 @@ export default function AssetsPage() {
               />
             </Field>
             <Field label="Asset type">
-              <select className="input" value={editor.draft.asset_type || 'digital'} onChange={(e) => setD({ asset_type: e.target.value as Asset['asset_type'] })}>
-                {ASSET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <Select value={editor.draft.asset_type || 'digital'} onChange={(v) => setD({ asset_type: v as Asset['asset_type'] })} options={ASSET_TYPES.map((t) => ({ value: t, label: lbl(t) }))} />
             </Field>
             <Field label="Category">
               <input
@@ -232,10 +229,7 @@ export default function AssetsPage() {
               />
             </Field>
             <Field label="Owner">
-              <select className="input" value={editor.draft.owner_id || ''} onChange={(e) => setD({ owner_id: e.target.value || undefined })}>
-                <option value="">—</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
+              <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || undefined })} search placeholder="Unassigned" options={[{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Acquired on">
               <input
@@ -246,9 +240,7 @@ export default function AssetsPage() {
               />
             </Field>
             <Field label="Currency">
-              <select className="input" value={editor.draft.currency || 'USD'} onChange={(e) => setD({ currency: e.target.value })}>
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <Select value={editor.draft.currency || 'USD'} onChange={(v) => setD({ currency: v })} options={CURRENCIES.map((c) => ({ value: c, label: c }))} />
             </Field>
             <Field label="Value">
               <input
@@ -267,9 +259,7 @@ export default function AssetsPage() {
               />
             </Field>
             <Field label="Status">
-              <select className="input" value={editor.draft.status || 'active'} onChange={(e) => setD({ status: e.target.value as Asset['status'] })}>
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={editor.draft.status || 'active'} onChange={(v) => setD({ status: v as Asset['status'] })} options={STATUSES.map((st) => ({ value: st, label: lbl(st) }))} />
             </Field>
             <Field label="Notes">
               <input
