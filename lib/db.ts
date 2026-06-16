@@ -2607,3 +2607,20 @@ export async function listBillPayments(billId: string): Promise<BillPayment[]> {
 }
 export const addBillPayment = (row: { org_id: string; bill_id: string; amount: number; paid_on: string; method?: string; reference?: string; notes?: string; created_by: string }) => _create<BillPayment>('bill_payments', row);
 export const deleteBillPayment = (id: string) => _del('bill_payments', id);
+
+// ---- Accounting P3a: statements ----
+export interface PLRow { section: 'income' | 'expense'; account_id: string | null; code: string; name: string; amount: number; }
+export async function glPL(orgId: string, from?: string | null, to?: string | null): Promise<PLRow[]> {
+  const { data, error } = await sb.rpc('gl_pl', { p_org: orgId, p_from: from || null, p_to: to || null });
+  if (error) throw new Error(error.message); return (data as PLRow[]) || [];
+}
+export interface BSRow { section: 'asset' | 'liability' | 'equity'; account_id: string | null; code: string; name: string; amount: number; }
+export async function glBalanceSheet(orgId: string, asOf?: string | null): Promise<BSRow[]> {
+  const { data, error } = await sb.rpc('gl_balance_sheet', { p_org: orgId, p_as_of: asOf || null });
+  if (error) throw new Error(error.message); return (data as BSRow[]) || [];
+}
+export interface CashFlowRow { label: string; amount: number; }
+export async function glCashFlow(orgId: string, from?: string | null, to?: string | null): Promise<CashFlowRow[]> {
+  const { data, error } = await sb.rpc('gl_cash_flow', { p_org: orgId, p_from: from || null, p_to: to || null });
+  if (error) throw new Error(error.message); return (data as CashFlowRow[]) || [];
+}

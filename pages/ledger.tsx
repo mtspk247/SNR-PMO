@@ -7,7 +7,8 @@ import { useActiveOrg } from '@/lib/store';
 import {
   glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
   taxRates, taxRateSave, taxRateDelete, glTaxSummary,
-  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow,
+  glPL, glBalanceSheet, glCashFlow,
+  getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow,
 } from '@/lib/db';
 
 const TYPES = [
@@ -26,7 +27,7 @@ type JLine = { account_id: string; debit: string; credit: string; description: s
 
 export default function LedgerPage() {
   const org = useActiveOrg();
-  const [tab, setTab] = useState<'coa' | 'journal' | 'tb' | 'taxes'>('coa');
+  const [tab, setTab] = useState<'coa' | 'journal' | 'tb' | 'taxes' | 'reports'>('coa');
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
   const [journal, setJournal] = useState<JournalEntryRow[]>([]);
@@ -37,6 +38,13 @@ export default function LedgerPage() {
   const [taxFrom, setTaxFrom] = useState('');
   const [taxTo, setTaxTo] = useState(new Date().toISOString().slice(0, 10));
   const [taxDraft, setTaxDraft] = useState<{ id?: string; name: string; rate: string; kind: string; account_id: string; is_active: boolean } | null>(null);
+  const [rptType, setRptType] = useState<'pl' | 'bs' | 'cf'>('pl');
+  const [rptFrom, setRptFrom] = useState('');
+  const [rptTo, setRptTo] = useState(new Date().toISOString().slice(0, 10));
+  const [rptAsOf, setRptAsOf] = useState(new Date().toISOString().slice(0, 10));
+  const [plRows, setPlRows] = useState<PLRow[]>([]);
+  const [bsRows, setBsRows] = useState<BSRow[]>([]);
+  const [cfRows, setCfRows] = useState<CashFlowRow[]>([]);
   const [industry, setIndustry] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,6 +62,12 @@ export default function LedgerPage() {
   useEffect(() => { if (orgId && tab === 'journal') glJournal(orgId).then(setJournal).catch((e) => setErr(e.message)); }, [orgId, tab]);
   useEffect(() => { if (orgId && tab === 'tb') glTrialBalance(orgId, asOf).then(setTb).catch((e) => setErr(e.message)); }, [orgId, tab, asOf]);
   useEffect(() => { if (orgId && tab === 'taxes') { taxRates(orgId).then(setTaxList).catch((e) => setErr(e.message)); glTaxSummary(orgId, taxFrom || null, taxTo || null).then(setTaxSum).catch(() => {}); } }, [orgId, tab, taxFrom, taxTo]);
+  useEffect(() => {
+    if (!orgId || tab !== 'reports') return;
+    if (rptType === 'pl') glPL(orgId, rptFrom || null, rptTo || null).then(setPlRows).catch((e) => setErr(e.message));
+    else if (rptType === 'bs') glBalanceSheet(orgId, rptAsOf || null).then(setBsRows).catch((e) => setErr(e.message));
+    else glCashFlow(orgId, rptFrom || null, rptTo || null).then(setCfRows).catch((e) => setErr(e.message));
+  }, [orgId, tab, rptType, rptFrom, rptTo, rptAsOf]);
 
   // ── seed ──
   const seed = async () => {
@@ -113,6 +127,11 @@ export default function LedgerPage() {
   const tbTotals = useMemo(() => tb.reduce((t, r) => ({ d: t.d + Number(r.debit), c: t.c + Number(r.credit) }), { d: 0, c: 0 }), [tb]);
   const taxOut = useMemo(() => taxSum.filter((r) => r.kind === 'output').reduce((s2, r) => s2 + Number(r.amount), 0), [taxSum]);
   const taxIn = useMemo(() => taxSum.filter((r) => r.kind === 'input').reduce((s2, r) => s2 + Number(r.amount), 0), [taxSum]);
+  const plIncome = useMemo(() => plRows.filter((r) => r.section === 'income').reduce((s2, r) => s2 + Number(r.amount), 0), [plRows]);
+  const plExpense = useMemo(() => plRows.filter((r) => r.section === 'expense').reduce((s2, r) => s2 + Number(r.amount), 0), [plRows]);
+  const bsAssets = useMemo(() => bsRows.filter((r) => r.section === 'asset').reduce((s2, r) => s2 + Number(r.amount), 0), [bsRows]);
+  const bsLE = useMemo(() => bsRows.filter((r) => r.section !== 'asset').reduce((s2, r) => s2 + Number(r.amount), 0), [bsRows]);
+  const cfMap = (l: string) => Number(cfRows.find((r) => r.label === l)?.amount || 0);
   const saveTax = async () => {
     if (!orgId || !taxDraft || busy) return;
     setBusy(true); setErr('');
@@ -134,7 +153,8 @@ export default function LedgerPage() {
         { key: 'journal', label: 'Journal', icon: 'ti-notebook' },
         { key: 'tb', label: 'Trial Balance', icon: 'ti-scale' },
         { key: 'taxes', label: 'Taxes', icon: 'ti-receipt-tax' },
-      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb' | 'taxes')} />
+        { key: 'reports', label: 'Reports', icon: 'ti-chart-bar' },
+      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb' | 'taxes' | 'reports')} />
 
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {loading ? <Spinner /> : (
@@ -262,6 +282,70 @@ export default function LedgerPage() {
               <div className="rounded-lg border border-line p-3"><p className="text-2xs text-muted">Net payable</p><p className={`text-lg font-semibold tabular-nums ${taxOut - taxIn >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{money(taxOut - taxIn)}</p></div>
             </div>
           </div>
+        </div>
+      )}
+
+      {tab === 'reports' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex rounded-md border border-line bg-surface p-0.5">
+              {([['pl', 'P&L'], ['bs', 'Balance Sheet'], ['cf', 'Cash Flow']] as const).map(([v, l]) => (
+                <button key={v} onClick={() => setRptType(v)} className={`h-8 px-3 rounded text-sm transition ${rptType === v ? 'bg-accent/15 text-accentstrong font-medium' : 'text-muted hover:text-content'}`}>{l}</button>
+              ))}
+            </div>
+            {rptType === 'bs' ? (
+              <><span className="text-2xs text-muted ml-1">As of</span><input type="date" className="input h-8 w-40" value={rptAsOf} onChange={(e) => setRptAsOf(e.target.value)} /></>
+            ) : (
+              <><span className="text-2xs text-muted ml-1">From</span><input type="date" className="input h-8 w-36" value={rptFrom} onChange={(e) => setRptFrom(e.target.value)} /><span className="text-2xs text-muted">To</span><input type="date" className="input h-8 w-36" value={rptTo} onChange={(e) => setRptTo(e.target.value)} /></>
+            )}
+          </div>
+
+          {rptType === 'pl' && (
+            <div className="card overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-line"><span className="text-sm font-semibold text-content">Profit &amp; Loss</span></div>
+              <table className="w-full text-sm list-card"><tbody>
+                <tr><td className="px-4 py-2 font-semibold text-content" colSpan={2}>Income</td></tr>
+                {plRows.filter((r) => r.section === 'income').map((r) => (<tr key={r.account_id}><td className="px-4 py-1.5 pl-8 text-content">{r.code} {r.name}</td><td className="px-4 py-1.5 text-right tabular-nums w-44">{money(Number(r.amount))}</td></tr>))}
+                <tr className="font-medium"><td className="px-4 py-1.5 pl-8">Total income</td><td className="px-4 py-1.5 text-right tabular-nums">{money(plIncome)}</td></tr>
+                <tr><td className="px-4 py-2 font-semibold text-content" colSpan={2}>Expenses</td></tr>
+                {plRows.filter((r) => r.section === 'expense').map((r) => (<tr key={r.account_id}><td className="px-4 py-1.5 pl-8 text-content">{r.code} {r.name}</td><td className="px-4 py-1.5 text-right tabular-nums">{money(Number(r.amount))}</td></tr>))}
+                <tr className="font-medium"><td className="px-4 py-1.5 pl-8">Total expenses</td><td className="px-4 py-1.5 text-right tabular-nums">{money(plExpense)}</td></tr>
+                <tr className="font-semibold border-t-2 border-line"><td className="px-4 py-2.5">Net profit</td><td className={`px-4 py-2.5 text-right tabular-nums ${plIncome - plExpense >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{money(plIncome - plExpense)}</td></tr>
+              </tbody></table>
+            </div>
+          )}
+
+          {rptType === 'bs' && (
+            <div className="card overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-line flex items-center justify-between"><span className="text-sm font-semibold text-content">Balance Sheet</span><span className={`text-2xs font-medium ${Math.abs(bsAssets - bsLE) < 0.01 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.abs(bsAssets - bsLE) < 0.01 ? 'Balanced' : 'Out of balance'}</span></div>
+              <table className="w-full text-sm list-card"><tbody>
+                {(['asset', 'liability', 'equity'] as const).flatMap((sec) => {
+                  const rows = bsRows.filter((r) => r.section === sec);
+                  const tot = rows.reduce((s2, r) => s2 + Number(r.amount), 0);
+                  const lbl = sec === 'asset' ? 'Assets' : sec === 'liability' ? 'Liabilities' : 'Equity';
+                  return [
+                    <tr key={sec + '-h'}><td className="px-4 py-2 font-semibold text-content" colSpan={2}>{lbl}</td></tr>,
+                    ...rows.map((r, i) => (<tr key={sec + i}><td className="px-4 py-1.5 pl-8 text-content">{r.code} {r.name}</td><td className="px-4 py-1.5 text-right tabular-nums w-44">{money(Number(r.amount))}</td></tr>)),
+                    <tr key={sec + '-t'} className="font-medium"><td className="px-4 py-1.5 pl-8">Total {lbl.toLowerCase()}</td><td className="px-4 py-1.5 text-right tabular-nums">{money(tot)}</td></tr>,
+                  ];
+                })}
+                <tr className="font-semibold border-t-2 border-line"><td className="px-4 py-2.5">Assets vs Liabilities + Equity</td><td className="px-4 py-2.5 text-right tabular-nums">{money(bsAssets)} / {money(bsLE)}</td></tr>
+              </tbody></table>
+            </div>
+          )}
+
+          {rptType === 'cf' && (
+            <div className="card overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-line"><span className="text-sm font-semibold text-content">Cash Flow</span></div>
+              <table className="w-full text-sm list-card"><tbody>
+                <tr><td className="px-4 py-2 text-content">Opening cash</td><td className="px-4 py-2 text-right tabular-nums w-44">{money(cfMap('opening'))}</td></tr>
+                <tr><td className="px-4 py-2 pl-8 text-content">Cash in</td><td className="px-4 py-2 text-right tabular-nums text-emerald-600">{money(cfMap('inflows'))}</td></tr>
+                <tr><td className="px-4 py-2 pl-8 text-content">Cash out</td><td className="px-4 py-2 text-right tabular-nums text-rose-600">{money(cfMap('outflows'))}</td></tr>
+                <tr className="font-medium"><td className="px-4 py-2">Net change</td><td className="px-4 py-2 text-right tabular-nums">{money(cfMap('net'))}</td></tr>
+                <tr className="font-semibold border-t-2 border-line"><td className="px-4 py-2.5">Closing cash</td><td className="px-4 py-2.5 text-right tabular-nums">{money(cfMap('closing'))}</td></tr>
+              </tbody></table>
+            </div>
+          )}
         </div>
       )}
 
