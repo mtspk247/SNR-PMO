@@ -1245,6 +1245,11 @@ export async function logAudit(p: {
 
 // ---- 2.7 Users admin / RBAC ----------------------------------------------
 const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, role_template_id, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, annual_balance, sick_balance, casual_balance';
+export interface UserAffiliation { user_id: string; companies: string[]; projects: string[]; }
+export async function userAffiliations(orgId: string): Promise<UserAffiliation[]> {
+  const { data, error } = await sb.rpc('user_affiliations', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as UserAffiliation[]) || [];
+}
 export async function getAdminUsers(): Promise<AdminUser[]> {
   const { data, error } = await sb.from('users').select(ADMIN_USER_COLS).order('full_name');
   if (error) throw error; return (data as AdminUser[]) || [];

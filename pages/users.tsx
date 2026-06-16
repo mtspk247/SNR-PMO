@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
-import { getAdminUsers, updateUserAdmin, listRoleTemplates, createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember } from '@/lib/db';
+import { getAdminUsers, updateUserAdmin, listRoleTemplates, createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, userAffiliations, UserAffiliation } from '@/lib/db';
 import { AdminUser, RoleTemplate, Team } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -99,20 +99,28 @@ export default function UsersPage() {
   const [tab, setTab] = useState<Tab>('manage');
   const [sel, setSel] = useState<string | null>(null);
   const [uGroup, setUGroup] = useState('none');
+  const [uView, setUView] = useState<'list' | 'cards'>('list');
+  const [affs, setAffs] = useState<Record<string, { companies: string[]; projects: string[] }>>({});
   const uGroupOptions = [
     { value: 'none', label: 'No grouping' },
     { value: 'role', label: 'Group by role' },
     { value: 'status', label: 'Group by status' },
     { value: 'team', label: 'Group by team' },
+    { value: 'company', label: 'Group by company' },
+    { value: 'project', label: 'Group by project' },
     { value: 'department', label: 'Group by department' },
   ];
   // Teams the user belongs to (from the loaded teams + their members junction).
   const teamsFor = (uid: string) => teams.filter((t) => (t.members || []).some((m) => m.user_id === uid)).map((t) => t.name);
+  const companiesFor = (uid: string) => affs[uid]?.companies || [];
+  const projectsFor = (uid: string) => affs[uid]?.projects || [];
   const ugKey = (x: AdminUser) => {
     switch (uGroup) {
       case 'role': return x.role || 'viewer';
       case 'status': return x.status || 'active';
       case 'team': { const ts = teamsFor(x.id); return ts[0] || '__noteam__'; }
+      case 'company': { const cs = companiesFor(x.id); return cs[0] || '__nocompany__'; }
+      case 'project': { const ps = projectsFor(x.id); return ps[0] || '__noproject__'; }
       case 'department': return x.department || '__nodept__';
       default: return 'all';
     }
@@ -122,6 +130,8 @@ export default function UsersPage() {
       case 'role': return k.replace('_', ' ');
       case 'status': return k === 'suspended' ? 'Suspended' : 'Active';
       case 'team': return k === '__noteam__' ? 'No team' : k;
+      case 'company': return k === '__nocompany__' ? 'No company' : k;
+      case 'project': return k === '__noproject__' ? 'No project' : k;
       case 'department': return k === '__nodept__' ? 'No department' : k;
       default: return k;
     }
@@ -138,6 +148,7 @@ export default function UsersPage() {
   useEffect(() => {
     getAdminUsers().then((u) => { setUsers(u); if (u.length) setSel((s) => s || u[0].id); }).finally(() => setLoading(false));
     listRoleTemplates().then(setRoles).catch(() => {});
+    if (org?.id) userAffiliations(org.id).then((rows: UserAffiliation[]) => setAffs(Object.fromEntries(rows.map((r) => [r.user_id, { companies: r.companies || [], projects: r.projects || [] }])))).catch(() => {});
   }, [org?.id]);
 
   if (!can.manageMembers(org)) {
@@ -211,18 +222,42 @@ export default function UsersPage() {
           </div>
 
           {tab === 'manage' ? (
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="w-full lg:w-72 lg:shrink-0">
+            <div className={`flex flex-col gap-4 ${uView === 'list' ? 'lg:flex-row' : ''}`}>
+              <div className={uView === 'cards' ? 'w-full' : 'w-full lg:w-72 lg:shrink-0'}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xs text-muted2">{users.length} users</span>
-                  <Dropdown value={uGroup} onChange={setUGroup} width={170} items={uGroupOptions}
-                    trigger={<span className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-line bg-surface text-2xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-layout-rows" className="text-2xs" />{uGroupOptions.find((o) => o.value === uGroup)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+                  <div className="flex items-center gap-1.5">
+                    <div className="inline-flex items-center rounded-md border border-line bg-surface p-0.5 h-7">
+                      {(['list', 'cards'] as const).map((vv) => (
+                        <button key={vv} onClick={() => setUView(vv)} title={vv === 'list' ? 'List' : 'Cards'} className={`h-6 px-1.5 rounded inline-flex items-center text-2xs transition ${uView === vv ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content'}`}><Icon name={vv === 'list' ? 'ti-list' : 'ti-layout-grid'} className="text-2xs" /></button>
+                      ))}
+                    </div>
+                    <Dropdown value={uGroup} onChange={setUGroup} width={180} items={uGroupOptions}
+                      trigger={<span className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-line bg-surface text-2xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-layout-rows" className="text-2xs" />{uGroupOptions.find((o) => o.value === uGroup)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+                  </div>
                 </div>
                 <div className="card rounded-t-none overflow-y-auto" style={{ maxHeight: '72vh' }}>
                   {users.length === 0 ? <EmptyState text="No users" /> : (uGroup === 'none' ? [{ key: 'all', label: '', items: users }] : buildGroups(users, ugKey, ugLabel)).map((g) => (
                     <div key={g.key}>
                       {g.label && <div className="px-4 py-1.5 bg-surface2/70 text-2xs font-medium text-muted2 uppercase tracking-wide sticky top-0 z-10 capitalize">{g.label} · {g.items.length}</div>}
-                      {g.items.map((x) => (
+                      {uView === 'cards' ? (
+                        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 p-3">
+                          {g.items.map((x) => (
+                            <button key={x.id} onClick={() => setSel(x.id)} className={`text-left rounded-xl border p-3 transition ${sel === x.id ? 'border-accent ring-1 ring-accent bg-accent/5' : 'border-line hover:border-borderstrong'}`}>
+                              <div className="flex items-center gap-2.5">
+                                <Avatar name={x.full_name} size={36} />
+                                <span className="min-w-0 flex-1"><span className="block text-sm font-medium truncate">{x.full_name}</span><span className="block text-2xs text-muted truncate">{x.email}</span></span>
+                                {x.status === 'suspended' && <span className="pill pill-red">susp</span>}
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-2.5">
+                                <span className="pill pill-gray capitalize">{(x.role || 'viewer').replace('_', ' ')}</span>
+                                {teamsFor(x.id).slice(0, 2).map((t) => <span key={t} className="pill pill-gray">{t}</span>)}
+                                {companiesFor(x.id).slice(0, 1).map((c) => <span key={c} className="pill pill-gray">{c}</span>)}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : g.items.map((x) => (
                         <button key={x.id} onClick={() => setSel(x.id)} className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line last:border-0 transition-colors ${sel === x.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2 border-l-2 border-l-transparent'}`}>
                           <Avatar name={x.full_name} size={32} />
                           <span className="min-w-0 flex-1"><span className="block text-sm font-medium truncate">{x.full_name}</span><span className="block text-2xs text-muted truncate">{x.email}</span></span>
