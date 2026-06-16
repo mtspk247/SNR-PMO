@@ -668,7 +668,7 @@ function CompensationCard({ employee, comp, payslips, isAdmin, orgId, meId, onSa
           )}
           <div>
             <label className="label">Pay schedule</label>
-            <Select value={schedule} onChange={(v) => setSchedule(v)} options={[{ value: '', label: 'Monthly' }, { value: '', label: 'Biweekly' }, { value: '', label: 'Weekly' }]} />
+            <Select value={schedule} onChange={(v) => setSchedule(v)} options={[{ value: 'Monthly', label: 'Monthly' }, { value: 'Biweekly', label: 'Biweekly' }, { value: 'Weekly', label: 'Weekly' }]} />
           </div>
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)} className="btn flex-1">Cancel</button>

@@ -341,7 +341,7 @@ function AssignModal({ people, templates, busy, onClose, onSubmit }:
             <Select value={userId} onChange={(v) => setUserId(v)} options={[{ value: '', label: 'Select…' }, ...people.map((p) => ({ value: p.id, label: p.full_name }))]} />
           </Field>
           <Field label="Template" required>
-            <Select value={tmplId} onChange={(v) => setTmplId(v)} options={[...templates.map((t) => ({ value: t.id, label: '{t.name} ({(t.items || []).length} steps)' }))]} />
+            <Select value={tmplId} onChange={(v) => setTmplId(v)} options={[...templates.map((t) => ({ value: t.id, label: `${t.name} (${(t.items || []).length} steps)` }))]} />
           </Field>
           <Field label="Start date" hint="Sets due dates for checklist items.">
             <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" />

@@ -186,10 +186,10 @@ export default function Projects() {
           </Field>
           <div className="flex gap-3">
             <Field label="Status" className="flex-1">
-              <Select value={np.status} onChange={(v) => setNp({ ...np, status: v })} options={[...pNames.map(s => ({ value: '', label: s }))]} />
+              <Select value={np.status} onChange={(v) => setNp({ ...np, status: v })} options={[...pNames.map(s => ({ value: s, label: s }))]} />
             </Field>
             <Field label="Priority" className="flex-1">
-              <Select value={np.priority} onChange={(v) => setNp({ ...np, priority: v })} options={[...PRIORITIES.map(p => ({ value: '', label: p }))]} />
+              <Select value={np.priority} onChange={(v) => setNp({ ...np, priority: v })} options={[...PRIORITIES.map(p => ({ value: p, label: p }))]} />
             </Field>
           </div>
           <div className="flex gap-3">

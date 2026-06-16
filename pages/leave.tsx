@@ -181,7 +181,7 @@ export default function LeavePage() {
         }
       >
         <div className="space-y-3.5">
-          <Field label="Type"><Select value={f.type} onChange={(v) => setF({ ...f, type: v })} options={[...TYPES.map((t) => ({ value: '', label: t }))]} /></Field>
+          <Field label="Type"><Select value={f.type} onChange={(v) => setF({ ...f, type: v })} options={[...TYPES.map((t) => ({ value: t, label: t }))]} /></Field>
           <div className="flex gap-3">
             <Field label="From" required className="flex-1"><input autoFocus type="date" value={f.start_date} onChange={(e) => setF({ ...f, start_date: e.target.value })} className="input" /></Field>
             <Field label="To" required className="flex-1"><input type="date" value={f.end_date} onChange={(e) => setF({ ...f, end_date: e.target.value })} className="input" /></Field>

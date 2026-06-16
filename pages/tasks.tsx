@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Dropdown from '@/components/Dropdown';
@@ -592,10 +593,7 @@ export default function Tasks() {
     switch (id) {
       case 'status':
         return (
-          <select key={id} value={t.status} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={(e) => setStatus(t.id, e.target.value)}
-            className={`w-full rounded-md px-2 py-0.5 text-2xs font-medium ring-1 ring-inset cursor-pointer outline-none ${statusMeta(t.status).soft}`}>
-            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <Select value={t.status} onChange={(v) => setStatus(t.id, v)} disabled={busy} options={[...statuses.map((s) => ({ value: s, label: s }))]} />
         );
       case 'assignee':
         return <div key={id} className="flex items-center min-w-0">{t.assignee_id ? <span title={userName(t.assignee_id)} className="inline-flex cursor-default"><Avatar name={userName(t.assignee_id)} size={22} src={userAvatar(t.assignee_id)} /></span> : <span className="text-muted2 text-2xs">—</span>}</div>;
@@ -820,15 +818,8 @@ export default function Tasks() {
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-surface border border-line rounded-xl shadow-2xl px-3 py-2">
           <span className="text-sm font-medium text-content">{sel.size} selected</span>
           <span className="text-muted2">·</span>
-          <select className="input h-8 w-auto py-0 text-sm" value="" onChange={(e) => { if (e.target.value) bulkAssignUser(e.target.value === '__un' ? '' : e.target.value); e.target.value = ''; }}>
-            <option value="">Assign to…</option>
-            <option value="__un">Unassigned</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-          </select>
-          <select className="input h-8 w-auto py-0 text-sm" value="" onChange={(e) => { if (e.target.value) bulkAssignTeam(e.target.value); e.target.value = ''; }}>
-            <option value="">Team…</option>
-            {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <div className="w-auto"><Select value="" onChange={(v) => { if (v) bulkAssignUser(v === '__un' ? '' : v); }} className="h-8 py-0" options={[{ value: '', label: 'Assign to…' }, { value: '__un', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} /></div>
+          <div className="w-auto"><Select value="" onChange={(v) => { if (v) bulkAssignTeam(v); }} className="h-8 py-0" options={[{ value: '', label: 'Team…' }, ...teams.map((t: any) => ({ value: t.id, label: t.name }))]} /></div>
           <button onClick={clearSel} className="btn btn-ghost h-8 py-0">Clear</button>
         </div>
       )}
@@ -867,14 +858,14 @@ export default function Tasks() {
           {taskTabs.tab === 'overview' && (
             <div className="space-y-3.5 mt-4">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Status"><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{statuses.map(s => <option key={s}>{s}</option>)}</select></Field>
-                <Field label="Assignee"><select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className="input"><option value="">Unassigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></Field>
-                <Field label="Priority"><select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">{priorities.map((p) => <option key={p}>{p}</option>)}</select></Field>
+                <Field label="Status"><Select value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={[...statuses.map(s => ({ value: s, label: s }))]} /></Field>
+                <Field label="Assignee"><Select value={form.assignee_id} onChange={(v) => setForm({ ...form, assignee_id: v })} options={[{ value: '', label: 'Unassigned' }, ...users.map(u => ({ value: u.id, label: u.full_name }))]} /></Field>
+                <Field label="Priority"><Select value={form.priority} onChange={(v) => setForm({ ...form, priority: v })} options={[...priorities.map((p) => ({ value: p, label: p }))]} /></Field>
                 <Field label="Due date"><input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" /></Field>
               </div>
               <Field label="Project">
                 <div className="flex items-center gap-2">
-                  <select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} className="input"><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                  <Select value={form.project_id} onChange={(v) => setForm({ ...form, project_id: v })} options={[{ value: '', label: 'No project' }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
                   {form.project_id && (
                     <button type="button" title="Open project page" onClick={() => router.push(`/projects/${form.project_id}`)} className="btn btn-ghost h-9 w-9 px-0 shrink-0 text-muted hover:text-accentstrong"><Icon name="ti-external-link" /></button>
                   )}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -251,9 +252,7 @@ export default function CRM() {
       <div className="mt-5 pt-4 border-t border-line">
         <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Activity</p>
         <div className="flex gap-2 mb-3">
-          <select value={actKind} onChange={(e) => setActKind(e.target.value)} className="input w-24 py-1 text-xs">
-            {ACT_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
-          </select>
+          <div className="w-24"><Select value={actKind} onChange={(v) => setActKind(v)} options={[...ACT_KINDS.map((k) => ({ value: k.id, label: k.label }))]} /></div>
           <input value={actBody} onChange={(e) => setActBody(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && logActivity()}
             placeholder="Log an activity…" className="input flex-1 py-1 text-xs" />
           <button onClick={logActivity} disabled={actBusy || !actBody.trim()} className="btn btn-sm" title="Log">
@@ -488,11 +487,7 @@ function CompanyField({ companies, value, onChange, onAddCompany }:
         </div>
       ) : (
         <div className="flex gap-2">
-          <select value={value} onChange={(e) => e.target.value === '__new' ? setAdding(true) : onChange(e.target.value)} className="input flex-1">
-            <option value="">No company</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            <option value="__new">+ New company…</option>
-          </select>
+          <Select value={value} onChange={(v) => v === '__new' ? setAdding(true) : onChange(v)} options={[{ value: '', label: 'No company' }, ...companies.map((c) => ({ value: c.id, label: c.name })), { value: '__new', label: '+ New company…' }]} />
         </div>
       )}
     </Field>
@@ -547,9 +542,7 @@ function DealModal({ open, companies, contacts, busy, stages, onAddCompany, onCl
               <input value={value} onChange={(e) => setValue(e.target.value)} type="number" min="0" placeholder="0" className="input" />
             </Field>
             <Field label="Stage" className="flex-1">
-              <select value={stage} onChange={(e) => setStage(e.target.value)} className="input">
-                {stages.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={stage} onChange={(v) => setStage(v)} options={[...stages.map((s) => ({ value: s, label: s }))]} />
             </Field>
           </div>
           <Field label="Expected close">
@@ -564,10 +557,7 @@ function DealModal({ open, companies, contacts, busy, stages, onAddCompany, onCl
         <div className="space-y-3.5">
           <CompanyField companies={companies} value={companyId} onChange={setCompanyId} onAddCompany={onAddCompany} />
           <Field label="Primary contact">
-            <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="input">
-              <option value="">None</option>
-              {pickable.map((c) => <option key={c.id} value={c.id}>{c.full_name}{c.title ? ` · ${c.title}` : ''}</option>)}
-            </select>
+            <Select value={contactId} onChange={(v) => setContactId(v)} options={[{ value: '', label: 'None' }, ...pickable.map((c) => ({ value: c.id, label: `${c.full_name}${c.title ? ` · ${c.title}` : ''}` }))]} />
           </Field>
         </div>
       )}
@@ -619,9 +609,7 @@ function ContactModal({ open, companies, busy, onAddCompany, onClose, onSubmit }
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. VP Sales" className="input" />
           </Field>
           <Field label="Status" className="flex-1">
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
-              {['Lead', 'Active', 'Customer', 'Inactive'].map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <Select value={status} onChange={(v) => setStatus(v)} options={[...['Lead', 'Active', 'Customer', 'Inactive'].map((s) => ({ value: s, label: s }))]} />
           </Field>
         </div>
         <CompanyField companies={companies} value={companyId} onChange={setCompanyId} onAddCompany={onAddCompany} />

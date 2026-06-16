@@ -83,7 +83,7 @@ export default function CustomFields({
         return <input key={k} type="checkbox" checked={v === 'true'} onChange={(e) => save(d.id, String(e.target.checked))} className="accent-accentstrong" />;
       case 'dropdown':
         return (
-          <Select value={v} onChange={(v) => save(d.id, v)} className="h-8 py-0 max-w-[10rem]" options={[{ value: '', label: 'None' }, ...(d.options || []).map((o) => ({ value: '', label: o }))]} />
+          <Select value={v} onChange={(v) => save(d.id, v)} className="h-8 py-0 max-w-[10rem]" options={[{ value: '', label: 'None' }, ...(d.options || []).map((o) => ({ value: o, label: o }))]} />
         );
       case 'date':
         return <input key={k} type="date" value={v} onChange={(e) => save(d.id, e.target.value)} className="input h-8 py-0 text-sm max-w-[10rem]" />;

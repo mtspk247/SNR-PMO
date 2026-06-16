@@ -160,7 +160,7 @@ export default function PayrollPage() {
                       <Icon name="ti-users-plus" />Load active employees
                     </button>
                   )}
-                  <div className="w-36"><Select value={run.status} onChange={(v) => setStatus(run, v as PayrollRun['status'])} disabled={busy} options={[{ value: '', label: 'Draft' }, { value: '', label: 'Processed' }, { value: '', label: 'Paid' }, { value: '', label: 'Cancelled' }]} /></div>
+                  <div className="w-36"><Select value={run.status} onChange={(v) => setStatus(run, v as PayrollRun['status'])} disabled={busy} options={[{ value: 'Draft', label: 'Draft' }, { value: 'Processed', label: 'Processed' }, { value: 'Paid', label: 'Paid' }, { value: 'Cancelled', label: 'Cancelled' }]} /></div>
                   <button onClick={() => removeRun(run.id)} disabled={busy} className="btn btn-ghost h-9 px-2 text-rose-500"><Icon name="ti-trash" /></button>
                 </div>
               </div>
