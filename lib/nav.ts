@@ -96,24 +96,29 @@ export const SECTIONS: NavSection[] = [
     { href: '/guests', label: 'Guests', icon: 'ti-user-question', adminOnly: true },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Accounting', icon: 'ti-report-money', items: [
+    // Core ledger & reporting
     { href: '/ledger', label: 'General Ledger', icon: 'ti-book-2', feature: 'financial' },
+    { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
+    // Receivables
+    { href: '/invoicing', label: 'Invoicing', icon: 'ti-file-invoice', feature: 'financial', search: searchInvoices },
+    { href: '/credit-notes', label: 'Credit notes', icon: 'ti-receipt-refund', feature: 'financial', search: searchCreditNotes },
+    { href: '/recurring-billing', label: 'Recurring Billing', icon: 'ti-refresh', feature: 'financial' },
+    { href: '/revenue-recognition', label: 'Revenue Recognition', icon: 'ti-calendar-stats', feature: 'financial' },
+    // Payables
+    { href: '/bills', label: 'Bills / Purchases', icon: 'ti-file-dollar', feature: 'financial' },
+    { href: '/expense-claims', label: 'Expense Claims', icon: 'ti-receipt-2', feature: 'financial' },
+    { href: '/recurring', label: 'Recurring Expenses', icon: 'ti-repeat', feature: 'financial', search: searchRecurring },
+    { href: '/subscriptions', label: 'Vendor Subscriptions', icon: 'ti-credit-card', feature: 'subscriptions', search: searchSubscriptions },
+    // Catalog & stock
     { href: '/products', label: 'Products & Services', icon: 'ti-box', feature: 'financial' },
     { href: '/inventory', label: 'Inventory', icon: 'ti-packages', feature: 'financial' },
-    { href: '/recurring-billing', label: 'Recurring Billing', icon: 'ti-refresh', feature: 'financial' },
-    { href: '/expense-claims', label: 'Expense Claims', icon: 'ti-receipt-2', feature: 'financial' },
-    { href: '/revenue-recognition', label: 'Revenue Recognition', icon: 'ti-calendar-stats', feature: 'financial' },
-    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
-    { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
-    { href: '/accounting', label: 'Ledger', icon: 'ti-report-money', feature: 'financial' },
-    { href: '/subscriptions', label: 'Subscriptions', icon: 'ti-credit-card', feature: 'subscriptions', search: searchSubscriptions },
-    { href: '/recurring', label: 'Recurring', icon: 'ti-repeat', feature: 'financial', search: searchRecurring },
-    { href: '/domains', label: 'Domains', icon: 'ti-world-www', feature: 'financial', search: searchDomains },
+    // Registers (balance sheet)
+    { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial', search: searchBankAccounts },
     { href: '/assets', label: 'Assets', icon: 'ti-building-warehouse', feature: 'financial', search: searchAssets },
     { href: '/liabilities', label: 'Liabilities', icon: 'ti-businessplan', feature: 'financial' },
-    { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial', search: searchBankAccounts },
-    { href: '/invoicing', label: 'Invoicing', icon: 'ti-file-invoice', feature: 'financial', search: searchInvoices },
-    { href: '/bills', label: 'Bills / Purchases', icon: 'ti-file-dollar', feature: 'financial' },
-    { href: '/credit-notes', label: 'Credit notes', icon: 'ti-receipt-refund', feature: 'financial', search: searchCreditNotes },
+    { href: '/domains', label: 'Domains', icon: 'ti-world-www', feature: 'financial', search: searchDomains },
+    // Analysis
+    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
     { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm', search: searchDeals },

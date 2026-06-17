@@ -266,9 +266,14 @@ export default function AccountingPage() {
 
   return (
     <Layout flat title="Accounting">
+      <div className="card p-3.5 mb-4 flex flex-wrap items-center gap-3 border-amber-400/40 bg-amber-500/5">
+        <Icon name="ti-info-circle" className="text-base text-amber-600 shrink-0" />
+        <span className="text-sm text-content flex-1 min-w-0">This is the classic single-entry ledger, superseded by the double-entry <strong>General Ledger</strong> (journal, trial balance, P&amp;L, periods, multi-currency). New work should use the General Ledger.</span>
+        <a href="/ledger" className="btn btn-primary shrink-0"><Icon name="ti-book-2" />Open General Ledger</a>
+      </div>
       <PageHeader
-        title="Accounting"
-        subtitle="Income & expense ledger across the workspace — payroll posts Salaries here automatically."
+        title="Accounting (classic ledger)"
+        subtitle="Legacy income & expense ledger — kept for historical entries. Use the General Ledger for new accounting."
         action={
           <div className="flex items-center gap-2">
             {pageView === 'entries' ? (
