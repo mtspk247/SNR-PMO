@@ -98,6 +98,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/ledger', label: 'General Ledger', icon: 'ti-book-2', feature: 'financial' },
     { href: '/products', label: 'Products & Services', icon: 'ti-box', feature: 'financial' },
     { href: '/recurring-billing', label: 'Recurring Billing', icon: 'ti-refresh', feature: 'financial' },
+    { href: '/expense-claims', label: 'Expense Claims', icon: 'ti-receipt-2', feature: 'financial' },
     { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
     { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
     { href: '/accounting', label: 'Ledger', icon: 'ti-report-money', feature: 'financial' },

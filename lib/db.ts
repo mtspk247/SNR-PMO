@@ -2729,3 +2729,20 @@ export interface RiskMetrics { cash?: number; ar_outstanding?: number; ar_overdu
 export async function glRiskMetrics(orgId: string): Promise<RiskMetrics> {
   const { data, error } = await sb.rpc('gl_risk_metrics', { p_org: orgId }); if (error) throw new Error(error.message); return (data as RiskMetrics) || {};
 }
+
+// ---- Accounting P10b: employee expense claims ----
+export interface ExpenseClaim { id: string; org_id: string; employee_id: string | null; title: string; amount: number; currency: string; tax_rate: number; claim_date: string; status: string; expense_account_id: string | null; notes: string | null; created_at: string; }
+export async function expenseClaims(orgId: string): Promise<ExpenseClaim[]> {
+  const { data, error } = await sb.from('expense_claims').select('*').eq('org_id', orgId).order('claim_date', { ascending: false });
+  if (error) throw new Error(error.message); return (data as ExpenseClaim[]) || [];
+}
+export async function expenseClaimSave(orgId: string, p: { id?: string | null; employee_id?: string | null; title: string; amount: number; currency?: string | null; tax_rate?: number; claim_date?: string | null; expense_account_id?: string | null; notes?: string | null }): Promise<string> {
+  const { data, error } = await sb.rpc('expense_claim_save', { p_org: orgId, p_id: p.id || null, p_employee: p.employee_id || null, p_title: p.title, p_amount: p.amount, p_currency: p.currency || null, p_tax_rate: p.tax_rate ?? 0, p_date: p.claim_date || null, p_account: p.expense_account_id || null, p_notes: p.notes || null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function expenseClaimSetStatus(orgId: string, id: string, status: string): Promise<void> {
+  const { error } = await sb.rpc('expense_claim_set_status', { p_org: orgId, p_id: id, p_status: status }); if (error) throw new Error(error.message);
+}
+export async function expenseClaimDelete(orgId: string, id: string): Promise<void> {
+  const { error } = await sb.rpc('expense_claim_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
+}
