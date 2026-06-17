@@ -2727,6 +2727,22 @@ export async function bankLineReconcile(orgId: string, lineId: string, on: boole
 }
 
 // ---- Accounting P8: CRM deal -> invoice (revenue posts on the invoice, not on conversion) ----
+export interface DocTemplate { id: string; org_id: string; name: string; doc_type: string; body: string | null; is_default: boolean; created_by: string | null; created_at: string; updated_at: string; }
+export async function listDocTemplates(orgId: string): Promise<DocTemplate[]> {
+  const { data, error } = await sb.from('document_templates').select('*').eq('org_id', orgId).order('doc_type').order('name');
+  if (error) throw new Error(error.message); return (data as DocTemplate[]) || [];
+}
+export async function createDocTemplate(p: { org_id: string; name: string; doc_type: string; body?: string }): Promise<DocTemplate> {
+  const { data, error } = await sb.from('document_templates').insert({ org_id: p.org_id, name: p.name, doc_type: p.doc_type, body: p.body ?? '' }).select('*').single();
+  if (error) throw new Error(error.message); return data as DocTemplate;
+}
+export async function updateDocTemplate(id: string, patch: { name?: string; doc_type?: string; body?: string }): Promise<void> {
+  const { error } = await sb.from('document_templates').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteDocTemplate(id: string): Promise<void> {
+  const { error } = await sb.from('document_templates').delete().eq('id', id); if (error) throw new Error(error.message);
+}
 export async function leadToDeal(leadId: string): Promise<string> {
   const { data, error } = await sb.rpc('lead_to_deal', { p_lead: leadId }); if (error) throw new Error(error.message); return data as string;
 }

@@ -119,6 +119,21 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'templates',
+    title: 'Document templates',
+    icon: 'ti-files',
+    blocks: [
+      { kind: 'p', text: 'Build branded, reusable documents once and use them many times — proposals, contracts, agreements, offer letters and emails. Find them under Administration ▸ Templates (owner/admin).' },
+      { kind: 'steps', items: [
+        { title: 'Create a template', body: 'Templates ▸ New template. Name it, pick a type (Proposal, Contract, Offer letter, etc.), and write the content with the rich-text editor (headings, lists, bold, links).' },
+        { title: 'Add merge fields', body: 'Use “Insert field” to drop tags like {{client_name}}, {{company_name}}, {{amount}}, {{date}}, {{workspace_name}}. They fill in automatically when you generate a document for a specific client/deal.' },
+        { title: 'Branded letterhead', body: 'Every template previews on your letterhead — your logo, workspace name, address and contact details (from Settings ▸ Profile) appear at the top automatically.' },
+        { title: 'Reuse', body: 'Pick a template whenever you need that document. Keep several per type (e.g. a short and a detailed proposal) for different purposes.' },
+      ] },
+      { kind: 'callout', icon: 'ti-bulb', text: 'Set up your business profile and logo first (Settings ▸ Profile) so the letterhead on every document looks right.' },
+    ],
+  },
+  {
     id: 'hierarchy',
     title: 'Tenancy & RBAC',
     icon: 'ti-sitemap',
