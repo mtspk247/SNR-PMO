@@ -9,7 +9,7 @@ import EntityLink from '@/components/EntityLink';
 import CustomFields from '@/components/CustomFields';
 import { DetailMeta } from '@/components/Detail';
 import EntityTags from '@/components/EntityTags';
-import { getDealActivities, createActivity, deleteActivity, dealToInvoice } from '@/lib/db';
+import { getDealActivities, createActivity, deleteActivity, dealToInvoice, createClient } from '@/lib/db';
 import { hasFeature } from '@/lib/entitlements';
 import { CrmActivity } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -46,6 +46,14 @@ export default function DealDetail() {
     if (!org || !deal || invBusy) return; setInvBusy(true);
     try { await dealToInvoice(org.id, deal.id); router.push('/invoicing'); }
     catch (e: any) { alert(e.message || 'Could not create invoice'); setInvBusy(false); }
+  };
+  const [cliBusy, setCliBusy] = useState(false);
+  const convertToClient = async () => {
+    if (!org || !deal || !me || cliBusy) return; setCliBusy(true);
+    try {
+      await createClient({ org_id: org.id, name: deal.crm_companies?.name || deal.title, contact_name: deal.crm_contacts?.full_name || undefined, status: 'active', since: new Date().toISOString().slice(0, 10), owner_id: deal.owner_id || undefined, created_by: me.id });
+      router.push('/clients');
+    } catch (e: any) { alert(e.message || 'Could not create client'); setCliBusy(false); }
   };
 
   useSetCrumbs(deal ? [{ label: 'CRM', href: '/crm' }, { label: deal.title }] : null);
@@ -98,6 +106,9 @@ export default function DealDetail() {
             {deal.company_id && (
               <EntityLink label={deal.crm_companies?.name || 'Company'} icon="ti-building"
                 href={`/crm/company/${deal.company_id}`} />
+            )}
+            {canManage && deal.stage === 'Won' && (
+              <button onClick={convertToClient} disabled={cliBusy} className="btn" title="Create a client account from this won deal"><Icon name="ti-user-check" />{cliBusy ? 'Creating…' : 'Convert to client'}</button>
             )}
             {canManage && hasFeature(org, 'financial') && Number(deal.value) > 0 && (
               <button onClick={createInvoice} disabled={invBusy} className={`btn ${deal.stage === 'Won' ? 'btn-primary' : ''}`} title="Generate an invoice from this deal (posts revenue when issued)"><Icon name="ti-file-invoice" />{invBusy ? 'Creating…' : 'Create invoice'}</button>
