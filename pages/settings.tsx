@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
-import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getTenantEvents, TenantEvent } from '@/lib/db';
+import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { getOrgProfile, saveOrgProfile } from '@/lib/db';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
@@ -12,8 +12,6 @@ import DemoDataCard from '@/components/DemoDataCard';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { FEATURE_LABELS, formatPrice } from '@/lib/entitlements';
-import { OrgPlanInfo, FeatureKey, Plan, PlanFeature } from '@/lib/supabase';
 
 function SkinThumb({ sk }: { sk: SkinMeta }) {
   const { bg, sf, bd, tx, mu, ac } = sk.c; const r = Math.min(sk.r, 6);
@@ -45,115 +43,6 @@ function SkinThumb({ sk }: { sk: SkinMeta }) {
         <span style={{ height: 5, borderRadius: 3, width: '58%', background: mu }} />
       </div>
       {body}
-    </div>
-  );
-}
-
-function PlanPanel({ org, canBill }: { org: { id: string; features?: string[] }; canBill: boolean }) {
-  const [info, setInfo] = useState<OrgPlanInfo | null>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [pf, setPf] = useState<PlanFeature[]>([]);
-  const [busy, setBusy] = useState('');
-  const [billErr, setBillErr] = useState('');
-  useEffect(() => { getOrgPlanInfo(org.id).then(setInfo).catch(() => {}); listPlans().then(setPlans).catch(() => {}); listPlanFeatures().then(setPf).catch(() => {}); }, [org.id]);
-  const features = org.features || [];
-
-  const goCheckout = async (planKey: string) => {
-    setBusy(planKey); setBillErr('');
-    try { const url = await startCheckout(org.id, planKey); window.location.href = url; }
-    catch (e: any) { setBillErr(e?.message || 'Could not start checkout'); setBusy(''); }
-  };
-  const goPortal = async () => {
-    setBusy('portal'); setBillErr('');
-    try { const url = await openBillingPortal(org.id); window.location.href = url; }
-    catch (e: any) { setBillErr(e?.message || 'Could not open billing portal'); setBusy(''); }
-  };
-  const upgradeable = plans.filter((p) => p.is_active && p.key !== 'free' && p.key !== info?.plan?.key);
-  const seatLabel = info?.seat_limit == null ? 'Unlimited' : `${info.seat_count} / ${info.seat_limit}`;
-  const overSeats = info?.seat_limit != null && info.seat_count >= info.seat_limit;
-  return (
-    <div className="card p-6 max-w-4xl mb-6 bg-gradient-to-br from-surface to-surface2/50 border border-line/50">
-      <div className="flex items-start justify-between flex-wrap gap-6 pb-6 border-b border-line">
-        <div>
-          <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Current plan</p>
-          <p className="text-xl font-semibold text-content">{info?.plan?.name || '—'}
-            {info?.status && info.status !== 'active' && <span className="ml-2 text-xs text-amber-600 capitalize">({info.status})</span>}
-          </p>
-          {info?.plan && <p className="text-sm text-muted">{formatPrice(info.plan.price_cents, info.plan.pricing_model)}</p>}
-        </div>
-        <div className="text-right">
-          <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Seats used</p>
-          <p className={`text-xl font-semibold ${overSeats ? 'text-rose-600' : 'text-content'}`}>{seatLabel}</p>
-          {overSeats && <p className="text-2xs text-rose-600">Seat limit reached</p>}
-        </div>
-      </div>
-      <div className="mt-6">
-        <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Included features</p>
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(FEATURE_LABELS) as FeatureKey[]).map((k) => {
-            const on = features.includes(k);
-            return (
-              <span key={k} className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition ${on ? 'border-accent/30 bg-accent/10 text-accentstrong' : 'border-line bg-surface2 text-muted'}`}>
-                <Icon name={on ? 'ti-check' : 'ti-minus'} className="text-2xs" />{FEATURE_LABELS[k]}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-      {plans.length > 1 && (
-        <div className="mt-6 pt-6 border-t border-line">
-          <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Compare plans</p>
-          <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead>
-              <tr>
-                <th className="text-left px-3 py-2 font-medium text-muted text-2xs uppercase tracking-wide">Feature</th>
-                {plans.filter((p) => p.is_active).sort((a, b) => a.sort_order - b.sort_order).map((p) => (
-                  <th key={p.id} className={`px-3 py-2 text-center ${p.key === info?.plan?.key ? 'text-accentstrong' : 'text-content'}`}>
-                    <span className="font-semibold block">{p.name}</span>
-                    {p.key === info?.plan?.key ? <span className="block text-2xs text-accentstrong">Current</span>
-                      : <span className="block text-2xs text-muted font-normal">{formatPrice(p.price_cents, p.pricing_model)}</span>}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(Object.keys(FEATURE_LABELS) as FeatureKey[]).map((fk) => (
-                <tr key={fk} className="border-t border-line">
-                  <td className="px-3 py-2 text-content">{FEATURE_LABELS[fk]}</td>
-                  {plans.filter((p) => p.is_active).sort((a, b) => a.sort_order - b.sort_order).map((p) => (
-                    <td key={p.id} className={`px-3 py-2 text-center ${p.key === info?.plan?.key ? 'bg-accent/5' : ''}`}>
-                      {pf.some((x) => x.plan_id === p.id && x.feature_key === fk && x.enabled)
-                        ? <Icon name="ti-check" className="text-emerald-600" />
-                        : <Icon name="ti-minus" className="text-muted2" />}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
-        </div>
-      )}
-
-      {/* Billing actions */}
-      <div className="mt-6 pt-6 border-t border-line">
-        <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Billing</p>
-        {billErr && <p className="text-sm text-rose-600 mb-3">{billErr}</p>}
-        {canBill ? (<>
-          <div className="flex flex-wrap items-center gap-2">
-            {upgradeable.map((p) => (
-              <button key={p.id} className="btn btn-primary" disabled={!!busy} onClick={() => goCheckout(p.key)}>
-                {busy === p.key ? 'Redirecting…' : `Upgrade to ${p.name}`}
-              </button>
-            ))}
-            <button className="btn btn-ghost border border-line" disabled={!!busy} onClick={goPortal}>
-              {busy === 'portal' ? 'Opening…' : 'Manage billing'}
-            </button>
-          </div>
-          <p className="text-2xs text-muted mt-3">Upgrades open secure Stripe Checkout — you review and confirm the charge there before paying. Manage billing opens the Stripe customer portal to change or cancel. Seat counts sync automatically.</p>
-        </>) : (
-          <p className="text-sm text-muted">Only the workspace owner can change the plan or manage billing. Ask an owner to upgrade.</p>
-        )}
-      </div>
     </div>
   );
 }
@@ -317,52 +206,15 @@ function WipeWorkspace({ org }: { org: { id: string; name: string } }) {
   );
 }
 
-function PlanHistory({ org }: { org: { id: string } }) {
-  const [events, setEvents] = useState<TenantEvent[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => { getTenantEvents(org.id).then(setEvents).catch(() => setEvents([])).finally(() => setLoaded(true)); }, [org.id]);
-  const META: Record<string, { label: string; icon: string }> = {
-    signup: { label: 'Signed up', icon: 'ti-sparkles' },
-    plan_changed: { label: 'Plan changed', icon: 'ti-package' },
-    suspended: { label: 'Suspended', icon: 'ti-ban' },
-    reactivated: { label: 'Reactivated', icon: 'ti-circle-check' },
-    payment: { label: 'Payment', icon: 'ti-credit-card' },
-    email: { label: 'Message received', icon: 'ti-mail' },
-    campaign: { label: 'Message received', icon: 'ti-mail' },
-  };
-  if (!loaded || events.length === 0) return null;
-  return (
-    <div className="card p-6 mb-6 max-w-4xl">
-      <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Plan &amp; account history</p>
-      <p className="text-sm text-muted mb-4">Your signup, plan changes and billing events.</p>
-      <ol className="relative border-l border-line ml-2 space-y-3">
-        {events.map((ev) => { const m = META[ev.event_type] || { label: ev.event_type, icon: 'ti-point' }; return (
-          <li key={ev.id} className="ml-4 relative">
-            <span className="absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full bg-accent" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <Icon name={m.icon} className="text-sm text-muted2" />
-              <span className="text-sm font-medium text-content">{m.label}</span>
-              {ev.plan_from && ev.plan_to && <span className="text-2xs text-muted2 capitalize">{ev.plan_from} → {ev.plan_to}</span>}
-              {ev.amount_cents != null && <span className="text-2xs text-content font-medium">{(ev.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: ev.currency || 'USD' })}</span>}
-              <span className="text-2xs text-muted2 ml-auto whitespace-nowrap">{new Date(ev.created_at).toLocaleDateString()}</span>
-            </div>
-            {ev.reason && ev.event_type !== 'plan_changed' && <p className="text-2xs text-muted mt-0.5">{ev.reason}</p>}
-          </li>
-        ); })}
-      </ol>
-    </div>
-  );
-}
-
 export default function SettingsPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
-  const [tab, setTab] = useState<'notifications' | 'billing' | 'profile' | 'danger'>('notifications');
+  const [tab, setTab] = useState<'notifications' | 'profile' | 'danger'>('notifications');
   const [psub, setPsub] = useState<'business' | 'branding' | 'themes' | 'workspace'>('business');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { if (q === 'branding') { setTab('profile'); setPsub('branding'); } else if (['notifications', 'billing', 'profile', 'danger'].includes(q)) setTab(q as 'notifications' | 'billing' | 'profile' | 'danger'); } }, [router.query.tab]);
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { if (q === 'branding') { setTab('profile'); setPsub('branding'); } else if (['notifications', 'profile', 'danger'].includes(q)) setTab(q as 'notifications' | 'profile' | 'danger'); } }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -468,14 +320,11 @@ export default function SettingsPage() {
       {admin && (
         <Tabs tabs={[
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
-          { key: 'billing', label: 'Plan & billing', icon: 'ti-credit-card' },
           { key: 'profile', label: 'Profile', icon: 'ti-id-badge-2' },
           ...(isOwner ? [{ key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' }] : []),
         ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'billing' | 'profile' | 'danger')} />
       )}
       {(!admin || tab === 'notifications') && <NotificationPrefs />}
-      {admin && tab === 'billing' && <PlanPanel org={org} canBill={isOwner} />}
-      {admin && tab === 'billing' && <PlanHistory org={org} />}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
 
       {admin && tab === 'profile' && org && (

@@ -134,17 +134,19 @@ export const SECTIONS: NavSection[] = [
     { href: '/leave', label: 'Leave', icon: 'ti-beach', feature: 'attendance' },
   ]},
   { kind: 'link', item: { href: '/drives', label: 'Drives', icon: 'ti-cloud', feature: 'drives' } },
-  { kind: 'link', item: { href: '/support', label: 'Support', icon: 'ti-lifebuoy', feature: 'support' } },
+  { kind: 'menu', key: 'support', label: 'Support', icon: 'ti-lifebuoy', items: [
+    { href: '/support', label: 'Support', icon: 'ti-lifebuoy', feature: 'support' },
+    { href: '/admin/support-agents', label: 'Support Agents', icon: 'ti-headset', platformOnly: true },
+    { href: '/admin/support', label: 'Support Queue', icon: 'ti-list-check', platformOnly: true },
+  ]},
   { kind: 'link', item: { href: '/notes', label: 'Notes', icon: 'ti-notes' } },
   { kind: 'link', item: { href: '/trash', label: 'Trash', icon: 'ti-trash' } },
-  { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } },
 ];
 
 export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
-  { href: '/admin/support-agents', label: 'Support agents', icon: 'ti-headset', platformOnly: true },
-  { href: '/admin/support', label: 'Support queue', icon: 'ti-lifebuoy', platformOnly: true },
+  { href: '/billing', label: 'Billing', icon: 'ti-credit-card' },
   { href: '/lists', label: 'Lists & options', icon: 'ti-list-details' },
   { href: '/admin/notifications', label: 'Notifications', icon: 'ti-bell-cog' },
   { href: '/approvals', label: 'Approvals', icon: 'ti-checks' },
@@ -159,8 +161,10 @@ export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', lab
   { href: '/tenants', label: 'Tenants', icon: 'ti-building-community' },
 ] };
 
+export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } };
+
 // --- Derived lookups (do not hand-maintain) -----------------------------
-export const ALL_SECTIONS: NavSection[] = [...SECTIONS, ADMIN_SECTION, PLATFORM_SECTION];
+export const ALL_SECTIONS: NavSection[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK, PLATFORM_SECTION];
 
 // Flat list of every nav item across all sections.
 export const ALL_ITEMS: NavItem[] = ALL_SECTIONS.flatMap((s) => s.kind === 'link' ? [s.item] : s.items);
