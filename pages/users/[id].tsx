@@ -15,6 +15,7 @@ import {
   listRoleTemplates, getMyNotifSettings, getNotificationPrefs, saveNotificationPrefs, NotifSetting,
 } from '@/lib/db';
 import { AdminUser, RoleTemplate } from '@/lib/supabase';
+import AvatarPicker from '@/components/AvatarPicker';
 
 const ROLES = ['super_admin', 'pm', 'team_member', 'viewer'];
 const PERMS: { key: keyof AdminUser; label: string }[] = [
@@ -141,13 +142,11 @@ function ProfileTab({ u, isSelf, isAdmin, orgId, onSaved }: { u: AdminUser; isSe
 
   return (
     <Section>
-      <div className="flex items-center gap-4">
+      {isSelf ? (
+        <AvatarPicker value={avatar} name={fullName || u.full_name} onChange={setAvatar} onUpload={(file) => uploadAvatar(orgId, u.id, file)} />
+      ) : (
         <Avatar name={fullName || u.full_name || 'U'} size={56} src={avatarSrc(avatar)} />
-        {isSelf && <div className="flex items-center gap-2">
-          <label className="btn cursor-pointer"><Icon name="ti-upload" className="text-sm" />Upload photo<input type="file" accept="image/*" className="hidden" onChange={onFile} /></label>
-          {avatar && <button type="button" onClick={() => setAvatar('')} className="btn-ghost text-xs text-muted">Remove</button>}
-        </div>}
-      </div>
+      )}
       <div className="grid sm:grid-cols-2 gap-4">
         <div><label className="label">Full name</label><input className="input" value={fullName} disabled={!canEdit} onChange={(e) => setFullName(e.target.value)} /></div>
         <div><label className="label">Job title / designation</label><input className="input" value={jobTitle} disabled={!canEdit} onChange={(e) => setJobTitle(e.target.value)} placeholder="Project Manager" /></div>

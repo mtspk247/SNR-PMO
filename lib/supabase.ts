@@ -186,7 +186,7 @@ export interface ChecklistItem {
 
 export interface Team {
   id: string; org_id: string; name: string; description: string | null;
-  color: string | null; created_at: string;
+  color: string | null; avatar: string | null; created_at: string;
   members?: { user_id: string; users?: { full_name: string | null } | null }[];
 }
 

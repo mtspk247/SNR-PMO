@@ -1510,6 +1510,7 @@ export async function uploadAvatar(orgId: string, userId: string, file: File): P
 // (the avatars bucket is public, so no per-image signing needed for lists).
 export function avatarSrc(url?: string | null): string | undefined {
   if (!url) return undefined;
+  if (url.startsWith('preset:')) return url;
   if (/^https?:\/\//i.test(url)) return url;
   return sb.storage.from('avatars').getPublicUrl(url).data.publicUrl || undefined;
 }
@@ -1934,13 +1935,13 @@ export async function getTeams(): Promise<Team[]> {
   const { data, error } = await sb.from('teams').select(TEAM_SEL).order('name');
   if (error) throw error; return (data as Team[]) || [];
 }
-export async function createTeam(p: { org_id: string; name: string; description?: string; color?: string }): Promise<Team> {
+export async function createTeam(p: { org_id: string; name: string; description?: string; color?: string; avatar?: string }): Promise<Team> {
   const { data, error } = await sb.from('teams')
-    .insert({ org_id: p.org_id, name: p.name, description: p.description || null, color: p.color || null })
+    .insert({ org_id: p.org_id, name: p.name, description: p.description || null, color: p.color || null, avatar: p.avatar || null })
     .select(TEAM_SEL).single();
   if (error) throw new Error(error.message); return data as Team;
 }
-export async function updateTeam(id: string, patch: { name?: string; description?: string | null; color?: string | null }): Promise<Team> {
+export async function updateTeam(id: string, patch: { name?: string; description?: string | null; color?: string | null; avatar?: string | null }): Promise<Team> {
   const { data, error } = await sb.from('teams').update(patch).eq('id', id).select(TEAM_SEL).single();
   if (error) throw new Error(error.message); return data as Team;
 }

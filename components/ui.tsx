@@ -29,6 +29,12 @@ export const Pill = ({ label }: { label: string }) => (
 
 const AVATAR_COLORS = ['#6366F1', '#0EA5A4', '#EC8C36', '#E1568E', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4', '#7C3AED', '#0891B2'];
 export const Avatar = ({ name, size = 28, src }: { name: string; size?: number; src?: string | null }) => {
+  if (src && src.startsWith('preset:')) {
+    const emoji = src.slice(7);
+    const h = emoji.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const bg = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#ec4899','#8b5cf6','#14b8a6','#f97316','#22c55e','#3b82f6','#a855f7'][h % 12];
+    return <span style={{ width: size, height: size, fontSize: size * 0.55, background: bg }} className="inline-flex items-center justify-center rounded-full shrink-0">{emoji}</span>;
+  }
   if (src) return <img src={src} alt={name} style={{ width: size, height: size }} className="rounded-full object-cover shrink-0" />;
   const initials = (name || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
   const hash = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);

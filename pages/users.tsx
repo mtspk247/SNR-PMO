@@ -13,12 +13,14 @@ import { useTeams } from '@/lib/queries';
 import Dropdown from '@/components/Dropdown';
 import { buildGroups } from '@/components/ViewControls';
 import RolesManager from '@/components/RolesManager';
+import AvatarPicker from '@/components/AvatarPicker';
+import { avatarSrc } from '@/lib/db';
 import qk from '@/lib/queryKeys';
 
 const SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 type Tab = 'manage' | 'templates' | 'teams';
-type TeamDraft = { id?: string; name: string; description: string; color: string };
-const emptyTeamDraft = (): TeamDraft => ({ name: '', description: '', color: SWATCHES[0] });
+type TeamDraft = { id?: string; name: string; description: string; color: string; avatar: string };
+const emptyTeamDraft = (): TeamDraft => ({ name: '', description: '', color: SWATCHES[0], avatar: '' });
 
 function TeamMembersPanel({ team, users, orgId, onRefresh }: { team: Team; users: AdminUser[]; orgId: string; onRefresh: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -115,13 +117,13 @@ export default function UsersPage() {
 
   const open = (id: string) => router.push(`/users/${id}`);
   const openNewTeam = () => { setTeamDraftId(undefined); setTeamDraft(emptyTeamDraft()); };
-  const openEditTeam = (t: Team) => { setTeamDraftId(t.id); setTeamDraft({ name: t.name, description: t.description || '', color: t.color || SWATCHES[0] }); };
+  const openEditTeam = (t: Team) => { setTeamDraftId(t.id); setTeamDraft({ name: t.name, description: t.description || '', color: t.color || SWATCHES[0], avatar: t.avatar || '' }); };
   const saveTeam = async () => {
     if (!teamDraft || !org || !teamDraft.name.trim()) return;
     setTeamBusy(true);
     try {
-      if (teamDraftId) await updateTeam(teamDraftId, { name: teamDraft.name.trim(), description: teamDraft.description || null, color: teamDraft.color || null });
-      else await createTeam({ org_id: org.id, name: teamDraft.name.trim(), description: teamDraft.description || undefined, color: teamDraft.color || undefined });
+      if (teamDraftId) await updateTeam(teamDraftId, { name: teamDraft.name.trim(), description: teamDraft.description || null, color: teamDraft.color || null, avatar: teamDraft.avatar || null });
+      else await createTeam({ org_id: org.id, name: teamDraft.name.trim(), description: teamDraft.description || undefined, color: teamDraft.color || undefined, avatar: teamDraft.avatar || undefined });
       await qc.invalidateQueries({ queryKey: qk.teams(org?.id) });
       setTeamDraft(null);
     } catch (e: any) { alert(e.message); } finally { setTeamBusy(false); }
@@ -224,7 +226,7 @@ export default function UsersPage() {
                             return (
                               <div key={team.id} className="card p-5 flex flex-col">
                                 <div className="flex items-start gap-2 mb-2">
-                                  <span className="w-3 h-3 rounded-full mt-1 shrink-0" style={{ background: team.color || '#64748b' }} />
+                                  <span className="mt-0.5 shrink-0">{team.avatar ? <Avatar name={team.name} size={28} src={avatarSrc(team.avatar)} /> : <span className="w-7 h-7 rounded-full grid place-items-center text-xs font-semibold text-white" style={{ background: team.color || '#64748b' }}>{(team.name || '?').charAt(0).toUpperCase()}</span>}</span>
                                   <div className="min-w-0 flex-1"><h3 className="font-semibold text-content text-sm leading-tight truncate">{team.name}</h3>{team.description && <p className="text-2xs text-muted mt-0.5 line-clamp-2">{team.description}</p>}</div>
                                 </div>
                                 <div className="flex items-center gap-1.5 my-3 min-h-[28px]">
@@ -250,7 +252,7 @@ export default function UsersPage() {
                             return (
                               <div key={team.id} className="px-4 py-2.5">
                                 <div className="flex items-center gap-3">
-                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: team.color || '#64748b' }} />
+                                  {team.avatar ? <Avatar name={team.name} size={22} src={avatarSrc(team.avatar)} /> : <span className="w-[22px] h-[22px] rounded-full grid place-items-center text-2xs font-semibold text-white shrink-0" style={{ background: team.color || '#64748b' }}>{(team.name || '?').charAt(0).toUpperCase()}</span>}
                                   <div className="min-w-0 flex-1"><span className="block text-sm font-medium text-content truncate">{team.name}</span>{team.description && <span className="block text-2xs text-muted truncate">{team.description}</span>}</div>
                                   <div className="hidden sm:flex -space-x-1.5">{(team.members || []).slice(0, 4).map((m) => <Avatar key={m.user_id} name={m.users?.full_name || '?'} size={20} />)}</div>
                                   <span className="text-2xs text-muted2 w-20 text-right shrink-0">{memberCount} member{memberCount !== 1 ? 's' : ''}</span>
@@ -279,6 +281,7 @@ export default function UsersPage() {
               <div className="space-y-4">
                 <Field label="Name" required><input autoFocus value={teamDraft.name} onChange={(e) => setTeamDraft((d) => d && ({ ...d, name: e.target.value }))} className="input" placeholder="e.g. Engineering" /></Field>
                 <Field label="Description"><input value={teamDraft.description} onChange={(e) => setTeamDraft((d) => d && ({ ...d, description: e.target.value }))} className="input" placeholder="Optional short description" /></Field>
+                <Field label="Avatar"><AvatarPicker value={teamDraft.avatar} name={teamDraft.name || 'Team'} onChange={(v) => setTeamDraft((d) => d && ({ ...d, avatar: v }))} allowUpload={false} size={44} /></Field>
                 <Field label="Color"><div className="flex items-center gap-2 mt-1">{SWATCHES.map((c) => <button key={c} type="button" onClick={() => setTeamDraft((d) => d && ({ ...d, color: c }))} aria-label={c} className={`w-6 h-6 rounded-full transition-shadow ${teamDraft.color === c ? 'ring-2 ring-offset-2 ring-accent' : 'hover:scale-110'}`} style={{ background: c }} />)}</div></Field>
               </div>
             )}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icon, Avatar } from '@/components/ui';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { getMyProfile, updateMyProfile, uploadAvatar, avatarSrc, MyProfile } from '@/lib/db';
+import AvatarPicker from '@/components/AvatarPicker';
 
 /** Persistent "Your profile" editor (name, title, phone, photo) — for everyone, in Settings. */
 export default function ProfileSettings() {
@@ -39,12 +40,8 @@ export default function ProfileSettings() {
   return (
     <div className="card p-6 mb-6 max-w-4xl">
       <p className="section-label mb-4">Your profile</p>
-      <div className="flex items-center gap-4 mb-5">
-        <Avatar name={fullName || me?.full_name || 'U'} size={56} src={avatarSrc(avatar)} />
-        <div className="flex items-center gap-2">
-          <label className="btn cursor-pointer"><Icon name="ti-upload" className="text-sm" />Upload photo<input type="file" accept="image/*" className="hidden" onChange={onFile} /></label>
-          {avatar && <button type="button" onClick={() => setAvatar('')} className="btn-ghost text-xs text-muted">Remove</button>}
-        </div>
+      <div className="mb-5">
+        <AvatarPicker value={avatar} name={fullName || me?.full_name} onChange={setAvatar} onUpload={(file) => uploadAvatar(org!.id, me!.id, file)} />
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div><label className="label">Full name</label><input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" /></div>
