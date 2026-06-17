@@ -2790,3 +2790,17 @@ export async function recognitionGenerateDue(orgId: string): Promise<{ recognize
 export async function recognitionDelete(orgId: string, id: string): Promise<void> {
   const { error } = await sb.rpc('recognition_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
 }
+
+// ---- Accounting P12.2: FX rate book ----
+export interface FxRate { id: string; org_id: string; currency: string; rate: number; as_of: string; }
+export async function fxRates(orgId: string): Promise<FxRate[]> {
+  const { data, error } = await sb.from('fx_rates').select('*').eq('org_id', orgId).order('currency').order('as_of', { ascending: false });
+  if (error) throw new Error(error.message); return (data as FxRate[]) || [];
+}
+export async function fxRateSave(orgId: string, currency: string, rate: number, asOf: string): Promise<string> {
+  const { data, error } = await sb.rpc('fx_rate_save', { p_org: orgId, p_currency: currency, p_rate: rate, p_as_of: asOf });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function fxRateDelete(orgId: string, id: string): Promise<void> {
+  const { error } = await sb.rpc('fx_rate_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
+}

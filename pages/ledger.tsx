@@ -8,7 +8,7 @@ import {
   glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
   taxRates, taxRateSave, taxRateDelete, glTaxSummary,
   glPL, glBalanceSheet, glCashFlow, budgetSave, glBudgetVsActual, glCashForecast, glProjectsSummary,
-  accountingSettingsGet, accountingSettingsSave, AcctSettings,
+  accountingSettingsGet, accountingSettingsSave, AcctSettings, fxRates, fxRateSave, fxRateDelete, FxRate,
   glPeriods, glClosePeriod, glReopenPeriod, glReverseEntry, glAudit,
   getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow, BudgetRow, ForecastRow, FiscalPeriod, AuditSummary, ProjectSummaryRow,
 } from '@/lib/db';
@@ -29,7 +29,7 @@ type JLine = { account_id: string; debit: string; credit: string; description: s
 
 export default function LedgerPage() {
   const org = useActiveOrg();
-  const [tab, setTab] = useState<'coa' | 'journal' | 'tb' | 'taxes' | 'reports' | 'audit'>('coa');
+  const [tab, setTab] = useState<'coa' | 'journal' | 'tb' | 'taxes' | 'reports' | 'audit' | 'fx'>('coa');
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
   const [journal, setJournal] = useState<JournalEntryRow[]>([]);
@@ -57,6 +57,12 @@ export default function LedgerPage() {
   const [settings, setSettings] = useState<AcctSettings | null>(null);
   const [sDraft, setSDraft] = useState<AcctSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fxList, setFxList] = useState<FxRate[]>([]);
+  const [fxDraft, setFxDraft] = useState({ currency: '', rate: '', as_of: new Date().toISOString().slice(0, 10) });
+  const loadFx = () => { if (orgId) fxRates(orgId).then(setFxList).catch((e) => setErr(e.message)); };
+  useEffect(() => { if (orgId && tab === 'fx') loadFx(); /* eslint-disable-next-line */ }, [orgId, tab]);
+  const saveFx = async () => { if (!orgId || !fxDraft.currency.trim() || busy) return; setBusy(true); setErr(''); try { await fxRateSave(orgId, fxDraft.currency.trim().toUpperCase(), parseFloat(fxDraft.rate) || 0, fxDraft.as_of); setFxDraft({ currency: '', rate: '', as_of: new Date().toISOString().slice(0, 10) }); loadFx(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const delFx = async (id: string) => { if (!orgId) return; try { await fxRateDelete(orgId, id); loadFx(); } catch (e: any) { setErr(e.message); } };
   const [auditData, setAuditData] = useState<AuditSummary>({});
   const [periods, setPeriods] = useState<FiscalPeriod[]>([]);
   const [closeMonth, setCloseMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -188,7 +194,8 @@ export default function LedgerPage() {
         { key: 'taxes', label: 'Taxes', icon: 'ti-receipt-tax' },
         { key: 'reports', label: 'Reports', icon: 'ti-chart-bar' },
         { key: 'audit', label: 'Close / Audit', icon: 'ti-lock-check' },
-      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb' | 'taxes' | 'reports' | 'audit')} />
+        { key: 'fx', label: 'Currencies', icon: 'ti-currency' },
+      ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb' | 'taxes' | 'reports' | 'audit' | 'fx')} />
 
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {loading ? <Spinner /> : (
@@ -449,6 +456,29 @@ export default function LedgerPage() {
                   <td className="px-4 py-2 text-right tabular-nums text-rose-600">{money(Number(r.cost))}</td>
                   <td className={`px-4 py-2 text-right tabular-nums font-medium ${Number(r.margin) >= 0 ? 'text-content' : 'text-rose-600'}`}>{money(Number(r.margin))}</td>
                 </tr>
+              ))}</tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab === 'fx' && (
+        <div className="card overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-line flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-content">Exchange rates</span>
+            <span className="text-2xs text-muted2">Base currency: <span className="font-medium text-content">{settings?.base_currency || 'USD'}</span> · rate = base units per 1 unit</span>
+          </div>
+          <div className="p-4 flex items-end gap-2 flex-wrap border-b border-line">
+            <Field label="Currency"><input className="input h-9 w-28 uppercase" value={fxDraft.currency} onChange={(e) => setFxDraft({ ...fxDraft, currency: e.target.value })} placeholder="EUR" /></Field>
+            <Field label="Rate"><input className="input h-9 w-32 text-right" inputMode="decimal" value={fxDraft.rate} onChange={(e) => setFxDraft({ ...fxDraft, rate: e.target.value })} placeholder="1.10" /></Field>
+            <Field label="As of"><input type="date" className="input h-9 w-40" value={fxDraft.as_of} onChange={(e) => setFxDraft({ ...fxDraft, as_of: e.target.value })} /></Field>
+            <button className="btn btn-primary h-9" disabled={busy || !fxDraft.currency.trim() || !fxDraft.rate} onClick={saveFx}><Icon name="ti-plus" />Add rate</button>
+          </div>
+          {fxList.length === 0 ? <EmptyState icon="ti-currency" text="No exchange rates yet. Add one to record foreign-currency transactions." /> : (
+            <table className="w-full text-sm list-card">
+              <thead><tr><th className="px-4 py-2 text-left">Currency</th><th className="px-4 py-2 text-right">Rate</th><th className="px-4 py-2 text-left">As of</th><th className="px-4 py-2"></th></tr></thead>
+              <tbody>{fxList.map((r) => (
+                <tr key={r.id}><td className="px-4 py-2 font-medium text-content">{r.currency}</td><td className="px-4 py-2 text-right tabular-nums">{Number(r.rate)}</td><td className="px-4 py-2 text-2xs text-muted2">{r.as_of}</td><td className="px-4 py-2 text-right"><button className="btn-ghost text-2xs text-rose-600" onClick={() => delFx(r.id)}><Icon name="ti-trash" /></button></td></tr>
               ))}</tbody>
             </table>
           )}
