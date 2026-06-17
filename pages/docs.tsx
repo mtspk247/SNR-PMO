@@ -25,6 +25,97 @@ type Section = {
 
 const SECTIONS: Section[] = [
   {
+    id: 'getting-started',
+    title: 'Getting started',
+    icon: 'ti-rocket',
+    blocks: [
+      { kind: 'p', text: 'New here? This is the short path from an empty workspace to a working one. Each step links to where it lives in the app. You can do them in any order, but this sequence works best. Nothing here is permanent — you can change everything later.' },
+      { kind: 'steps', items: [
+        { title: '1. Complete your business profile', body: 'Open Settings ▸ Profile. Fill in your contact details, industry, address and tax/registration numbers. A progress card at the top shows how much is done. This information is printed on your invoices, proposals and emails, so it is worth doing first.' },
+        { title: '2. Invite your team', body: 'Go to Users. Invite the people who will use the workspace. Each person gets their own login. You can group them into Teams (Users ▸ Teams) for assignment and visibility.' },
+        { title: '3. Give everyone the right access', body: 'Still in Users, click a person to open their detail page, then the Access & roles tab. Assign a role template (a ready-made set of permissions) or switch individual permissions on/off. Roles are managed in the Users ▸ Roles tab.' },
+        { title: '4. Choose your plan', body: 'Open Billing. Compare plans, upgrade with a card through secure Stripe checkout, and turn Auto-renew on so the plan continues automatically. Your plan and its renewal date also show under the workspace name in the sidebar.' },
+        { title: '5. Connect your email', body: 'In Users, click your own name, then the Email tab. Add the mailbox you want reports and automations to send from (custom SMTP, or Gmail with an App Password). Your credentials are stored securely and never shown back.' },
+        { title: '6. Set your notifications', body: 'Admins set which notifications are required for everyone in Settings ▸ Notifications. Each person then tunes their own optional alerts on their user page (Notifications tab) or via the bell ▸ Notification settings.' },
+        { title: '7. Tune lists & options', body: 'Open Settings ▸ Lists & options to customise the dropdowns used across the app — task priorities, income/expense categories, industries and more.' },
+        { title: '8. Explore with demo data (optional)', body: 'Owners can load realistic sample data from Settings ▸ Profile ▸ “Generate demo data” to see every module populated. You can wipe it later from Settings ▸ Danger zone.' },
+      ] },
+      { kind: 'callout', icon: 'ti-bulb', text: 'Tip: the sidebar only shows modules your plan includes and your role allows. If you cannot see something, check your plan (Billing) and your role (Users).' },
+    ],
+  },
+  {
+    id: 'your-account',
+    title: 'Your profile & account',
+    icon: 'ti-user-circle',
+    blocks: [
+      { kind: 'p', text: 'Everything about your own account lives in one place: open Users and click your own name to open your detail page. The tabs across the top are your personal control panel.' },
+      { kind: 'table', headers: ['Tab', 'What you do there'], rows: [
+        ['Profile', 'Your name, job title / designation, phone and photo. This is how teammates see you.'],
+        ['Access & roles', 'Your role and permissions (managed by an admin). You can see exactly what you are allowed to do.'],
+        ['Email', 'Connect your own mailbox (SMTP or Gmail App Password) for sending reports and automations as you.'],
+        ['Notifications', 'Switch your optional alerts on or off. Required ones are set by your admin and are locked.'],
+        ['Security', 'Change your password — enter your current password, then your new one twice.'],
+        ['Activity', 'A log of your recent actions in the workspace.'],
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Change your password', body: 'Users ▸ your name ▸ Security. Type your current password, then your new password twice, and Update. You stay signed in.' },
+        { title: 'Connect your email', body: 'Users ▸ your name ▸ Email. Pick Custom SMTP or Gmail. For Gmail, create an App Password in your Google account (Security ▸ App passwords) and paste it — the host is filled in for you. Tick “Enable sending” and Save.' },
+        { title: 'Set your photo', body: 'Users ▸ your name ▸ Profile ▸ Upload photo. A square image looks best.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Your email password and SMTP secrets are stored encrypted on the server and are never displayed back to you or anyone else — you will see “•••• (unchanged)” when a password is saved.' },
+    ],
+  },
+  {
+    id: 'business-profile',
+    title: 'Set up your business profile',
+    icon: 'ti-building-store',
+    blocks: [
+      { kind: 'p', text: 'Your business profile is the identity of your workspace. It feeds your invoices, proposals, contracts and white-label emails, so completing it makes every document you produce look professional. Find it in Settings ▸ Profile. A completion card shows which sections are still missing.' },
+      { kind: 'table', headers: ['Section', 'What goes here', 'Where it shows up'], rows: [
+        ['Contact details', 'Website, contact email, phone.', 'Invoice & proposal headers, email footers.'],
+        ['Industry & about', 'Your industry, category and a short description.', 'Tailors demo data and reporting; shown to operators.'],
+        ['Business address', 'Street, city, region, postal code, country.', 'Invoices, contracts and legal documents.'],
+        ['Tax & legal', 'Tax / VAT ID and company registration number.', 'Tax lines on invoices and credit notes.'],
+        ['Social', 'LinkedIn, X, Facebook, Instagram links.', 'Optional branding on shared/public pages.'],
+      ] },
+      { kind: 'callout', icon: 'ti-info-circle', text: 'You do not have to fill every field at once — a section counts as done as soon as its key fields are set, and the prompt disappears when all sections are complete.' },
+    ],
+  },
+  {
+    id: 'users-roles',
+    title: 'Users, roles & permissions',
+    icon: 'ti-users',
+    blocks: [
+      { kind: 'p', text: 'Open Users to see everyone in the workspace in one list — name, designation, role, team, company and status. Click any person to open their full detail page. Roles and access are managed there (the Access & roles tab) and role templates live in the Users ▸ Roles tab.' },
+      { kind: 'bullets', items: [
+        { text: 'Role templates vs custom permissions', sub: ['A role template is a saved bundle of permissions and module access you can apply to many people at once (e.g. “Project Manager”).', 'If no template is assigned, the individual permission toggles on the person’s Access tab become their effective access.'] },
+        { text: 'Teams', sub: ['Group members into teams (Users ▸ Teams) for assignment, workload and visibility. A person can belong to more than one team.'] },
+        { text: 'Status', sub: ['Set a person to Suspended to block access without deleting them; set back to Active to restore.'] },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Invite someone', body: 'Users ▸ invite. They receive a link to set their own password and join the workspace.' },
+        { title: 'Assign access', body: 'Click the person ▸ Access & roles ▸ choose a role template, or toggle individual permissions. Changes save immediately.' },
+        { title: 'Build a role template', body: 'Users ▸ Roles tab ▸ create a template with the permissions and modules it should grant, then assign it to people.' },
+      ] },
+      { kind: 'callout', icon: 'ti-checks', text: 'The number of people you can add is your plan’s seat limit, shown on the Billing page and in the platform Tenants view (active members count toward seats; guests do not).' },
+    ],
+  },
+  {
+    id: 'billing-plans',
+    title: 'Billing, plans & renewals',
+    icon: 'ti-credit-card',
+    blocks: [
+      { kind: 'p', text: 'Open Billing (Administration) to manage your subscription. It shows your current plan, seats used, the features your plan includes, a comparison of all plans, your renewal date, your invoices, and your account history.' },
+      { kind: 'bullets', items: [
+        { text: 'Upgrade or renew', sub: ['Click Upgrade to a plan to open secure Stripe checkout — you review and confirm the charge there before paying.'] },
+        { text: 'Auto-renew', sub: ['Toggle Auto-renew on the renewal card so your plan continues automatically at the period end. Turn it off to let it lapse.'] },
+        { text: 'Expiry warnings', sub: ['When your plan is within ~30 days of expiry (and not auto-renewing), a flashing Renew / Upgrade prompt appears under the workspace name in the sidebar and links straight to Billing.'] },
+        { text: 'Invoices & receipts', sub: ['Your payments are listed on the Billing page; download itemised PDF invoices and receipts from the secure billing portal (Manage billing / Invoices in portal).'] },
+      ] },
+      { kind: 'callout', icon: 'ti-user-star', text: 'Only the workspace owner can change the plan or open the billing portal. Admins can view billing; ask an owner to make changes.' },
+    ],
+  },
+  {
     id: 'hierarchy',
     title: 'Tenancy & RBAC',
     icon: 'ti-sitemap',
