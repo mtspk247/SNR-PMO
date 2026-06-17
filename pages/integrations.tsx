@@ -5,6 +5,7 @@ import { getIntegrations, setIntegrationStatus } from '@/lib/db';
 import { Integration } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
+import Dropdown from '@/components/Dropdown';
 
 export default function IntegrationsPage() {
   const org = useActiveOrg();
@@ -14,6 +15,8 @@ export default function IntegrationsPage() {
   const [busy, setBusy] = useState('');
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
+  const [view, setView] = useState<'cards' | 'list'>('cards');
+  const [group, setGroup] = useState('category');
 
   useEffect(() => { getIntegrations().then(setItems).finally(() => setLoading(false)); }, [org?.id]);
   const admin = can.manageIntegrations(org);
@@ -36,11 +39,18 @@ export default function IntegrationsPage() {
     });
   }, [items, q, cat]);
 
+  const groupOptions = [
+    { value: 'category', label: 'Group by category' },
+    { value: 'status', label: 'Group by status' },
+    { value: 'none', label: 'No grouping' },
+  ];
+  const gkey = (i: Integration) => group === 'status' ? (i.status === 'connected' ? 'Connected' : 'Not connected') : group === 'none' ? 'All' : (i.category || 'Other');
   const groups = useMemo(() => {
     const g: Record<string, Integration[]> = {};
-    visible.forEach((i) => { const c = i.category || 'Other'; (g[c] = g[c] || []).push(i); });
+    visible.forEach((i) => { const c = gkey(i); (g[c] = g[c] || []).push(i); });
     return Object.entries(g).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [visible]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, group]);
 
   return (
     <Layout flat title="Integrations">
@@ -75,6 +85,14 @@ export default function IntegrationsPage() {
                 >{c}</button>
               ))}
             </div>
+            <div className="flex items-center gap-1.5 sm:ml-auto shrink-0">
+              <div className="inline-flex items-center rounded-md border border-line bg-surface p-0.5 h-8">
+                {(['cards', 'list'] as const).map((vv) => (
+                  <button key={vv} onClick={() => setView(vv)} title={vv === 'list' ? 'List' : 'Cards'} className={`h-7 px-2 rounded inline-flex items-center text-xs transition ${view === vv ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content'}`}><Icon name={vv === 'list' ? 'ti-list' : 'ti-layout-grid'} /></button>
+                ))}
+              </div>
+              <Dropdown value={group} onChange={setGroup} width={190} items={groupOptions} trigger={<span className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-line bg-surface text-xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-layout-rows" />{groupOptions.find((o) => o.value === group)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-muted2" /></span>} />
+            </div>
           </div>
 
           {visible.length === 0 ? (
@@ -85,6 +103,7 @@ export default function IntegrationsPage() {
                 <p className="text-2xs uppercase tracking-wide text-muted font-medium">{c}</p>
                 <span className="text-2xs text-muted">· {list.length}</span>
               </div>
+              {view === 'cards' ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {list.map((it) => {
                   const on = it.status === 'connected';
@@ -111,6 +130,21 @@ export default function IntegrationsPage() {
                   );
                 })}
               </div>
+              ) : (
+                <div className="card divide-y divide-line">
+                  {list.map((it) => {
+                    const on = it.status === 'connected';
+                    return (
+                      <div key={it.id} className="flex items-center gap-3 px-4 py-2.5">
+                        <span className={`w-8 h-8 rounded-lg grid place-items-center shrink-0 ${on ? 'bg-accent/15 text-accentstrong' : 'bg-surface2 text-muted'}`}><Icon name={it.icon || 'ti-plug'} className="text-base" /></span>
+                        <div className="min-w-0 flex-1"><p className="text-sm font-medium truncate text-content">{it.name}</p>{it.description && <p className="text-2xs text-muted truncate">{it.description}</p>}</div>
+                        <span className={`pill ${on ? 'pill-green' : 'pill-gray'} shrink-0`}>{on ? 'Connected' : 'Not connected'}</span>
+                        <button onClick={() => toggle(it)} disabled={!admin || busy === it.id} className={`btn h-7 py-0 shrink-0 ${on ? '' : 'btn-primary'} ${!admin ? 'opacity-50 cursor-not-allowed' : ''}`}>{busy === it.id ? <Icon name="ti-loader-2" className="animate-spin" /> : on ? 'Disconnect' : 'Connect'}</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
         </>
