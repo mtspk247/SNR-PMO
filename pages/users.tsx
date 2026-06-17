@@ -14,7 +14,7 @@ import Dropdown from '@/components/Dropdown';
 import { buildGroups } from '@/components/ViewControls';
 import RolesManager from '@/components/RolesManager';
 import AvatarPicker from '@/components/AvatarPicker';
-import { avatarSrc } from '@/lib/db';
+import { avatarSrc, seedDefaultTeams } from '@/lib/db';
 import qk from '@/lib/queryKeys';
 
 const SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -95,6 +95,8 @@ export default function UsersPage() {
   const [teamDraftId, setTeamDraftId] = useState<string | undefined>(undefined);
   const [teamBusy, setTeamBusy] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [teamSeeding, setTeamSeeding] = useState(false);
+  const loadStarterTeams = async () => { if (!org) return; setTeamSeeding(true); try { await seedDefaultTeams(org.id); await qc.invalidateQueries({ queryKey: qk.teams(org?.id) }); } catch (e: any) { alert(e.message); } finally { setTeamSeeding(false); } };
   const [tView, setTView] = useState<'cards' | 'list'>('cards');
   const [tGroup, setTGroup] = useState('none');
   const tGroupOptions = [
@@ -208,6 +210,7 @@ export default function UsersPage() {
                     ))}
                   </div>
                   <Dropdown value={tGroup} onChange={setTGroup} width={180} items={tGroupOptions} trigger={<span className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-line bg-surface text-2xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-layout-rows" className="text-2xs" />{tGroupOptions.find((o) => o.value === tGroup)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+                  <button onClick={loadStarterTeams} disabled={teamSeeding} className="btn btn-ghost border border-line shrink-0 h-7 py-0">{teamSeeding ? 'Loading…' : <><Icon name="ti-download" />Starter teams</>}</button>
                   <button onClick={openNewTeam} className="btn btn-primary shrink-0 h-7 py-0"><Icon name="ti-plus" />New team</button>
                 </div>
               </div>
