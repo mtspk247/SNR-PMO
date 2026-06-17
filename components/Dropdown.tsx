@@ -54,17 +54,26 @@ export default function Dropdown({
   useLayoutEffect(() => { if (open) { place(); setQ(''); } /* eslint-disable-next-line */ }, [open]);
   useEffect(() => {
     if (!open) return;
-    // Close on page scroll, but NOT when the scroll happens inside the menu itself.
-    const onScroll = (e: Event) => {
-      if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return;
+    // Keep the menu anchored to the trigger while the page/modal scrolls or resizes,
+    // but don't scroll the menu's own content off (that scroll stays internal).
+    const reposition = (e?: Event) => {
+      if (e && menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return;
+      place();
+    };
+    // Close on any pointer-down outside both the trigger and the menu (reliable across
+    // stacking contexts, unlike a transparent backdrop).
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
       setOpen(false);
     };
-    const onResize = () => setOpen(false);
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    window.addEventListener('scroll', onScroll, true);
-    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    document.addEventListener('mousedown', onDown, true);
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('scroll', onScroll, true); window.removeEventListener('resize', onResize); window.removeEventListener('keydown', onKey); };
+    return () => { window.removeEventListener('scroll', reposition, true); window.removeEventListener('resize', reposition); document.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onKey); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const filtered = q ? items.filter((i) => i.label.toLowerCase().includes(q.toLowerCase())) : items;
@@ -76,9 +85,8 @@ export default function Dropdown({
       </button>
       {open && pos && (
         <>
-          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} aria-hidden />
           <div ref={menuRef} className="fixed z-[61] animate-in" style={{ top: pos.top, left: pos.left, width }}>
-            <div className="bg-surface border border-line rounded-lg shadow-lg p-1.5 overflow-y-auto" style={{ maxHeight: pos.maxHeight }}>
+            <div className="bg-surface border border-line rounded-lg shadow-lg p-1.5 overflow-y-auto overscroll-contain" style={{ maxHeight: pos.maxHeight }}>
               {search && (
                 <div className="px-0.5 pb-1.5">
                   <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onClick={(e) => e.stopPropagation()}
