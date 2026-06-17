@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui';
-import { getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getTenantEvents, TenantEvent } from '@/lib/db';
+import { getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getTenantEvents, TenantEvent, setAutoRenew } from '@/lib/db';
 import { OrgPlanInfo, Plan, PlanFeature, FeatureKey } from '@/lib/supabase';
 import { FEATURE_LABELS, formatPrice } from '@/lib/entitlements';
 
@@ -10,7 +10,13 @@ function PlanPanel({ org, canBill }: { org: { id: string; features?: string[] };
   const [pf, setPf] = useState<PlanFeature[]>([]);
   const [busy, setBusy] = useState('');
   const [billErr, setBillErr] = useState('');
-  useEffect(() => { getOrgPlanInfo(org.id).then(setInfo).catch(() => {}); listPlans().then(setPlans).catch(() => {}); listPlanFeatures().then(setPf).catch(() => {}); }, [org.id]);
+  const [autoRenew, setAutoRenewState] = useState<boolean | null>(null);
+  const reloadInfo = () => getOrgPlanInfo(org.id).then((i) => { setInfo(i); setAutoRenewState(i.cancel_at_period_end == null ? null : !i.cancel_at_period_end); }).catch(() => {});
+  useEffect(() => { reloadInfo(); listPlans().then(setPlans).catch(() => {}); listPlanFeatures().then(setPf).catch(() => {}); /* eslint-disable-next-line */ }, [org.id]);
+  const toggleAutoRenew = async () => { const next = !(autoRenew ?? true); setAutoRenewState(next); setBillErr(''); try { await setAutoRenew(org.id, next); } catch (e: any) { setBillErr(e?.message || 'Could not update auto-renew'); setAutoRenewState(!next); } };
+  const periodEnd = info?.current_period_end ? new Date(info.current_period_end) : null;
+  const daysLeft = periodEnd ? Math.ceil((periodEnd.getTime() - Date.now()) / 86400000) : null;
+  const expiringSoon = daysLeft != null && daysLeft <= 30 && daysLeft >= 0;
   const features = org.features || [];
   const goCheckout = async (planKey: string) => {
     setBusy(planKey); setBillErr('');
@@ -41,6 +47,24 @@ function PlanPanel({ org, canBill }: { org: { id: string; features?: string[] };
           {overSeats && <p className="text-2xs text-rose-600">Seat limit reached</p>}
         </div>
       </div>
+      {periodEnd && (
+        <div className={`mt-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4 ${expiringSoon && !(autoRenew) ? 'border-amber-400/50 bg-amber-500/5' : 'border-line bg-surface2/30'}`}>
+          <div>
+            <p className="text-2xs uppercase tracking-wide text-muted mb-0.5 font-medium">{autoRenew ? 'Renews on' : 'Expires on'}</p>
+            <p className="text-sm font-semibold text-content inline-flex items-center gap-2">
+              {periodEnd.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+              {daysLeft != null && daysLeft >= 0 && <span className={`pill ${expiringSoon ? 'pill-amber' : 'pill-gray'}`}>{daysLeft === 0 ? 'today' : `in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`}</span>}
+              {daysLeft != null && daysLeft < 0 && <span className="pill pill-red">expired</span>}
+            </p>
+          </div>
+          {autoRenew != null && (
+            <label className={`flex items-center gap-2 text-sm ${canBill ? 'cursor-pointer' : 'opacity-60'}`}>
+              <input type="checkbox" checked={!!autoRenew} disabled={!canBill} onChange={toggleAutoRenew} className="accent-accent w-4 h-4" />
+              <span className="text-content">Auto-renew</span>
+            </label>
+          )}
+        </div>
+      )}
       <div className="mt-6">
         <p className="text-2xs uppercase tracking-wide text-muted mb-3 font-medium">Included features</p>
         <div className="flex flex-wrap gap-2">
@@ -147,6 +171,39 @@ function PlanHistory({ org }: { org: { id: string } }) {
   );
 }
 
+function InvoicesCard({ org, canBill }: { org: { id: string }; canBill: boolean }) {
+  const [events, setEvents] = useState<TenantEvent[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { getTenantEvents(org.id).then(setEvents).catch(() => setEvents([])).finally(() => setLoaded(true)); }, [org.id]);
+  const invoices = events.filter((e) => e.event_type === 'payment');
+  const portal = async () => { setBusy(true); setErr(''); try { const url = await openBillingPortal(org.id); window.location.href = url; } catch (e: any) { setErr(e?.message || 'Could not open billing portal'); setBusy(false); } };
+  if (!loaded) return null;
+  return (
+    <div className="card p-6 mb-6 max-w-4xl">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div><p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Invoices &amp; receipts</p><p className="text-sm text-muted">Your payments. Download itemised PDF invoices and receipts from the secure billing portal.</p></div>
+        {canBill && <button className="btn btn-ghost border border-line shrink-0" disabled={busy} onClick={portal}><Icon name="ti-download" />{busy ? 'Opening…' : 'Invoices in portal'}</button>}
+      </div>
+      {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+      {invoices.length === 0 ? (
+        <p className="text-sm text-muted2">No payments recorded yet. Once you upgrade to a paid plan, your invoices appear here and in the billing portal.</p>
+      ) : (
+        <div className="divide-y divide-line">
+          {invoices.map((ev) => (
+            <div key={ev.id} className="flex items-center gap-3 py-2.5">
+              <span className="w-8 h-8 rounded-md grid place-items-center bg-emerald-500/10 text-emerald-600 shrink-0"><Icon name="ti-receipt" className="text-base" /></span>
+              <div className="min-w-0 flex-1"><p className="text-sm text-content">{ev.reason || 'Payment'}</p><p className="text-2xs text-muted">{new Date(ev.created_at).toLocaleString()}</p></div>
+              {ev.amount_cents != null && <span className="text-sm font-semibold text-content tabular-nums">{(ev.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: ev.currency || 'USD' })}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BillingPanel({ org, canBill }: { org: { id: string; features?: string[]; name?: string }; canBill: boolean }) {
-  return (<><PlanPanel org={org} canBill={canBill} /><PlanHistory org={org} /></>);
+  return (<><PlanPanel org={org} canBill={canBill} /><InvoicesCard org={org} canBill={canBill} /><PlanHistory org={org} /></>);
 }

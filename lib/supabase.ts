@@ -112,6 +112,7 @@ export interface PlatformOrg {
 export interface OrgPlanInfo {
   plan: Plan | null; status: SubStatus | null;
   seat_count: number; seat_limit: number | null;
+  current_period_start?: string | null; current_period_end?: string | null; cancel_at_period_end?: boolean | null;
 }
 
 export interface AppUser {

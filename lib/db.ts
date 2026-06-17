@@ -262,7 +262,7 @@ export async function isPlatformAdmin(): Promise<boolean> {
 // Tenant-facing: current plan + seat usage for the settings page.
 export async function getOrgPlanInfo(orgId: string): Promise<OrgPlanInfo> {
   const { data: sub } = await sb.from('subscriptions')
-    .select('status, seats, plans(*)').eq('org_id', orgId).maybeSingle();
+    .select('status, seats, current_period_start, current_period_end, cancel_at_period_end, plans(*)').eq('org_id', orgId).maybeSingle();
   const [{ data: cnt }, { data: lim }] = await Promise.all([
     sb.rpc('org_seat_count', { p_org: orgId }),
     sb.rpc('org_seat_limit', { p_org: orgId }),
@@ -272,7 +272,14 @@ export async function getOrgPlanInfo(orgId: string): Promise<OrgPlanInfo> {
     status: (sub as any)?.status ?? null,
     seat_count: (cnt as number) ?? 0,
     seat_limit: (lim as number) ?? null,
+    current_period_start: (sub as any)?.current_period_start ?? null,
+    current_period_end: (sub as any)?.current_period_end ?? null,
+    cancel_at_period_end: (sub as any)?.cancel_at_period_end ?? null,
   };
+}
+export async function setAutoRenew(orgId: string, on: boolean): Promise<void> {
+  const { error } = await sb.rpc('set_auto_renew', { p_org: orgId, p_on: on });
+  if (error) throw new Error(error.message);
 }
 
 // --- super-super-admin console (RLS: platform admin only) ------------------

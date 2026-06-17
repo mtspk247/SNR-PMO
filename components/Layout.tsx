@@ -21,6 +21,7 @@ import UpgradeScreen from '@/components/UpgradeScreen';
 import Toaster from '@/components/Toaster';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
+import SidebarPlanBadge from '@/components/SidebarPlanBadge';
 import { effectiveSkin } from '@/lib/skin';
 import { getTheme, toggleTheme, Theme } from '@/lib/theme';
 
@@ -200,6 +201,8 @@ export default function Layout({ title, children, flat = false }: { title: strin
             </div>
           )}
         </div>
+
+        {!collapsed && <SidebarPlanBadge />}
 
         {/* Categorized nav: top-level links + accordion menus (flat icon rail when collapsed) */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">

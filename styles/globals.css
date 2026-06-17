@@ -253,3 +253,5 @@ html[data-skin="midnight"][data-theme="dark"] body  { background: radial-gradien
 .dash-cell > .card > :last-child { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .dash-cell > .card > :first-child { flex: 0 0 auto; }
 
+@keyframes flashPulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+.animate-flash { animation: flashPulse 1.5s ease-in-out infinite; }
