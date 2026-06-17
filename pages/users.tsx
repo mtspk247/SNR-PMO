@@ -93,6 +93,16 @@ export default function UsersPage() {
   const [teamDraftId, setTeamDraftId] = useState<string | undefined>(undefined);
   const [teamBusy, setTeamBusy] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [tView, setTView] = useState<'cards' | 'list'>('cards');
+  const [tGroup, setTGroup] = useState('none');
+  const tGroupOptions = [
+    { value: 'none', label: 'No grouping' },
+    { value: 'status', label: 'Group by status' },
+    { value: 'size', label: 'Group by size' },
+  ];
+  const tcount = (t: Team) => t.members?.length || 0;
+  const tgKey = (t: Team) => { const c = tcount(t); switch (tGroup) { case 'status': return c > 0 ? 'active' : 'empty'; case 'size': return c === 0 ? 'empty' : c <= 5 ? 'small' : c <= 15 ? 'medium' : 'large'; default: return 'all'; } };
+  const tgLabel = (k: string) => ({ active: 'Active', empty: 'Empty', small: 'Small (1–5)', medium: 'Medium (6–15)', large: 'Large (16+)' } as Record<string, string>)[k] || k;
 
   useEffect(() => {
     getAdminUsers().then(setUsers).finally(() => setLoading(false));
@@ -187,37 +197,77 @@ export default function UsersPage() {
             <div className="card rounded-t-none p-5 sm:p-6"><RolesManager /></div>
           ) : (
             <div className="card rounded-t-none p-6">
-              <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
                 <p className="text-sm text-muted">Organise members into teams for project assignment and visibility.</p>
-                <button onClick={openNewTeam} className="btn btn-primary shrink-0"><Icon name="ti-plus" />New team</button>
+                <div className="flex items-center gap-1.5">
+                  <div className="inline-flex items-center rounded-md border border-line bg-surface p-0.5 h-7">
+                    {(['cards', 'list'] as const).map((vv) => (
+                      <button key={vv} onClick={() => setTView(vv)} title={vv === 'list' ? 'List' : 'Cards'} className={`h-6 px-1.5 rounded inline-flex items-center text-2xs transition ${tView === vv ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content'}`}><Icon name={vv === 'list' ? 'ti-list' : 'ti-layout-grid'} className="text-2xs" /></button>
+                    ))}
+                  </div>
+                  <Dropdown value={tGroup} onChange={setTGroup} width={180} items={tGroupOptions} trigger={<span className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-line bg-surface text-2xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-layout-rows" className="text-2xs" />{tGroupOptions.find((o) => o.value === tGroup)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+                  <button onClick={openNewTeam} className="btn btn-primary shrink-0 h-7 py-0"><Icon name="ti-plus" />New team</button>
+                </div>
               </div>
               {teamsLoading ? <Spinner /> : teams.length === 0 ? <EmptyState text="No teams yet — create one to get started" /> : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {teams.map((team) => {
-                    const memberCount = team.members?.length || 0;
-                    const previewMembers = (team.members || []).slice(0, 4);
-                    const overflow = memberCount - previewMembers.length;
-                    const isExpanded = expandedTeam === team.id;
-                    return (
-                      <div key={team.id} className="card p-5 flex flex-col">
-                        <div className="flex items-start gap-2 mb-2">
-                          <span className="w-3 h-3 rounded-full mt-1 shrink-0" style={{ background: team.color || '#64748b' }} />
-                          <div className="min-w-0 flex-1"><h3 className="font-semibold text-content text-sm leading-tight truncate">{team.name}</h3>{team.description && <p className="text-2xs text-muted mt-0.5 line-clamp-2">{team.description}</p>}</div>
+                <div className="space-y-5">
+                  {(tGroup === 'none' ? [{ key: 'all', label: '', items: teams }] : buildGroups(teams, tgKey, tgLabel)).map((g) => (
+                    <div key={g.key}>
+                      {g.label && <div className="text-2xs font-medium text-muted2 uppercase tracking-wide mb-2 capitalize">{g.label} · {g.items.length}</div>}
+                      {tView === 'cards' ? (
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {g.items.map((team) => {
+                            const memberCount = team.members?.length || 0;
+                            const previewMembers = (team.members || []).slice(0, 4);
+                            const overflow = memberCount - previewMembers.length;
+                            const isExpanded = expandedTeam === team.id;
+                            return (
+                              <div key={team.id} className="card p-5 flex flex-col">
+                                <div className="flex items-start gap-2 mb-2">
+                                  <span className="w-3 h-3 rounded-full mt-1 shrink-0" style={{ background: team.color || '#64748b' }} />
+                                  <div className="min-w-0 flex-1"><h3 className="font-semibold text-content text-sm leading-tight truncate">{team.name}</h3>{team.description && <p className="text-2xs text-muted mt-0.5 line-clamp-2">{team.description}</p>}</div>
+                                </div>
+                                <div className="flex items-center gap-1.5 my-3 min-h-[28px]">
+                                  {memberCount === 0 ? <span className="text-2xs text-muted2">No members</span> : (
+                                    <><div className="flex -space-x-1.5">{previewMembers.map((m) => <Avatar key={m.user_id} name={m.users?.full_name || '?'} size={24} />)}</div><span className="text-2xs text-muted ml-1">{memberCount} member{memberCount !== 1 ? 's' : ''}{overflow > 0 && ` (+${overflow} more)`}</span></>
+                                  )}
+                                </div>
+                                <div className="flex gap-2 mt-auto pt-1">
+                                  <button onClick={() => setExpandedTeam(isExpanded ? null : team.id)} className="btn flex-1 text-xs"><Icon name="ti-users" />{isExpanded ? 'Hide' : 'Members'}</button>
+                                  <button onClick={() => openEditTeam(team)} className="btn text-xs" title="Edit team"><Icon name="ti-pencil" /></button>
+                                  <button onClick={() => removeTeam(team)} className="btn text-rose-600 text-xs" title="Delete team"><Icon name="ti-trash" /></button>
+                                </div>
+                                {isExpanded && org && <TeamMembersPanel team={team} users={users} orgId={org.id} onRefresh={refreshTeams} />}
+                              </div>
+                            );
+                          })}
                         </div>
-                        <div className="flex items-center gap-1.5 my-3 min-h-[28px]">
-                          {memberCount === 0 ? <span className="text-2xs text-muted2">No members</span> : (
-                            <><div className="flex -space-x-1.5">{previewMembers.map((m) => <Avatar key={m.user_id} name={m.users?.full_name || '?'} size={24} />)}</div><span className="text-2xs text-muted ml-1">{memberCount} member{memberCount !== 1 ? 's' : ''}{overflow > 0 && ` (+${overflow} more)`}</span></>
-                          )}
+                      ) : (
+                        <div className="card divide-y divide-line">
+                          {g.items.map((team) => {
+                            const memberCount = team.members?.length || 0;
+                            const isExpanded = expandedTeam === team.id;
+                            return (
+                              <div key={team.id} className="px-4 py-2.5">
+                                <div className="flex items-center gap-3">
+                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: team.color || '#64748b' }} />
+                                  <div className="min-w-0 flex-1"><span className="block text-sm font-medium text-content truncate">{team.name}</span>{team.description && <span className="block text-2xs text-muted truncate">{team.description}</span>}</div>
+                                  <div className="hidden sm:flex -space-x-1.5">{(team.members || []).slice(0, 4).map((m) => <Avatar key={m.user_id} name={m.users?.full_name || '?'} size={20} />)}</div>
+                                  <span className="text-2xs text-muted2 w-20 text-right shrink-0">{memberCount} member{memberCount !== 1 ? 's' : ''}</span>
+                                  <div className="flex gap-1 shrink-0">
+                                    <button onClick={() => setExpandedTeam(isExpanded ? null : team.id)} className="btn text-xs h-7 py-0"><Icon name="ti-users" />{isExpanded ? 'Hide' : 'Members'}</button>
+                                    <button onClick={() => openEditTeam(team)} className="btn text-xs h-7 py-0" title="Edit team"><Icon name="ti-pencil" /></button>
+                                    <button onClick={() => removeTeam(team)} className="btn text-rose-600 text-xs h-7 py-0" title="Delete team"><Icon name="ti-trash" /></button>
+                                  </div>
+                                </div>
+                                {isExpanded && org && <TeamMembersPanel team={team} users={users} orgId={org.id} onRefresh={refreshTeams} />}
+                              </div>
+                            );
+                          })}
                         </div>
-                        <div className="flex gap-2 mt-auto pt-1">
-                          <button onClick={() => setExpandedTeam(isExpanded ? null : team.id)} className="btn flex-1 text-xs"><Icon name="ti-users" />{isExpanded ? 'Hide' : 'Members'}</button>
-                          <button onClick={() => openEditTeam(team)} className="btn text-xs" title="Edit team"><Icon name="ti-pencil" /></button>
-                          <button onClick={() => removeTeam(team)} className="btn text-rose-600 text-xs" title="Delete team"><Icon name="ti-trash" /></button>
-                        </div>
-                        {isExpanded && org && <TeamMembersPanel team={team} users={users} orgId={org.id} onRefresh={refreshTeams} />}
-                      </div>
-                    );
-                  })}
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
