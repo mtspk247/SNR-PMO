@@ -1,0 +1,83 @@
+import { useEffect, useState } from 'react';
+import Layout from '@/components/Layout';
+import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import Select from '@/components/Select';
+import { Modal, Field } from '@/components/Modal';
+import { useActiveOrg } from '@/lib/store';
+import { can } from '@/lib/authz';
+import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, ResellerOrg, ResellerInvite } from '@/lib/db';
+
+const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
+
+export default function ResellerPage() {
+  const org = useActiveOrg();
+  const [orgs, setOrgs] = useState<ResellerOrg[] | null>(null);
+  const [invites, setInvites] = useState<ResellerInvite[]>([]);
+  const [err, setErr] = useState('');
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [plan, setPlan] = useState('pro');
+  const [busy, setBusy] = useState(false); const [link, setLink] = useState<string | null>(null); const [copied, setCopied] = useState(false);
+
+  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
+
+  if (!org?.is_reseller || !can.manageMembers(org)) {
+    return <Layout flat title="Reseller"><EmptyState icon="ti-building-community" title="Not a reseller workspace" text="Reselling lets you create and manage your own sub-tenants under your brand. Ask the platform team to enable it on your plan." /></Layout>;
+  }
+
+  const submit = async () => {
+    if (!org || !email.trim() || !name.trim()) return; setBusy(true); setErr(''); setLink(null);
+    try { const r = await resellerCreateInvite(org.id, email.trim(), name.trim(), plan); setLink(r.link); setEmail(''); setName(''); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const copy = (l: string) => { try { navigator.clipboard?.writeText(l); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ } };
+
+  return (
+    <Layout flat title="Reseller">
+      <PageHeader title="Reseller" subtitle="Create and manage your own sub-tenants — each gets its own workspace under your brand" icon="ti-building-community"
+        action={<button className="btn btn-primary" onClick={() => { setOpen(true); setLink(null); setErr(''); }}><Icon name="ti-plus" />Invite sub-tenant</button>} />
+      {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <StatCard label="Sub-tenants" value={orgs?.length ?? 0} icon="ti-buildings" />
+        <StatCard label="Pending invites" value={invites.filter((i) => i.status === 'pending').length} icon="ti-mail" />
+        <StatCard label="Your plan" value={org.plan || '—'} icon="ti-package" />
+      </div>
+
+      <div className="card overflow-hidden mb-6">
+        <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Your sub-tenants</h3></div>
+        {orgs === null ? <div className="p-8"><Spinner /></div> : orgs.length === 0 ? <div className="p-6"><EmptyState icon="ti-buildings" text="No sub-tenants yet — invite one to get started." /></div> : (
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr><th className="px-4 py-3">Workspace</th><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Members</th><th className="px-4 py-3">Seats</th><th className="px-4 py-3">Status</th></tr></thead>
+            <tbody>{orgs.map((o) => (
+              <tr key={o.org_id} className="border-t border-line"><td className="px-4 py-3"><span className="font-medium text-content">{o.org_name}</span><span className="block text-2xs text-muted2">{o.slug}</span></td><td className="px-4 py-3 capitalize text-muted">{o.plan_name || o.plan_key || 'free'}</td><td className="px-4 py-3 tabular-nums text-muted">{o.member_count}</td><td className="px-4 py-3 tabular-nums text-muted">{o.seats}{o.seat_limit ? ` / ${o.seat_limit}` : ''}</td><td className="px-4 py-3"><span className={`pill ${o.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{o.sub_status || 'free'}</span></td></tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </div>
+
+      {invites.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Invitations</h3></div>
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr><th className="px-4 py-3">Email</th><th className="px-4 py-3">Workspace</th><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr></thead>
+            <tbody>{invites.map((i) => (
+              <tr key={i.id} className="border-t border-line"><td className="px-4 py-3 text-content">{i.email}</td><td className="px-4 py-3 text-muted">{i.org_name || '—'}</td><td className="px-4 py-3 capitalize text-muted">{i.plan_key}</td><td className="px-4 py-3"><span className={`pill ${i.status === 'pending' ? 'pill-amber' : i.status === 'accepted' ? 'pill-green' : 'pill-gray'}`}>{i.status}</span></td><td className="px-4 py-3 text-right">{i.status === 'pending' && <button onClick={() => copy(`https://snr-pmo.vercel.app/signup?token=${i.token}`)} className="btn-ghost text-2xs"><Icon name="ti-copy" />Copy link</button>}</td></tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Invite a sub-tenant" icon="ti-building-plus" size="sm" onSubmit={submit}
+        footer={<><button className="btn" onClick={() => setOpen(false)}>Close</button><button className="btn btn-primary" disabled={busy || !email.trim() || !name.trim()} onClick={submit}>{busy ? 'Creating…' : 'Create invite'}</button></>}>
+        <div className="space-y-3">
+          <Field label="Workspace name" required><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Client workspace name" /></Field>
+          <Field label="Owner email" required><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@client.com" /></Field>
+          <Field label="Plan"><Select value={plan} onChange={setPlan} options={PLANS} /></Field>
+          {link && <div className="rounded-lg border border-emerald-400/40 bg-emerald-500/5 p-3"><p className="text-2xs text-muted mb-1.5">Invite link — share it with the sub-tenant owner:</p><div className="flex items-center gap-2"><input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="input text-2xs flex-1" /><button onClick={() => copy(link)} className="btn-ghost text-2xs"><Icon name="ti-copy" />{copied ? 'Copied' : 'Copy'}</button></div></div>}
+          {err && <p className="text-2xs text-rose-600">{err}</p>}
+        </div>
+      </Modal>
+    </Layout>
+  );
+}

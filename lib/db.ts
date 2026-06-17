@@ -50,7 +50,7 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes)')
+    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, is_reseller)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -2886,6 +2886,17 @@ export async function seedDefaultRoles(orgId: string): Promise<number> {
 }
 export async function seedDefaultTeams(orgId: string): Promise<number> {
   const { data, error } = await sb.rpc('seed_default_teams', { p_org: orgId }); if (error) throw new Error(error.message); return (data as number) || 0;
+}
+export interface ResellerOrg { org_id: string; org_name: string; slug: string; member_count: number; plan_key: string | null; plan_name: string | null; sub_status: string | null; seats: number; seat_limit: number | null; }
+export async function resellerListOrgs(reseller: string): Promise<ResellerOrg[]> {
+  const { data, error } = await sb.rpc('reseller_list_orgs', { p_reseller: reseller }); if (error) throw new Error(error.message); return (data as ResellerOrg[]) || [];
+}
+export interface ResellerInvite { id: string; email: string; org_name: string | null; plan_key: string | null; status: string; expires_at: string; token: string; }
+export async function resellerPendingInvites(reseller: string): Promise<ResellerInvite[]> {
+  const { data, error } = await sb.rpc('reseller_pending_invites', { p_reseller: reseller }); if (error) throw new Error(error.message); return (data as ResellerInvite[]) || [];
+}
+export async function resellerCreateInvite(reseller: string, email: string, orgName: string, planKey: string): Promise<{ link: string; token: string; email: string }> {
+  const { data, error } = await sb.rpc('reseller_create_invite', { p_reseller: reseller, p_email: email, p_org_name: orgName, p_plan_key: planKey }); if (error) throw new Error(error.message); return data as { link: string; token: string; email: string };
 }
 export async function setTenantReseller(orgId: string, on: boolean): Promise<void> {
   const { error } = await sb.rpc('platform_set_reseller', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);

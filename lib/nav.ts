@@ -163,6 +163,8 @@ export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', lab
   { href: '/tenants', label: 'Tenants', icon: 'ti-building-community' },
 ] };
 
+export const RESELLER_LINK: NavSection = { kind: 'link', item: { href: '/reseller', label: 'Reseller', icon: 'ti-building-community' } };
+
 export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } };
 
 // --- Derived lookups (do not hand-maintain) -----------------------------

@@ -70,6 +70,7 @@ export interface MyOrg extends Organization {
   member_role: OrgRole;
   features?: string[];   // 3.3 entitlements: EFFECTIVE feature keys (plan minus overrides-off plus overrides-on)
   planFeatures?: string[]; // feature keys the PLAN grants (ignores overrides) — used to tell upsell-locked vs operator-disabled
+  is_reseller?: boolean;
 }
 
 // ---------------------------------------------------------------------------

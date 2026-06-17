@@ -6,7 +6,7 @@ import { signOut, recordGuestActivity, avatarSrc } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
 import { hasFeature, roleAllowsFeature, navVisible, isUpsellLocked } from '@/lib/entitlements';
-import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, DOCS_LINK, ROUTE_LABELS, featureForRoute } from '@/lib/nav';
+import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, RESELLER_LINK, DOCS_LINK, ROUTE_LABELS, featureForRoute } from '@/lib/nav';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
 import RequestsBell from '@/components/RequestsBell';
@@ -54,6 +54,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
   const sections = [
     ...SECTIONS,
     ...(can.manageMembers(activeOrg) ? [ADMIN_SECTION] : []),
+    ...(activeOrg?.is_reseller && can.manageMembers(activeOrg) ? [RESELLER_LINK] : []),
     DOCS_LINK,
   ]
     .map((s) => s.kind === 'menu'
