@@ -877,23 +877,6 @@ export default function PlatformPage() {
   };
   useEffect(() => { if (platformAdmin) load().catch((e) => setErr(e.message)).finally(() => setLoading(false)); else setLoading(false); }, [platformAdmin]);
 
-  if (!platformAdmin) {
-    return <Layout title="Platform"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />Platform administration is restricted to the platform team.</div></Layout>;
-  }
-
-  const enabled = (planId: string, fk: string) => pf.some((x) => x.plan_id === planId && x.feature_key === fk && x.enabled);
-
-  const toggleFeature = async (planId: string, fk: string, on: boolean) => {
-    setBusy(true); setErr('');
-    setPf((prev) => {
-      const i = prev.findIndex((x) => x.plan_id === planId && x.feature_key === fk);
-      if (i >= 0) { const c = prev.slice(); c[i] = { ...c[i], enabled: on }; return c; }
-      return [...prev, { plan_id: planId, feature_key: fk, enabled: on }];
-    });
-    try { await setPlanFeature(planId, fk, on); } catch (e: any) { setErr(e.message); await load(); }
-    finally { setBusy(false); }
-  };
-
   // Every feature in the FEATURES catalog auto-lists here (current + future), even before a DB seed.
   // DB `features` rows overlay description/sort/name; legacy DB-only keys are appended.
   const featureRows = useMemo(() => {
@@ -913,6 +896,23 @@ export default function PlatformPage() {
     ALL_ITEMS.forEach((i) => { if (i.feature) { (m[i.feature] = m[i.feature] || []).push(i.label); } });
     return m;
   }, []);
+
+  if (!platformAdmin) {
+    return <Layout title="Platform"><div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />Platform administration is restricted to the platform team.</div></Layout>;
+  }
+
+  const enabled = (planId: string, fk: string) => pf.some((x) => x.plan_id === planId && x.feature_key === fk && x.enabled);
+
+  const toggleFeature = async (planId: string, fk: string, on: boolean) => {
+    setBusy(true); setErr('');
+    setPf((prev) => {
+      const i = prev.findIndex((x) => x.plan_id === planId && x.feature_key === fk);
+      if (i >= 0) { const c = prev.slice(); c[i] = { ...c[i], enabled: on }; return c; }
+      return [...prev, { plan_id: planId, feature_key: fk, enabled: on }];
+    });
+    try { await setPlanFeature(planId, fk, on); } catch (e: any) { setErr(e.message); await load(); }
+    finally { setBusy(false); }
+  };
 
 
   return (
