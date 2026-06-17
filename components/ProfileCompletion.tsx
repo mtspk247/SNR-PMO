@@ -27,17 +27,14 @@ export default function ProfileCompletion() {
     }).catch(() => {});
   }, [me?.id]);
 
-  const key = me ? `snr_profile_dismiss_${me.id}` : '';
-  const dismissed = typeof window !== 'undefined' && key ? window.localStorage.getItem(key) === '1' : false;
   const isGuest = org?.member_role === 'guest';
   const required: [string, string][] = [['full_name', fullName], ['job_title', jobTitle], ['phone', phone]];
   const missing = required.filter(([, v]) => !v.trim()).length;
-  const show = !!p && !isGuest && !dismissed && !done && missing > 0;
+  const show = !!p && !isGuest && !done && missing > 0;
   if (!show) return null;
 
   const filled = required.length - missing;
   const pct = Math.round((filled / required.length) * 100);
-  const dismiss = () => { if (typeof window !== 'undefined' && key) window.localStorage.setItem(key, '1'); setDone(true); };
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f || !me?.id || !org?.id) return;
     setBusy(true); setErr('');
@@ -55,7 +52,6 @@ export default function ProfileCompletion() {
 
   return (
     <div className="card p-5 mb-5 relative">
-      <button onClick={dismiss} aria-label="Dismiss" className="absolute top-3 right-3 h-7 w-7 grid place-items-center rounded-md text-muted2 hover:text-content hover:bg-surface2 transition"><Icon name="ti-x" className="text-sm" /></button>
       <div className="flex items-center gap-3 mb-1">
         <span className="w-9 h-9 rounded-lg grid place-items-center bg-accent/10 text-accentstrong shrink-0"><Icon name="ti-user-circle" className="text-lg" /></span>
         <div><h3 className="text-sm font-semibold text-content">Complete your profile</h3>
@@ -76,7 +72,6 @@ export default function ProfileCompletion() {
       {err && <p className="text-sm text-rose-600 mt-2">{err}</p>}
       <div className="flex items-center gap-2 mt-3">
         <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save profile'}</button>
-        <button className="btn-ghost text-2xs" onClick={dismiss}>Maybe later</button>
       </div>
     </div>
   );

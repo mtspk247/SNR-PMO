@@ -215,6 +215,7 @@ export default function SettingsPage() {
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
+  const meUser = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger'>('business');
   const router = useRouter();
   useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'lists', 'audit', 'danger'].includes(t)) setTab(t as any); } }, [router.query.tab]);
@@ -345,8 +346,13 @@ export default function SettingsPage() {
           ...(isOwner ? [{ key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' }] : []),
         ]} active={tab} onChange={(k) => setTab(k as any)} />
       )}
-      {(!admin || tab === 'notifications') && <NotificationPrefs />}
-      {admin && tab === 'notifications' && <div className="mt-6"><NotifPolicyPanel orgId={org.id} /></div>}
+      {!admin && <NotificationPrefs />}
+      {admin && tab === 'notifications' && (
+        <div className="space-y-3 max-w-3xl">
+          <NotifPolicyPanel orgId={org.id} />
+          <p className="text-2xs text-muted">This is the <strong>workspace-wide</strong> notification policy — what members must receive and what they may manage. To change <strong>your own</strong> alerts, open <a href={meUser ? `/users/${meUser.id}` : '/users'} className="text-accentstrong hover:underline">your profile → Notifications</a>.</p>
+        </div>
+      )}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
 
       {admin && tab === 'audit' && org && (
@@ -361,7 +367,7 @@ export default function SettingsPage() {
             <div className="space-y-6">
               <BusinessSetup orgId={org.id} />
               <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
-              {isOwner && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
+              {admin && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
             </div>
           )}
 
