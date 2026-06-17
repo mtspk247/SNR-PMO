@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -7,7 +8,7 @@ import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import {
-  listLeads, createLead, updateLead, deleteLead, convertLeadToClient, getOrgUsers, Lead,
+  listLeads, createLead, updateLead, deleteLead, convertLeadToClient, leadToDeal, getOrgUsers, Lead,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 
@@ -29,6 +30,7 @@ export default function LeadsPage() {
   const enabled = hasFeature(org, 'crm');
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
 
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [q, setQ] = useState('');
@@ -103,6 +105,12 @@ export default function LeadsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
+  const convertToDeal = async (l: Lead) => {
+    setBusy(true);
+    try { const dealId = await leadToDeal(l.id); setEditor(null); router.push(`/crm/deal/${dealId}`); }
+    catch (e: any) { setErr(e.message); setBusy(false); }
+  };
+
   if (!enabled) return (
     <Layout flat title="Leads">
       <EmptyState icon="ti-filter-off" title="CRM not in your plan" text="Upgrade to track leads and pipeline." />
@@ -113,7 +121,7 @@ export default function LeadsPage() {
     <Layout flat title="Leads">
       <PageHeader
         title="Leads"
-        subtitle="Track prospects, pipeline value and conversions"
+        subtitle="Capture and qualify prospects, then convert them into the Pipeline (a deal) or directly to a Client"
         icon="ti-user-search"
         action={
           <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
@@ -194,6 +202,11 @@ export default function LeadsPage() {
               {editor.mode === 'edit' && editor.draft.id && (
                 <ConfirmDelete entityType="lead" id={editor.draft.id!} name={editor.draft.name}
                   className="btn btn-danger mr-auto" onDeleted={() => { setEditor(null); load(); }} />
+              )}
+              {editor.mode === 'edit' && editor.draft.status !== 'converted' && (
+                <button className="btn" disabled={busy} onClick={() => convertToDeal(editor.draft as Lead)} title="Promote this lead into the sales pipeline">
+                  <Icon name="ti-target-arrow" />Convert to deal
+                </button>
               )}
               {editor.mode === 'edit' && editor.draft.status !== 'converted' && (
                 <button
