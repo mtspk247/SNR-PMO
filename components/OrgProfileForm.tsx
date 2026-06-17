@@ -3,7 +3,7 @@ import { OrgProfile, ORG_PROFILE_KEYS } from '@/lib/supabase';
 import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
 import { INDUSTRIES, categoriesFor, withCurrent } from '@/lib/taxonomy';
-import { getOrgOptions } from '@/lib/db';
+import { getOrgOptions, addOption } from '@/lib/db';
 
 // Reusable, multi-tab tenant-profile editor. Same form for the owner (/settings) and
 // the operator (/tenants/[id]); the caller supplies load + save (RLS direct vs RPC).
@@ -94,12 +94,16 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }
                 <Select search placeholder="Select industry…" value={v.industry || ''}
                   options={withCurrent(indList, v.industry)}
                   onChange={(ind) => setV({ ...v, industry: ind, category: categoriesFor(ind).includes(v.category || '') ? v.category : '' })}
+                  allowAdd={!readOnly}
+                  onAdd={(val) => { if (orgId) addOption(orgId, 'industry', val).catch(() => {}); setMInd((p) => Array.from(new Set([...p, val]))); }}
                   disabled={readOnly} />
               </Row>
               <Row label="Category">
                 <Select search placeholder="Select category…" value={v.category || ''}
                   options={withCurrent(catList, v.category)}
                   onChange={(c) => setV({ ...v, category: c })}
+                  allowAdd={!readOnly}
+                  onAdd={(val) => { if (orgId) addOption(orgId, 'category', val).catch(() => {}); setMCat((p) => Array.from(new Set([...p, val]))); }}
                   disabled={readOnly} />
               </Row>
             </div>

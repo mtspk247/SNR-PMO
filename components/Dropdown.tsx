@@ -15,7 +15,7 @@ export interface DropItem { value: string; label: string; icon?: string; dot?: s
  */
 export default function Dropdown({
   items, value, onChange, trigger, align = 'left', width = 224, search = false,
-  multiple = false, values = [], onToggle, footer, placeholder, disabled = false,
+  multiple = false, values = [], onToggle, footer, placeholder, disabled = false, allowAdd = false, onAdd,
 }: {
   items: DropItem[];
   value?: string;
@@ -30,6 +30,8 @@ export default function Dropdown({
   footer?: React.ReactNode;
   placeholder?: string;
   disabled?: boolean;
+  allowAdd?: boolean;
+  onAdd?: (label: string) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -106,7 +108,14 @@ export default function Dropdown({
                   </button>
                 );
               })}
-              {filtered.length === 0 && <div className="px-2.5 py-2 text-sm text-muted2">No matches</div>}
+              {allowAdd && q.trim() && !items.some((i) => i.label.toLowerCase() === q.trim().toLowerCase()) && (
+                <button type="button"
+                  onClick={async () => { const val = q.trim(); setOpen(false); setQ(''); if (multiple) { onToggle?.(val); } else { onChange?.(val); } try { await onAdd?.(val); } catch { /* ignore */ } }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm text-left text-accentstrong hover:bg-accent/10 font-medium">
+                  <Icon name="ti-plus" className="text-base shrink-0" /><span className="flex-1 truncate">Add &ldquo;{q.trim()}&rdquo;</span>
+                </button>
+              )}
+              {filtered.length === 0 && !allowAdd && <div className="px-2.5 py-2 text-sm text-muted2">No matches</div>}
               {footer && <div className="border-t border-line mt-1 pt-1.5 px-0.5" onClick={(e) => e.stopPropagation()}>{footer}</div>}
             </div>
           </div>
