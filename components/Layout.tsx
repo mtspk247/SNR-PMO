@@ -175,15 +175,20 @@ export default function Layout({ title, children, flat = false }: { title: strin
 
         {/* Brand + org switcher */}
         <div className="relative h-14 shrink-0 flex items-center gap-2.5 px-3 border-b border-line">
-          <Link href="/dashboard" title="Dashboard" className={`flex items-center gap-2.5 min-w-0 ${collapsed ? '' : 'flex-1'}`}>
+          <Link href="/dashboard" title="Dashboard" className="flex items-center shrink-0">
             {activeOrg?.branding?.logo_url
               ? <img src={activeOrg.branding.logo_url} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
               : <span className="w-7 h-7 rounded-md grid place-items-center text-sm font-semibold shrink-0 text-accentfg"
                   style={{ background: 'var(--brand-primary, #3ECF8E)' }}>
                   {(activeOrg?.name || 'S').charAt(0).toUpperCase()}
                 </span>}
-            {!collapsed && <span className="font-semibold truncate side-fg">{activeOrg?.name || 'SNR-PMO'}</span>}
           </Link>
+          {!collapsed && (
+            <div className="flex flex-col min-w-0 flex-1 leading-tight">
+              <Link href="/dashboard" title="Dashboard" className="font-semibold truncate side-fg">{activeOrg?.name || 'SNR-PMO'}</Link>
+              <SidebarPlanBadge />
+            </div>
+          )}
           {!collapsed && orgs.length > 1 && (
             <button onClick={() => setOrgMenu((v) => !v)} title="Switch workspace" className="shrink-0 side-dim hover:text-content p-1 -mr-1">
               <Icon name="ti-selector" className="text-sm" />
@@ -202,7 +207,6 @@ export default function Layout({ title, children, flat = false }: { title: strin
           )}
         </div>
 
-        {!collapsed && <SidebarPlanBadge />}
 
         {/* Categorized nav: top-level links + accordion menus (flat icon rail when collapsed) */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
