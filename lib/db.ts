@@ -2908,7 +2908,7 @@ export async function resellerCreateInvite(reseller: string, email: string, orgN
 export async function setTenantReseller(orgId: string, on: boolean): Promise<void> {
   const { error } = await sb.rpc('platform_set_reseller', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);
 }
-export async function adminImpersonateLink(p: { target?: string; org?: string }): Promise<{ link: string; email: string; name: string }> {
+export async function adminImpersonateLink(p: { target?: string; org?: string; sub?: string }): Promise<{ link: string; email: string; name: string }> {
   const { data, error } = await sb.functions.invoke('admin-impersonate-link', { body: p });
   if (error) { const m = (data as any)?.error; throw new Error(m || error.message || 'Failed'); }
   if ((data as any)?.error) throw new Error((data as any).error);

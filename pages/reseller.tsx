@@ -5,7 +5,7 @@ import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, ResellerOrg, ResellerInvite, ResellerBilling } from '@/lib/db';
+import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, ResellerOrg, ResellerInvite, ResellerBilling } from '@/lib/db';
 
 const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
 
@@ -18,6 +18,8 @@ export default function ResellerPage() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [plan, setPlan] = useState('pro');
   const [busy, setBusy] = useState(false); const [link, setLink] = useState<string | null>(null); const [copied, setCopied] = useState(false);
+  const [viewMsg, setViewMsg] = useState('');
+  const viewAsSub = async (subId: string, nm: string) => { setViewMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ sub: subId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setViewMsg(`Sign-in link for ${nm} copied — open it in a private window to view that workspace.`); setTimeout(() => setViewMsg(''), 8000); } catch (e: any) { setViewMsg(e.message || 'Failed'); } };
 
   const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
@@ -38,6 +40,7 @@ export default function ResellerPage() {
       <PageHeader title="Reseller" subtitle="Create and manage your own sub-tenants — each gets its own workspace under your brand" icon="ti-building-community"
         action={<button className="btn btn-primary" onClick={() => { setOpen(true); setLink(null); setErr(''); }}><Icon name="ti-plus" />Invite sub-tenant</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+      {viewMsg && <p className="text-2xs text-accentstrong mb-3 inline-flex items-center gap-1.5"><Icon name="ti-info-circle" />{viewMsg}</p>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Sub-tenants" value={billing?.sub_count ?? orgs?.length ?? 0} icon="ti-buildings" hint={billing ? `${billing.active} active` : undefined} />
@@ -57,9 +60,9 @@ export default function ResellerPage() {
         <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Your sub-tenants</h3></div>
         {orgs === null ? <div className="p-8"><Spinner /></div> : orgs.length === 0 ? <div className="p-6"><EmptyState icon="ti-buildings" text="No sub-tenants yet — invite one to get started." /></div> : (
           <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr><th className="px-4 py-3">Workspace</th><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Members</th><th className="px-4 py-3">Seats</th><th className="px-4 py-3">Status</th></tr></thead>
+            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr><th className="px-4 py-3">Workspace</th><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Members</th><th className="px-4 py-3">Seats</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr></thead>
             <tbody>{orgs.map((o) => (
-              <tr key={o.org_id} className="border-t border-line"><td className="px-4 py-3"><span className="font-medium text-content">{o.org_name}</span><span className="block text-2xs text-muted2">{o.slug}</span></td><td className="px-4 py-3 capitalize text-muted">{o.plan_name || o.plan_key || 'free'}</td><td className="px-4 py-3 tabular-nums text-muted">{o.member_count}</td><td className="px-4 py-3 tabular-nums text-muted">{o.seats}{o.seat_limit ? ` / ${o.seat_limit}` : ''}</td><td className="px-4 py-3"><span className={`pill ${o.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{o.sub_status || 'free'}</span></td></tr>
+              <tr key={o.org_id} className="border-t border-line"><td className="px-4 py-3"><span className="font-medium text-content">{o.org_name}</span><span className="block text-2xs text-muted2">{o.slug}</span></td><td className="px-4 py-3 capitalize text-muted">{o.plan_name || o.plan_key || 'free'}</td><td className="px-4 py-3 tabular-nums text-muted">{o.member_count}</td><td className="px-4 py-3 tabular-nums text-muted">{o.seats}{o.seat_limit ? ` / ${o.seat_limit}` : ''}</td><td className="px-4 py-3"><span className={`pill ${o.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{o.sub_status || 'free'}</span></td><td className="px-4 py-3 text-right"><button onClick={() => viewAsSub(o.org_id, o.org_name)} className="btn-ghost text-2xs" title="View this sub-tenant\u2019s workspace (private window)"><Icon name="ti-login-2" />View as</button></td></tr>
             ))}</tbody>
           </table></div>
         )}

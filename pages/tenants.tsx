@@ -69,7 +69,7 @@ export default function TenantsPage() {
             <tbody>
               {rows.map((t) => (
                 <tr key={t.org_id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => router.push(`/tenants/${t.org_id}`)}>
-                  <td className="px-4 py-3"><span className="font-medium text-content">{t.org_name}</span><span className="block text-2xs text-muted2">{t.slug}</span></td>
+                  <td className="px-4 py-3"><span className="font-medium text-content">{t.org_name}</span><span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` \u00b7 \u21b3 under ${(rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller'}` : ''}</span></td>
                   <td className="px-4 py-3"><PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" /></td>
                   <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
                   <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
