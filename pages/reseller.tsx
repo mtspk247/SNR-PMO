@@ -5,7 +5,7 @@ import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, ResellerOrg, ResellerInvite } from '@/lib/db';
+import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, ResellerOrg, ResellerInvite, ResellerBilling } from '@/lib/db';
 
 const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
 
@@ -13,12 +13,13 @@ export default function ResellerPage() {
   const org = useActiveOrg();
   const [orgs, setOrgs] = useState<ResellerOrg[] | null>(null);
   const [invites, setInvites] = useState<ResellerInvite[]>([]);
+  const [billing, setBilling] = useState<ResellerBilling | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [plan, setPlan] = useState('pro');
   const [busy, setBusy] = useState(false); const [link, setLink] = useState<string | null>(null); const [copied, setCopied] = useState(false);
 
-  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); };
+  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
 
   if (!org?.is_reseller || !can.manageMembers(org)) {
@@ -38,11 +39,19 @@ export default function ResellerPage() {
         action={<button className="btn btn-primary" onClick={() => { setOpen(true); setLink(null); setErr(''); }}><Icon name="ti-plus" />Invite sub-tenant</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <StatCard label="Sub-tenants" value={orgs?.length ?? 0} icon="ti-buildings" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Sub-tenants" value={billing?.sub_count ?? orgs?.length ?? 0} icon="ti-buildings" hint={billing ? `${billing.active} active` : undefined} />
+        <StatCard label="Total seats (billed)" value={billing?.total_seats ?? 0} icon="ti-users" hint="across all sub-tenants" />
         <StatCard label="Pending invites" value={invites.filter((i) => i.status === 'pending').length} icon="ti-mail" />
-        <StatCard label="Your plan" value={org.plan || '—'} icon="ti-package" />
+        <StatCard label="Your agency plan" value={org.plan || '—'} icon="ti-package" />
       </div>
+      {billing && Object.keys(billing.by_plan).length > 0 && (
+        <div className="card p-4 mb-6 max-w-3xl">
+          <p className="text-2xs uppercase tracking-wide text-muted font-medium mb-2">Wholesale usage — what your platform plan is billed on</p>
+          <div className="flex flex-wrap gap-2">{Object.entries(billing.by_plan).map(([k, c]) => (<span key={k} className="pill pill-gray capitalize">{c}× {k}</span>))}</div>
+          <p className="text-2xs text-muted mt-2">You’re billed by the platform on these sub-tenants/seats; you bill your own clients directly.</p>
+        </div>
+      )}
 
       <div className="card overflow-hidden mb-6">
         <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Your sub-tenants</h3></div>

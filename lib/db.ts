@@ -2898,6 +2898,10 @@ export interface ResellerInvite { id: string; email: string; org_name: string | 
 export async function resellerPendingInvites(reseller: string): Promise<ResellerInvite[]> {
   const { data, error } = await sb.rpc('reseller_pending_invites', { p_reseller: reseller }); if (error) throw new Error(error.message); return (data as ResellerInvite[]) || [];
 }
+export interface ResellerBilling { sub_count: number; active: number; total_seats: number; by_plan: Record<string, number>; }
+export async function resellerBillingSummary(reseller: string): Promise<ResellerBilling> {
+  const { data, error } = await sb.rpc('reseller_billing_summary', { p_reseller: reseller }); if (error) throw new Error(error.message); return (data as ResellerBilling) || { sub_count: 0, active: 0, total_seats: 0, by_plan: {} };
+}
 export async function resellerCreateInvite(reseller: string, email: string, orgName: string, planKey: string): Promise<{ link: string; token: string; email: string }> {
   const { data, error } = await sb.rpc('reseller_create_invite', { p_reseller: reseller, p_email: email, p_org_name: orgName, p_plan_key: planKey }); if (error) throw new Error(error.message); return data as { link: string; token: string; email: string };
 }
