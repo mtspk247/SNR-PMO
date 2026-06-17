@@ -2852,3 +2852,7 @@ export async function saveUserEmail(orgId: string, p: { provider: string; from_n
 export async function deleteUserEmail(orgId: string): Promise<void> {
   const { error } = await sb.rpc('user_email_delete', { p_org: orgId }); if (error) throw new Error(error.message);
 }
+export async function userGmailOauthStart(orgId: string): Promise<{ client_id: string; redirect_uri: string; token: string }> {
+  const { data, error } = await sb.rpc('user_email_oauth_start', { p_org: orgId });
+  if (error) throw new Error(error.message); return data as { client_id: string; redirect_uri: string; token: string };
+}

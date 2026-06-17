@@ -11,7 +11,7 @@ import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
   getAdminUser, updateUserAdmin, updateMyProfile, uploadAvatar, avatarSrc,
   getUserActivity, ActivityItem, changeOwnPassword,
-  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig,
+  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart,
   listRoleTemplates, getMyNotifSettings, getNotificationPrefs, saveNotificationPrefs, NotifSetting,
 } from '@/lib/db';
 import { AdminUser, RoleTemplate } from '@/lib/supabase';
@@ -222,6 +222,23 @@ function EmailTab({ orgId }: { orgId: string }) {
     if (r) { setProvider((r.provider as any) || 'smtp'); setFromName(r.from_name || ''); setFromEmail(r.from_email || ''); setReplyTo(r.reply_to || ''); setHost(r.smtp_host || ''); setPort(r.smtp_port || 587); setSecure(r.smtp_secure ?? true); setSmtpUser(r.smtp_user || ''); setEnabled(r.enabled); }
   }).catch(() => {}); };
   useEffect(load, [orgId]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const g = new URLSearchParams(window.location.search).get('gmail');
+    if (!g) return;
+    setMsg(g === 'connected' ? 'Gmail connected' : g === 'denied' ? 'Gmail connection cancelled' : g === 'noclient' ? 'Platform Gmail client not configured' : g === 'norefresh' ? 'Google did not return a refresh token — try again and allow offline access' : 'Gmail connection failed');
+    const url = new URL(window.location.href); url.searchParams.delete('gmail'); window.history.replaceState({}, '', url.toString());
+    load();
+  // eslint-disable-next-line
+  }, []);
+  const connectGmail = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const r = await userGmailOauthStart(orgId);
+      const scope = encodeURIComponent('openid email https://www.googleapis.com/auth/gmail.send');
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(r.client_id)}&redirect_uri=${encodeURIComponent(r.redirect_uri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${encodeURIComponent(r.token)}`;
+    } catch (e: any) { setMsg(e.message || 'Could not start Gmail connect'); setBusy(false); }
+  };
 
   const pickGmail = () => { setProvider('gmail'); setHost('smtp.gmail.com'); setPort(587); setSecure(true); };
   const save = async () => {
@@ -243,7 +260,14 @@ function EmailTab({ orgId }: { orgId: string }) {
         <button type="button" onClick={() => setProvider('smtp')} className={`btn ${provider === 'smtp' ? 'btn-primary' : ''}`}><Icon name="ti-server" />Custom SMTP</button>
         <button type="button" onClick={pickGmail} className={`btn ${provider === 'gmail' ? 'btn-primary' : ''}`}><Icon name="ti-brand-google" />Gmail</button>
       </div>
-      {provider === 'gmail' && <p className="text-2xs text-muted -mt-1">Gmail uses an <strong>App Password</strong> (Google account → Security → App passwords) with host smtp.gmail.com. One-click OAuth connect arrives with the automations release.</p>}
+      {provider === 'gmail' && (
+        <div className="rounded-lg border border-line bg-surface2/40 p-3 -mt-1 space-y-2">
+          {c?.gmail_connected
+            ? <p className="text-sm text-emerald-600 inline-flex items-center gap-1.5"><Icon name="ti-circle-check" />Connected as {c.gmail_email || 'your Google account'}</p>
+            : <p className="text-2xs text-muted">Connect with Google in one click (recommended), or use a Gmail <strong>App Password</strong> with the SMTP fields below.</p>}
+          <button type="button" onClick={connectGmail} disabled={busy} className="btn"><Icon name="ti-brand-google" />{c?.gmail_connected ? 'Reconnect Google' : 'Connect Gmail'}</button>
+        </div>
+      )}
       <div className="grid sm:grid-cols-2 gap-4">
         <div><label className="label">From name</label><input className="input" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Jane Doe" /></div>
         <div><label className="label">From address</label><input className="input" value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} placeholder="jane@company.com" /></div>
