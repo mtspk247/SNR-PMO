@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { sb } from '@/lib/supabase';
 import { Icon } from '@/components/ui';
+import { useHostBranding } from '@/lib/useHostBranding';
 
 // Landing page for the Supabase password-recovery email link. The client picks
 // up the recovery token from the URL and fires PASSWORD_RECOVERY; we then let the
 // user set a new password via updateUser({ password }).
 export default function UpdatePassword() {
   const router = useRouter();
+  const brand = useHostBranding();
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -42,14 +44,14 @@ export default function UpdatePassword() {
     <div className="min-h-screen grid lg:grid-cols-2 bg-bg">
       <div className="side hidden lg:flex flex-col justify-between p-12">
         <div className="flex items-center gap-2.5 side-fg">
-          <span className="w-8 h-8 rounded-md grid place-items-center font-semibold text-accentfg" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>S</span>
-          <span className="font-semibold text-lg">SNR-PMO</span>
+          <span className="w-8 h-8 rounded-md grid place-items-center font-semibold text-accentfg overflow-hidden" style={{ background: 'var(--brand-primary, #3ECF8E)' }}>{brand.logoUrl && !brand.logoUrl.startsWith('preset:') ? <img src={brand.logoUrl} alt="" className="w-full h-full object-cover" /> : (brand.name || 'S').charAt(0).toUpperCase()}</span>
+          <span className="font-semibold text-lg">{brand.name}</span>
         </div>
         <div className="side-fg">
           <h1 className="text-3xl font-semibold leading-tight">Set a new<br />password.</h1>
           <p className="side-dim mt-4 max-w-sm">Choose a strong password you don't use anywhere else.</p>
         </div>
-        <p className="text-2xs side-faint">© 2026 SNR-PMO</p>
+        <p className="text-2xs side-faint">© {new Date().getFullYear()} {brand.name}</p>
       </div>
 
       <div className="flex items-center justify-center p-6">
