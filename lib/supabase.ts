@@ -96,6 +96,7 @@ export const FEATURES = [
   { key: 'drives', label: 'Drives' },
   { key: 'subscriptions', label: 'Subscriptions' },
   { key: 'support', label: 'Support' },
+  { key: 'reseller', label: 'Reseller (sub-tenants)' },
 ] as const;
 export type FeatureKey = typeof FEATURES[number]['key'];
 export type PricingModel = 'flat' | 'per_user' | 'white_label';

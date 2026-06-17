@@ -6,7 +6,7 @@ import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { PlanBadge } from '@/components/PlanBadge';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listTenants, listPlans, listOrgInvites, createOrgInvite, setOrgInviteSource, revokeOrgInvite, platformAccounts, PlatformAccount, emailGetStatus, EmailStatus, adminImpersonateLink } from '@/lib/db';
+import { listTenants, listPlans, listOrgInvites, createOrgInvite, setOrgInviteSource, revokeOrgInvite, platformAccounts, PlatformAccount, emailGetStatus, EmailStatus, adminImpersonateLink, setTenantReseller } from '@/lib/db';
 import { Plan, OrgInvite } from '@/lib/supabase';
 
 const SOURCES = [
@@ -35,6 +35,7 @@ export default function TenantsPage() {
   const [invSource, setInvSource] = useState('website');
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const [impMsg, setImpMsg] = useState('');
+  const toggleReseller = async (orgId: string, on: boolean) => { try { await setTenantReseller(orgId, on); load(); } catch (e: any) { alert(e.message); } };
   const openAsOwner = async (orgId: string, nm: string) => { setImpMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ org: orgId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setImpMsg(`Sign-in link for ${nm} copied — open it in a private/incognito window to view that workspace as its owner.`); setTimeout(() => setImpMsg(''), 8000); } catch (e: any) { setImpMsg(e.message || 'Failed'); } };
 
   const load = () => { listTenants().then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
@@ -73,7 +74,7 @@ export default function TenantsPage() {
                   <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
                   <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
                   <td className="px-4 py-3"><span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span></td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="Open this workspace as its owner (use a private window)" className="btn-ghost text-2xs"><Icon name="ti-login-2" />View as</button><Icon name="ti-chevron-right" className="text-muted2 ml-1 align-middle" /></td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">{t.is_reseller && <span className="pill mr-1" style={{ background: 'rgb(139 92 246 / .12)', color: 'rgb(124 58 237)' }}>Reseller</span>}<button onClick={(e) => { e.stopPropagation(); toggleReseller(t.org_id, !t.is_reseller); }} className="btn-ghost text-2xs" title={t.is_reseller ? 'Remove reseller capability' : 'Designate as reseller (requires White-label plan)'}>{t.is_reseller ? 'Unset' : 'Make reseller'}</button><button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="Open this workspace as its owner (use a private window)" className="btn-ghost text-2xs"><Icon name="ti-login-2" />View as</button><Icon name="ti-chevron-right" className="text-muted2 ml-1 align-middle" /></td>
                 </tr>
               ))}
             </tbody>

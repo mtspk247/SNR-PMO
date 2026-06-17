@@ -2887,6 +2887,9 @@ export async function seedDefaultRoles(orgId: string): Promise<number> {
 export async function seedDefaultTeams(orgId: string): Promise<number> {
   const { data, error } = await sb.rpc('seed_default_teams', { p_org: orgId }); if (error) throw new Error(error.message); return (data as number) || 0;
 }
+export async function setTenantReseller(orgId: string, on: boolean): Promise<void> {
+  const { error } = await sb.rpc('platform_set_reseller', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);
+}
 export async function adminImpersonateLink(p: { target?: string; org?: string }): Promise<{ link: string; email: string; name: string }> {
   const { data, error } = await sb.functions.invoke('admin-impersonate-link', { body: p });
   if (error) { const m = (data as any)?.error; throw new Error(m || error.message || 'Failed'); }
