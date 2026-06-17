@@ -11,7 +11,7 @@ import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
   getAdminUser, updateUserAdmin, updateMyProfile, uploadAvatar, avatarSrc,
   getUserActivity, ActivityItem, changeOwnPassword,
-  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart,
+  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart, adminResetUserPassword,
   listRoleTemplates, getMyNotifSettings, getNotificationPrefs, saveNotificationPrefs, NotifSetting,
 } from '@/lib/db';
 import { AdminUser, RoleTemplate } from '@/lib/supabase';
@@ -161,6 +161,14 @@ function ProfileTab({ u, isSelf, isAdmin, orgId, onSaved }: { u: AdminUser; isSe
 }
 
 function AccessTab({ u, roles, busy, patch, myTeams }: { u: AdminUser; roles: RoleTemplate[]; busy: boolean; patch: (p: Partial<AdminUser>) => void; myTeams: string[] }) {
+  const [rpw, setRpw] = useState<string | null>(null);
+  const [rbusy, setRbusy] = useState(false);
+  const [rerr, setRerr] = useState('');
+  const doReset = async () => {
+    if (!confirm(`Reset password for ${u.full_name}? You'll get a one-time temporary password to share. They can change it after signing in.`)) return;
+    setRbusy(true); setRerr('');
+    try { const r = await adminResetUserPassword(u.id); setRpw(r.temp_password); } catch (e: any) { setRerr(e.message || 'Reset failed'); } finally { setRbusy(false); }
+  };
   const t = u.role_template_id ? roles.find((r) => r.id === u.role_template_id) : null;
   const isSuper = u.role === 'super_admin';
   const permLabels = isSuper ? ['Full access'] : (t ? PERMS.filter((p) => (t.permissions as any)[p.key as string]).map((p) => p.label) : PERMS.filter((p) => !!u[p.key]).map((p) => p.label));
@@ -196,6 +204,22 @@ function AccessTab({ u, roles, busy, patch, myTeams }: { u: AdminUser; roles: Ro
             </label>
           ))}
         </div>
+      </div>
+      <div className="pt-2 border-t border-line">
+        <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Password</p>
+        <p className="text-2xs text-muted mb-2">Reset this user&rsquo;s password if they&rsquo;re locked out. You&rsquo;ll get a one-time temporary password to share securely; they can change it after signing in. This action is logged.</p>
+        {!rpw ? (
+          <button onClick={doReset} disabled={rbusy} className="btn"><Icon name="ti-key" className="text-sm" />{rbusy ? 'Resetting…' : 'Reset password'}</button>
+        ) : (
+          <div className="rounded-lg border border-emerald-400/40 bg-emerald-500/5 p-3">
+            <p className="text-2xs text-muted mb-1.5">Temporary password for {u.email} — shown once, share securely:</p>
+            <div className="flex items-center gap-2">
+              <code className="text-sm font-mono bg-surface2 px-2 py-1 rounded select-all">{rpw}</code>
+              <button onClick={() => navigator.clipboard?.writeText(rpw)} className="btn-ghost text-2xs"><Icon name="ti-copy" />Copy</button>
+            </div>
+          </div>
+        )}
+        {rerr && <p className="text-2xs text-rose-600 mt-1.5">{rerr}</p>}
       </div>
     </Section>
   );

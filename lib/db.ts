@@ -2853,6 +2853,12 @@ export async function saveUserEmail(orgId: string, p: { provider: string; from_n
 export async function deleteUserEmail(orgId: string): Promise<void> {
   const { error } = await sb.rpc('user_email_delete', { p_org: orgId }); if (error) throw new Error(error.message);
 }
+export async function adminResetUserPassword(targetUserId: string): Promise<{ temp_password: string; email: string; name: string }> {
+  const { data, error } = await sb.functions.invoke('admin-reset-user-password', { body: { target: targetUserId } });
+  if (error) { const m = (data as any)?.error; throw new Error(m || error.message || 'Reset failed'); }
+  if ((data as any)?.error) throw new Error((data as any).error);
+  return data as { temp_password: string; email: string; name: string };
+}
 export async function userGmailOauthStart(orgId: string): Promise<{ client_id: string; redirect_uri: string; token: string }> {
   const { data, error } = await sb.rpc('user_email_oauth_start', { p_org: orgId });
   if (error) throw new Error(error.message); return data as { client_id: string; redirect_uri: string; token: string };
