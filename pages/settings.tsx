@@ -10,6 +10,7 @@ import ProfileSettings from '@/components/ProfileSettings';
 import OrgProfileForm from '@/components/OrgProfileForm';
 import DemoDataCard from '@/components/DemoDataCard';
 import NotifPolicyPanel from '@/components/NotifPolicyPanel';
+import AuditLog from '@/components/AuditLog';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -212,10 +213,9 @@ export default function SettingsPage() {
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
-  const [tab, setTab] = useState<'notifications' | 'profile' | 'danger'>('notifications');
-  const [psub, setPsub] = useState<'business' | 'branding' | 'themes' | 'workspace'>('business');
+  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'audit' | 'danger'>('business');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { if (q === 'branding') { setTab('profile'); setPsub('branding'); } else if (['notifications', 'profile', 'danger'].includes(q)) setTab(q as 'notifications' | 'profile' | 'danger'); } }, [router.query.tab]);
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'audit', 'danger'].includes(t)) setTab(t as any); } }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -308,7 +308,7 @@ export default function SettingsPage() {
   return (
     <Layout flat title="Settings">
       <PageHeader title="Settings" subtitle="Your preferences, subscription, and white-label settings" />
-      <ProfileSettings />
+      {!admin && <ProfileSettings />}
       {org.allow_user_themes && (
         <div className="card p-6 mb-6 max-w-4xl">
           <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Your theme</p>
@@ -342,23 +342,18 @@ export default function SettingsPage() {
       {admin && tab === 'notifications' && <div className="mt-6"><NotifPolicyPanel orgId={org.id} /></div>}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
 
-      {admin && tab === 'profile' && org && (
-        <div className="space-y-6 max-w-4xl">
-          <Tabs tabs={[
-            { key: 'business', label: 'Business profile', icon: 'ti-id-badge-2' },
-            { key: 'branding', label: 'Branding', icon: 'ti-palette' },
-            { key: 'themes', label: 'Themes', icon: 'ti-color-swatch' },
-            { key: 'workspace', label: 'Workspace', icon: 'ti-building' },
-          ]} active={psub} onChange={(k) => setPsub(k as 'business' | 'branding' | 'themes' | 'workspace')} />
+      {admin && tab === 'audit' && org && (
+        <div className="max-w-5xl"><AuditLog /></div>
+      )}
 
-          {psub === 'business' && (
+      {admin && tab === 'business' && org && (
             <div className="space-y-6">
               <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
               {isOwner && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
             </div>
           )}
 
-          {psub === 'workspace' && (
+      {admin && tab === 'workspace' && org && (
             <div className="space-y-6">
               <div className="card p-6 space-y-5">
                 <div>
@@ -382,7 +377,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {psub === 'themes' && (
+      {admin && tab === 'themes' && org && (
             <div className="card p-6">
               <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Workspace theme</p>
               <p className="text-sm text-muted mb-4">Sets the layout, palette and density for everyone in this workspace. Light vs dark stays a personal choice per user.</p>
@@ -409,7 +404,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {psub === 'branding' && (
+      {admin && tab === 'branding' && org && (
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 card p-6 space-y-5">
                 <div>
@@ -487,8 +482,6 @@ export default function SettingsPage() {
         </div>
             </div>
           )}
-        </div>
-      )}
     </Layout>
   );
 }

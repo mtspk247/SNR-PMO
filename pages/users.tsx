@@ -10,6 +10,7 @@ import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { useTeams } from '@/lib/queries';
 import Dropdown from '@/components/Dropdown';
+import ProfileSettings from '@/components/ProfileSettings';
 import { buildGroups } from '@/components/ViewControls';
 import RolesManager from '@/components/RolesManager';
 import { FEATURE_LABELS } from '@/lib/entitlements';
@@ -204,6 +205,7 @@ export default function UsersPage() {
       {loading ? <Spinner /> : (
         <>
           <PageHeader title="Users & roles" subtitle="Manage team access and permissions" />
+          <ProfileSettings />
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">

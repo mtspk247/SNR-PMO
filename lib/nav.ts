@@ -150,7 +150,6 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
   { href: '/lists', label: 'Lists & options', icon: 'ti-list-details' },
   { href: '/approvals', label: 'Approvals', icon: 'ti-checks' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
-  { href: '/audit', label: 'Audit log', icon: 'ti-history', feature: 'audit' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
 ]};
 
