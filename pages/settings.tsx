@@ -9,6 +9,8 @@ import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
 import OrgProfileForm from '@/components/OrgProfileForm';
 import DemoDataCard from '@/components/DemoDataCard';
+import ListsManager from '@/components/ListsManager';
+import BusinessSetup from '@/components/BusinessSetup';
 import NotifPolicyPanel from '@/components/NotifPolicyPanel';
 import AuditLog from '@/components/AuditLog';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
@@ -213,9 +215,9 @@ export default function SettingsPage() {
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
-  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'audit' | 'danger'>('business');
+  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger'>('business');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'audit', 'danger'].includes(t)) setTab(t as any); } }, [router.query.tab]);
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'lists', 'audit', 'danger'].includes(t)) setTab(t as any); } }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -333,10 +335,15 @@ export default function SettingsPage() {
       )}
       {admin && (
         <Tabs tabs={[
+          { key: 'business', label: 'Profile', icon: 'ti-id-badge-2' },
+          { key: 'branding', label: 'Branding', icon: 'ti-palette' },
+          { key: 'themes', label: 'Themes', icon: 'ti-color-swatch' },
+          { key: 'workspace', label: 'Workspace', icon: 'ti-building' },
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
-          { key: 'profile', label: 'Profile', icon: 'ti-id-badge-2' },
+          { key: 'lists', label: 'Lists & options', icon: 'ti-list-details' },
+          { key: 'audit', label: 'Audit log', icon: 'ti-history' },
           ...(isOwner ? [{ key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' }] : []),
-        ]} active={tab} onChange={(k) => setTab(k as 'notifications' | 'profile' | 'danger')} />
+        ]} active={tab} onChange={(k) => setTab(k as any)} />
       )}
       {(!admin || tab === 'notifications') && <NotificationPrefs />}
       {admin && tab === 'notifications' && <div className="mt-6"><NotifPolicyPanel orgId={org.id} /></div>}
@@ -346,8 +353,13 @@ export default function SettingsPage() {
         <div className="max-w-5xl"><AuditLog /></div>
       )}
 
+      {admin && tab === 'lists' && org && (
+        <div className="max-w-5xl"><ListsManager /></div>
+      )}
+
       {admin && tab === 'business' && org && (
             <div className="space-y-6">
+              <BusinessSetup orgId={org.id} />
               <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
               {isOwner && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
             </div>
