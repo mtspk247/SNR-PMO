@@ -51,11 +51,19 @@ export interface OrgProfile {
   social_twitter: string | null;
   social_facebook: string | null;
   social_instagram: string | null;
+  legal_name: string | null;
+  founded_year: string | null;
+  company_size: string | null;
+  contact_person: string | null;
+  contact_role: string | null;
+  contact_person_email: string | null;
+  contact_person_phone: string | null;
 }
 export const ORG_PROFILE_KEYS: (keyof OrgProfile)[] = [
   'website','contact_email','contact_phone','industry','category','about',
   'address_line1','address_line2','city','state_region','postal_code','country',
   'tax_id','registration_no','social_linkedin','social_twitter','social_facebook','social_instagram',
+  'legal_name','founded_year','company_size','contact_person','contact_role','contact_person_email','contact_person_phone',
 ];
 
 export interface MyOrg extends Organization {

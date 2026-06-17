@@ -70,13 +70,16 @@ const SECTIONS: Section[] = [
     title: 'Set up your business profile',
     icon: 'ti-building-store',
     blocks: [
-      { kind: 'p', text: 'Your business profile is the identity of your workspace. It feeds your invoices, proposals, contracts and white-label emails, so completing it makes every document you produce look professional. Find it in Settings ▸ Profile. A completion card shows which sections are still missing.' },
+      { kind: 'p', text: 'Your business profile is the identity of your workspace. It feeds your invoices, proposals, contracts and white-label emails, so completing it makes every document you produce look professional. Find it in Settings ▸ Profile. A completion card shows which sections are still missing, and the app keeps prompting until every section is filled. Workspace name and logo now live on this same tab.' },
       { kind: 'table', headers: ['Section', 'What goes here', 'Where it shows up'], rows: [
         ['Contact details', 'Website, contact email, phone.', 'Invoice & proposal headers, email footers.'],
         ['Industry & about', 'Your industry, category and a short description.', 'Tailors demo data and reporting; shown to operators.'],
         ['Business address', 'Street, city, region, postal code, country.', 'Invoices, contracts and legal documents.'],
         ['Tax & legal', 'Tax / VAT ID and company registration number.', 'Tax lines on invoices and credit notes.'],
         ['Social', 'LinkedIn, X, Facebook, Instagram links.', 'Optional branding on shared/public pages.'],
+        ['Company details', 'Legal name, year founded, company size.', 'Documents and your operator/account record.'],
+        ['Contact person', 'Primary contact name, role, email and phone.', 'Documents and account communication.'],
+        ['Workspace & logo', 'Workspace name, subdomain and company logo (upload).', 'Sidebar, invoices/proposals and white-label emails.'],
       ] },
       { kind: 'callout', icon: 'ti-info-circle', text: 'You do not have to fill every field at once — a section counts as done as soon as its key fields are set, and the prompt disappears when all sections are complete.' },
     ],

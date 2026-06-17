@@ -339,7 +339,6 @@ export default function SettingsPage() {
           { key: 'business', label: 'Profile', icon: 'ti-id-badge-2' },
           { key: 'branding', label: 'Branding', icon: 'ti-palette' },
           { key: 'themes', label: 'Themes', icon: 'ti-color-swatch' },
-          { key: 'workspace', label: 'Workspace', icon: 'ti-building' },
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
           { key: 'lists', label: 'Lists & options', icon: 'ti-list-details' },
           { key: 'audit', label: 'Audit log', icon: 'ti-history' },
@@ -366,34 +365,37 @@ export default function SettingsPage() {
       {admin && tab === 'business' && org && (
             <div className="space-y-6">
               <BusinessSetup orgId={org.id} />
-              <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
-              {admin && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
-            </div>
-          )}
-
-      {admin && tab === 'workspace' && org && (
-            <div className="space-y-6">
-              <div className="card p-6 space-y-5">
-                <div>
-                  <label className="label">Workspace name</label>
-                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." />
-                  <p className="text-2xs text-muted mt-2">The display name for this workspace across the app and white-label emails.</p>
-                </div>
-                <div>
-                  <label className="label">Workspace subdomain</label>
-                  <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface2 text-sm text-muted">
-                    <Icon name="ti-world" /><span className="font-mono text-content">{org.slug}</span><span className="text-muted">.yourdomain.com</span>
+              <div className="card p-6 space-y-5 max-w-3xl">
+                <p className="text-2xs uppercase tracking-wide text-muted font-medium">Workspace &amp; logo</p>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-lg border border-line bg-surface2 grid place-items-center overflow-hidden shrink-0">
+                    {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
                   </div>
-                  <p className="text-2xs text-muted mt-2">Maps to your white-label URL once a custom domain is connected.</p>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="btn btn-ghost text-xs cursor-pointer border border-line"><Icon name="ti-upload" className="text-sm" /> Upload logo<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={onLogoFile} /></label>
+                      {logo && <button type="button" onClick={() => setLogo('')} className="btn btn-ghost text-xs text-rose-600">Remove</button>}
+                    </div>
+                    {logoErr && <span className="text-2xs text-rose-600">{logoErr}</span>}
+                    <span className="text-2xs text-muted">Square image, at least 256\u00d7256px, under 1.5 MB. Shown on invoices, the sidebar and white-label emails.</span>
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div><label className="label">Workspace name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." /></div>
+                  <div><label className="label">Workspace subdomain</label><div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface2 text-sm text-muted"><Icon name="ti-world" /><span className="font-mono text-content">{org.slug}</span><span className="text-muted">.yourdomain.com</span></div></div>
                 </div>
                 <div className="flex items-center gap-3 pt-4 border-t border-line">
-                  <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving\u2026' : 'Save changes'}</button>
-                  {msg && <span className={`text-sm ml-auto ${msg === 'Saved' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</span>}
+                  <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving\u2026' : 'Save workspace'}</button>
+                  {msg && <span className={`text-sm ${msg === 'Saved' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</span>}
                 </div>
               </div>
+              <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
+              {admin && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
               <DeleteSafetyToggle org={org} />
             </div>
           )}
+
+
 
       {admin && tab === 'themes' && org && (
             <div className="card p-6">

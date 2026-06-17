@@ -12,6 +12,7 @@ const empty = (): OrgProfile => Object.fromEntries(ORG_PROFILE_KEYS.map((k) => [
 const TABS = [
   { id: 'contact', label: 'Contact', icon: 'ti-address-book' },
   { id: 'classification', label: 'Classification', icon: 'ti-category' },
+  { id: 'people', label: 'Contact person', icon: 'ti-user' },
   { id: 'address', label: 'Address', icon: 'ti-map-pin' },
   { id: 'tax', label: 'Tax & legal', icon: 'ti-receipt' },
   { id: 'social', label: 'Social', icon: 'ti-share' },
@@ -103,6 +104,27 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }
               </Row>
             </div>
             <Row label="About"><textarea className="input min-h-[72px]" value={v.about || ''} onChange={set('about')} placeholder="Short description of the business" disabled={readOnly} /></Row>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <Row label="Legal name">{inp('legal_name', 'text', 'Registered legal entity name')}</Row>
+              <Row label="Founded (year)">{inp('founded_year', 'text', 'e.g. 2018')}</Row>
+              <Row label="Company size">
+                <Select placeholder="Select size…" value={v.company_size || ''}
+                  options={withCurrent(['1\u201310', '11\u201350', '51\u2013200', '201\u2013500', '500+'], v.company_size)}
+                  onChange={(c) => setV({ ...v, company_size: c })} disabled={readOnly} />
+              </Row>
+            </div>
+          </div>
+        )}
+
+        {tab === 'people' && (
+          <div className="space-y-4">
+            <p className="text-2xs text-muted">Primary point of contact for this business \u2014 used on documents and for account communication.</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Row label="Contact name">{inp('contact_person', 'text', 'Full name')}</Row>
+              <Row label="Role / title">{inp('contact_role', 'text', 'e.g. Operations Director')}</Row>
+              <Row label="Contact email">{inp('contact_person_email', 'email', 'name@company.com')}</Row>
+              <Row label="Contact phone">{inp('contact_person_phone', 'tel', '+1 555 0100')}</Row>
+            </div>
           </div>
         )}
 
