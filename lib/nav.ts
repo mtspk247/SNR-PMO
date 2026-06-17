@@ -87,6 +87,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/ideas', label: 'Ideas', icon: 'ti-bulb', feature: 'ideas', search: searchIdeas },
     { href: '/roadmap', label: 'Roadmap', icon: 'ti-timeline', feature: 'projects' },
     { href: '/chat', label: 'Chat', icon: 'ti-messages', feature: 'chat' },
+    { href: '/approvals', label: 'Approvals', icon: 'ti-checks', adminOnly: true },
   ]},
   { kind: 'menu', key: 'people', label: 'People', icon: 'ti-users', items: [
     { href: '/teams', label: 'Teams', icon: 'ti-users-group', feature: 'teams', search: searchTeams },
@@ -148,7 +149,6 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
   { href: '/roles', label: 'Roles', icon: 'ti-shield-lock' },
   { href: '/billing', label: 'Billing', icon: 'ti-credit-card' },
   { href: '/lists', label: 'Lists & options', icon: 'ti-list-details' },
-  { href: '/approvals', label: 'Approvals', icon: 'ti-checks' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
 ]};
