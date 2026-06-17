@@ -2853,6 +2853,13 @@ export async function saveUserEmail(orgId: string, p: { provider: string; from_n
 export async function deleteUserEmail(orgId: string): Promise<void> {
   const { error } = await sb.rpc('user_email_delete', { p_org: orgId }); if (error) throw new Error(error.message);
 }
+export async function getMemberRole(orgId: string, userId: string): Promise<string | null> {
+  const { data, error } = await sb.from('org_members').select('role').eq('org_id', orgId).eq('user_id', userId).maybeSingle();
+  if (error) return null; return (data as any)?.role ?? null;
+}
+export async function setMemberRole(orgId: string, userId: string, role: string): Promise<void> {
+  const { error } = await sb.rpc('org_set_member_role', { p_org: orgId, p_user: userId, p_role: role }); if (error) throw new Error(error.message);
+}
 export async function seedDefaultRoles(orgId: string): Promise<number> {
   const { data, error } = await sb.rpc('seed_default_roles', { p_org: orgId }); if (error) throw new Error(error.message); return (data as number) || 0;
 }

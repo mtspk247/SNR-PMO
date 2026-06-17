@@ -11,7 +11,7 @@ import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
   getAdminUser, updateUserAdmin, updateMyProfile, uploadAvatar, avatarSrc,
   getUserActivity, ActivityItem, changeOwnPassword,
-  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart, adminResetUserPassword, removeOrgMember,
+  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart, adminResetUserPassword, removeOrgMember, getMemberRole, setMemberRole,
   listRoleTemplates, getMyNotifSettings, getNotificationPrefs, saveNotificationPrefs, NotifSetting,
 } from '@/lib/db';
 import { AdminUser, RoleTemplate } from '@/lib/supabase';
@@ -104,7 +104,7 @@ export default function UserDetail() {
           </div>
 
           {tab === 'profile' && <ProfileTab u={u} isSelf={isSelf} isAdmin={isAdmin} orgId={org?.id || ''} onSaved={(r) => setU(r)} />}
-          {tab === 'access' && isAdmin && <AccessTab u={u} roles={roles} busy={busy} patch={patch} myTeams={myTeams} />}
+          {tab === 'access' && isAdmin && <AccessTab u={u} roles={roles} busy={busy} patch={patch} myTeams={myTeams} orgId={org?.id || ''} />}
           {tab === 'access' && isAdmin && !isSelf && <RemoveMemberCard u={u} orgId={org?.id || ''} />}
           {tab === 'email' && isSelf && <EmailTab orgId={org?.id || ''} />}
           {tab === 'notifications' && isSelf && <NotificationsTab orgId={org?.id || ''} userId={u.id} />}
@@ -161,7 +161,14 @@ function ProfileTab({ u, isSelf, isAdmin, orgId, onSaved }: { u: AdminUser; isSe
   );
 }
 
-function AccessTab({ u, roles, busy, patch, myTeams }: { u: AdminUser; roles: RoleTemplate[]; busy: boolean; patch: (p: Partial<AdminUser>) => void; myTeams: string[] }) {
+function AccessTab({ u, roles, busy, patch, myTeams, orgId }: { u: AdminUser; roles: RoleTemplate[]; busy: boolean; patch: (p: Partial<AdminUser>) => void; myTeams: string[]; orgId: string }) {
+  const [access, setAccess] = useState('');
+  const [aBusy, setABusy] = useState(false);
+  useEffect(() => { if (orgId) getMemberRole(orgId, u.id).then((r) => setAccess(r || '')).catch(() => {}); }, [orgId, u.id]);
+  const changeAccess = async (v: string) => {
+    const prev = access; setAccess(v); setABusy(true);
+    try { await setMemberRole(orgId, u.id, v); } catch (e: any) { setAccess(prev); alert(e.message || 'Could not change access level'); } finally { setABusy(false); }
+  };
   const [rpw, setRpw] = useState<string | null>(null);
   const [rbusy, setRbusy] = useState(false);
   const [rerr, setRerr] = useState('');
@@ -171,13 +178,13 @@ function AccessTab({ u, roles, busy, patch, myTeams }: { u: AdminUser; roles: Ro
     try { const r = await adminResetUserPassword(u.id); setRpw(r.temp_password); } catch (e: any) { setRerr(e.message || 'Reset failed'); } finally { setRbusy(false); }
   };
   const t = u.role_template_id ? roles.find((r) => r.id === u.role_template_id) : null;
-  const isSuper = u.role === 'super_admin';
+  const isSuper = u.role === 'super_admin' || access === 'owner';
   const permLabels = isSuper ? ['Full access'] : (t ? PERMS.filter((p) => (t.permissions as any)[p.key as string]).map((p) => p.label) : PERMS.filter((p) => !!u[p.key]).map((p) => p.label));
   const modules = isSuper ? 'All modules' : (t ? (t.feature_access.length ? t.feature_access.map((fk) => FEATURE_LABELS[fk as keyof typeof FEATURE_LABELS] || fk).join(', ') : 'All modules') : 'All modules');
   return (
     <Section>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div><label className="label">Role</label><Select value={u.role} disabled={busy} onChange={(v) => patch({ role: v as any })} options={ROLES.map((r) => ({ value: r, label: r.replace('_', ' ') }))} /></div>
+        <div><label className="label">Access level</label><Select value={access} disabled={aBusy} onChange={changeAccess} options={[{ value: 'owner', label: 'Owner' }, { value: 'admin', label: 'Admin' }, { value: 'member', label: 'Member' }, { value: 'guest', label: 'Guest' }]} /><p className="text-2xs text-muted mt-1">Owner & Admin manage the workspace; Member works in it; Guest has limited access.</p></div>
         <div><label className="label">Status</label><Select value={u.status} disabled={busy} onChange={(v) => patch({ status: v as any })} options={[{ value: 'active', label: 'Active' }, { value: 'suspended', label: 'Suspended' }]} /></div>
       </div>
       <div>
