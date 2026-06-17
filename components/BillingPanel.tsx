@@ -138,68 +138,48 @@ function PlanHistory({ org }: { org: { id: string } }) {
   const [events, setEvents] = useState<TenantEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => { getTenantEvents(org.id).then(setEvents).catch(() => setEvents([])).finally(() => setLoaded(true)); }, [org.id]);
-  const META: Record<string, { label: string; icon: string }> = {
-    signup: { label: 'Signed up', icon: 'ti-sparkles' },
-    plan_changed: { label: 'Plan changed', icon: 'ti-package' },
-    suspended: { label: 'Suspended', icon: 'ti-ban' },
-    reactivated: { label: 'Reactivated', icon: 'ti-circle-check' },
-    payment: { label: 'Payment', icon: 'ti-credit-card' },
-    email: { label: 'Message received', icon: 'ti-mail' },
-    campaign: { label: 'Message received', icon: 'ti-mail' },
+  const META: Record<string, { label: string; icon: string; tone: string }> = {
+    signup: { label: 'Signed up', icon: 'ti-sparkles', tone: 'text-sky-600' },
+    plan_changed: { label: 'Plan changed', icon: 'ti-package', tone: 'text-violet-600' },
+    suspended: { label: 'Suspended', icon: 'ti-ban', tone: 'text-rose-600' },
+    reactivated: { label: 'Reactivated', icon: 'ti-circle-check', tone: 'text-emerald-600' },
+    payment: { label: 'Payment', icon: 'ti-credit-card', tone: 'text-emerald-600' },
+    refund: { label: 'Refund', icon: 'ti-arrow-back-up', tone: 'text-amber-600' },
+    email: { label: 'Message', icon: 'ti-mail', tone: 'text-muted' },
+    campaign: { label: 'Message', icon: 'ti-mail', tone: 'text-muted' },
   };
   if (!loaded) return null;
+  const detail = (ev: TenantEvent) => (ev.plan_from && ev.plan_to) ? `${ev.plan_from} \u2192 ${ev.plan_to}` : (ev.reason || '\u2014');
   return (
-    <div className="card p-6 mb-6 max-w-4xl">
-      <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Plan &amp; account history</p>
-      <p className="text-sm text-muted mb-4">Your signup, plan changes and billing events.</p>
-      {events.length === 0 ? <p className="text-sm text-muted2">No account events yet — your signup, plan changes and payments will appear here.</p> : (
-      <ol className="relative border-l border-line ml-2 space-y-3">
-        {events.map((ev) => { const m = META[ev.event_type] || { label: ev.event_type, icon: 'ti-point' }; return (
-          <li key={ev.id} className="ml-4 relative">
-            <span className="absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full bg-accent" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <Icon name={m.icon} className="text-sm text-muted2" />
-              <span className="text-sm font-medium text-content">{m.label}</span>
-              {ev.plan_from && ev.plan_to && <span className="text-2xs text-muted2 capitalize">{ev.plan_from} → {ev.plan_to}</span>}
-              {ev.amount_cents != null && <span className="text-2xs text-content font-medium">{(ev.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: ev.currency || 'USD' })}</span>}
-              <span className="text-2xs text-muted2 ml-auto whitespace-nowrap">{new Date(ev.created_at).toLocaleDateString()}</span>
-            </div>
-            {ev.reason && ev.event_type !== 'plan_changed' && <p className="text-2xs text-muted mt-0.5">{ev.reason}</p>}
-          </li>
-        ); })}
-      </ol>
-      )}
-    </div>
-  );
-}
-
-function InvoicesCard({ org, canBill }: { org: { id: string }; canBill: boolean }) {
-  const [events, setEvents] = useState<TenantEvent[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  useEffect(() => { getTenantEvents(org.id).then(setEvents).catch(() => setEvents([])).finally(() => setLoaded(true)); }, [org.id]);
-  const invoices = events.filter((e) => e.event_type === 'payment');
-  const portal = async () => { setBusy(true); setErr(''); try { const url = await openBillingPortal(org.id); window.location.href = url; } catch (e: any) { setErr(e?.message || 'Could not open billing portal'); setBusy(false); } };
-  if (!loaded) return null;
-  return (
-    <div className="card p-6 mb-6 max-w-4xl">
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div><p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Invoices &amp; receipts</p><p className="text-sm text-muted">Your payments. Download itemised PDF invoices and receipts from the secure billing portal.</p></div>
-        {canBill && <button className="btn btn-ghost border border-line shrink-0" disabled={busy} onClick={portal}><Icon name="ti-download" />{busy ? 'Opening…' : 'Invoices in portal'}</button>}
+    <div className="card p-0 mb-6 max-w-4xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-line">
+        <p className="text-sm font-semibold text-content">Billing history</p>
+        <p className="text-2xs text-muted mt-0.5">Every billing transaction and account action on this workspace, most recent first.</p>
       </div>
-      {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
-      {invoices.length === 0 ? (
-        <p className="text-sm text-muted2">No payments recorded yet. Once you upgrade to a paid plan, your invoices appear here and in the billing portal.</p>
+      {events.length === 0 ? (
+        <div className="p-8 text-center"><Icon name="ti-receipt-off" className="text-2xl text-muted2 block mb-2" /><p className="text-sm text-muted2">No billing activity yet — signup, plan changes and payments will appear here.</p></div>
       ) : (
-        <div className="divide-y divide-line">
-          {invoices.map((ev) => (
-            <div key={ev.id} className="flex items-center gap-3 py-2.5">
-              <span className="w-8 h-8 rounded-md grid place-items-center bg-emerald-500/10 text-emerald-600 shrink-0"><Icon name="ti-receipt" className="text-base" /></span>
-              <div className="min-w-0 flex-1"><p className="text-sm text-content">{ev.reason || 'Payment'}</p><p className="text-2xs text-muted">{new Date(ev.created_at).toLocaleString()}</p></div>
-              {ev.amount_cents != null && <span className="text-sm font-semibold text-content tabular-nums">{(ev.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: ev.currency || 'USD' })}</span>}
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-surface2/50 text-left text-2xs uppercase tracking-wide text-muted2">
+                <th className="px-5 py-2.5 font-medium">Date</th>
+                <th className="px-3 py-2.5 font-medium">Activity</th>
+                <th className="px-3 py-2.5 font-medium">Details</th>
+                <th className="px-5 py-2.5 font-medium text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((ev) => { const m = META[ev.event_type] || { label: ev.event_type, icon: 'ti-point', tone: 'text-muted' }; return (
+                <tr key={ev.id} className="border-t border-line hover:bg-surface2/40">
+                  <td className="px-5 py-3 whitespace-nowrap text-muted">{new Date(ev.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                  <td className="px-3 py-3"><span className="inline-flex items-center gap-1.5 font-medium text-content"><Icon name={m.icon} className={`text-sm ${m.tone}`} />{m.label}</span></td>
+                  <td className="px-3 py-3 text-muted capitalize">{detail(ev)}</td>
+                  <td className="px-5 py-3 text-right tabular-nums font-medium text-content">{ev.amount_cents != null ? (ev.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: ev.currency || 'USD' }) : '\u2014'}</td>
+                </tr>
+              ); })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -213,7 +193,7 @@ export default function BillingPanel({ org, canBill }: { org: { id: string; feat
       <Tabs tabs={[
         { key: 'plan', label: 'Plan Management', icon: 'ti-package' },
         { key: 'invoices', label: 'Invoices & Receipts', icon: 'ti-file-invoice' },
-        { key: 'history', label: 'Account History', icon: 'ti-history' },
+        { key: 'history', label: 'Billing history', icon: 'ti-history' },
       ]} active={tab} onChange={(k) => setTab(k as 'plan' | 'invoices' | 'history')} />
       <div className="mt-5">
         {tab === 'plan' && <PlanPanel org={org} canBill={canBill} />}
