@@ -8,7 +8,7 @@ import { can } from '@/lib/authz';
 import { FEATURE_LABELS, PERMISSION_LABELS } from '@/lib/entitlements';
 
 const PERM_KEYS = Object.keys(PERMISSION_LABELS) as PermKey[];
-const FEATURE_KEYS = Object.keys(FEATURE_LABELS) as FeatureKey[];
+const FEATURE_KEYS = (Object.keys(FEATURE_LABELS) as FeatureKey[]).filter((k) => k !== 'white_label' && k !== 'audit');
 
 type Draft = { id?: string; name: string; description: string; permissions: Record<string, boolean>; feature_access: string[]; is_system: boolean };
 const emptyDraft = (): Draft => ({ name: '', description: '', permissions: {}, feature_access: [], is_system: false });

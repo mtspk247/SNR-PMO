@@ -11,6 +11,7 @@ import OrgProfileForm from '@/components/OrgProfileForm';
 import DemoDataCard from '@/components/DemoDataCard';
 import ListsManager from '@/components/ListsManager';
 import BusinessSetup from '@/components/BusinessSetup';
+import { PRESET_AVATARS, presetColor } from '@/lib/avatars';
 import NotifPolicyPanel from '@/components/NotifPolicyPanel';
 import AuditLog from '@/components/AuditLog';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
@@ -222,6 +223,7 @@ export default function SettingsPage() {
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
+  const [logoPicker, setLogoPicker] = useState(false);
   const [logoErr, setLogoErr] = useState('');
   const [primary, setPrimary] = useState(DEFAULTS.primary);
   const [accent, setAccent] = useState(DEFAULTS.accent);
@@ -369,17 +371,26 @@ export default function SettingsPage() {
                 <p className="text-2xs uppercase tracking-wide text-muted font-medium">Workspace &amp; logo</p>
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-lg border border-line bg-surface2 grid place-items-center overflow-hidden shrink-0">
-                    {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
+                    {logo && logo.startsWith('preset:') ? <span className="w-full h-full grid place-items-center text-2xl" style={{ background: presetColor(logo.slice(7)) }}>{logo.slice(7)}</span>
+                      : logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
                       <label className="btn btn-ghost text-xs cursor-pointer border border-line"><Icon name="ti-upload" className="text-sm" /> Upload logo<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={onLogoFile} /></label>
-                      {logo && <button type="button" onClick={() => setLogo('')} className="btn btn-ghost text-xs text-rose-600">Remove</button>}
+                      <button type="button" onClick={() => setLogoPicker((v) => !v)} className="btn btn-ghost text-xs border border-line"><Icon name="ti-mood-smile" className="text-sm" />Use an avatar</button>
+                      {logo && <button type="button" onClick={() => { setLogo(''); setLogoPicker(false); }} className="btn btn-ghost text-xs text-rose-600">Remove</button>}
                     </div>
                     {logoErr && <span className="text-2xs text-rose-600">{logoErr}</span>}
-                    <span className="text-2xs text-muted">Square image, at least 256\u00d7256px, under 1.5 MB. Shown on invoices, the sidebar and white-label emails.</span>
+                    <span className="text-2xs text-muted">Square image, at least 256×256px, under 1.5 MB — or pick an avatar. Shown top-left, on invoices and emails.</span>
                   </div>
                 </div>
+                {logoPicker && (
+                  <div className="grid grid-cols-8 sm:grid-cols-12 gap-2 p-3 rounded-lg border border-line bg-surface2/40">
+                    {PRESET_AVATARS.map((e) => (
+                      <button key={e} type="button" onClick={() => { setLogo('preset:' + e); setLogoPicker(false); }} style={{ background: presetColor(e) }} className={`w-9 h-9 rounded-lg grid place-items-center text-lg transition hover:scale-110 ${logo === 'preset:' + e ? 'ring-2 ring-offset-2 ring-accent' : ''}`}>{e}</button>
+                    ))}
+                  </div>
+                )}
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div><label className="label">Workspace name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." /></div>
                   <div><label className="label">Workspace subdomain</label><div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface2 text-sm text-muted"><Icon name="ti-world" /><span className="font-mono text-content">{org.slug}</span><span className="text-muted">.yourdomain.com</span></div></div>
