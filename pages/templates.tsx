@@ -41,6 +41,8 @@ export default function TemplatesPage() {
   const [profile, setProfile] = useState<OrgProfile | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [using, setUsing] = useState<DocTemplate | null>(null);
+  const [vals, setVals] = useState<Record<string, string>>({});
 
   const load = () => { if (org) listDocTemplates(org.id).then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   useEffect(() => { load(); if (org) getOrgProfile(org.id).then(setProfile).catch(() => {}); /* eslint-disable-next-line */ }, [org?.id]);
@@ -115,6 +117,49 @@ export default function TemplatesPage() {
     );
   }
 
+  const FILLABLE = [
+    { token: '{{client_name}}', label: 'Client name' },
+    { token: '{{company_name}}', label: 'Company name' },
+    { token: '{{contact_name}}', label: 'Contact person' },
+    { token: '{{amount}}', label: 'Amount' },
+    { token: '{{currency}}', label: 'Currency' },
+  ];
+  if (using) {
+    const merged: Record<string, string> = { ...sample, ...vals };
+    const html = Object.entries(merged).reduce((acc, [k, v]) => acc.split(k).join(v || ''), using.body || '');
+    return (
+      <Layout flat title="Generate document">
+        <div className="flex items-center gap-3 mb-4 no-print">
+          <button onClick={() => setUsing(null)} className="btn btn-ghost border border-line"><Icon name="ti-arrow-left" />Back</button>
+          <h1 className="text-base font-semibold truncate">Generate: {using.name}</h1>
+          <div className="ml-auto"><button onClick={() => window.print()} className="btn btn-primary"><Icon name="ti-printer" />Print / Save as PDF</button></div>
+        </div>
+        <div className="grid lg:grid-cols-[20rem_1fr] gap-5">
+          <div className="card p-4 space-y-3 h-fit no-print">
+            <p className="text-2xs uppercase tracking-wide text-muted font-medium">Fill in</p>
+            {FILLABLE.map((m) => (
+              <div key={m.token}><label className="label">{m.label}</label><input className="input" value={vals[m.token] || ''} onChange={(e) => setVals((p) => ({ ...p, [m.token]: e.target.value }))} placeholder={sample[m.token] || ''} /></div>
+            ))}
+            <p className="text-2xs text-muted">Date, your workspace, your name and tax ID fill in automatically. Use Print to save a PDF.</p>
+          </div>
+          <div className="card p-0 overflow-hidden">
+            <div className="print-area bg-white text-[#111] p-10" style={{ minHeight: 600 }}>
+              <div className="flex items-start justify-between gap-4 border-b pb-4 mb-6" style={{ borderColor: '#e5e7eb' }}>
+                <div className="flex items-center gap-3">
+                  {logo && logo.startsWith('preset:') ? <span className="w-12 h-12 rounded-lg grid place-items-center text-2xl" style={{ background: '#eef2ff' }}>{logo.slice(7)}</span>
+                    : logo ? <img src={avatarSrc(logo)} alt="" className="w-12 h-12 rounded-lg object-cover" /> : <span className="w-12 h-12 rounded-lg grid place-items-center font-bold text-white" style={{ background: 'var(--brand-primary,#3ECF8E)' }}>{(org?.name || 'S').charAt(0)}</span>}
+                  <div><p className="font-semibold text-base">{org?.name}</p>{addr && <p className="text-xs" style={{ color: '#6b7280' }}>{addr}</p>}{(profile?.contact_email || profile?.contact_phone) && <p className="text-xs" style={{ color: '#6b7280' }}>{[profile?.contact_email, profile?.contact_phone].filter(Boolean).join(' · ')}</p>}</div>
+                </div>
+                <div className="text-right text-xs" style={{ color: '#6b7280' }}><p className="uppercase tracking-wide">{typeMeta(using.doc_type).label}</p><p>{sample['{{date}}']}</p></div>
+              </div>
+              <div className="prose-doc text-sm" dangerouslySetInnerHTML={{ __html: html || '<p style="color:#9ca3af">This template is empty.</p>' }} />
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout flat title="Templates">
       <PageHeader title="Document templates" subtitle="Branded, reusable templates for proposals, contracts, offer letters and more — write once, use many" icon="ti-files"
@@ -129,11 +174,14 @@ export default function TemplatesPage() {
               <h3 className="text-sm font-semibold text-content mb-3 inline-flex items-center gap-2"><Icon name={t.icon} className="text-muted2" />{t.label}s</h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {rows.filter((r) => r.doc_type === t.value).map((r) => (
-                  <button key={r.id} onClick={() => openEdit(r)} className="card p-5 text-left hover:border-borderstrong transition flex flex-col">
+                  <div key={r.id} className="card p-5 flex flex-col">
                     <span className="font-semibold inline-flex items-center gap-2"><Icon name={t.icon} className="text-muted" />{r.name}</span>
                     <span className="text-2xs text-muted mt-2 line-clamp-2 flex-1" dangerouslySetInnerHTML={{ __html: (r.body || '').replace(/<[^>]+>/g, ' ').slice(0, 140) || '—' }} />
-                    <span className="mt-3 text-2xs text-accentstrong inline-flex items-center gap-1">Edit <Icon name="ti-chevron-right" className="text-2xs" /></span>
-                  </button>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => { setUsing(r); setVals({}); }} className="btn btn-primary flex-1 text-xs"><Icon name="ti-file-export" />Use</button>
+                      <button onClick={() => openEdit(r)} className="btn text-xs"><Icon name="ti-pencil" />Edit</button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

@@ -265,3 +265,11 @@ html[data-skin="midnight"][data-theme="dark"] body  { background: radial-gradien
 .prose-doc blockquote { border-left: 3px solid rgb(var(--line)); padding-left: 0.8em; color: rgb(var(--muted)); margin: 0.5em 0; }
 .prose-doc a { color: #2563eb; text-decoration: underline; }
 .prose-doc:empty::before { content: attr(data-placeholder); color: rgb(var(--muted-2)); }
+
+/* Document print: show only the rendered document, hide app chrome */
+@media print {
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0 !important; }
+  .no-print { display: none !important; }
+}
