@@ -26,7 +26,7 @@ export default function DemoDataCard({ orgId, defaultIndustry }: { orgId: string
         <span className="w-10 h-10 shrink-0 rounded-xl grid place-items-center bg-accent/10 text-accentstrong ring-1 ring-inset ring-accent/15"><Icon name="ti-sparkles" className="text-xl" /></span>
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-content">Demo data</h3>
-          <p className="text-2xs text-muted mt-0.5">Populate this workspace with realistic sample projects, tasks, clients, deals and ledger entries for the chosen industry. Great for trials and demos. This adds data — to clear everything, use the Danger zone.</p>
+          <p className="text-2xs text-muted mt-0.5">Populate this workspace with realistic, industry-specific sample data across every module your plan includes — projects &amp; tasks, CRM, companies, teams, ideas, products, invoices, support tickets, risk register and ledger. Only modules your plan enables are populated. Great for trials and demos. This adds data — to clear everything, use the Danger zone.</p>
         </div>
       </div>
       <div className="mt-4 grid sm:grid-cols-2 gap-4">
@@ -38,8 +38,8 @@ export default function DemoDataCard({ orgId, defaultIndustry }: { orgId: string
       </div>
       {err && <p className="text-sm text-rose-600 mt-3">{err}</p>}
       {done && (
-        <p className="text-sm text-emerald-600 mt-3 inline-flex items-center gap-1">
-          <Icon name="ti-check" />Added {done.projects ?? 0} projects, {done.tasks ?? 0} tasks, {done.clients ?? 0} clients, {done.deals ?? 0} deals, {done.ledger ?? 0} ledger entries.
+        <p className="text-sm text-emerald-600 mt-3 inline-flex items-center gap-1 flex-wrap">
+          <Icon name="ti-check" />Added {Object.entries(done).filter(([, v]) => (v as number) > 0).map(([k, v]) => `${v} ${k}`).join(', ') || 'sample data'} (only modules your plan enables).
         </p>
       )}
       <div className="mt-4 flex items-center gap-2">

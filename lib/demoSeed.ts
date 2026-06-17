@@ -9,7 +9,16 @@ export interface DemoTask { name: string; status?: string; priority?: string; es
 export interface DemoProject { name: string; description?: string; status?: string; priority?: string; progress?: number; tasks: DemoTask[] }
 export interface DemoDeal { title: string; value: number; stage: string }
 export interface DemoLedger { type: 'income' | 'expense'; category: string; amount: number; notes?: string; project_index?: number }
-export interface DemoPayload { clients: string[]; projects: DemoProject[]; deals: DemoDeal[]; ledger: DemoLedger[] }
+export interface DemoProduct { name: string; type?: string; unit_price?: number }
+export interface DemoInvoiceLine { description: string; qty: number; unit_price: number }
+export interface DemoInvoice { number: string; status?: string; lines: DemoInvoiceLine[] }
+export interface DemoSupport { subject: string; category?: string; priority?: string; status?: string }
+export interface DemoRisk { title: string; category?: string; impact?: number; probability?: number; status?: string }
+export interface DemoPayload {
+  clients: string[]; projects: DemoProject[]; deals: DemoDeal[]; ledger: DemoLedger[];
+  companies: string[]; teams: string[]; ideas: string[];
+  products: DemoProduct[]; invoices: DemoInvoice[]; support: DemoSupport[]; risks: DemoRisk[];
+}
 
 const T = (name: string, status: string, priority = 'Medium', h = 6): DemoTask => ({ name, status, priority, estimated_hours: h });
 const STAGES = ['Qualified', 'Proposal', 'Negotiation', 'Won'];
@@ -190,5 +199,31 @@ export function buildDemoPayload(industry: string | null | undefined): DemoPaylo
     { type: 'expense', category: pack.ledgerCats[1], amount: 7800, notes: 'Demo expense', project_index: 0 },
     { type: 'expense', category: 'Software & tools', amount: 1200, notes: 'Demo expense' },
   ];
-  return { clients: pack.clients, projects, deals, ledger };
+  // Plan-gated extras (RPC only seeds modules the tenant's plan enables).
+  const companies: string[] = pack.clients.slice(0, 2);
+  const teams: string[] = ['Delivery', 'Sales', 'Operations'];
+  const ideas: string[] = [
+    `${pack.projects[0].name} — phase 2`,
+    'Customer feedback portal',
+    'Internal process automation',
+  ];
+  const products: DemoProduct[] = [
+    { name: `${ind || 'Standard'} service`, type: 'service', unit_price: 150 },
+    { name: 'Premium package', type: 'service', unit_price: 500 },
+    { name: 'Onboarding & setup', type: 'service', unit_price: 1000 },
+  ];
+  const tok = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const invoices: DemoInvoice[] = [
+    { number: `INV-${tok}-1`, status: 'paid', lines: [{ description: products[0].name, qty: 10, unit_price: 150 }] },
+    { number: `INV-${tok}-2`, status: 'sent', lines: [{ description: products[1].name, qty: 2, unit_price: 500 }, { description: products[2].name, qty: 1, unit_price: 1000 }] },
+  ];
+  const support: DemoSupport[] = [
+    { subject: 'Cannot access the dashboard', category: 'Account', priority: 'high', status: 'open' },
+    { subject: 'Question about my latest invoice', category: 'Billing', priority: 'medium', status: 'resolved' },
+  ];
+  const risks: DemoRisk[] = [
+    { title: 'Client concentration risk', category: 'Strategic', impact: 4, probability: 3, status: 'Open' },
+    { title: 'Supplier / delivery delay', category: 'Operational', impact: 3, probability: 2, status: 'Open' },
+  ];
+  return { clients: pack.clients, projects, deals, ledger, companies, teams, ideas, products, invoices, support, risks };
 }
