@@ -2866,6 +2866,12 @@ export async function seedDefaultRoles(orgId: string): Promise<number> {
 export async function seedDefaultTeams(orgId: string): Promise<number> {
   const { data, error } = await sb.rpc('seed_default_teams', { p_org: orgId }); if (error) throw new Error(error.message); return (data as number) || 0;
 }
+export async function adminImpersonateLink(p: { target?: string; org?: string }): Promise<{ link: string; email: string; name: string }> {
+  const { data, error } = await sb.functions.invoke('admin-impersonate-link', { body: p });
+  if (error) { const m = (data as any)?.error; throw new Error(m || error.message || 'Failed'); }
+  if ((data as any)?.error) throw new Error((data as any).error);
+  return data as { link: string; email: string; name: string };
+}
 export async function removeOrgMember(orgId: string, userId: string): Promise<void> {
   const { error } = await sb.rpc('org_remove_member', { p_org: orgId, p_user: userId });
   if (error) throw new Error(error.message);

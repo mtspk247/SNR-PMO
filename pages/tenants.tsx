@@ -6,7 +6,7 @@ import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import { PlanBadge } from '@/components/PlanBadge';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listTenants, listPlans, listOrgInvites, createOrgInvite, setOrgInviteSource, revokeOrgInvite, platformAccounts, PlatformAccount, emailGetStatus, EmailStatus } from '@/lib/db';
+import { listTenants, listPlans, listOrgInvites, createOrgInvite, setOrgInviteSource, revokeOrgInvite, platformAccounts, PlatformAccount, emailGetStatus, EmailStatus, adminImpersonateLink } from '@/lib/db';
 import { Plan, OrgInvite } from '@/lib/supabase';
 
 const SOURCES = [
@@ -34,6 +34,8 @@ export default function TenantsPage() {
   const [orphans, setOrphans] = useState<PlatformAccount[]>([]);
   const [invSource, setInvSource] = useState('website');
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
+  const [impMsg, setImpMsg] = useState('');
+  const openAsOwner = async (orgId: string, nm: string) => { setImpMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ org: orgId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setImpMsg(`Sign-in link for ${nm} copied — open it in a private/incognito window to view that workspace as its owner.`); setTimeout(() => setImpMsg(''), 8000); } catch (e: any) { setImpMsg(e.message || 'Failed'); } };
 
   const load = () => { listTenants().then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   const loadInvites = () => listOrgInvites().then(setInvites).catch(() => {});
@@ -54,6 +56,7 @@ export default function TenantsPage() {
     <Layout flat title="Tenants">
       <PageHeader title="Tenants" subtitle="Manage every organization — plan, features, quotas and access" icon="ti-building-community" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+      {impMsg && <p className="text-2xs text-accentstrong mb-3 inline-flex items-center gap-1.5"><Icon name="ti-info-circle" />{impMsg}</p>}
       <div className="card overflow-hidden">
         {rows === null ? <div className="p-8"><Spinner /></div> : rows.length === 0 ? (
           <div className="p-8"><EmptyState icon="ti-building-community" text="No tenants." /></div>
@@ -70,7 +73,7 @@ export default function TenantsPage() {
                   <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
                   <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
                   <td className="px-4 py-3"><span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span></td>
-                  <td className="px-4 py-3 text-right"><Icon name="ti-chevron-right" className="text-muted2" /></td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="Open this workspace as its owner (use a private window)" className="btn-ghost text-2xs"><Icon name="ti-login-2" />View as</button><Icon name="ti-chevron-right" className="text-muted2 ml-1 align-middle" /></td>
                 </tr>
               ))}
             </tbody>

@@ -11,7 +11,7 @@ import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
   getAdminUser, updateUserAdmin, updateMyProfile, uploadAvatar, avatarSrc,
   getUserActivity, ActivityItem, changeOwnPassword,
-  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart, adminResetUserPassword, removeOrgMember, getMemberRole, setMemberRole,
+  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart, adminResetUserPassword, removeOrgMember, getMemberRole, setMemberRole, adminImpersonateLink,
   listRoleTemplates, getMyNotifSettings, getNotificationPrefs, saveNotificationPrefs, NotifSetting,
 } from '@/lib/db';
 import { AdminUser, RoleTemplate } from '@/lib/supabase';
@@ -105,6 +105,7 @@ export default function UserDetail() {
 
           {tab === 'profile' && <ProfileTab u={u} isSelf={isSelf} isAdmin={isAdmin} orgId={org?.id || ''} onSaved={(r) => setU(r)} />}
           {tab === 'access' && isAdmin && <AccessTab u={u} roles={roles} busy={busy} patch={patch} myTeams={myTeams} orgId={org?.id || ''} />}
+          {tab === 'access' && isAdmin && !isSelf && <ImpersonateCard u={u} />}
           {tab === 'access' && isAdmin && !isSelf && <RemoveMemberCard u={u} orgId={org?.id || ''} />}
           {tab === 'email' && isSelf && <EmailTab orgId={org?.id || ''} />}
           {tab === 'notifications' && isSelf && <NotificationsTab orgId={org?.id || ''} userId={u.id} />}
@@ -379,6 +380,30 @@ function SecurityTab({ email }: { email: string }) {
       </div>
       <div className="flex items-center gap-3 pt-2 border-t border-line"><button onClick={submit} disabled={busy || !cur || !nw} className="btn btn-primary">{busy ? 'Updating…' : 'Update password'}</button><Note msg={msg} /></div>
     </Section>
+  );
+}
+
+function ImpersonateCard({ u }: { u: AdminUser }) {
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [copied, setCopied] = useState(false);
+  const go = async () => { setBusy(true); setErr(''); try { const r = await adminImpersonateLink({ target: u.id }); setLink(r.link); } catch (e: any) { setErr(e.message || 'Could not create link'); } finally { setBusy(false); } };
+  const copy = () => { try { navigator.clipboard?.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ } };
+  return (
+    <div className="card p-5 sm:p-6 max-w-3xl mt-5">
+      <p className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-user-shield" className="text-muted2" />Sign in as {u.full_name}</p>
+      <p className="text-2xs text-muted mt-1 mb-3">Generate a one-time link to view the workspace exactly as this user (e.g. to reproduce an issue). This is recorded in the audit log. Open it in a <strong>private / incognito window</strong> so you stay signed in as yourself.</p>
+      {!link ? (
+        <button onClick={go} disabled={busy} className="btn"><Icon name="ti-login-2" className="text-sm" />{busy ? 'Generating…' : 'Get sign-in link'}</button>
+      ) : (
+        <div className="rounded-lg border border-amber-400/40 bg-amber-500/5 p-3 space-y-2">
+          <div className="flex items-center gap-2"><input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="input text-2xs flex-1" /><button onClick={copy} className="btn-ghost text-2xs"><Icon name="ti-copy" />{copied ? 'Copied' : 'Copy'}</button></div>
+          <p className="text-2xs text-amber-600">Opens a live session as {u.email}. Use a private window. Single-use, expires shortly.</p>
+        </div>
+      )}
+      {err && <p className="text-2xs text-rose-600 mt-1.5">{err}</p>}
+    </div>
   );
 }
 
