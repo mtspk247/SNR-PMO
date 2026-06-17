@@ -2773,3 +2773,20 @@ export async function inventoryMoves(orgId: string, limit = 60): Promise<Invento
   const { data, error } = await sb.from('inventory_moves').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(limit);
   if (error) throw new Error(error.message); return (data as InventoryMove[]) || [];
 }
+
+// ---- Accounting P12.4: revenue/expense recognition ----
+export interface RecognitionSchedule { id: string; org_id: string; kind: 'deferred_revenue' | 'prepaid_expense'; title: string; counterparty: string | null; total_amount: number; recognized_amount: number; currency: string; start_date: string; months: number; account_id: string | null; deferral_account_id: string | null; next_run: string | null; status: string; notes: string | null; }
+export async function recognitionSchedules(orgId: string): Promise<RecognitionSchedule[]> {
+  const { data, error } = await sb.from('recognition_schedules').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as RecognitionSchedule[]) || [];
+}
+export async function recognitionSave(orgId: string, p: { id?: string | null; kind: string; title: string; counterparty?: string | null; total_amount: number; currency?: string | null; start_date?: string | null; months: number; account_id?: string | null; deferral_account_id?: string | null; status: string; notes?: string | null; post_opening?: boolean }): Promise<string> {
+  const { data, error } = await sb.rpc('recognition_save', { p_org: orgId, p_id: p.id || null, p_kind: p.kind, p_title: p.title, p_counterparty: p.counterparty || null, p_total: p.total_amount, p_currency: p.currency || null, p_start: p.start_date || null, p_months: p.months, p_account: p.account_id || null, p_deferral: p.deferral_account_id || null, p_status: p.status, p_notes: p.notes || null, p_post_opening: p.post_opening ?? false });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function recognitionGenerateDue(orgId: string): Promise<{ recognized: number }> {
+  const { data, error } = await sb.rpc('recognition_generate_due', { p_org: orgId }); if (error) throw new Error(error.message); return (data as { recognized: number }) || { recognized: 0 };
+}
+export async function recognitionDelete(orgId: string, id: string): Promise<void> {
+  const { error } = await sb.rpc('recognition_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
+}
