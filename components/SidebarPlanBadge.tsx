@@ -20,6 +20,7 @@ export default function SidebarPlanBadge() {
   const expiringSoon = daysLeft != null && daysLeft <= 30;
   const warn = pastDue || (daysLeft != null && daysLeft < 0) || (expiringSoon && !autoRenew);
   const planName = info.plan?.name || 'Free';
+  const label = /\bplan$/i.test(planName) ? planName : `${planName} Plan`;
 
   const suffix = !warn ? '' : pastDue ? ' · payment due'
     : (daysLeft != null && daysLeft < 0) ? ' · expired'
@@ -29,7 +30,7 @@ export default function SidebarPlanBadge() {
   return (
     <Link href="/billing" title={warn ? 'Plan expiring — manage billing' : 'Plan & billing'}
       className={`text-2xs truncate hover:underline ${warn ? 'text-amber-500 animate-flash font-medium' : 'side-dim'}`}>
-      {planName}{suffix}
+      {label}{suffix}
     </Link>
   );
 }
