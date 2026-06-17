@@ -2610,8 +2610,8 @@ export const deleteBillPayment = (id: string) => _del('bill_payments', id);
 
 // ---- Accounting P3a: statements ----
 export interface PLRow { section: 'income' | 'expense'; account_id: string | null; code: string; name: string; amount: number; }
-export async function glPL(orgId: string, from?: string | null, to?: string | null): Promise<PLRow[]> {
-  const { data, error } = await sb.rpc('gl_pl', { p_org: orgId, p_from: from || null, p_to: to || null });
+export async function glPL(orgId: string, from?: string | null, to?: string | null, basis = 'accrual'): Promise<PLRow[]> {
+  const { data, error } = await sb.rpc('gl_pl', { p_org: orgId, p_from: from || null, p_to: to || null, p_basis: basis });
   if (error) throw new Error(error.message); return (data as PLRow[]) || [];
 }
 export interface BSRow { section: 'asset' | 'liability' | 'equity'; account_id: string | null; code: string; name: string; amount: number; }
@@ -2745,4 +2745,16 @@ export async function expenseClaimSetStatus(orgId: string, id: string, status: s
 }
 export async function expenseClaimDelete(orgId: string, id: string): Promise<void> {
   const { error } = await sb.rpc('expense_claim_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
+}
+
+// ---- Accounting P12.1: per-tenant settings ----
+export interface AcctSettings { org_id?: string; fiscal_year_start_month: number; base_currency: string; basis: string; lock_date: string | null; }
+export async function accountingSettingsGet(orgId: string): Promise<AcctSettings> {
+  const { data, error } = await sb.from('org_accounting_settings').select('*').eq('org_id', orgId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as AcctSettings) || { fiscal_year_start_month: 1, base_currency: 'USD', basis: 'accrual', lock_date: null };
+}
+export async function accountingSettingsSave(orgId: string, p: { fiscal_year_start_month: number; base_currency: string; basis: string; lock_date: string | null }): Promise<void> {
+  const { error } = await sb.rpc('accounting_settings_save', { p_org: orgId, p_fiscal_month: p.fiscal_year_start_month, p_currency: p.base_currency, p_basis: p.basis, p_lock: p.lock_date || null });
+  if (error) throw new Error(error.message);
 }

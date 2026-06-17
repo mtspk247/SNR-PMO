@@ -8,6 +8,7 @@ import {
   glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
   taxRates, taxRateSave, taxRateDelete, glTaxSummary,
   glPL, glBalanceSheet, glCashFlow, budgetSave, glBudgetVsActual, glCashForecast, glProjectsSummary,
+  accountingSettingsGet, accountingSettingsSave, AcctSettings,
   glPeriods, glClosePeriod, glReopenPeriod, glReverseEntry, glAudit,
   getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow, BudgetRow, ForecastRow, FiscalPeriod, AuditSummary, ProjectSummaryRow,
 } from '@/lib/db';
@@ -52,6 +53,10 @@ export default function LedgerPage() {
   const [budEdit, setBudEdit] = useState<Record<string, string>>({});
   const [fcRows, setFcRows] = useState<ForecastRow[]>([]);
   const [projRows, setProjRows] = useState<ProjectSummaryRow[]>([]);
+  const [plBasis, setPlBasis] = useState<'accrual' | 'cash'>('accrual');
+  const [settings, setSettings] = useState<AcctSettings | null>(null);
+  const [sDraft, setSDraft] = useState<AcctSettings | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [auditData, setAuditData] = useState<AuditSummary>({});
   const [periods, setPeriods] = useState<FiscalPeriod[]>([]);
   const [closeMonth, setCloseMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -69,6 +74,7 @@ export default function LedgerPage() {
     Promise.all([
       glAccounts(orgId).then(setAccounts),
       getOrgProfile(orgId).then((p: any) => setIndustry(p?.industry || null)).catch(() => {}),
+      accountingSettingsGet(orgId).then((st) => { setSettings(st); setPlBasis(st.basis === 'cash' ? 'cash' : 'accrual'); }).catch(() => {}),
     ]).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   }, [orgId]);
   useEffect(() => { if (orgId && tab === 'journal') glJournal(orgId).then(setJournal).catch((e) => setErr(e.message)); }, [orgId, tab]);
@@ -76,13 +82,13 @@ export default function LedgerPage() {
   useEffect(() => { if (orgId && tab === 'taxes') { taxRates(orgId).then(setTaxList).catch((e) => setErr(e.message)); glTaxSummary(orgId, taxFrom || null, taxTo || null).then(setTaxSum).catch(() => {}); } }, [orgId, tab, taxFrom, taxTo]);
   useEffect(() => {
     if (!orgId || tab !== 'reports') return;
-    if (rptType === 'pl') glPL(orgId, rptFrom || null, rptTo || null).then(setPlRows).catch((e) => setErr(e.message));
+    if (rptType === 'pl') glPL(orgId, rptFrom || null, rptTo || null, plBasis).then(setPlRows).catch((e) => setErr(e.message));
     else if (rptType === 'bs') glBalanceSheet(orgId, rptAsOf || null).then(setBsRows).catch((e) => setErr(e.message));
     else if (rptType === 'cf') glCashFlow(orgId, rptFrom || null, rptTo || null).then(setCfRows).catch((e) => setErr(e.message));
     else if (rptType === 'budget') loadBudget();
     else if (rptType === 'forecast') glCashForecast(orgId, fcMonths).then(setFcRows).catch((e) => setErr(e.message));
     else glProjectsSummary(orgId, rptFrom || null, rptTo || null).then(setProjRows).catch((e) => setErr(e.message));
-  }, [orgId, tab, rptType, rptFrom, rptTo, rptAsOf, rptMonth, fcMonths]);
+  }, [orgId, tab, rptType, rptFrom, rptTo, rptAsOf, rptMonth, fcMonths, plBasis]);
   const loadAudit = () => { if (!orgId) return; glAudit(orgId).then(setAuditData).catch((e) => setErr(e.message)); glPeriods(orgId).then(setPeriods).catch(() => {}); };
   useEffect(() => { if (orgId && tab === 'audit') loadAudit(); /* eslint-disable-next-line */ }, [orgId, tab]);
   const reverseEntry = async (eid: string) => { if (!orgId || !confirm('Post a reversing entry for this journal entry?')) return; try { await glReverseEntry(orgId, eid, new Date().toISOString().slice(0, 10)); glJournal(orgId).then(setJournal); } catch (e: any) { setErr(e.message); } };
@@ -169,8 +175,11 @@ export default function LedgerPage() {
   return (
     <Layout flat title="General Ledger">
       <PageHeader title="General Ledger" subtitle="Double-entry chart of accounts, journal and trial balance" icon="ti-book-2"
-        action={tab === 'coa' && accounts.length > 0 ? <button onClick={openNewAcct} className="btn btn-primary"><Icon name="ti-plus" />New account</button>
-          : tab === 'journal' && accounts.length > 0 ? <div className="flex items-center gap-2"><button onClick={importExisting} disabled={busy} className="btn"><Icon name="ti-download" />Import existing</button><button onClick={openJournal} className="btn btn-primary"><Icon name="ti-plus" />New journal entry</button></div> : undefined} />
+        action={<div className="flex items-center gap-2">
+          {tab === 'coa' && accounts.length > 0 && <button onClick={openNewAcct} className="btn btn-primary"><Icon name="ti-plus" />New account</button>}
+          {tab === 'journal' && accounts.length > 0 && (<><button onClick={importExisting} disabled={busy} className="btn"><Icon name="ti-download" />Import existing</button><button onClick={openJournal} className="btn btn-primary"><Icon name="ti-plus" />New journal entry</button></>)}
+          <button onClick={() => { setSDraft(settings || { fiscal_year_start_month: 1, base_currency: 'USD', basis: 'accrual', lock_date: null }); setSettingsOpen(true); }} className="btn" title="Accounting settings"><Icon name="ti-settings" /></button>
+        </div>} />
 
       <Tabs tabs={[
         { key: 'coa', label: 'Chart of Accounts', icon: 'ti-list-tree' },
@@ -332,6 +341,11 @@ export default function LedgerPage() {
             ) : (
               <><span className="text-2xs text-muted ml-1">From</span><input type="date" className="input h-8 w-36" value={rptFrom} onChange={(e) => setRptFrom(e.target.value)} /><span className="text-2xs text-muted">To</span><input type="date" className="input h-8 w-36" value={rptTo} onChange={(e) => setRptTo(e.target.value)} /></>
             )}
+            {rptType === 'pl' && (
+              <div className="inline-flex rounded-md border border-line bg-surface p-0.5 ml-1">
+                {(['accrual', 'cash'] as const).map((b) => (<button key={b} onClick={() => setPlBasis(b)} className={`h-8 px-2.5 rounded text-2xs capitalize transition ${plBasis === b ? 'bg-accent/15 text-accentstrong font-medium' : 'text-muted hover:text-content'}`}>{b}</button>))}
+              </div>
+            )}
           </div>
 
           {rptType === 'pl' && (
@@ -473,6 +487,19 @@ export default function LedgerPage() {
           </div>
         </div>
       )}
+
+      {/* Accounting settings modal */}
+      <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} size="md" icon="ti-settings" title="Accounting settings"
+        footer={<><button className="btn" onClick={() => setSettingsOpen(false)}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={async () => { if (!orgId || !sDraft) return; setBusy(true); setErr(''); try { await accountingSettingsSave(orgId, sDraft); setSettings(sDraft); setPlBasis(sDraft.basis === 'cash' ? 'cash' : 'accrual'); setSettingsOpen(false); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } }}>Save</button></>}>
+        {sDraft && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Fiscal year starts" hint="month the financial year begins"><Select value={String(sDraft.fiscal_year_start_month)} onChange={(v) => setSDraft({ ...sDraft, fiscal_year_start_month: Number(v) })} options={['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => ({ value: String(i + 1), label: m }))} /></Field>
+            <Field label="Base currency"><input className="input" value={sDraft.base_currency} onChange={(e) => setSDraft({ ...sDraft, base_currency: e.target.value })} placeholder="USD" /></Field>
+            <Field label="Default basis" hint="for statements"><Select value={sDraft.basis} onChange={(v) => setSDraft({ ...sDraft, basis: v })} options={[{ value: 'accrual', label: 'Accrual' }, { value: 'cash', label: 'Cash' }]} /></Field>
+            <Field label="Lock date" hint="block posting on/before this date"><input type="date" className="input" value={sDraft.lock_date || ''} onChange={(e) => setSDraft({ ...sDraft, lock_date: e.target.value || null })} /></Field>
+          </div>
+        )}
+      </Modal>
 
       {/* Tax rate modal */}
       <Modal open={!!taxDraft} onClose={() => setTaxDraft(null)} size="sm" icon="ti-receipt-tax" title={taxDraft?.id ? 'Edit tax rate' : 'New tax rate'}
