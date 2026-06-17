@@ -498,7 +498,7 @@ export default function Dashboard() {
     const w = c?.w ?? defW(k); const h = c?.h ?? defH(k);
     let x: number; let y: number;
     if (c) { x = c.x; y = c.y; } else { if (_cx + w > 12) { _cx = 0; _cy += 4; } x = _cx; y = _cy; _cx += w; }
-    return { i: entry, x, y, w, h, minW: 2, minH: 2 };
+    const minH = k.startsWith('kpi_') ? 2 : 3; return { i: entry, x, y, w, h, minW: 2, minH };
   });
   const flash = (m: string) => { setMsg(m); window.setTimeout(() => setMsg(''), 2200); };
   const savePersonal = async () => { if (!activeOrg) return; try { await saveUserDashboard(activeOrg.id, order); setSource('personal'); setEditing(false); flash('Saved your dashboard'); } catch (e: any) { flash(e.message || 'Save failed'); } };
@@ -551,7 +551,7 @@ export default function Dashboard() {
         <EmptyState text="No widgets to show — click Customize to add some." icon="ti-layout-dashboard" />
       ) : (
         <GridW className="layout" layout={rglLayout} cols={12} rowHeight={64} margin={[12, 12]} containerPadding={[0, 0]}
-          isDraggable={editing} isResizable={editing} draggableCancel=".rgl-no-drag" compactType="vertical"
+          isDraggable={editing} isResizable={editing} resizeHandles={['se','s','e','sw']} draggableCancel=".rgl-no-drag" compactType="vertical"
           onDragStop={(l: any[]) => applyLayout(l)} onResizeStop={(l: any[]) => applyLayout(l)}>
           {shown.map((entry) => {
             const [k, variant] = splitKey(entry);
@@ -575,7 +575,7 @@ export default function Dashboard() {
                     <button onClick={() => remove(entry)} title="Remove" className="w-6 h-6 grid place-items-center rounded-md bg-surface border border-line text-rose-500 hover:bg-rose-50 shadow-sm"><Icon name="ti-x" className="text-xs" /></button>
                   </div>
                 )}
-                <div className={`h-full overflow-auto ${editing ? 'pointer-events-none' : ''}`}>{W[k](variant)}</div>
+                <div className={`dash-cell h-full overflow-hidden ${editing ? 'pointer-events-none' : ''}`}>{W[k](variant)}</div>
               </div>
             );
           })}
