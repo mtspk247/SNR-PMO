@@ -8,7 +8,7 @@ import {
   glAccounts, glSeedCoa, glAccountSave, glAccountDelete, glPostEntry, glJournal, glTrialBalance, glBackfill,
   taxRates, taxRateSave, taxRateDelete, glTaxSummary,
   glPL, glBalanceSheet, glCashFlow, budgetSave, glBudgetVsActual, glCashForecast, glProjectsSummary,
-  accountingSettingsGet, accountingSettingsSave, AcctSettings, fxRates, fxRateSave, fxRateDelete, FxRate,
+  accountingSettingsGet, accountingSettingsSave, AcctSettings, fxRates, fxRateSave, fxRateDelete, fxRevalue, FxRate,
   glPeriods, glClosePeriod, glReopenPeriod, glReverseEntry, glAudit,
   getOrgProfile, CoaAccount, JournalEntryRow, TrialBalanceRow, TaxRate, TaxSummaryRow, PLRow, BSRow, CashFlowRow, BudgetRow, ForecastRow, FiscalPeriod, AuditSummary, ProjectSummaryRow,
 } from '@/lib/db';
@@ -63,6 +63,8 @@ export default function LedgerPage() {
   useEffect(() => { if (orgId && tab === 'fx') loadFx(); /* eslint-disable-next-line */ }, [orgId, tab]);
   const saveFx = async () => { if (!orgId || !fxDraft.currency.trim() || busy) return; setBusy(true); setErr(''); try { await fxRateSave(orgId, fxDraft.currency.trim().toUpperCase(), parseFloat(fxDraft.rate) || 0, fxDraft.as_of); setFxDraft({ currency: '', rate: '', as_of: new Date().toISOString().slice(0, 10) }); loadFx(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const delFx = async (id: string) => { if (!orgId) return; try { await fxRateDelete(orgId, id); loadFx(); } catch (e: any) { setErr(e.message); } };
+  const [revalDate, setRevalDate] = useState(new Date().toISOString().slice(0, 10));
+  const revalue = async () => { if (!orgId || busy) return; setBusy(true); setErr(''); setMsg(''); try { const r = await fxRevalue(orgId, revalDate); setMsg(`Posted ${r.entries} FX revaluation entr${r.entries === 1 ? 'y' : 'ies'} as of ${revalDate}.`); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const [auditData, setAuditData] = useState<AuditSummary>({});
   const [periods, setPeriods] = useState<FiscalPeriod[]>([]);
   const [closeMonth, setCloseMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -70,6 +72,7 @@ export default function LedgerPage() {
   const loadBudget = () => { if (!orgId) return; const { start, end } = monthBounds(rptMonth); glBudgetVsActual(orgId, start, end).then((r) => { setBudRows(r); setBudEdit(Object.fromEntries(r.map((x) => [x.account_id, x.budget ? String(x.budget) : '']))); }).catch((e) => setErr(e.message)); };
   const [industry, setIndustry] = useState<string | null>(null);
   const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
   const orgId = org?.id;
@@ -198,6 +201,7 @@ export default function LedgerPage() {
       ]} active={tab} onChange={(k) => setTab(k as 'coa' | 'journal' | 'tb' | 'taxes' | 'reports' | 'audit' | 'fx')} />
 
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600 mb-3">{msg}</p>}
       {loading ? <Spinner /> : (
         <>
           {tab === 'coa' && (accounts.length === 0 ? (
@@ -467,6 +471,7 @@ export default function LedgerPage() {
           <div className="px-4 py-2.5 border-b border-line flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-content">Exchange rates</span>
             <span className="text-2xs text-muted2">Base currency: <span className="font-medium text-content">{settings?.base_currency || 'USD'}</span> · rate = base units per 1 unit</span>
+            <span className="ml-auto inline-flex items-center gap-1.5"><span className="text-2xs text-muted">Revalue as of</span><input type="date" className="input h-8 w-36" value={revalDate} onChange={(e) => setRevalDate(e.target.value)} /><button className="btn h-8 py-0" disabled={busy} onClick={revalue} title="Post unrealized FX gain/loss on open foreign balances"><Icon name="ti-refresh" />Revalue</button></span>
           </div>
           <div className="p-4 flex items-end gap-2 flex-wrap border-b border-line">
             <Field label="Currency"><input className="input h-9 w-28 uppercase" value={fxDraft.currency} onChange={(e) => setFxDraft({ ...fxDraft, currency: e.target.value })} placeholder="EUR" /></Field>

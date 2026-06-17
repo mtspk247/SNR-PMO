@@ -2804,3 +2804,6 @@ export async function fxRateSave(orgId: string, currency: string, rate: number, 
 export async function fxRateDelete(orgId: string, id: string): Promise<void> {
   const { error } = await sb.rpc('fx_rate_delete', { p_org: orgId, p_id: id }); if (error) throw new Error(error.message);
 }
+export async function fxRevalue(orgId: string, asOf: string): Promise<{ entries: number }> {
+  const { data, error } = await sb.rpc('fx_revalue', { p_org: orgId, p_as_of: asOf }); if (error) throw new Error(error.message); return (data as { entries: number }) || { entries: 0 };
+}
