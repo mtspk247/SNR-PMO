@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS } from './supabase';
+import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES } from './supabase';
 import { buildDemoPayload } from './demoSeed';
 
 // ---------------------------------------------------------------------------
@@ -179,6 +179,8 @@ export async function getOrgUsers(): Promise<OrgUser[]> {
 // the org has no active subscription) — mirrors the server org_has_feature logic.
 // Client gate only; RLS feature clauses enforce on every write/read path.
 export async function getOrgFeatures(orgId: string): Promise<string[]> {
+  const { data: home } = await sb.from('organizations').select('is_platform_home').eq('id', orgId).maybeSingle();
+  if ((home as any)?.is_platform_home) return FEATURES.map((f) => f.key as string);
   const { data: sub } = await sb.from('subscriptions')
     .select('plan_id, status').eq('org_id', orgId).maybeSingle();
   let planId = sub?.plan_id as string | undefined;
