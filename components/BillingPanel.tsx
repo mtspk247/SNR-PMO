@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '@/components/ui';
+import { Icon, Tabs } from '@/components/ui';
 import { getOrgPlanInfo, listPlans, listPlanFeatures, startCheckout, openBillingPortal, getTenantEvents, TenantEvent, setAutoRenew } from '@/lib/db';
 import { OrgPlanInfo, Plan, PlanFeature, FeatureKey } from '@/lib/supabase';
 import { FEATURE_LABELS, formatPrice } from '@/lib/entitlements';
@@ -147,11 +147,12 @@ function PlanHistory({ org }: { org: { id: string } }) {
     email: { label: 'Message received', icon: 'ti-mail' },
     campaign: { label: 'Message received', icon: 'ti-mail' },
   };
-  if (!loaded || events.length === 0) return null;
+  if (!loaded) return null;
   return (
     <div className="card p-6 mb-6 max-w-4xl">
       <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Plan &amp; account history</p>
       <p className="text-sm text-muted mb-4">Your signup, plan changes and billing events.</p>
+      {events.length === 0 ? <p className="text-sm text-muted2">No account events yet — your signup, plan changes and payments will appear here.</p> : (
       <ol className="relative border-l border-line ml-2 space-y-3">
         {events.map((ev) => { const m = META[ev.event_type] || { label: ev.event_type, icon: 'ti-point' }; return (
           <li key={ev.id} className="ml-4 relative">
@@ -167,6 +168,7 @@ function PlanHistory({ org }: { org: { id: string } }) {
           </li>
         ); })}
       </ol>
+      )}
     </div>
   );
 }
@@ -205,5 +207,19 @@ function InvoicesCard({ org, canBill }: { org: { id: string }; canBill: boolean 
 }
 
 export default function BillingPanel({ org, canBill }: { org: { id: string; features?: string[]; name?: string }; canBill: boolean }) {
-  return (<><PlanPanel org={org} canBill={canBill} /><InvoicesCard org={org} canBill={canBill} /><PlanHistory org={org} /></>);
+  const [tab, setTab] = useState<'plan' | 'invoices' | 'history'>('plan');
+  return (
+    <>
+      <Tabs tabs={[
+        { key: 'plan', label: 'Plan Management', icon: 'ti-package' },
+        { key: 'invoices', label: 'Invoices & Receipts', icon: 'ti-file-invoice' },
+        { key: 'history', label: 'Account History', icon: 'ti-history' },
+      ]} active={tab} onChange={(k) => setTab(k as 'plan' | 'invoices' | 'history')} />
+      <div className="mt-5">
+        {tab === 'plan' && <PlanPanel org={org} canBill={canBill} />}
+        {tab === 'invoices' && <InvoicesCard org={org} canBill={canBill} />}
+        {tab === 'history' && <PlanHistory org={org} />}
+      </div>
+    </>
+  );
 }
