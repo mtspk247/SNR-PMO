@@ -179,7 +179,7 @@ export async function getOrgUsers(): Promise<OrgUser[]> {
 // the org has no active subscription) — mirrors the server org_has_feature logic.
 // Client gate only; RLS feature clauses enforce on every write/read path.
 export async function getOrgFeatures(orgId: string): Promise<string[]> {
-  const { data: home } = await sb.from('organizations').select('is_platform_home').eq('id', orgId).maybeSingle();
+  const { data: home } = await sb.from('organizations').select('is_platform_home, parent_org_id').eq('id', orgId).maybeSingle();
   if ((home as any)?.is_platform_home) return FEATURES.map((f) => f.key as string);
   const { data: sub } = await sb.from('subscriptions')
     .select('plan_id, status').eq('org_id', orgId).maybeSingle();
@@ -196,6 +196,9 @@ export async function getOrgFeatures(orgId: string): Promise<string[]> {
   // Per-tenant overrides win over the plan default (operator toggles in /tenants/[id]).
   const { data: ov } = await sb.from('org_feature_overrides').select('feature_key, enabled').eq('org_id', orgId);
   for (const o of (ov || []) as any[]) { if (o.enabled) set.add(o.feature_key); else set.delete(o.feature_key); }
+  // Reseller cap: a sub-tenant can't exceed its reseller parent's features.
+  const parent = (home as any)?.parent_org_id as string | undefined;
+  if (parent) { const cap = new Set(await getOrgFeatures(parent)); for (const k of [...set]) if (!cap.has(k)) set.delete(k); }
   return [...set];
 }
 
