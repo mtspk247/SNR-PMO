@@ -292,6 +292,7 @@ function DetailModal({
         <>
           {canEdit && <ConfirmDelete entityType="proposal" id={proposal.id} name={proposal.title}
             className="btn btn-danger mr-auto" onDeleted={onDelete} />}
+          <a className="btn" href={`/templates?type=proposal&client_name=${encodeURIComponent(proposal.client_name || '')}&company_name=${encodeURIComponent(proposal.client_name || '')}&amount=${proposal.amount || 0}&currency=${encodeURIComponent(proposal.currency || 'USD')}`} title="Draft a branded proposal from a template"><Icon name="ti-file-export" />Generate document</a>
           <button className="btn" onClick={onClose}>Close</button>
           {canEdit && (
             <button

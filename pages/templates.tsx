@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import Select from '@/components/Select';
@@ -36,6 +37,13 @@ type Draft = { id?: string; name: string; doc_type: string; body: string };
 export default function TemplatesPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
+  const router = useRouter();
+  const qprefill = useMemo(() => {
+    const map: Record<string, string> = { client_name: '{{client_name}}', company_name: '{{company_name}}', contact_name: '{{contact_name}}', amount: '{{amount}}', currency: '{{currency}}' };
+    const out: Record<string, string> = {};
+    Object.entries(map).forEach(([qk, token]) => { const v = router.query[qk]; if (typeof v === 'string' && v) out[token] = v; });
+    return out;
+  }, [router.query]);
   const [rows, setRows] = useState<DocTemplate[] | null>(null);
   const [sel, setSel] = useState<Draft | null>(null);
   const [profile, setProfile] = useState<OrgProfile | null>(null);
@@ -178,7 +186,7 @@ export default function TemplatesPage() {
                     <span className="font-semibold inline-flex items-center gap-2"><Icon name={t.icon} className="text-muted" />{r.name}</span>
                     <span className="text-2xs text-muted mt-2 line-clamp-2 flex-1" dangerouslySetInnerHTML={{ __html: (r.body || '').replace(/<[^>]+>/g, ' ').slice(0, 140) || '—' }} />
                     <div className="flex gap-2 mt-3">
-                      <button onClick={() => { setUsing(r); setVals({}); }} className="btn btn-primary flex-1 text-xs"><Icon name="ti-file-export" />Use</button>
+                      <button onClick={() => { setUsing(r); setVals(qprefill); }} className="btn btn-primary flex-1 text-xs"><Icon name="ti-file-export" />Use</button>
                       <button onClick={() => openEdit(r)} className="btn text-xs"><Icon name="ti-pencil" />Edit</button>
                     </div>
                   </div>

@@ -270,6 +270,7 @@ function ContractDetailModal({ contract, users, me, canEdit, orgId, onClose, onE
       footer={
         <>
           {canEdit && <ConfirmDelete entityType="contract" id={contract.id} name={contract.title} className="btn btn-danger mr-auto" onDeleted={onDelete} />}
+          <a className="btn" href={`/templates?type=contract&client_name=${encodeURIComponent(contract.client_name || '')}&company_name=${encodeURIComponent(contract.client_name || '')}&amount=${contract.value || 0}&currency=${encodeURIComponent(contract.currency || 'USD')}`} title="Draft a branded contract from a template"><Icon name="ti-file-export" />Generate document</a>
           <button className="btn" onClick={onClose}>Close</button>
           {canEdit && <button className="btn btn-primary" onClick={onEdit}><Icon name="ti-pencil" />Edit</button>}
         </>
