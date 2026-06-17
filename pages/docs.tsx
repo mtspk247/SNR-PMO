@@ -499,9 +499,9 @@ export default function DocsPage() {
         subtitle="Module reference, cross-module connections, and the recommended agency operating workflow."
       />
 
-      <div className="flex gap-6 items-start">
+      <div className="flex gap-6 items-start" style={{ height: 'calc(100vh - 9.5rem)' }}>
         {/* Left nav — sticky, hidden below lg */}
-        <aside className="hidden lg:flex flex-col gap-0.5 w-52 shrink-0 sticky top-20">
+        <aside className="hidden lg:flex flex-col gap-0.5 w-52 shrink-0 h-full overflow-y-auto pr-1">
           {SECTIONS.map((s) => (
             <button
               key={s.id}
@@ -521,12 +521,12 @@ export default function DocsPage() {
         </aside>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 space-y-6">
+        <div className="flex-1 min-w-0 space-y-6 h-full overflow-y-auto pr-1 pb-4">
           {SECTIONS.map((section) => (
             <section
               key={section.id}
               id={section.id}
-              className="card p-5 scroll-mt-24"
+              className="card p-5 scroll-mt-2"
             >
               {/* Section header */}
               <div className="flex items-center gap-3 mb-4 pb-3 border-b border-line">
