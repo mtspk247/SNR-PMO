@@ -11,7 +11,7 @@ import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
   getAdminUser, updateUserAdmin, updateMyProfile, uploadAvatar, avatarSrc,
   getUserActivity, ActivityItem, changeOwnPassword,
-  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart, adminResetUserPassword,
+  getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart, adminResetUserPassword, removeOrgMember,
   listRoleTemplates, getMyNotifSettings, getNotificationPrefs, saveNotificationPrefs, NotifSetting,
 } from '@/lib/db';
 import { AdminUser, RoleTemplate } from '@/lib/supabase';
@@ -105,6 +105,7 @@ export default function UserDetail() {
 
           {tab === 'profile' && <ProfileTab u={u} isSelf={isSelf} isAdmin={isAdmin} orgId={org?.id || ''} onSaved={(r) => setU(r)} />}
           {tab === 'access' && isAdmin && <AccessTab u={u} roles={roles} busy={busy} patch={patch} myTeams={myTeams} />}
+          {tab === 'access' && isAdmin && !isSelf && <RemoveMemberCard u={u} orgId={org?.id || ''} />}
           {tab === 'email' && isSelf && <EmailTab orgId={org?.id || ''} />}
           {tab === 'notifications' && isSelf && <NotificationsTab orgId={org?.id || ''} userId={u.id} />}
           {tab === 'security' && isSelf && <SecurityTab email={u.email} />}
@@ -371,6 +372,39 @@ function SecurityTab({ email }: { email: string }) {
       </div>
       <div className="flex items-center gap-3 pt-2 border-t border-line"><button onClick={submit} disabled={busy || !cur || !nw} className="btn btn-primary">{busy ? 'Updating…' : 'Update password'}</button><Note msg={msg} /></div>
     </Section>
+  );
+}
+
+function RemoveMemberCard({ u, orgId }: { u: AdminUser; orgId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const ready = typed.trim().toLowerCase() === (u.email || '').toLowerCase();
+  const run = async () => {
+    if (!ready || busy) return; setBusy(true); setErr('');
+    try { await removeOrgMember(orgId, u.id); router.push('/users'); }
+    catch (e: any) { setErr(e.message || 'Could not remove user'); setBusy(false); }
+  };
+  return (
+    <div className="card p-5 sm:p-6 max-w-3xl mt-5 border-rose-300/50">
+      <p className="text-sm font-semibold text-rose-600">Danger zone</p>
+      <p className="text-2xs text-muted mt-1 mb-3">Remove <strong>{u.full_name}</strong> from this workspace. They lose access immediately; their records remain and you can re-invite them later. The last owner can&rsquo;t be removed.</p>
+      {!open ? (
+        <button onClick={() => setOpen(true)} className="btn border border-rose-300 text-rose-600 hover:bg-rose-50"><Icon name="ti-user-minus" className="text-sm" />Remove from workspace</button>
+      ) : (
+        <div className="rounded-lg border border-rose-300 bg-rose-500/5 p-3 space-y-2">
+          <p className="text-2xs text-content">Type <strong>{u.email}</strong> to confirm.</p>
+          <input className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={u.email || ''} autoFocus />
+          <div className="flex items-center gap-2">
+            <button onClick={run} disabled={!ready || busy} className="btn bg-rose-600 text-white hover:bg-rose-700 border-rose-600 disabled:opacity-50">{busy ? 'Removing…' : 'Remove user'}</button>
+            <button onClick={() => { setOpen(false); setTyped(''); setErr(''); }} className="btn">Cancel</button>
+          </div>
+          {err && <p className="text-2xs text-rose-600">{err}</p>}
+        </div>
+      )}
+    </div>
   );
 }
 
