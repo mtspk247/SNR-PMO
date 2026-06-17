@@ -7,6 +7,7 @@ import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow } from '@/lib/db';
 import { Plan, Feature, PlanFeature, FEATURES } from '@/lib/supabase';
+import { ALL_ITEMS } from '@/lib/nav';
 import { formatPrice } from '@/lib/entitlements';
 
 type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'campaigns' | 'activity';
@@ -906,6 +907,13 @@ export default function PlatformPage() {
     return [...fromCatalog, ...dbOnly].sort((a, b) => a.sort_order - b.sort_order);
   }, [features]);
 
+  // Pages each feature/module unlocks, derived from the nav manifest (single source).
+  const featurePages = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    ALL_ITEMS.forEach((i) => { if (i.feature) { (m[i.feature] = m[i.feature] || []).push(i.label); } });
+    return m;
+  }, []);
+
 
   return (
     <Layout title="Platform">
@@ -962,9 +970,16 @@ export default function PlatformPage() {
                 <tbody>
                   {featureRows.map((f) => (
                     <tr key={f.key} className="border-t border-line hover:bg-surface2/50">
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-top">
                         <span className="block font-medium text-content">{f.name}</span>
-                        <span className="block text-2xs text-muted">{f.description}</span>
+                        {f.description && <span className="block text-2xs text-muted">{f.description}</span>}
+                        {(featurePages[f.key] || []).length > 0 && (
+                          <span className="mt-1.5 flex flex-wrap gap-1">
+                            {featurePages[f.key].map((pg) => (
+                              <span key={pg} className="inline-flex items-center text-[10px] leading-4 px-1.5 rounded bg-surface2 text-muted2 border border-line/60">{pg}</span>
+                            ))}
+                          </span>
+                        )}
                       </td>
                       {plans.map((p) => (
                         <td key={p.id} className="px-4 py-3 text-center">
