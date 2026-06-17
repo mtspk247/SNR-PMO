@@ -289,6 +289,12 @@ export async function listFeatures(): Promise<Feature[]> {
   const { data, error } = await sb.from('features').select('*').order('sort_order');
   if (error) throw error; return (data as Feature[]) || [];
 }
+// #35: push the FE FEATURES catalog into the DB features table (platform admin).
+// Idempotent upsert — new/future catalog keys auto-appear in Plans & features.
+export async function syncFeatures(features: readonly { key: string; label: string }[]): Promise<void> {
+  const { error } = await sb.rpc('features_sync', { p_features: features });
+  if (error) throw new Error(error.message);
+}
 export async function listPlanFeatures(): Promise<PlanFeature[]> {
   const { data, error } = await sb.from('plan_features').select('plan_id, feature_key, enabled');
   if (error) throw error; return (data as PlanFeature[]) || [];

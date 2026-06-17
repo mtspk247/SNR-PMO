@@ -5,8 +5,8 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow } from '@/lib/db';
-import { Plan, Feature, PlanFeature } from '@/lib/supabase';
+import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow } from '@/lib/db';
+import { Plan, Feature, PlanFeature, FEATURES } from '@/lib/supabase';
 import { formatPrice } from '@/lib/entitlements';
 
 type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'campaigns' | 'activity';
@@ -870,6 +870,7 @@ export default function PlatformPage() {
   const [planModal, setPlanModal] = useState<Plan | 'new' | null>(null);
 
   const load = async () => {
+    await syncFeatures(FEATURES).catch(() => {});  // #35: ensure every catalog feature exists in DB before listing
     const [p, f, m, l] = await Promise.all([listPlans(), listFeatures(), listPlanFeatures(), listPlanLimits()]);
     setPlans(p); setFeatures(f); setPf(m); setPlanLimits(l);
   };
@@ -891,6 +892,19 @@ export default function PlatformPage() {
     try { await setPlanFeature(planId, fk, on); } catch (e: any) { setErr(e.message); await load(); }
     finally { setBusy(false); }
   };
+
+  // Every feature in the FEATURES catalog auto-lists here (current + future), even before a DB seed.
+  // DB `features` rows overlay description/sort/name; legacy DB-only keys are appended.
+  const featureRows = useMemo(() => {
+    const byKey = new Map(features.map((f) => [f.key, f]));
+    const fromCatalog = FEATURES.map((c, i) => {
+      const db = byKey.get(c.key);
+      return { key: c.key, name: db?.name || c.label, description: db?.description || '', sort_order: db?.sort_order ?? i };
+    });
+    const dbOnly = features.filter((f) => !FEATURES.some((c) => c.key === f.key))
+      .map((f) => ({ key: f.key, name: f.name, description: f.description || '', sort_order: 1000 + f.sort_order }));
+    return [...fromCatalog, ...dbOnly].sort((a, b) => a.sort_order - b.sort_order);
+  }, [features]);
 
 
   return (
@@ -946,7 +960,7 @@ export default function PlatformPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {features.map((f) => (
+                  {featureRows.map((f) => (
                     <tr key={f.key} className="border-t border-line hover:bg-surface2/50">
                       <td className="px-4 py-3">
                         <span className="block font-medium text-content">{f.name}</span>
