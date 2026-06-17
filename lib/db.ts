@@ -1260,7 +1260,7 @@ export async function logAudit(p: {
 }
 
 // ---- 2.7 Users admin / RBAC ----------------------------------------------
-const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, role_template_id, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, annual_balance, sick_balance, casual_balance';
+const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, role_template_id, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, annual_balance, sick_balance, casual_balance, job_title, avatar_url, phone, company_id, last_login, company:companies!users_company_id_fkey(name)';
 export interface UserAffiliation { user_id: string; companies: string[]; projects: string[]; }
 export async function userAffiliations(orgId: string): Promise<UserAffiliation[]> {
   const { data, error } = await sb.rpc('user_affiliations', { p_org: orgId });
@@ -2812,4 +2812,36 @@ export async function fxRateDelete(orgId: string, id: string): Promise<void> {
 }
 export async function fxRevalue(orgId: string, asOf: string): Promise<{ entries: number }> {
   const { data, error } = await sb.rpc('fx_revalue', { p_org: orgId, p_as_of: asOf }); if (error) throw new Error(error.message); return (data as { entries: number }) || { entries: 0 };
+}
+
+
+// ---- S1: Users hub — single user, activity, self password, per-user email ----
+export async function getAdminUser(id: string): Promise<AdminUser | null> {
+  const { data, error } = await sb.from('users').select(ADMIN_USER_COLS).eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message); return (data as any as AdminUser) || null;
+}
+export async function getUserActivity(userId: string, limit = 30): Promise<ActivityItem[]> {
+  const { data, error } = await sb.from('audit_log')
+    .select('id, ts, username, action, entity_type, entity_id')
+    .eq('user_id', userId).order('ts', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as ActivityItem[]) || [];
+}
+export async function changeOwnPassword(email: string, currentPw: string, newPw: string): Promise<void> {
+  const { error: e1 } = await sb.auth.signInWithPassword({ email, password: currentPw });
+  if (e1) throw new Error('Current password is incorrect');
+  const { error: e2 } = await sb.auth.updateUser({ password: newPw });
+  if (e2) throw new Error(e2.message);
+}
+export interface UserEmailConfig { provider: 'smtp' | 'gmail'; from_name: string | null; from_email: string | null; reply_to: string | null; smtp_host: string | null; smtp_port: number | null; smtp_secure: boolean | null; smtp_user: string | null; has_smtp_pass: boolean; gmail_email: string | null; gmail_connected: boolean; status: string; enabled: boolean; }
+export async function getUserEmail(orgId: string): Promise<UserEmailConfig | null> {
+  const { data, error } = await sb.rpc('user_email_get', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data; return (row as UserEmailConfig) || null;
+}
+export async function saveUserEmail(orgId: string, p: { provider: string; from_name?: string | null; from_email?: string | null; reply_to?: string | null; smtp_host?: string | null; smtp_port?: number | null; smtp_secure?: boolean | null; smtp_user?: string | null; smtp_pass?: string | null; enabled?: boolean; }): Promise<void> {
+  const { error } = await sb.rpc('user_email_save', { p_org: orgId, p_provider: p.provider, p_from_name: p.from_name ?? null, p_from_email: p.from_email ?? null, p_reply_to: p.reply_to ?? null, p_smtp_host: p.smtp_host ?? null, p_smtp_port: p.smtp_port ?? null, p_smtp_secure: p.smtp_secure ?? true, p_smtp_user: p.smtp_user ?? null, p_smtp_pass: p.smtp_pass ?? '', p_enabled: p.enabled ?? false });
+  if (error) throw new Error(error.message);
+}
+export async function deleteUserEmail(orgId: string): Promise<void> {
+  const { error } = await sb.rpc('user_email_delete', { p_org: orgId }); if (error) throw new Error(error.message);
 }

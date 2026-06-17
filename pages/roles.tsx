@@ -1,12 +1,11 @@
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader } from '@/components/ui';
-import RolesManager from '@/components/RolesManager';
+import { Spinner } from '@/components/ui';
 
-export default function RolesPage() {
-  return (
-    <Layout flat title="Roles">
-      <PageHeader title="Roles & permissions" subtitle="Reusable permission templates and module access for your team" icon="ti-shield-lock" />
-      <RolesManager />
-    </Layout>
-  );
+// Roles management now lives in Users → Roles tab (and per-user on the user detail page).
+export default function RolesRedirect() {
+  const router = useRouter();
+  useEffect(() => { router.replace('/users'); }, [router]);
+  return <Layout flat title="Roles"><Spinner /></Layout>;
 }

@@ -295,6 +295,7 @@ export interface AdminUser {
   can_approve_leaves: boolean; can_delete_tasks: boolean;
   can_manage_users: boolean; can_view_dashboard: boolean; can_export_data: boolean;
   annual_balance: number; sick_balance: number; casual_balance: number;
+  job_title?: string | null; avatar_url?: string | null; phone?: string | null; company_id?: string | null; last_login?: string | null; company?: { name: string } | null;
 }
 
 
