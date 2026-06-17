@@ -2758,3 +2758,18 @@ export async function accountingSettingsSave(orgId: string, p: { fiscal_year_sta
   const { error } = await sb.rpc('accounting_settings_save', { p_org: orgId, p_fiscal_month: p.fiscal_year_start_month, p_currency: p.base_currency, p_basis: p.basis, p_lock: p.lock_date || null });
   if (error) throw new Error(error.message);
 }
+
+// ---- Accounting P12.3: inventory ----
+export interface InventoryValueRow { product_id: string; sku: string | null; name: string; stock_qty: number; avg_cost: number; value: number; }
+export async function inventoryValue(orgId: string): Promise<InventoryValueRow[]> {
+  const { data, error } = await sb.rpc('gl_inventory_value', { p_org: orgId }); if (error) throw new Error(error.message); return (data as InventoryValueRow[]) || [];
+}
+export async function inventoryAdjust(orgId: string, productId: string, qty: number, unitCost: number, reason: string, date?: string | null): Promise<string> {
+  const { data, error } = await sb.rpc('inventory_adjust', { p_org: orgId, p_product: productId, p_qty: qty, p_unit_cost: unitCost, p_reason: reason, p_date: date || null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export interface InventoryMove { id: string; product_id: string; qty: number; unit_cost: number; value: number; kind: string; source: string | null; move_date: string; notes: string | null; created_at: string; }
+export async function inventoryMoves(orgId: string, limit = 60): Promise<InventoryMove[]> {
+  const { data, error } = await sb.from('inventory_moves').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as InventoryMove[]) || [];
+}
