@@ -458,18 +458,8 @@ export default function SettingsPage() {
                     <div className="w-14 h-14 rounded-lg border border-line bg-surface2 grid place-items-center overflow-hidden shrink-0">
                       {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
                     </div>
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center gap-2">
-                        <label className="btn btn-ghost text-xs cursor-pointer">
-                          <Icon name="ti-upload" className="text-sm" /> Upload logo
-                          <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={onLogoFile} />
-                        </label>
-                        {logo && <button type="button" onClick={() => setLogo('')} className="btn btn-ghost text-xs text-rose-600">Remove</button>}
-                      </div>
-                      {logoErr && <span className="text-2xs text-rose-600">{logoErr}</span>}
-                    </div>
+                    <p className="text-2xs text-muted leading-relaxed">Your workspace logo is managed in <button type="button" onClick={() => setTab('business')} className="text-accentstrong hover:underline font-medium">Profile → Workspace &amp; logo</button>. It’s the single logo used across the app, the login screen and emails — set it once there.</p>
                   </div>
-                  <p className="text-2xs text-muted mt-2">Square image recommended — at least 256×256px, PNG / JPG / SVG / WebP, under 1.5 MB. Leave blank to use the name initial.</p>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <ColorField label="Primary" value={primary} onChange={setPrimary} />

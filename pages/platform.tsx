@@ -818,9 +818,19 @@ function CampaignsTab() {
   );
 }
 
+function KV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="w-28 shrink-0 text-2xs uppercase tracking-wide text-muted2 pt-0.5">{label}</span>
+      <span className={`text-content break-all ${mono ? 'font-mono text-xs' : ''}`}>{value}</span>
+    </div>
+  );
+}
+
 function ActivityTab() {
   const [rows, setRows] = useState<PlatformActivityRow[] | null>(null);
   const [org, setOrg] = useState('all');
+  const [detail, setDetail] = useState<PlatformActivityRow | null>(null);
   const [err, setErr] = useState('');
   useEffect(() => { platformActivity(250, null).then(setRows).catch((e) => { setErr(e?.message || 'Failed to load activity'); setRows([]); }); }, []);
   const orgs = useMemo(() => Array.from(new Map((rows || []).filter((r) => r.org_id).map((r) => [r.org_id as string, r.org_name || (r.org_id as string)])).entries()), [rows]);
@@ -843,7 +853,7 @@ function ActivityTab() {
           </thead>
           <tbody>
             {filtered.map((r) => (
-              <tr key={r.id} className="border-t border-line hover:bg-surface2/50">
+              <tr key={r.id} onClick={() => setDetail(r)} className="border-t border-line hover:bg-surface2/50 cursor-pointer">
                 <td className="px-4 py-3 text-2xs text-muted2 whitespace-nowrap">{new Date(r.ts).toLocaleString()}</td>
                 <td className="px-4 py-3 text-content">{r.org_name || '—'}</td>
                 <td className="px-4 py-3 text-muted">{r.username || '—'}</td>
@@ -853,6 +863,19 @@ function ActivityTab() {
             ))}
           </tbody>
         </table></div>
+      )}
+      {detail && (
+        <Modal open={!!detail} onClose={() => setDetail(null)} title="Event detail" icon="ti-activity" size="md">
+          <div className="space-y-3">
+            <KV label="When" value={new Date(detail.ts).toLocaleString()} />
+            <KV label="Tenant" value={detail.org_name || detail.org_id || '—'} />
+            <KV label="Who" value={detail.username || '—'} />
+            <KV label="Action" value={detail.action} />
+            <KV label="Entity" value={detail.entity_type || '—'} />
+            <KV label="Entity ID" value={detail.entity_id || '—'} mono />
+            <p className="text-2xs text-muted2 pt-2 border-t border-line">Read-only audit record. The entity lives in {detail.org_name || 'the tenant'}’s workspace; open that tenant to view it live.</p>
+          </div>
+        </Modal>
       )}
     </div>
   );
