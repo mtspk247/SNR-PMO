@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 
 /**
- * SNR-PMO marketing landing page.
- * Self-contained: no shared layout, no shared theme tokens, no external deps
- * besides an optional GSAP CDN script for subtle scroll/hover motion.
- * Uses fixed Supabase-style colors via Tailwind arbitrary values so it renders
- * identically regardless of the app's dark/light theme context.
+ * SNR-PMO marketing landing page — premium dark + emerald.
+ * Self-contained: only react / next/link / next/head. No external deps,
+ * no images (all product visuals are HTML/CSS mockups). Fixed Tailwind
+ * arbitrary-value colors so it renders identically regardless of app theme.
  */
+
+/* ---------------------------------- data --------------------------------- */
 
 const NAV_LINKS = [
   { href: '#features', label: 'Features' },
@@ -16,818 +17,819 @@ const NAV_LINKS = [
   { href: '#faq', label: 'FAQ' },
 ];
 
-const FEATURES = [
-  {
-    title: 'Project & Portfolio Management',
-    desc: 'Plan, track, and roll up projects across portfolios and companies — with one clean view from task to org.',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="7" height="7" rx="1.5" />
-        <rect x="14" y="4" width="7" height="7" rx="1.5" />
-        <rect x="3" y="15" width="7" height="5" rx="1.5" />
-        <rect x="14" y="15" width="7" height="5" rx="1.5" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Built-in CRM pipeline',
-    desc: 'Track deals from lead to close, log activity, and turn won deals straight into projects.',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 6h18M3 12h12M3 18h6" />
-        <circle cx="20" cy="18" r="2" />
-      </svg>
-    ),
-  },
-  {
-    title: 'HR & employee onboarding',
-    desc: 'Standardize new-hire checklists with reusable templates so nothing falls through the cracks.',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="3.5" />
-        <path d="M4.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6" />
-        <path d="M16.5 4.5l1.2 1.2 2.3-2.3" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Roles & granular permissions',
-    desc: 'Org, company, and portfolio-scoped roles let you control exactly who sees and edits what.',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z" />
-        <path d="M9.5 12l1.8 1.8L14.5 10" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Audit log & compliance',
-    desc: 'Every key action is recorded automatically — a clear, exportable trail for reviews and audits.',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 3h9l5 5v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z" />
-        <path d="M14 3v5h5" />
-        <path d="M9 13h6M9 17h4" />
-      </svg>
-    ),
-  },
-  {
-    title: 'White-label / multi-tenant branding',
-    desc: 'Your logo, colors, and domain — every organization gets a fully branded workspace.',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="3" />
-        <path d="M3 9h18" />
-        <circle cx="6.5" cy="6" r="0.75" fill="currentColor" stroke="none" />
-        <circle cx="9" cy="6" r="0.75" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  },
+const REPLACES = [
+  { cat: 'Project management', like: 'like ClickUp / Asana', glyph: '◧' },
+  { cat: 'CRM', like: 'like HubSpot / Pipedrive', glyph: '◎' },
+  { cat: 'HR & payroll', like: 'like BambooHR / Gusto', glyph: '◍' },
+  { cat: 'Accounting', like: 'like QuickBooks / Xero', glyph: '▤' },
 ];
 
-const STEPS = [
-  {
-    n: '01',
-    title: 'Create your org & companies',
-    desc: 'Set up your organization, add the companies you operate or work with, and apply your branding in minutes.',
-  },
-  {
-    n: '02',
-    title: 'Invite your team with roles',
-    desc: 'Bring in teammates and clients with scoped roles — org admin, company manager, project lead, or read-only.',
-  },
-  {
-    n: '03',
-    title: 'Run projects, deals, and people in one place',
-    desc: 'Plan portfolios, track CRM pipeline, and manage onboarding — all under a single, secure workspace.',
-  },
+const MODULES = [
+  { t: 'Projects & tasks', d: 'Boards, lists, timelines, portfolios — from task to org rollup.', icon: 'M3 4h7v7H3zM14 4h7v7h-7zM3 15h7v5H3zM14 15h7v5h-7z' },
+  { t: 'CRM', d: 'Leads, deals, pipeline, proposals and contracts in one flow.', icon: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 20a8 8 0 0116 0' },
+  { t: 'HR & payroll', d: 'People, attendance, leaves, payroll runs and offers.', icon: 'M9 11a4 4 0 100-8 4 4 0 000 8zM2 21a7 7 0 0114 0M17 8h5M19.5 5.5v5' },
+  { t: 'Accounting & invoicing', d: 'Real double-entry ledger, invoices, payments, P&L.', icon: 'M3 5h18v14H3zM3 10h18M8 14h3M8 17h6' },
+  { t: 'Time tracking', d: 'Timers, timesheets and billable hours tied to work.', icon: 'M12 7v5l3 2M12 21a9 9 0 100-18 9 9 0 000 18z' },
+  { t: 'Drives & files', d: 'Per-tenant storage with attachments on every record.', icon: 'M3 7l2-3h6l2 3h6v12H3zM3 7h18' },
+  { t: 'Support desk', d: 'Tickets, round-robin queue, canned replies and SLAs.', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' },
+  { t: 'Dashboards', d: 'Drag-and-drop widgets across every module, live.', icon: 'M3 13h8V3H3zM13 21h8V8h-8zM13 3v3h8V3zM3 21h8v-4H3z' },
+  { t: 'API & webhooks', d: 'Org-scoped REST API, keys and event webhooks.', icon: 'M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1' },
+  { t: 'Automations', d: 'Trigger actions on events — no glue code required.', icon: 'M13 2L3 14h7l-1 8 10-12h-7z' },
 ];
 
 const PRICING = [
   {
-    name: 'Starter',
-    price: '$29',
-    period: '/month',
-    note: 'Up to 5 users',
-    desc: 'Core PPM essentials for small teams getting organized.',
-    features: [
-      'Projects & portfolios',
-      'Tasks, milestones & boards',
-      'Basic dashboards',
-      'Up to 5 team members',
-      'Community support',
-    ],
+    name: 'Free',
+    price: '$0',
+    unit: 'forever',
+    blurb: 'For small teams getting organized.',
     cta: 'Start free',
+    href: '/signup',
     highlight: false,
+    feats: ['Up to 5 seats', 'Projects, tasks & CRM', 'Basic accounting & invoicing', '1 GB drive storage', 'Community support'],
   },
   {
     name: 'Pro',
-    price: '$15',
-    period: '/user / month',
-    note: 'Billed monthly, per active user',
-    desc: 'Everything growing teams need to run projects, people, and pipeline.',
-    features: [
-      'Everything in Starter',
-      'Built-in CRM pipeline',
-      'HR & employee onboarding',
-      'Audit log & compliance',
-      'Advanced roles & permissions',
-      'Priority email support',
-    ],
+    price: '$12',
+    unit: '/ user / mo',
+    blurb: 'For growing teams running real operations.',
     cta: 'Start free',
+    href: '/signup',
     highlight: true,
+    feats: ['Everything in Free', 'HR & payroll module', 'Full double-entry accounting', 'Time tracking & dashboards', 'API, webhooks & automations', 'Priority support'],
+  },
+  {
+    name: 'Enterprise',
+    price: '$999',
+    unit: '/ mo flat',
+    blurb: 'For larger orgs that need control.',
+    cta: 'Start free',
+    href: '/signup',
+    highlight: false,
+    feats: ['Up to 100 seats', 'SSO & SAML', 'Audit logs & advanced RBAC', 'Custom domains', 'Dedicated onboarding', 'SLA & priority support'],
   },
   {
     name: 'White-label',
-    price: 'Custom',
-    period: 'pricing',
-    note: 'For agencies & platforms',
-    desc: 'Full white-label deployment with your brand, domain, and dedicated support.',
-    features: [
-      'Everything in Pro',
-      'Per-tenant branding & themes',
-      'Custom subdomain',
-      'Multi-org management console',
-      'Priority onboarding & support',
-      'Custom contract & SLA',
-    ],
-    cta: 'Contact sales',
+    price: '$2,499',
+    unit: '/ mo',
+    blurb: 'For agencies reselling as their own.',
+    cta: 'Talk to us',
+    href: '/signup',
     highlight: false,
+    feats: ['Unlimited sub-accounts', 'Your brand, logo & domain', 'Reseller console & billing', 'Per-client provisioning', 'Remove SNR-PMO branding', 'Partner support channel'],
   },
 ];
 
 const FAQS = [
   {
-    q: 'What is SNR-PMO?',
-    a: 'SNR-PMO is an all-in-one project & portfolio management platform that also includes a lightweight CRM, HR onboarding, attendance & leave, roles, and an audit log — built for agencies, SMBs, and internal PMOs that want one brandable hub instead of five disconnected tools.',
+    q: 'How is SNR-PMO actually all-in-one?',
+    a: 'Projects, CRM, HR & payroll, and accounting share one database, one login and one bill. A deal closing can create a project; payroll posts to the ledger; time logged shows up in invoices and the P&L — no integrations to maintain, no data silos.',
   },
   {
-    q: 'Is my data isolated per tenant?',
-    a: 'Yes. Every organization is a fully isolated tenant. Data is scoped at the database level by organization, company, portfolio, and project, so one workspace can never see another’s data.',
+    q: 'Can I import from ClickUp, Asana or my CRM?',
+    a: 'Yes. Import projects, tasks and contacts via CSV, and use the org-scoped REST API to migrate larger datasets. Most teams move their active work over in an afternoon.',
   },
   {
-    q: 'Can I white-label it?',
-    a: 'Absolutely. On the White-label plan you can apply your own logo, color palette, and a custom subdomain, so your clients or internal teams experience your brand, not ours.',
+    q: 'Is the accounting real double-entry?',
+    a: 'Yes — a genuine general ledger with debits and credits, a chart of accounts, trial balance and P&L. Payroll runs and invoices post real journal entries, not a faked summary. That is the core difference from bolt-on "expense tracking."',
+  },
+  {
+    q: 'Can I white-label and resell it?',
+    a: 'Yes. On the White-label plan you apply your own logo, colors and custom domain, then provision and bill unlimited sub-accounts from a reseller console. Your clients see your brand, not ours.',
   },
   {
     q: 'How does pricing work?',
-    a: 'Starter is a flat monthly price for small teams (up to 5 users). Pro is billed per active user per month and unlocks CRM, HR/onboarding, audit log, and advanced permissions. White-label is custom-priced based on tenants and support needs. Prices shown are illustrative.',
+    a: 'Free is free forever for up to 5 seats. Pro is billed per active user per month. Enterprise is a flat monthly fee up to 100 seats. White-label is a flat monthly partner fee with unlimited sub-accounts. No card required to start.',
   },
   {
-    q: 'Can I import existing projects?',
-    a: 'Yes. You can bring in existing projects, tasks, and contacts during setup, or start clean and build out your portfolios as you go.',
+    q: 'Is my data isolated and secure?',
+    a: 'Every tenant is isolated at the database level with row-level security, so one organization can never see another tenant’s data. Roles and permissions are granular, and Enterprise adds SSO and audit logging.',
   },
 ];
 
-const LOGOS = ['NORTHPEAK', 'VERIDIAN', 'CASCADE&CO', 'ATLAS WORKS', 'BRIGHTFIELD'];
+/* -------------------------------- helpers -------------------------------- */
 
-function GsapReveal() {
-  // Loads GSAP from CDN and applies subtle scroll-reveal + hover lift.
-  // Degrades gracefully (everything is visible by default via CSS) if it fails.
-  useEffect(() => {
-    let cancelled = false;
-    const existing = document.getElementById('gsap-cdn-script') as HTMLScriptElement | null;
-
-    const init = () => {
-      if (cancelled) return;
-      const w = window as any;
-      const gsap = w.gsap;
-      if (!gsap) return;
-      try {
-        gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach((el, i) => {
-          gsap.fromTo(
-            el,
-            { opacity: 0, y: 24 },
-            {
-              opacity: 1,
-              y: 0,
-              duration: 0.7,
-              delay: Math.min(i * 0.04, 0.2),
-              ease: 'power2.out',
-              scrollTrigger: w.ScrollTrigger
-                ? { trigger: el, start: 'top 88%', once: true }
-                : undefined,
-            }
-          );
-          if (!w.ScrollTrigger) {
-            // Fallback without ScrollTrigger: just animate in immediately.
-            gsap.set(el, { opacity: 1, y: 0 });
-          }
-        });
-      } catch {
-        // Swallow errors — page already looks correct without animation.
-      }
-    };
-
-    if (existing) {
-      if ((window as any).gsap) init();
-      else existing.addEventListener('load', init);
-      return () => existing.removeEventListener('load', init);
-    }
-
-    const script = document.createElement('script');
-    script.id = 'gsap-cdn-script';
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js';
-    script.async = true;
-    script.onload = () => {
-      if (cancelled) return;
-      const stScript = document.createElement('script');
-      stScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js';
-      stScript.async = true;
-      stScript.onload = init;
-      stScript.onerror = init;
-      document.body.appendChild(stScript);
-    };
-    script.onerror = () => {
-      // No GSAP — make sure reveal elements are visible.
-      document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => {
-        el.style.opacity = '1';
-        el.style.transform = 'none';
-      });
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return null;
+function Check() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 shrink-0 mt-0.5 text-[#3ECF8E]" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 10.5l4 4 8-9" />
+    </svg>
+  );
 }
 
-function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
+function Dot({ c }: { c: string }) {
+  return <span className="inline-block w-3 h-3 rounded-full" style={{ background: c }} aria-hidden="true" />;
+}
+
+function BrowserFrame({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="absolute top-0 right-0 w-72 max-w-[85%] h-full bg-[#0f0f0f] border-l border-white/10 px-6 py-6 flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <span className="text-white font-semibold text-lg tracking-tight">SNR-PMO</span>
-          <button
-            aria-label="Close menu"
-            onClick={onClose}
-            className="w-9 h-9 grid place-items-center rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-          >
-            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
+    <div className="rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl shadow-black/50 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-[#141414]">
+        <Dot c="#ff5f57" />
+        <Dot c="#febc2e" />
+        <Dot c="#28c840" />
+        <div className="ml-3 flex-1">
+          <div className="mx-auto max-w-xs rounded-md bg-white/5 border border-white/10 px-3 py-1 text-center text-[11px] text-white/40 truncate">
+            {title}
+          </div>
         </div>
-        <nav className="flex flex-col gap-1">
-          {NAV_LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              onClick={onClose}
-              className="px-2 py-3 rounded-md text-base text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+      </div>
+      <div className="p-4 sm:p-5">{children}</div>
+    </div>
+  );
+}
+
+/* ------------------------------ mockup pieces ----------------------------- */
+
+function KpiCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#161616] p-3">
+      <div className="text-[10px] uppercase tracking-wide text-white/40">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-white">{value}</div>
+      {sub && <div className={'mt-0.5 text-[11px] ' + (tone || 'text-white/40')}>{sub}</div>}
+    </div>
+  );
+}
+
+function DashboardMock() {
+  const bars = [
+    { m: 'Jan', inc: 70, exp: 44 },
+    { m: 'Feb', inc: 58, exp: 38 },
+    { m: 'Mar', inc: 82, exp: 52 },
+    { m: 'Apr', inc: 64, exp: 40 },
+    { m: 'May', inc: 90, exp: 60 },
+    { m: 'Jun', inc: 76, exp: 47 },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="Open projects" value="5" />
+        <KpiCard label="Open tasks" value="13" sub="2 overdue" tone="text-amber-400/80" />
+        <KpiCard label="Open deals" value="4" />
+        <KpiCard label="Pipeline value" value="$73,100" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <KpiCard label="Income" value="$70,000" tone="text-[#3ECF8E]" />
+        <KpiCard label="Expenses" value="$43,070" tone="text-red-400/80" />
+        <KpiCard label="Net" value="$26,930" sub="Profitable" tone="text-[#3ECF8E]" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Income vs Expenses */}
+        <div className="rounded-xl border border-white/10 bg-[#161616] p-3 lg:col-span-2">
+          <div className="text-xs font-medium text-white/70">Income vs Expenses</div>
+          <div className="mt-3 flex items-end justify-between gap-2 h-28">
+            {bars.map((b) => (
+              <div key={b.m} className="flex flex-col items-center gap-1 flex-1">
+                <div className="flex items-end gap-1 h-24">
+                  <div className="w-2.5 rounded-t bg-[#3ECF8E]" style={{ height: b.inc + '%' }} />
+                  <div className="w-2.5 rounded-t bg-red-500/70" style={{ height: b.exp + '%' }} />
+                </div>
+                <div className="text-[9px] text-white/40">{b.m}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Donut */}
+        <div className="rounded-xl border border-white/10 bg-[#161616] p-3">
+          <div className="text-xs font-medium text-white/70">Project status</div>
+          <div className="mt-3 flex items-center gap-3">
+            <div
+              className="w-20 h-20 rounded-full"
+              style={{ background: 'conic-gradient(#3ECF8E 0 50%, #6366f1 50% 83%, #6b7280 83% 100%)' }}
+              aria-hidden="true"
             >
-              {l.label}
-            </a>
+              <div className="w-full h-full grid place-items-center">
+                <div className="w-12 h-12 rounded-full bg-[#161616]" />
+              </div>
+            </div>
+            <ul className="text-[11px] space-y-1 text-white/60">
+              <li className="flex items-center gap-1.5"><Dot c="#3ECF8E" /> Active 3</li>
+              <li className="flex items-center gap-1.5"><Dot c="#6366f1" /> Planning 2</li>
+              <li className="flex items-center gap-1.5"><Dot c="#6b7280" /> Completed 1</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      {/* Pipeline by stage */}
+      <div className="rounded-xl border border-white/10 bg-[#161616] p-3">
+        <div className="text-xs font-medium text-white/70">Pipeline by stage</div>
+        <div className="mt-3 space-y-2">
+          {[
+            { s: 'Lead', v: '$4,500', w: '12%' },
+            { s: 'Qualified', v: '$7,000', w: '18%' },
+            { s: 'Proposal', v: '$52,000', w: '100%' },
+            { s: 'Negotiation', v: '$9,600', w: '24%' },
+          ].map((r) => (
+            <div key={r.s} className="flex items-center gap-3 text-[11px]">
+              <div className="w-20 text-white/50">{r.s}</div>
+              <div className="flex-1 h-2.5 rounded-full bg-white/5 overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-[#10b981] to-[#3ECF8E]" style={{ width: r.w }} />
+              </div>
+              <div className="w-16 text-right text-white/70">{r.v}</div>
+            </div>
           ))}
-        </nav>
-        <div className="mt-auto flex flex-col gap-3">
-          <Link
-            href="/login"
-            className="w-full text-center px-4 py-2.5 rounded-md text-sm font-medium text-white/90 border border-white/15 hover:bg-white/5 transition-colors"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/login"
-            className="w-full text-center px-4 py-2.5 rounded-md text-sm font-semibold text-[#0f0f0f] bg-[#3ECF8E] hover:bg-[#34b87b] transition-colors"
-          >
-            Start free
-          </Link>
         </div>
       </div>
     </div>
   );
 }
 
-function FaqItem({ q, a, defaultOpen = false }: { q: string; a: string; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function BoardMock() {
+  const cols = [
+    {
+      name: 'To do', count: 3,
+      cards: [
+        { t: 'Design system audit', p: 'High', pc: 'bg-red-500/20 text-red-300', a: ['#3ECF8E', '#6366f1'] },
+        { t: 'Onboarding flow copy', p: 'Med', pc: 'bg-amber-500/20 text-amber-300', a: ['#f59e0b'] },
+      ],
+    },
+    {
+      name: 'In progress', count: 2,
+      cards: [
+        { t: 'Ledger reconciliation', p: 'High', pc: 'bg-red-500/20 text-red-300', a: ['#3ECF8E', '#ec4899'] },
+        { t: 'Q3 payroll run', p: 'Low', pc: 'bg-white/10 text-white/60', a: ['#6366f1'] },
+      ],
+    },
+    {
+      name: 'Done', count: 1,
+      cards: [{ t: 'Client kickoff deck', p: 'Med', pc: 'bg-amber-500/20 text-amber-300', a: ['#3ECF8E'] }],
+    },
+  ];
   return (
-    <div className="border-b border-black/10 py-5" data-reveal>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between gap-4 text-left group"
-      >
-        <span className="text-base sm:text-lg font-medium text-[#0f0f0f]">{q}</span>
-        <span
-          className={`shrink-0 w-8 h-8 rounded-full border border-black/10 grid place-items-center text-[#0f0f0f]/70 group-hover:border-[#3ECF8E] group-hover:text-[#3ECF8E] transition-all duration-200 ${open ? 'rotate-45' : ''}`}
-        >
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </span>
-      </button>
-      <div
-        className="grid transition-all duration-300 ease-out"
-        style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
-      >
-        <div className="overflow-hidden">
-          <p className="text-sm sm:text-base text-[#52525b] mt-3 leading-relaxed max-w-2xl">{a}</p>
+    <div className="grid grid-cols-3 gap-3">
+      {cols.map((c) => (
+        <div key={c.name} className="rounded-xl bg-[#161616] border border-white/10 p-2.5">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="text-[11px] font-medium text-white/70">{c.name}</span>
+            <span className="text-[10px] text-white/30 bg-white/5 rounded-full px-1.5">{c.count}</span>
+          </div>
+          <div className="space-y-2">
+            {c.cards.map((card) => (
+              <div key={card.t} className="rounded-lg bg-[#1d1d1d] border border-white/10 p-2.5">
+                <div className="text-[11px] text-white/85 leading-snug">{card.t}</div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className={'text-[9px] px-1.5 py-0.5 rounded-full ' + card.pc}>{card.p}</span>
+                  <div className="flex -space-x-1.5">
+                    {card.a.map((color, i) => (
+                      <span key={i} className="w-4 h-4 rounded-full border border-[#1d1d1d]" style={{ background: color }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+      ))}
+    </div>
+  );
+}
+
+function LedgerMock() {
+  const rows = [
+    { acct: '1000 · Cash', dr: '$26,930', cr: '' },
+    { acct: '1100 · Accounts Receivable', dr: '$18,200', cr: '' },
+    { acct: '2000 · Accounts Payable', dr: '', cr: '$9,400' },
+    { acct: '4000 · Revenue', dr: '', cr: '$70,000' },
+    { acct: '5000 · Payroll Expense', dr: '$28,500', cr: '' },
+    { acct: '5100 · Operating Expense', dr: '$14,570', cr: '' },
+  ];
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#161616] overflow-hidden">
+      <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-3 py-2 bg-[#1d1d1d] text-[10px] uppercase tracking-wide text-white/40 border-b border-white/10">
+        <span>Account</span>
+        <span className="w-16 text-right">Debit</span>
+        <span className="w-16 text-right">Credit</span>
+      </div>
+      {rows.map((r) => (
+        <div key={r.acct} className="grid grid-cols-[1fr_auto_auto] gap-4 px-3 py-2 text-[11px] border-b border-white/5">
+          <span className="text-white/75">{r.acct}</span>
+          <span className="w-16 text-right text-white/80">{r.dr || '—'}</span>
+          <span className="w-16 text-right text-[#3ECF8E]/90">{r.cr || '—'}</span>
+        </div>
+      ))}
+      <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-3 py-2 text-[11px] bg-[#1d1d1d] font-semibold">
+        <span className="text-white/80">Trial balance</span>
+        <span className="w-16 text-right text-white">$88,200</span>
+        <span className="w-16 text-right text-white">$88,200</span>
       </div>
     </div>
   );
 }
 
-export default function LandingPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+function CrmMock() {
+  const stages = [
+    { name: 'Lead', deals: [{ t: 'Acme Corp', v: '$4,500' }] },
+    { name: 'Qualified', deals: [{ t: 'Globex', v: '$7,000' }] },
+    { name: 'Proposal', deals: [{ t: 'Initech', v: '$52,000' }] },
+    { name: 'Negotiation', deals: [{ t: 'Umbrella', v: '$9,600' }] },
+  ];
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {stages.map((s) => (
+        <div key={s.name} className="rounded-xl bg-[#161616] border border-white/10 p-2.5">
+          <div className="text-[10px] uppercase tracking-wide text-white/40 mb-2">{s.name}</div>
+          {s.deals.map((d) => (
+            <div key={d.t} className="rounded-lg bg-[#1d1d1d] border border-white/10 p-2.5 mb-2">
+              <div className="text-[11px] text-white/85">{d.t}</div>
+              <div className="mt-1 text-[12px] font-semibold text-[#3ECF8E]">{d.v}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+function HrMock() {
+  const rows = [
+    { n: 'Sara Khan', r: 'Product Lead', s: 'Active', c: '#3ECF8E' },
+    { n: 'James Lee', r: 'Engineer', s: 'Active', c: '#6366f1' },
+    { n: 'Mia Torres', r: 'Designer', s: 'On leave', c: '#f59e0b' },
+    { n: 'Omar Ali', r: 'Accountant', s: 'Active', c: '#ec4899' },
+  ];
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-3">
+        <KpiCard label="Headcount" value="24" />
+        <KpiCard label="On leave" value="2" tone="text-amber-400/80" />
+        <KpiCard label="Payroll / mo" value="$28,500" tone="text-[#3ECF8E]" />
+      </div>
+      <div className="rounded-xl border border-white/10 bg-[#161616] overflow-hidden">
+        {rows.map((r) => (
+          <div key={r.n} className="flex items-center gap-3 px-3 py-2.5 border-b border-white/5 text-[11px]">
+            <span className="w-6 h-6 rounded-full shrink-0" style={{ background: r.c }} />
+            <span className="text-white/85 flex-1">{r.n}</span>
+            <span className="text-white/40 hidden sm:block">{r.r}</span>
+            <span className={'px-2 py-0.5 rounded-full text-[10px] ' + (r.s === 'Active' ? 'bg-[#10b981]/15 text-[#3ECF8E]' : 'bg-amber-500/15 text-amber-300')}>{r.s}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------- sections -------------------------------- */
+
+function FeatureRow({
+  flip, eyebrow, title, bullets, children,
+}: { flip?: boolean; eyebrow: string; title: string; bullets: string[]; children: React.ReactNode }) {
+  return (
+    <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+      <div className={flip ? 'lg:order-2' : ''}>
+        <div className="text-xs font-semibold uppercase tracking-widest text-[#3ECF8E]">{eyebrow}</div>
+        <h3 className="mt-3 text-2xl sm:text-3xl font-bold text-white tracking-tight">{title}</h3>
+        <ul className="mt-5 space-y-3">
+          {bullets.map((b) => (
+            <li key={b} className="flex gap-3 text-white/60 text-[15px] leading-relaxed">
+              <Check />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className={flip ? 'lg:order-1' : ''}>{children}</div>
+    </div>
+  );
+}
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-white/10 rounded-2xl bg-[#101010] overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
+      >
+        <span className="text-[15px] font-medium text-white">{q}</span>
+        <span className={'shrink-0 text-[#3ECF8E] text-xl transition-transform ' + (open ? 'rotate-45' : '')} aria-hidden="true">+</span>
+      </button>
+      {open && <div className="px-5 pb-5 -mt-1 text-[14px] leading-relaxed text-white/55">{a}</div>}
+    </div>
+  );
+}
+
+/* ---------------------------------- page --------------------------------- */
+
+export default function Landing() {
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <>
       <Head>
-        <title>SNR-PMO — The all-in-one, white-label PMO platform</title>
+        <title>SNR-PMO — One platform to replace ClickUp, your CRM, HRIS &amp; QuickBooks</title>
         <meta
           name="description"
-          content="SNR-PMO is the all-in-one, white-label PMO for teams that run projects, people, and pipeline — project & portfolio management, CRM, HR onboarding, roles, and audit log in one workspace."
+          content="SNR-PMO is the all-in-one business OS: project management, CRM, HR & payroll, and real double-entry accounting in one workspace — one login, one bill. White-label and resell it as your own."
         />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <GsapReveal />
+      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans antialiased selection:bg-[#10b981]/30">
+        {/* ------------------------------- NAV ------------------------------- */}
+        <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0a]/80 backdrop-blur-xl">
+          <nav className="mx-auto max-w-7xl px-5 sm:px-8 h-16 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <span className="grid place-items-center w-8 h-8 rounded-lg bg-gradient-to-br from-[#10b981] to-[#3ECF8E] text-[#0a0a0a] font-black text-lg shadow-lg shadow-[#10b981]/20">S</span>
+              <span className="font-semibold tracking-tight">SNR-PMO</span>
+            </Link>
 
-      <div style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" }} className="bg-white text-[#0f0f0f] antialiased">
-        {/* ============ NAV ============ */}
-        <header
-          className={`fixed top-0 inset-x-0 z-40 transition-all duration-300 ${
-            scrolled ? 'bg-[#0f0f0f]/90 backdrop-blur-md border-b border-white/10' : 'bg-[#0f0f0f]/40 backdrop-blur-sm border-b border-transparent'
-          }`}
-        >
-          <div className="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
-            <a href="#top" className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-lg grid place-items-center bg-[#3ECF8E] text-[#0f0f0f] font-bold text-sm">S</span>
-              <span className="text-white font-semibold text-lg tracking-tight">SNR-PMO</span>
-            </a>
-
-            <nav className="hidden md:flex items-center gap-8">
+            <div className="hidden md:flex items-center gap-8 text-sm text-white/60">
               {NAV_LINKS.map((l) => (
-                <a key={l.href} href={l.href} className="text-sm text-white/70 hover:text-white transition-colors">
-                  {l.label}
-                </a>
+                <a key={l.href} href={l.href} className="hover:text-white transition-colors">{l.label}</a>
               ))}
-            </nav>
+            </div>
 
             <div className="hidden md:flex items-center gap-3">
-              <Link href="/login" className="px-4 py-2 rounded-md text-sm font-medium text-white/85 hover:text-white hover:bg-white/5 transition-colors">
-                Log in
-              </Link>
-              <Link
-                href="/login"
-                className="px-4 py-2 rounded-md text-sm font-semibold text-[#0f0f0f] bg-[#3ECF8E] hover:bg-[#34b87b] transition-colors shadow-[0_0_0_1px_rgba(62,207,142,0.3)]"
-              >
+              <Link href="/login" className="text-sm text-white/70 hover:text-white transition-colors">Log in</Link>
+              <Link href="/signup" className="text-sm font-medium px-4 py-2 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] hover:bg-[#10b981] transition-colors shadow-lg shadow-[#10b981]/20">
                 Start free
               </Link>
             </div>
 
             <button
-              aria-label="Open menu"
-              onClick={() => setMenuOpen(true)}
-              className="md:hidden w-10 h-10 grid place-items-center rounded-md text-white/85 hover:bg-white/5 transition-colors"
+              type="button"
+              className="md:hidden grid place-items-center w-9 h-9 rounded-lg border border-white/10 text-white/80"
+              aria-label="Toggle menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
             >
-              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M4 7h16M4 12h16M4 17h16" />
-              </svg>
+              <span className="text-lg">{menuOpen ? '✕' : '☰'}</span>
             </button>
-          </div>
+          </nav>
+
+          {menuOpen && (
+            <div className="md:hidden border-t border-white/10 px-5 py-4 space-y-3 bg-[#0a0a0a]">
+              {NAV_LINKS.map((l) => (
+                <a key={l.href} href={l.href} className="block text-white/70 hover:text-white" onClick={() => setMenuOpen(false)}>{l.label}</a>
+              ))}
+              <div className="flex gap-3 pt-2">
+                <Link href="/login" className="flex-1 text-center text-sm py-2 rounded-lg border border-white/10 text-white/80">Log in</Link>
+                <Link href="/signup" className="flex-1 text-center text-sm py-2 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-medium">Start free</Link>
+              </div>
+            </div>
+          )}
         </header>
 
-        <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
-
-        {/* ============ HERO ============ */}
-        <section id="top" className="relative bg-[#0f0f0f] pt-32 pb-24 sm:pt-40 sm:pb-32 overflow-hidden">
-          {/* Ambient gradient glow */}
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[60rem] h-[40rem] rounded-full bg-[#3ECF8E]/10 blur-[120px]" />
-            <div className="absolute top-1/3 right-0 w-[28rem] h-[28rem] rounded-full bg-[#3ECF8E]/[0.06] blur-[100px]" />
-            <div
-              className="absolute inset-0 opacity-[0.04]"
-              style={{
-                backgroundImage:
-                  'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
-                backgroundSize: '64px 64px',
-              }}
-            />
+        {/* ------------------------------- HERO ------------------------------ */}
+        <section className="relative overflow-hidden">
+          {/* glow */}
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+            <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full bg-[#10b981]/10 blur-[140px]" />
+            <div className="absolute top-1/3 -right-40 w-[500px] h-[500px] rounded-full bg-[#3ECF8E]/5 blur-[120px]" />
           </div>
 
-          <div className="relative max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-2 gap-16 items-center">
-            <div data-reveal>
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium text-[#3ECF8E] bg-[#3ECF8E]/10 border border-[#3ECF8E]/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#3ECF8E]" />
-                Now with white-label tenants
-              </span>
+          <div className="relative mx-auto max-w-7xl px-5 sm:px-8 pt-16 sm:pt-24 pb-10 text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-white/70">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3ECF8E]" />
+              All-in-one business OS
+            </span>
 
-              <h1 className="mt-6 text-4xl sm:text-5xl lg:text-[3.4rem] font-extrabold tracking-tight text-white leading-[1.08]">
-                The all-in-one, white-label PMO for teams that run{' '}
-                <span className="text-[#3ECF8E]">projects, people, and pipeline.</span>
-              </h1>
+            <h1 className="mt-6 mx-auto max-w-4xl text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05]">
+              Replace ClickUp, your CRM, your HRIS, and QuickBooks —{' '}
+              <span className="bg-gradient-to-r from-[#3ECF8E] to-[#10b981] bg-clip-text text-transparent">with one workspace.</span>
+            </h1>
 
-              <p className="mt-6 text-base sm:text-lg text-white/60 max-w-xl leading-relaxed">
-                SNR-PMO brings project &amp; portfolio management, a built-in CRM, HR onboarding, roles, and a full
-                audit log into one secure, brandable workspace — for organizations, companies, portfolios, and
-                projects, all in a single hub.
-              </p>
-
-              <div className="mt-9 flex flex-col sm:flex-row gap-3">
-                <Link
-                  href="/login"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold text-[#0f0f0f] bg-[#3ECF8E] hover:bg-[#34b87b] transition-all hover:shadow-[0_0_24px_rgba(62,207,142,0.35)]"
-                >
-                  Start free
-                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </Link>
-                <a
-                  href="#features"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold text-white border border-white/15 hover:bg-white/5 transition-colors"
-                >
-                  See features
-                </a>
-              </div>
-
-              <p className="mt-6 text-xs text-white/40">No credit card required &middot; Free forever for small teams</p>
-            </div>
-
-            {/* Abstract product dashboard mockup */}
-            <div data-reveal className="relative">
-              <div className="absolute -inset-6 rounded-[28px] bg-gradient-to-br from-[#3ECF8E]/15 via-transparent to-transparent blur-2xl" />
-              <div className="relative rounded-2xl border border-white/10 bg-[#161616] shadow-2xl shadow-black/50 overflow-hidden">
-                {/* Title bar */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-[#1c1c1c]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-                  <span className="ml-3 text-[11px] text-white/35 font-mono">app.snr-pmo.com/dashboard</span>
-                </div>
-
-                <div className="flex">
-                  {/* Sidebar */}
-                  <div className="hidden sm:flex w-40 shrink-0 flex-col gap-1 p-3 border-r border-white/10 bg-[#141414]">
-                    <div className="flex items-center gap-2 px-2 py-2 rounded-md bg-[#3ECF8E]/10 text-[#3ECF8E] text-xs font-medium">
-                      <span className="w-2 h-2 rounded-sm bg-[#3ECF8E]" />
-                      Overview
-                    </div>
-                    {['Projects', 'Portfolios', 'CRM', 'People', 'Audit log'].map((item) => (
-                      <div key={item} className="flex items-center gap-2 px-2 py-2 rounded-md text-white/45 text-xs">
-                        <span className="w-2 h-2 rounded-sm bg-white/15" />
-                        {item}
-                      </div>
-                    ))}
-                    <div className="mt-auto flex items-center gap-2 px-2 py-2 rounded-md text-white/35 text-[11px]">
-                      <span className="w-5 h-5 rounded-full bg-white/10 grid place-items-center text-[10px]">A</span>
-                      Acme Co.
-                    </div>
-                  </div>
-
-                  {/* Main content */}
-                  <div className="flex-1 p-4 sm:p-5 space-y-4">
-                    {/* Stat cards */}
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { label: 'Active projects', value: '24', delta: '+3' },
-                        { label: 'Open deals', value: '$182k', delta: '+12%' },
-                        { label: 'Team members', value: '37', delta: '+2' },
-                      ].map((s) => (
-                        <div key={s.label} className="rounded-lg border border-white/10 bg-[#1a1a1a] p-3">
-                          <p className="text-[10px] text-white/40">{s.label}</p>
-                          <p className="text-lg font-semibold text-white mt-1">{s.value}</p>
-                          <p className="text-[10px] text-[#3ECF8E] mt-0.5">{s.delta}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Chart card */}
-                    <div className="rounded-lg border border-white/10 bg-[#1a1a1a] p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs font-medium text-white/70">Portfolio progress</p>
-                        <span className="text-[10px] text-white/35">This quarter</span>
-                      </div>
-                      <div className="flex items-end gap-2 h-20">
-                        {[40, 65, 50, 80, 60, 95, 70, 55, 88, 64, 92, 76].map((h, i) => (
-                          <div
-                            key={i}
-                            className="flex-1 rounded-sm bg-gradient-to-t from-[#3ECF8E]/30 to-[#3ECF8E]"
-                            style={{ height: `${h}%`, opacity: 0.4 + (h / 100) * 0.6 }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* List card */}
-                    <div className="rounded-lg border border-white/10 bg-[#1a1a1a] p-4 space-y-2.5">
-                      <p className="text-xs font-medium text-white/70 mb-1">Recent activity</p>
-                      {[
-                        ['Website Revamp', 'Task completed', '#3ECF8E'],
-                        ['Acme onboarding', 'New hire added', '#60a5fa'],
-                        ['Northpeak deal', 'Moved to Proposal', '#fbbf24'],
-                      ].map(([title, sub, color]) => (
-                        <div key={title as string} className="flex items-center gap-3">
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: color as string }} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] text-white/80 truncate">{title}</p>
-                          </div>
-                          <span className="text-[10px] text-white/35">{sub}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============ TRUST STRIP ============ */}
-        <section className="bg-white border-b border-black/5 py-12">
-          <div className="max-w-7xl mx-auto px-5 sm:px-8">
-            <p className="text-center text-xs font-medium tracking-widest text-[#a1a1aa] uppercase mb-8" data-reveal>
-              Trusted by teams at
+            <p className="mt-6 mx-auto max-w-2xl text-lg text-white/55 leading-relaxed">
+              SNR-PMO runs projects, sales, people and the books in a single platform — for teams and agencies tired of stitching four tools together. One login. One bill.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6">
-              {LOGOS.map((logo) => (
-                <span
-                  key={logo}
-                  data-reveal
-                  className="text-lg sm:text-xl font-bold tracking-tight text-[#0f0f0f]/25 hover:text-[#0f0f0f]/45 transition-colors select-none"
-                >
-                  {logo}
-                </span>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        {/* ============ FEATURES ============ */}
-        <section id="features" className="bg-white py-24 sm:py-28">
-          <div className="max-w-7xl mx-auto px-5 sm:px-8">
-            <div className="max-w-2xl mx-auto text-center" data-reveal>
-              <span className="text-xs font-semibold tracking-widest text-[#3ECF8E] uppercase">Features</span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0f0f0f]">
-                Everything your PMO needs, in one place
-              </h2>
-              <p className="mt-4 text-base sm:text-lg text-[#52525b] leading-relaxed">
-                Stop stitching together separate tools for delivery, sales, and people. SNR-PMO unifies the workflows
-                your teams already run.
-              </p>
-            </div>
-
-            <div className="mt-16 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {FEATURES.map((f) => (
-                <div
-                  key={f.title}
-                  data-reveal
-                  className="group relative rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_40px_-16px_rgba(0,0,0,0.18)] hover:border-[#3ECF8E]/30"
-                >
-                  <div className="w-11 h-11 rounded-xl bg-[#3ECF8E]/10 text-[#1f9d6c] grid place-items-center group-hover:bg-[#3ECF8E] group-hover:text-[#0f0f0f] transition-colors duration-300">
-                    {f.icon}
-                  </div>
-                  <h3 className="mt-5 text-lg font-semibold text-[#0f0f0f]">{f.title}</h3>
-                  <p className="mt-2 text-sm text-[#52525b] leading-relaxed">{f.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ============ HOW IT WORKS ============ */}
-        <section className="bg-[#fafafa] py-24 sm:py-28 border-y border-black/5">
-          <div className="max-w-7xl mx-auto px-5 sm:px-8">
-            <div className="max-w-2xl mx-auto text-center" data-reveal>
-              <span className="text-xs font-semibold tracking-widest text-[#3ECF8E] uppercase">How it works</span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0f0f0f]">
-                Up and running in minutes
-              </h2>
-            </div>
-
-            <div className="mt-16 grid md:grid-cols-3 gap-8 md:gap-6">
-              {STEPS.map((s, i) => (
-                <div key={s.n} data-reveal className="relative">
-                  <div className="flex items-center gap-4 md:flex-col md:items-start md:gap-0">
-                    <span className="text-5xl font-extrabold text-[#3ECF8E]/25 leading-none md:mb-4">{s.n}</span>
-                    <div className="md:mt-0">
-                      <h3 className="text-lg font-semibold text-[#0f0f0f]">{s.title}</h3>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm text-[#52525b] leading-relaxed">{s.desc}</p>
-                  {i < STEPS.length - 1 && (
-                    <div className="hidden md:block absolute top-6 -right-3 w-6 h-px bg-[#0f0f0f]/10" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ============ PRICING ============ */}
-        <section id="pricing" className="bg-white py-24 sm:py-28">
-          <div className="max-w-7xl mx-auto px-5 sm:px-8">
-            <div className="max-w-2xl mx-auto text-center" data-reveal>
-              <span className="text-xs font-semibold tracking-widest text-[#3ECF8E] uppercase">Pricing</span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0f0f0f]">
-                Simple plans that grow with you
-              </h2>
-              <p className="mt-4 text-base sm:text-lg text-[#52525b] leading-relaxed">
-                Start free, upgrade when you need CRM, HR, and compliance — or go fully white-label.
-              </p>
-            </div>
-
-            <div className="mt-16 grid lg:grid-cols-3 gap-6 items-stretch">
-              {PRICING.map((p) => (
-                <div
-                  key={p.name}
-                  data-reveal
-                  className={`relative rounded-2xl p-7 sm:p-8 flex flex-col transition-all duration-300 hover:-translate-y-1 ${
-                    p.highlight
-                      ? 'bg-[#0f0f0f] text-white border border-[#3ECF8E]/40 shadow-[0_24px_60px_-20px_rgba(62,207,142,0.35)] lg:scale-[1.04]'
-                      : 'bg-white border border-black/[0.07] hover:shadow-[0_16px_40px_-18px_rgba(0,0,0,0.18)]'
-                  }`}
-                >
-                  {p.highlight && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide text-[#0f0f0f] bg-[#3ECF8E]">
-                      MOST POPULAR
-                    </span>
-                  )}
-
-                  <h3 className={`text-lg font-semibold ${p.highlight ? 'text-white' : 'text-[#0f0f0f]'}`}>{p.name}</h3>
-                  <p className={`mt-2 text-sm leading-relaxed ${p.highlight ? 'text-white/55' : 'text-[#52525b]'}`}>{p.desc}</p>
-
-                  <div className="mt-6 flex items-end gap-1.5">
-                    <span className={`text-4xl font-extrabold tracking-tight ${p.highlight ? 'text-white' : 'text-[#0f0f0f]'}`}>{p.price}</span>
-                    <span className={`text-sm pb-1 ${p.highlight ? 'text-white/45' : 'text-[#a1a1aa]'}`}>{p.period}</span>
-                  </div>
-                  <p className={`mt-1 text-xs ${p.highlight ? 'text-[#3ECF8E]' : 'text-[#1f9d6c]'}`}>{p.note}</p>
-
-                  <ul className="mt-7 space-y-3 flex-1">
-                    {p.features.map((feat) => (
-                      <li key={feat} className="flex items-start gap-2.5 text-sm">
-                        <svg
-                          viewBox="0 0 24 24"
-                          className={`w-4 h-4 mt-0.5 shrink-0 ${p.highlight ? 'text-[#3ECF8E]' : 'text-[#1f9d6c]'}`}
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.25"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M20 6L9 17l-5-5" />
-                        </svg>
-                        <span className={p.highlight ? 'text-white/80' : 'text-[#3f3f46]'}>{feat}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Link
-                    href="/login"
-                    className={`mt-8 inline-flex items-center justify-center w-full px-5 py-3 rounded-lg text-sm font-semibold transition-colors ${
-                      p.highlight
-                        ? 'bg-[#3ECF8E] text-[#0f0f0f] hover:bg-[#34b87b]'
-                        : 'bg-[#0f0f0f] text-white hover:bg-[#262626]'
-                    }`}
-                  >
-                    {p.cta}
-                  </Link>
-                </div>
-              ))}
-            </div>
-
-            <p className="mt-8 text-center text-xs text-[#a1a1aa]" data-reveal>
-              Prices shown are illustrative placeholders for preview purposes and may change at launch.
-            </p>
-          </div>
-        </section>
-
-        {/* ============ TESTIMONIAL ============ */}
-        <section className="bg-[#0f0f0f] py-20 sm:py-24 relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[40rem] h-[24rem] rounded-full bg-[#3ECF8E]/[0.08] blur-[100px]" />
-          </div>
-          <div className="relative max-w-3xl mx-auto px-5 sm:px-8 text-center" data-reveal>
-            <svg viewBox="0 0 24 24" className="w-9 h-9 mx-auto text-[#3ECF8E]/40" fill="currentColor">
-              <path d="M9.5 7C6.5 8 4.5 10.6 4.5 14c0 2.5 1.7 4.5 4 4.5 1.9 0 3.4-1.4 3.4-3.3 0-1.8-1.3-3.1-3-3.1-.2 0-.5 0-.7.1.3-1.7 1.7-3.2 3.5-3.8L9.5 7zm9 0c-3 1-5 3.6-5 7 0 2.5 1.7 4.5 4 4.5 1.9 0 3.4-1.4 3.4-3.3 0-1.8-1.3-3.1-3-3.1-.2 0-.5 0-.7.1.3-1.7 1.7-3.2 3.5-3.8L18.5 7z" />
-            </svg>
-            <p className="mt-6 text-xl sm:text-2xl font-medium text-white leading-relaxed">
-              &ldquo;We replaced four tools with SNR-PMO in a single afternoon. Our project leads, sales pipeline, and
-              new-hire onboarding finally live in the same place &mdash; and clients love that it&rsquo;s branded as
-              ours.&rdquo;
-            </p>
-            <div className="mt-7 flex items-center justify-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#3ECF8E]/15 border border-[#3ECF8E]/30 grid place-items-center text-sm font-semibold text-[#3ECF8E]">
-                JM
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-white">Jordan M.</p>
-                <p className="text-xs text-white/45">Operations Director, illustrative customer</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============ FAQ ============ */}
-        <section id="faq" className="bg-white py-24 sm:py-28">
-          <div className="max-w-3xl mx-auto px-5 sm:px-8">
-            <div className="text-center" data-reveal>
-              <span className="text-xs font-semibold tracking-widest text-[#3ECF8E] uppercase">FAQ</span>
-              <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0f0f0f]">
-                Frequently asked questions
-              </h2>
-            </div>
-
-            <div className="mt-12 border-t border-black/10">
-              {FAQS.map((f, i) => (
-                <FaqItem key={f.q} q={f.q} a={f.a} defaultOpen={i === 0} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ============ FINAL CTA ============ */}
-        <section className="bg-[#3ECF8E] py-20 sm:py-24">
-          <div className="max-w-4xl mx-auto px-5 sm:px-8 text-center" data-reveal>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#0f0f0f]">
-              Run your projects, people, and pipeline &mdash; under your own brand.
-            </h2>
-            <p className="mt-4 text-base sm:text-lg text-[#0f0f0f]/70 max-w-xl mx-auto">
-              Spin up your organization in minutes. No credit card required to get started.
-            </p>
-            <div className="mt-9">
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg text-sm font-semibold text-[#3ECF8E] bg-[#0f0f0f] hover:bg-[#1c1c1c] transition-all hover:shadow-[0_12px_30px_-10px_rgba(0,0,0,0.5)]"
-              >
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link href="/signup" className="w-full sm:w-auto px-6 py-3 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
                 Start free
-                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
+              </Link>
+              <a href="#product" className="w-full sm:w-auto px-6 py-3 rounded-lg border border-white/15 text-white/85 font-medium hover:bg-white/5 transition-colors">
+                See it in action
+              </a>
+            </div>
+
+            <div className="mt-5 text-xs text-white/40">No card required · Free up to 5 seats</div>
+
+            {/* hero dashboard */}
+            <div className="mt-14 max-w-5xl mx-auto text-left">
+              <BrowserFrame title="app.snr-pmo.com/dashboard">
+                <DashboardMock />
+              </BrowserFrame>
+            </div>
+          </div>
+        </section>
+
+        {/* --------------------------- REPLACES STRIP ------------------------ */}
+        <section className="relative mx-auto max-w-7xl px-5 sm:px-8 py-16 sm:py-24">
+          <div className="text-center">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Four tools collapse into one</h2>
+            <p className="mt-3 text-white/50">Stop paying for — and switching between — a stack that should be a single product.</p>
+          </div>
+
+          <div className="mt-12 flex flex-col lg:flex-row items-center justify-center gap-6">
+            <div className="grid grid-cols-2 gap-4">
+              {REPLACES.map((r) => (
+                <div key={r.cat} className="rounded-2xl border border-white/10 bg-[#101010] p-5 w-full sm:w-44 text-center">
+                  <div className="text-2xl text-white/40">{r.glyph}</div>
+                  <div className="mt-2 text-sm font-medium text-white">{r.cat}</div>
+                  <div className="mt-1 text-[11px] text-white/35">{r.like}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-[#3ECF8E] text-3xl rotate-90 lg:rotate-0" aria-hidden="true">{'→'}</div>
+
+            <div className="rounded-2xl border border-[#10b981]/30 bg-gradient-to-br from-[#10b981]/10 to-transparent p-8 text-center w-full sm:w-64 shadow-2xl shadow-[#10b981]/10">
+              <span className="grid place-items-center mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-[#10b981] to-[#3ECF8E] text-[#0a0a0a] font-black text-2xl shadow-lg shadow-[#10b981]/30">S</span>
+              <div className="mt-4 text-lg font-semibold">SNR-PMO</div>
+              <div className="mt-1 text-xs text-white/50">One workspace · one login · one bill</div>
+            </div>
+          </div>
+        </section>
+
+        {/* -------------------------- FEATURE SECTIONS ----------------------- */}
+        <section id="product" className="bg-[#0c0c0c] border-y border-white/10">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28 space-y-24 sm:space-y-32">
+            <FeatureRow
+              eyebrow="Projects & PMO"
+              title="Plan and ship work, from task to portfolio"
+              bullets={[
+                'Boards, lists and timelines with priorities, assignees and dependencies.',
+                'Roll projects up across portfolios and companies in one clean hierarchy.',
+                'A closed deal can spin up a project automatically — no copy-paste.',
+              ]}
+            >
+              <BrowserFrame title="app.snr-pmo.com/projects">
+                <BoardMock />
+              </BrowserFrame>
+            </FeatureRow>
+
+            <FeatureRow
+              flip
+              eyebrow="CRM & sales"
+              title="Win deals without leaving your workspace"
+              bullets={[
+                'Visual pipeline with leads, deals, proposals and contracts.',
+                'See pipeline value and stage-by-stage forecasts on the dashboard.',
+                'Convert a client into a project and an invoice in two clicks.',
+              ]}
+            >
+              <BrowserFrame title="app.snr-pmo.com/crm">
+                <CrmMock />
+              </BrowserFrame>
+            </FeatureRow>
+
+            <FeatureRow
+              eyebrow="Accounting"
+              title="Real double-entry accounting — not a bolt-on"
+              bullets={[
+                'A genuine general ledger with debits, credits and a trial balance.',
+                'Invoices, payments and payroll post real journal entries automatically.',
+                'See income, expenses, net and P&L update in real time.',
+              ]}
+            >
+              <BrowserFrame title="app.snr-pmo.com/ledger">
+                <LedgerMock />
+              </BrowserFrame>
+            </FeatureRow>
+
+            <FeatureRow
+              flip
+              eyebrow="HR & payroll"
+              title="Run your people and payroll in the same place"
+              bullets={[
+                'People records, attendance, leaves, offers and onboarding.',
+                'Run payroll and have it post straight to the ledger.',
+                'Headcount and payroll cost feed your dashboards and P&L.',
+              ]}
+            >
+              <BrowserFrame title="app.snr-pmo.com/hr">
+                <HrMock />
+              </BrowserFrame>
+            </FeatureRow>
+          </div>
+        </section>
+
+        {/* --------------------------- MODULE GRID --------------------------- */}
+        <section id="features" className="mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28">
+          <div className="text-center max-w-2xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Everything your business runs on</h2>
+            <p className="mt-3 text-white/50">Ten modules, one platform. No integrations to maintain, no data silos.</p>
+          </div>
+
+          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            {MODULES.map((m) => (
+              <div key={m.t} className="rounded-2xl border border-white/10 bg-[#101010] p-5 hover:border-[#10b981]/40 hover:bg-[#121212] transition-colors">
+                <span className="grid place-items-center w-10 h-10 rounded-xl bg-[#10b981]/10 text-[#3ECF8E] mb-4">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d={m.icon} />
+                  </svg>
+                </span>
+                <div className="text-sm font-semibold text-white">{m.t}</div>
+                <div className="mt-1.5 text-[13px] text-white/45 leading-relaxed">{m.d}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ------------------------- WHITE-LABEL BAND ------------------------ */}
+        <section className="relative overflow-hidden border-y border-white/10 bg-[#0c0c0c]">
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+            <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#10b981]/10 blur-[130px]" />
+          </div>
+          <div className="relative mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28 grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-[#3ECF8E]">For agencies &amp; partners</div>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight">Make it yours. Resell it as yours.</h2>
+              <p className="mt-4 text-white/55 leading-relaxed text-[15px]">
+                White-label SNR-PMO with your own logo, colors and custom domain, then provision and bill unlimited client sub-accounts from a reseller console. Think GoHighLevel — but for real operations, PMO, HR and the books.
+              </p>
+              <ul className="mt-6 space-y-3">
+                {[
+                  'Your brand end to end — clients never see SNR-PMO.',
+                  'Custom domain and fully branded login & emails.',
+                  'Provision, manage and bill unlimited sub-accounts.',
+                  'Sell a full business platform under your own name.',
+                ].map((b) => (
+                  <li key={b} className="flex gap-3 text-white/60 text-[15px]">
+                    <Check />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/signup" className="mt-8 inline-flex px-6 py-3 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
+                Become a partner
               </Link>
             </div>
+
+            <BrowserFrame title="agency.yourbrand.com — reseller console">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid place-items-center w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white font-bold text-xs">Y</span>
+                  <span className="text-sm font-medium text-white/80">YourBrand Platform</span>
+                  <span className="ml-auto text-[10px] text-white/30">3 sub-accounts</span>
+                </div>
+                {[
+                  { n: 'Northwind Co.', s: '12 seats', st: 'Active' },
+                  { n: 'Riverstone LLC', s: '8 seats', st: 'Active' },
+                  { n: 'Lakeside Studio', s: '4 seats', st: 'Trial' },
+                ].map((c) => (
+                  <div key={c.n} className="flex items-center gap-3 rounded-xl bg-[#161616] border border-white/10 px-3 py-3 text-[12px]">
+                    <span className="w-7 h-7 rounded-lg bg-white/5 grid place-items-center text-white/40">{c.n[0]}</span>
+                    <span className="text-white/85 flex-1">{c.n}</span>
+                    <span className="text-white/40 hidden sm:block">{c.s}</span>
+                    <span className={'px-2 py-0.5 rounded-full text-[10px] ' + (c.st === 'Active' ? 'bg-[#10b981]/15 text-[#3ECF8E]' : 'bg-amber-500/15 text-amber-300')}>{c.st}</span>
+                  </div>
+                ))}
+                <div className="rounded-xl border border-dashed border-white/15 px-3 py-3 text-center text-[12px] text-white/40">+ Provision new client</div>
+              </div>
+            </BrowserFrame>
           </div>
         </section>
 
-        {/* ============ FOOTER ============ */}
-        <footer className="bg-[#0f0f0f] pt-16 pb-10">
-          <div className="max-w-7xl mx-auto px-5 sm:px-8">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8">
-              <div className="lg:col-span-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-8 h-8 rounded-lg grid place-items-center bg-[#3ECF8E] text-[#0f0f0f] font-bold text-sm">S</span>
-                  <span className="text-white font-semibold text-lg tracking-tight">SNR-PMO</span>
+        {/* ------------------------------ STATS BAR -------------------------- */}
+        <section className="mx-auto max-w-7xl px-5 sm:px-8 py-16">
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#101010] to-[#0c0c0c] p-8 sm:p-12 grid sm:grid-cols-3 gap-8 text-center">
+            <div>
+              <div className="text-4xl font-bold bg-gradient-to-r from-[#3ECF8E] to-[#10b981] bg-clip-text text-transparent">4 {'→'} 1</div>
+              <div className="mt-2 text-sm text-white/50">Tools replaced by one platform</div>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-white">1 login · 1 bill</div>
+              <div className="mt-2 text-sm text-white/50">No tool-switching, no reconciliation across apps</div>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-white">Projects {'→'} payroll {'→'} P&amp;L</div>
+              <div className="mt-2 text-sm text-white/50">Everything your business runs on, in one workspace</div>
+            </div>
+          </div>
+        </section>
+
+        {/* ------------------------------ PRICING ---------------------------- */}
+        <section id="pricing" className="mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28">
+          <div className="text-center max-w-2xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Simple pricing for the whole stack</h2>
+            <p className="mt-3 text-white/50">Start free. Upgrade when you grow. Pro is billed per active user.</p>
+          </div>
+
+          <div className="mt-12 grid md:grid-cols-2 xl:grid-cols-4 gap-5">
+            {PRICING.map((p) => (
+              <div
+                key={p.name}
+                className={
+                  'relative rounded-2xl border p-6 flex flex-col ' +
+                  (p.highlight
+                    ? 'border-[#10b981]/50 bg-gradient-to-b from-[#10b981]/10 to-[#101010] shadow-2xl shadow-[#10b981]/10'
+                    : 'border-white/10 bg-[#101010]')
+                }
+              >
+                {p.highlight && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#3ECF8E] text-[#0a0a0a] text-[11px] font-bold px-3 py-1">
+                    Most popular
+                  </span>
+                )}
+                <div className="text-sm font-semibold text-white">{p.name}</div>
+                <div className="mt-3 flex items-end gap-1">
+                  <span className="text-3xl font-bold text-white">{p.price}</span>
+                  <span className="mb-1 text-xs text-white/40">{p.unit}</span>
                 </div>
-                <p className="mt-4 text-sm text-white/45 max-w-xs leading-relaxed">
-                  The all-in-one, white-label PMO for teams that run projects, people, and pipeline.
-                </p>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold tracking-widest text-white/40 uppercase">Product</h4>
-                <ul className="mt-4 space-y-3 text-sm">
-                  <li><a href="#features" className="text-white/60 hover:text-white transition-colors">Features</a></li>
-                  <li><a href="#pricing" className="text-white/60 hover:text-white transition-colors">Pricing</a></li>
-                  <li><a href="#faq" className="text-white/60 hover:text-white transition-colors">FAQ</a></li>
-                  <li><Link href="/login" className="text-white/60 hover:text-white transition-colors">Log in</Link></li>
+                <div className="mt-2 text-[13px] text-white/45 min-h-[2.5rem]">{p.blurb}</div>
+                <Link
+                  href={p.href}
+                  className={
+                    'mt-5 text-center text-sm font-semibold py-2.5 rounded-lg transition-colors ' +
+                    (p.highlight
+                      ? 'bg-[#3ECF8E] text-[#0a0a0a] hover:bg-[#10b981]'
+                      : 'border border-white/15 text-white/85 hover:bg-white/5')
+                  }
+                >
+                  {p.cta}
+                </Link>
+                <ul className="mt-6 space-y-2.5">
+                  {p.feats.map((f) => (
+                    <li key={f} className="flex gap-2.5 text-[13px] text-white/60">
+                      <Check />
+                      <span>{f}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
+            ))}
+          </div>
+          <p className="mt-6 text-center text-xs text-white/35">Pro billed per active user. Prices in USD.</p>
+        </section>
 
-              <div>
-                <h4 className="text-xs font-semibold tracking-widest text-white/40 uppercase">Company</h4>
-                <ul className="mt-4 space-y-3 text-sm">
-                  <li><a href="#features" className="text-white/60 hover:text-white transition-colors">About</a></li>
-                  <li><Link href="/contact" className="text-white/60 hover:text-white transition-colors">Careers</Link></li>
-                  <li><Link href="/contact" className="text-white/60 hover:text-white transition-colors">Contact</Link></li>
-                  <li><Link href="/docs" className="text-white/60 hover:text-white transition-colors">Docs</Link></li>
-                </ul>
-              </div>
+        {/* -------------------------------- FAQ ------------------------------ */}
+        <section id="faq" className="mx-auto max-w-3xl px-5 sm:px-8 py-20 sm:py-28">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Frequently asked questions</h2>
+          </div>
+          <div className="space-y-3">
+            {FAQS.map((f) => (
+              <FaqItem key={f.q} q={f.q} a={f.a} />
+            ))}
+          </div>
+        </section>
 
-              <div>
-                <h4 className="text-xs font-semibold tracking-widest text-white/40 uppercase">Legal</h4>
-                <ul className="mt-4 space-y-3 text-sm">
-                  <li><Link href="/legal/privacy" className="text-white/60 hover:text-white transition-colors">Privacy policy</Link></li>
-                  <li><Link href="/legal/terms" className="text-white/60 hover:text-white transition-colors">Terms of service</Link></li>
-                  <li><Link href="/legal/security" className="text-white/60 hover:text-white transition-colors">Security</Link></li>
-                </ul>
+        {/* ---------------------------- FINAL CTA ---------------------------- */}
+        <section className="relative overflow-hidden border-t border-white/10">
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+            <div className="absolute -bottom-40 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full bg-[#10b981]/15 blur-[130px]" />
+          </div>
+          <div className="relative mx-auto max-w-3xl px-5 sm:px-8 py-24 text-center">
+            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">Run your whole business in one place.</h2>
+            <p className="mt-5 text-white/55 text-lg">From projects to payroll to P&amp;L — one workspace, one login, one bill.</p>
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link href="/signup" className="w-full sm:w-auto px-7 py-3.5 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
+                Start free
+              </Link>
+              <Link href="/login" className="w-full sm:w-auto px-7 py-3.5 rounded-lg border border-white/15 text-white/85 font-medium hover:bg-white/5 transition-colors">
+                Log in
+              </Link>
+            </div>
+            <div className="mt-5 text-xs text-white/40">No card required · Free up to 5 seats</div>
+          </div>
+        </section>
+
+        {/* ------------------------------ FOOTER ----------------------------- */}
+        <footer className="border-t border-white/10 bg-[#0a0a0a]">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
+            <div className="lg:col-span-1">
+              <div className="flex items-center gap-2.5">
+                <span className="grid place-items-center w-8 h-8 rounded-lg bg-gradient-to-br from-[#10b981] to-[#3ECF8E] text-[#0a0a0a] font-black text-lg">S</span>
+                <span className="font-semibold tracking-tight">SNR-PMO</span>
               </div>
+              <p className="mt-4 text-[13px] text-white/40 leading-relaxed max-w-xs">
+                The all-in-one business OS. Projects, CRM, HR &amp; payroll, and real accounting — in one workspace.
+              </p>
             </div>
 
-            <div className="mt-14 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-xs text-white/35">&copy; {new Date().getFullYear()} SNR-PMO. All rights reserved.</p>
-              <p className="text-xs text-white/35">Built for agencies, SMBs, and internal PMO teams.</p>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-white/40">Product</div>
+              <ul className="mt-4 space-y-2.5 text-sm text-white/55">
+                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
+                <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
+                <li><Link href="/signup" className="hover:text-white transition-colors">Start free</Link></li>
+              </ul>
             </div>
+
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-white/40">Company</div>
+              <ul className="mt-4 space-y-2.5 text-sm text-white/55">
+                <li><Link href="/login" className="hover:text-white transition-colors">Log in</Link></li>
+                <li><Link href="/signup" className="hover:text-white transition-colors">Sign up</Link></li>
+                <li><a href="#product" className="hover:text-white transition-colors">Product tour</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-white/40">Legal</div>
+              <ul className="mt-4 space-y-2.5 text-sm text-white/55">
+                <li><Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy</Link></li>
+                <li><Link href="/legal/terms" className="hover:text-white transition-colors">Terms</Link></li>
+                <li><Link href="/legal/security" className="hover:text-white transition-colors">Security</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-white/10">
+            <div className="mx-auto max-w-7xl px-5 sm:px-8 py-6 text-xs text-white/35">{'©'} 2026 SNR-PMO. All rights reserved.</div>
           </div>
         </footer>
       </div>
