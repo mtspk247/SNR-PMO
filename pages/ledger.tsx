@@ -29,6 +29,7 @@ type JLine = { account_id: string; debit: string; credit: string; description: s
 
 export default function LedgerPage() {
   const org = useActiveOrg();
+  const orgId = org?.id;
   const [tab, setTab] = useState<'coa' | 'journal' | 'tb' | 'taxes' | 'reports' | 'audit' | 'fx'>('coa');
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
@@ -75,7 +76,6 @@ export default function LedgerPage() {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const orgId = org?.id;
   const loadAccounts = () => orgId ? glAccounts(orgId).then(setAccounts).catch((e) => setErr(e.message)) : Promise.resolve();
   useEffect(() => {
     if (!orgId) return;
