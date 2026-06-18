@@ -2459,6 +2459,19 @@ export async function setOrgInviteSource(id: string, source: string): Promise<vo
 export async function revokeOrgInvite(id: string): Promise<void> {
   const { error } = await sb.rpc('revoke_org_invite', { p_id: id }); if (error) throw new Error(error.message);
 }
+// ---- Workspace member invites (owner/admin invites a teammate by email) ----
+export interface MemberInvite { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; accepted_at: string | null }
+export async function inviteMember(orgId: string, email: string, role: string): Promise<{ id: string; token: string; email: string; link: string; role: string; expires_at: string }> {
+  const { data, error } = await sb.rpc('org_invite_member', { p_org: orgId, p_email: email, p_role: role });
+  if (error) throw new Error(error.message); return data as any;
+}
+export async function listMemberInvites(orgId: string): Promise<MemberInvite[]> {
+  const { data, error } = await sb.rpc('org_list_member_invites', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as MemberInvite[]) || [];
+}
+export async function revokeMemberInvite(id: string): Promise<void> {
+  const { error } = await sb.rpc('org_revoke_member_invite', { p_id: id }); if (error) throw new Error(error.message);
+}
 export interface InvitePreview { valid: boolean; reason?: string; email?: string; role?: string; plan?: string; new_org?: boolean; org_name?: string | null; kind?: 'org' | 'platform'; }
 export async function invitePreview(token: string): Promise<InvitePreview> {
   const { data, error } = await sb.rpc('invite_preview', { p_token: token }); if (error) throw new Error(error.message); return data as InvitePreview;

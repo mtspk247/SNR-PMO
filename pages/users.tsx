@@ -6,6 +6,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { getAdminUsers, createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, userAffiliations, UserAffiliation } from '@/lib/db';
+import { inviteMember, listMemberInvites, revokeMemberInvite, MemberInvite } from '@/lib/db';
 import { AdminUser, Team } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -58,6 +59,22 @@ export default function UsersPage() {
   const [tab, setTab] = useState<Tab>('manage');
   const [uGroup, setUGroup] = useState('none');
   const [uView, setUView] = useState<'list' | 'cards'>('list');
+  const [invites, setInvites] = useState<MemberInvite[]>([]);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('member');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteErr, setInviteErr] = useState('');
+  const [inviteLink, setInviteLink] = useState('');
+  const loadInvites = () => { if (org) listMemberInvites(org.id).then(setInvites).catch(() => {}); };
+  useEffect(() => { loadInvites(); /* eslint-disable-next-line */ }, [org?.id]);
+  const sendInvite = async () => {
+    if (!org || inviteBusy || !inviteEmail.trim()) return;
+    setInviteBusy(true); setInviteErr('');
+    try { const res = await inviteMember(org.id, inviteEmail.trim(), inviteRole); setInviteLink(res.link); loadInvites(); }
+    catch (e: any) { setInviteErr(e.message || 'Could not send invite'); } finally { setInviteBusy(false); }
+  };
+  const doRevokeInvite = async (id: string) => { try { await revokeMemberInvite(id); loadInvites(); } catch (e: any) { alert(e.message); } };
   const [affs, setAffs] = useState<Record<string, { companies: string[]; projects: string[] }>>({});
   const uGroupOptions = [
     { value: 'none', label: 'No grouping' },
@@ -166,6 +183,7 @@ export default function UsersPage() {
               <div className="flex items-center justify-between mb-1 mt-2">
                 <span className="text-2xs text-muted2">{users.length} users</span>
                 <div className="flex items-center gap-1.5">
+                  <button onClick={() => { setShowInvite(true); setInviteLink(''); setInviteErr(''); setInviteEmail(''); setInviteRole('member'); }} className="btn btn-primary h-7 py-0 text-2xs"><Icon name="ti-user-plus" />Invite teammate</button>
                   <div className="inline-flex items-center rounded-md border border-line bg-surface p-0.5 h-7">
                     {(['list', 'cards'] as const).map((vv) => (
                       <button key={vv} onClick={() => setUView(vv)} title={vv === 'list' ? 'List' : 'Cards'} className={`h-6 px-1.5 rounded inline-flex items-center text-2xs transition ${uView === vv ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content'}`}><Icon name={vv === 'list' ? 'ti-list' : 'ti-layout-grid'} className="text-2xs" /></button>
@@ -174,6 +192,21 @@ export default function UsersPage() {
                   <Dropdown value={uGroup} onChange={setUGroup} width={180} items={uGroupOptions} trigger={<span className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-line bg-surface text-2xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-layout-rows" className="text-2xs" />{uGroupOptions.find((o) => o.value === uGroup)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
                 </div>
               </div>
+              {invites.filter((i) => i.status === 'pending').length > 0 && (
+                <div className="card p-3 mb-2">
+                  <p className="text-2xs font-medium text-muted2 uppercase tracking-wide mb-2">Pending invitations</p>
+                  <div className="divide-y divide-line">
+                    {invites.filter((i) => i.status === 'pending').map((i) => (
+                      <div key={i.id} className="flex items-center gap-2 py-1.5 text-sm">
+                        <Icon name="ti-mail" className="text-muted2 text-xs" />
+                        <span className="flex-1 truncate text-content">{i.email}</span>
+                        <span className="pill pill-gray capitalize">{i.role}</span>
+                        <button onClick={() => doRevokeInvite(i.id)} className="text-muted hover:text-rose-500" title="Revoke invite"><Icon name="ti-x" className="text-xs" /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="card overflow-y-auto" style={{ maxHeight: '74vh' }}>
                 {uView === 'list' && (
                   <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-2 bg-surface2/70 text-2xs font-medium text-muted2 uppercase tracking-wide sticky top-0 z-10">
@@ -286,6 +319,28 @@ export default function UsersPage() {
                 <Field label="Description"><input value={teamDraft.description} onChange={(e) => setTeamDraft((d) => d && ({ ...d, description: e.target.value }))} className="input" placeholder="Optional short description" /></Field>
                 <Field label="Avatar"><AvatarPicker value={teamDraft.avatar} name={teamDraft.name || 'Team'} onChange={(v) => setTeamDraft((d) => d && ({ ...d, avatar: v }))} allowUpload={false} size={44} /></Field>
                 <Field label="Color"><div className="flex items-center gap-2 mt-1">{SWATCHES.map((c) => <button key={c} type="button" onClick={() => setTeamDraft((d) => d && ({ ...d, color: c }))} aria-label={c} className={`w-6 h-6 rounded-full transition-shadow ${teamDraft.color === c ? 'ring-2 ring-offset-2 ring-accent' : 'hover:scale-110'}`} style={{ background: c }} />)}</div></Field>
+              </div>
+            )}
+          </Modal>
+
+          <Modal open={showInvite} onClose={() => setShowInvite(false)} title="Invite teammate" icon="ti-user-plus" size="sm" onSubmit={sendInvite}
+            footer={inviteLink
+              ? <button onClick={() => setShowInvite(false)} className="btn btn-primary">Done</button>
+              : <><button onClick={sendInvite} disabled={inviteBusy || !inviteEmail.trim()} className="btn btn-primary">{inviteBusy ? 'Sending…' : 'Send invite'}</button><button onClick={() => setShowInvite(false)} className="btn">Cancel</button></>}>
+            {inviteLink ? (
+              <div className="space-y-3">
+                <p className="text-sm text-content">Invitation created for <b>{inviteEmail}</b>. We’ve emailed them a link — or share it directly:</p>
+                <div className="flex items-center gap-2">
+                  <input readOnly value={inviteLink} className="input text-2xs flex-1" onFocus={(e) => e.currentTarget.select()} />
+                  <button onClick={() => { try { navigator.clipboard?.writeText(inviteLink); } catch { /* ignore */ } }} className="btn btn-ghost border border-line text-xs">Copy</button>
+                </div>
+                <p className="text-2xs text-muted2">If they already have a SNR-PMO account (their own workspace), accepting just adds this workspace to their account — they switch between workspaces from the top-left. Link expires in 7 days.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {inviteErr && <p className="text-2xs text-rose-600">{inviteErr}</p>}
+                <Field label="Email" required><input autoFocus type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="input" placeholder="teammate@company.com" /></Field>
+                <Field label="Role"><Select value={inviteRole} onChange={setInviteRole} options={[{ value: 'member', label: 'Member — full access to enabled modules' }, { value: 'admin', label: 'Admin — can manage users & settings' }, { value: 'viewer', label: 'Viewer — read-only' }]} /></Field>
               </div>
             )}
           </Modal>
