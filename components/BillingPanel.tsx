@@ -186,6 +186,57 @@ function PlanHistory({ org }: { org: { id: string } }) {
   );
 }
 
+function InvoicesCard({ org }: { org: { id: string; name?: string }; canBill: boolean }) {
+  const [events, setEvents] = useState<TenantEvent[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { getTenantEvents(org.id).then(setEvents).catch(() => setEvents([])).finally(() => setLoaded(true)); }, [org.id]);
+  const receipts = events.filter((e) => e.amount_cents != null && (e.event_type === 'payment' || e.event_type === 'refund'));
+  const fmtAmt = (e: TenantEvent) => (e.amount_cents != null ? (e.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: e.currency || 'USD' }) : '—');
+  const rcptNo = (e: TenantEvent) => `RCPT-${new Date(e.created_at).toISOString().slice(0, 10).replace(/-/g, '')}-${e.id.slice(0, 6).toUpperCase()}`;
+  const descOf = (e: TenantEvent) => e.plan_to ? `Plan: ${e.plan_to}` : (e.reason || (e.event_type === 'refund' ? 'Refund' : 'Subscription payment'));
+  const viewReceipt = (e: TenantEvent) => {
+    const w = window.open('', '_blank', 'width=640,height=760');
+    if (!w) return;
+    const refund = e.event_type === 'refund';
+    const safe = (x: string) => String(x).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+    const dateStr = new Date(e.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${rcptNo(e)}</title><style>body{font-family:ui-sans-serif,system-ui,Arial;margin:40px;color:#1f2937}h1{font-size:20px;margin:0 0 2px}.muted{color:#6b7280;font-size:13px}.row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee}.total{font-size:22px;font-weight:600;margin-top:16px}.tag{display:inline-block;padding:2px 10px;border-radius:9999px;background:${refund ? '#fffbeb' : '#ecfdf5'};color:${refund ? '#b45309' : '#047857'};font-size:12px}button{margin-top:24px;padding:8px 16px;border:0;border-radius:8px;background:#10b981;color:#fff;font-weight:600;cursor:pointer}@media print{button{display:none}}</style></head><body><h1>${safe(org.name || 'Workspace')}</h1><div class="muted">${refund ? 'Refund receipt' : 'Payment receipt'}</div><div style="margin-top:24px"><div class="row"><span class="muted">Receipt no.</span><b>${rcptNo(e)}</b></div><div class="row"><span class="muted">Date</span><span>${dateStr}</span></div><div class="row"><span class="muted">Description</span><span>${safe(descOf(e))}</span></div><div class="row"><span class="muted">Status</span><span class="tag">${refund ? 'Refunded' : 'Paid'}</span></div></div><div class="total">${fmtAmt(e)}</div><button onclick="window.print()">Print / Save as PDF</button></body></html>`);
+    w.document.close();
+  };
+  if (!loaded) return null;
+  return (
+    <div className="card p-0 mb-6 max-w-4xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-line">
+        <p className="text-sm font-semibold text-content">Invoices &amp; receipts</p>
+        <p className="text-2xs text-muted mt-0.5">Downloadable receipts for payments and refunds on this workspace&apos;s subscription.</p>
+      </div>
+      {receipts.length === 0 ? (
+        <div className="p-8 text-center"><Icon name="ti-file-invoice" className="text-2xl text-muted2 block mb-2" /><p className="text-sm text-muted2">No invoices yet &mdash; receipts appear here once your subscription is billed.</p></div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-surface2/50 text-left text-2xs uppercase tracking-wide text-muted2">
+              <th className="px-5 py-2.5 font-medium">Receipt</th><th className="px-3 py-2.5 font-medium">Date</th><th className="px-3 py-2.5 font-medium">Description</th><th className="px-3 py-2.5 font-medium text-right">Amount</th><th className="px-3 py-2.5 font-medium">Status</th><th className="px-5 py-2.5 font-medium text-right">Receipt</th>
+            </tr></thead>
+            <tbody>
+              {receipts.map((e) => (
+                <tr key={e.id} className="border-t border-line hover:bg-surface2/40">
+                  <td className="px-5 py-3 font-medium text-content whitespace-nowrap">{rcptNo(e)}</td>
+                  <td className="px-3 py-3 text-muted whitespace-nowrap">{new Date(e.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                  <td className="px-3 py-3 text-muted capitalize">{descOf(e)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums font-medium text-content">{fmtAmt(e)}</td>
+                  <td className="px-3 py-3"><span className={`pill ${e.event_type === 'refund' ? 'pill-gray' : 'pill-green'}`}>{e.event_type === 'refund' ? 'Refunded' : 'Paid'}</span></td>
+                  <td className="px-5 py-3 text-right"><button onClick={() => viewReceipt(e)} className="btn-ghost text-2xs"><Icon name="ti-download" />Receipt</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BillingPanel({ org, canBill }: { org: { id: string; features?: string[]; name?: string }; canBill: boolean }) {
   const [tab, setTab] = useState<'plan' | 'invoices' | 'history'>('plan');
   return (
