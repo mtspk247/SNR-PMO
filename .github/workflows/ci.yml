@@ -1,0 +1,35 @@
+name: CI (report-only)
+# Surfaces the type/lint errors that next.config currently ignores
+# (typescript.ignoreBuildErrors + eslint.ignoreDuringBuilds). Non-blocking to
+# start so it never blocks a merge; flip continue-on-error to false once the
+# backlog is clean to make it an enforced gate.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: TypeScript (report-only)
+        run: npx tsc --noEmit
+        continue-on-error: true
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: ESLint (report-only)
+        run: npx next lint
+        continue-on-error: true
