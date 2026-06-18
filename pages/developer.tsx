@@ -184,6 +184,7 @@ export default function DeveloperPage() {
       <div className="card p-5 max-w-4xl">
         <p className="text-sm font-semibold text-content mb-1">API reference</p>
         <p className="text-2xs text-muted mb-3">REST endpoints (v1). Read any resource; write (POST/PATCH/DELETE) to tasks, projects, deals, contacts &amp; companies with a key that has write scope. Everything is scoped to your workspace by the key.</p>
+        <a href="/openapi.json" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 btn btn-ghost text-xs border border-line mb-3">OpenAPI 3.1 spec ↗</a>
         <div className="text-2xs text-muted mb-2">Base URL</div>
         <code className="block text-xs bg-surface2 rounded px-3 py-2 mb-3 break-all">{API_BASE}</code>
         <div className="text-2xs text-muted mb-2">Resources</div>
