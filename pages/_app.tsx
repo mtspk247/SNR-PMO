@@ -4,7 +4,7 @@ import 'react-resizable/css/styles.css';
 import type { AppProps } from 'next/app';
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { sb } from '@/lib/supabase';
+import { sb, FEATURES } from '@/lib/supabase';
 import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, isPlatformAdmin, ensurePersonalWorkspace } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
@@ -68,7 +68,12 @@ export default function App({ Component, pageProps }: AppProps) {
         }
         // 3.3: attach each org's plan entitlements + resolve platform-admin flag.
         const [withFeatures, platformAdmin] = await Promise.all([
-          Promise.all(orgs.map(async (o) => ({ ...o, features: await getOrgFeatures(o.id), planFeatures: await getOrgPlanFeatures(o.id) }))),
+          Promise.all(orgs.map(async (o) => {
+            // Platform-home orgs get the full catalog — derive from the flag we
+            // already loaded so the unlock never depends on a second (fragile) query.
+            if ((o as any).is_platform_home) { const all = FEATURES.map((f) => f.key as string); return { ...o, features: all, planFeatures: all }; }
+            return { ...o, features: await getOrgFeatures(o.id), planFeatures: await getOrgPlanFeatures(o.id) };
+          })),
           isPlatformAdmin(),
         ]);
         if (active) setSession(user, withFeatures, platformAdmin);

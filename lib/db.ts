@@ -50,7 +50,7 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, is_reseller)')
+    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, is_reseller, is_platform_home)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
