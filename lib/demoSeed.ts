@@ -195,7 +195,7 @@ const TASK_EXTRAS = ['Kickoff & planning', 'Stakeholder review', 'QA & sign-off'
 const PROJ_QUAL = ['Phase 1', 'Phase 2', 'North region', 'EMEA', 'Q3', 'Q4', 'Pilot', 'Rollout'];
 const DEAL_QUAL = ['Renewal', 'Expansion', 'Upsell', 'New logo', 'Add-on'];
 const IDEA_POOL = ['Customer feedback portal', 'Internal process automation', 'Mobile companion app', 'Referral rewards program', 'AI-assisted reporting', 'Self-serve onboarding', 'Partner marketplace', 'Knowledge base revamp', 'Usage-based pricing tier', 'In-app live chat', 'Quarterly NPS survey', 'Template gallery', 'Dark-mode theme', 'Bulk import tool', 'Audit-log export'];
-const IDEA_STATUS = ['idea', 'under_review', 'planned'];
+const IDEA_STATUS = ['idea', 'exploring', 'approved', 'building', 'shipped'];
 const PRODUCT_POOL: [string, string, number][] = [
   ['Consulting — Standard', 'service', 150], ['Consulting — Senior', 'service', 250],
   ['Implementation package', 'service', 2500], ['Onboarding & setup', 'service', 1000],
