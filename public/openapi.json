@@ -1117,7 +1117,7 @@
         "tags": [
           "Companies"
         ],
-        "summary": "Create companie",
+        "summary": "Create company",
         "requestBody": {
           "required": true,
           "content": {
@@ -1183,7 +1183,7 @@
         "tags": [
           "Companies"
         ],
-        "summary": "Get a companie by id",
+        "summary": "Get a company by id",
         "responses": {
           "200": {
             "description": "OK",
@@ -1219,7 +1219,7 @@
         "tags": [
           "Companies"
         ],
-        "summary": "Update a companie",
+        "summary": "Update a company",
         "requestBody": {
           "required": true,
           "content": {
@@ -1268,7 +1268,7 @@
         "tags": [
           "Companies"
         ],
-        "summary": "Delete a companie",
+        "summary": "Delete a company",
         "responses": {
           "200": {
             "description": "OK",
