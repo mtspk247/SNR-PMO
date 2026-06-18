@@ -183,7 +183,7 @@ export default function DeveloperPage() {
       <WebhooksSection org={org} />
       <div className="card p-5 max-w-4xl">
         <p className="text-sm font-semibold text-content mb-1">API reference</p>
-        <p className="text-2xs text-muted mb-3">Read-only REST endpoints (v1). All responses are scoped to your workspace by the key.</p>
+        <p className="text-2xs text-muted mb-3">REST endpoints (v1). Read any resource; write (POST/PATCH/DELETE) to tasks, projects, deals, contacts &amp; companies with a key that has write scope. Everything is scoped to your workspace by the key.</p>
         <div className="text-2xs text-muted mb-2">Base URL</div>
         <code className="block text-xs bg-surface2 rounded px-3 py-2 mb-3 break-all">{API_BASE}</code>
         <div className="text-2xs text-muted mb-2">Resources</div>
@@ -191,6 +191,9 @@ export default function DeveloperPage() {
         <div className="text-2xs text-muted mb-2">Example</div>
         <pre className="text-xs bg-surface2 rounded px-3 py-2 overflow-x-auto">{`curl -H "Authorization: Bearer snrp_…" \\
   "${API_BASE}/tasks?limit=50&offset=0"`}</pre>
+        <div className="text-2xs text-muted mb-2 mt-3">Create (write scope)</div>
+        <pre className="text-xs bg-surface2 rounded px-3 py-2 overflow-x-auto">{`curl -X POST -H "Authorization: Bearer snrp_…" -H "Content-Type: application/json" \\
+  -d '{"title":"New lead","stage":"Lead"}' "${API_BASE}/deals"`}</pre>
       </div>
     </Layout>
   );
