@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline — SNR-PMO</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f9fafb;
+      color: #111827;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 1.5rem;
+      padding: 2rem;
+      text-align: center;
+    }
+    .icon {
+      width: 72px; height: 72px;
+      background: #10b981;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: 0 4px 24px rgba(16,185,129,.25);
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #111827; }
+    p { font-size: 0.9375rem; color: #6b7280; max-width: 320px; line-height: 1.6; }
+    button {
+      margin-top: 0.5rem;
+      padding: 0.625rem 1.5rem;
+      background: #10b981;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #059669; }
+  </style>
+</head>
+<body>
+  <div class="icon">S</div>
+  <h1>You're offline</h1>
+  <p>SNR-PMO couldn't reach the server. Check your connection and try again.</p>
+  <button onclick="location.reload()">Retry</button>
+</body>
+</html>

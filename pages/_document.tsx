@@ -9,6 +9,13 @@ export default function Document() {
       <Head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.24.0/dist/tabler-icons.min.css" />
+        {/* PWA */}
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="theme-color" content="#10b981" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="SNR-PMO" />
+        <link rel="apple-touch-icon" href="/icon-192.svg" />
       </Head>
       <body>
         <script dangerouslySetInnerHTML={{ __html: noFlash }} />

@@ -25,6 +25,13 @@ export default function App({ Component, pageProps }: AppProps) {
     defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },
   }));
 
+  // Register service worker for PWA / offline support.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
   // Capture uncaught client errors + promise rejections into the error log.
   useEffect(() => {
     if (typeof window === 'undefined') return;
