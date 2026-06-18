@@ -1,87 +1,54 @@
-// SNR-PMO Service Worker — lightweight app-shell PWA
-// Strategy:
-//   install  → precache app shell (/, /offline.html, static fonts/css)
-//   activate → claim clients immediately, prune old caches
-//   fetch    → static assets: cache-first | navigations: network-first w/ offline fallback | API/auth: network-only
+// SNR-PMO service worker — safe & self-healing.
+// Network-first for all HTML/navigation so the app is NEVER served stale while
+// online; cache-first only for immutable content-hashed build assets; clears
+// old caches on activate so a bad cache can't persist.
+const CACHE = 'snrpmo-v2';
+const STATIC = /\/_next\/static\//;
 
-const SHELL_CACHE = 'snrpmo-shell-v1';
-const STATIC_CACHE = 'snrpmo-static-v1';
-
-const PRECACHE_URLS = [
-  '/',
-  '/offline.html',
-  '/icon-192.svg',
-  '/icon-512.svg',
-];
-
-// ── Install: precache the app shell ──────────────────────────────────────────
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(SHELL_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    try { const c = await caches.open(CACHE); await c.add('/offline.html'); } catch (_e) { /* ignore */ }
+  })());
+  self.skipWaiting();
 });
 
-// ── Activate: claim all clients, delete stale caches ─────────────────────────
 self.addEventListener('activate', (event) => {
-  const CURRENT = new Set([SHELL_CACHE, STATIC_CACHE]);
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys.filter((k) => !CURRENT.has(k)).map((k) => caches.delete(k))
-      ))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => (k === CACHE ? Promise.resolve() : caches.delete(k))));
+    await self.clients.claim();
+  })());
 });
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
+  const req = event.request;
+  let url;
+  try { url = new URL(req.url); } catch (_e) { return; }
+  // Only same-origin GET; never touch API/auth or cross-origin (Supabase).
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/auth')) return;
 
-  // 1. Skip non-GET, cross-origin, and auth/API requests — let them pass through.
-  if (request.method !== 'GET') return;
-  if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) return;
-
-  // 2. Next.js static assets (_next/static) → cache-first (immutable hashed filenames).
-  if (url.pathname.startsWith('/_next/static/')) {
-    event.respondWith(
-      caches.open(STATIC_CACHE).then((cache) =>
-        cache.match(request).then((cached) => {
-          if (cached) return cached;
-          return fetch(request).then((res) => {
-            if (res.ok) cache.put(request, res.clone());
-            return res;
-          });
-        })
-      )
-    );
+  // Immutable hashed build assets: cache-first (safe — content-addressed).
+  if (STATIC.test(url.pathname)) {
+    event.respondWith((async () => {
+      const hit = await caches.match(req);
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res && res.ok) { const c = await caches.open(CACHE); c.put(req, res.clone()); }
+      return res;
+    })());
     return;
   }
 
-  // 3. Navigation requests → network-first, fall back to /offline.html.
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .catch(() =>
-          caches.match('/offline.html').then((r) => r || new Response('Offline', { status: 503 }))
-        )
-    );
-    return;
-  }
-
-  // 4. Other same-origin GETs (images, fonts from /public) → cache-first.
-  event.respondWith(
-    caches.open(SHELL_CACHE).then((cache) =>
-      cache.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((res) => {
-          if (res.ok) cache.put(request, res.clone());
-          return res;
-        });
-      })
-    )
-  );
+  // Everything else (HTML, navigations, data): NETWORK-FIRST.
+  event.respondWith((async () => {
+    try {
+      return await fetch(req);
+    } catch (_e) {
+      const hit = await caches.match(req);
+      if (hit) return hit;
+      if (req.mode === 'navigate') { const off = await caches.match('/offline.html'); if (off) return off; }
+      return new Response('', { status: 504, statusText: 'offline' });
+    }
+  })());
 });
