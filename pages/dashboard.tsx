@@ -6,6 +6,7 @@ import Layout from '@/components/Layout';
 import FirstRunChecklist from '@/components/FirstRunChecklist';
 import WelcomeWizard from '@/components/WelcomeWizard';
 import ProfileCompletion from '@/components/ProfileCompletion';
+import InstallPrompt from '@/components/InstallPrompt';
 import { Pill, Spinner, EmptyState, Icon, Avatar, StatusBadge } from '@/components/ui';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -531,6 +532,7 @@ export default function Dashboard() {
       </div>
 
       <WelcomeWizard />
+      <InstallPrompt />
       <FirstRunChecklist />
       <ProfileCompletion />
 
