@@ -98,6 +98,8 @@ export const FEATURES = [
   { key: 'subscriptions', label: 'Subscriptions' },
   { key: 'support', label: 'Support' },
   { key: 'reseller', label: 'Reseller (sub-tenants)' },
+  { key: 'api', label: 'API & Webhooks' },
+  { key: 'automations', label: 'Automations' },
 ] as const;
 export type FeatureKey = typeof FEATURES[number]['key'];
 export type PricingModel = 'flat' | 'per_user' | 'white_label';

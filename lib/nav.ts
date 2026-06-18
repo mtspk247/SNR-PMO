@@ -152,8 +152,8 @@ export const SECTIONS: NavSection[] = [
 export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
   { href: '/users', label: 'Users', icon: 'ti-user-shield' },
   { href: '/billing', label: 'Billing', icon: 'ti-credit-card' },
-  { href: '/developer', label: 'Developer', icon: 'ti-code', adminOnly: true },
-  { href: '/automations', label: 'Automations', icon: 'ti-bolt', adminOnly: true },
+  { href: '/developer', label: 'Developer', icon: 'ti-code', adminOnly: true, feature: 'api' },
+  { href: '/automations', label: 'Automations', icon: 'ti-bolt', adminOnly: true, feature: 'automations' },
   { href: '/templates', label: 'Templates', icon: 'ti-files' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
