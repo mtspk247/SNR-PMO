@@ -10,6 +10,90 @@ const RESOURCES = ['tasks', 'projects', 'deals', 'contacts', 'companies', 'invoi
 
 type KeyRow = { id: string; name: string; key_prefix: string; scopes: string[]; last_used_at: string | null; revoked_at: string | null; created_at: string };
 
+const WH_EVENTS = ['task.created', 'deal.stage_changed', 'deal.won', 'invoice.paid'];
+type Endpoint = { id: string; url: string; events: string[]; secret: string; active: boolean; created_at: string };
+type Delivery = { id: string; event_id: string | null; status: string; last_attempt_at: string | null };
+
+function WebhooksSection({ org }: { org: { id: string } }) {
+  const [eps, setEps] = useState<Endpoint[] | null>(null);
+  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [url, setUrl] = useState('');
+  const [evts, setEvts] = useState<string[]>(['*']);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [copied, setCopied] = useState('');
+  const load = () => {
+    sb.from('webhook_endpoints').select('*').eq('org_id', org.id).order('created_at', { ascending: false }).then(({ data }) => setEps((data as Endpoint[]) || []));
+    sb.from('webhook_deliveries').select('id, event_id, status, last_attempt_at').eq('org_id', org.id).order('last_attempt_at', { ascending: false }).limit(8).then(({ data }) => setDeliveries((data as Delivery[]) || []));
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [org.id]);
+  const flip = (t: string) => setEvts((s) => (t === '*' ? ['*'] : s.includes(t) ? s.filter((x) => x !== t) : [...s.filter((x) => x !== '*'), t]));
+  const add = async () => {
+    if (!url.trim() || busy) return; setBusy(true); setErr('');
+    try {
+      const { error } = await sb.from('webhook_endpoints').insert({ org_id: org.id, url: url.trim(), events: evts.length ? evts : ['*'], active: true } as any);
+      if (error) throw error;
+      setUrl(''); setEvts(['*']); load();
+    } catch (e: any) { setErr(e.message || 'Could not add endpoint'); } finally { setBusy(false); }
+  };
+  const toggle = async (ep: Endpoint) => { await sb.from('webhook_endpoints').update({ active: !ep.active }).eq('id', ep.id); load(); };
+  const del = async (id: string) => { if (!confirm('Delete this webhook endpoint?')) return; await sb.from('webhook_endpoints').delete().eq('id', id); load(); };
+  const copy = (t: string, id: string) => { navigator.clipboard?.writeText(t).then(() => { setCopied(id); setTimeout(() => setCopied(''), 1500); }).catch(() => {}); };
+  return (
+    <div className="card p-0 mb-5 max-w-4xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-line">
+        <p className="text-sm font-semibold text-content">Webhooks</p>
+        <p className="text-2xs text-muted mt-0.5">Receive a signed POST when things happen. Verify with HMAC-SHA256 of the body using the endpoint secret (header X-SNRPMO-Signature).</p>
+      </div>
+      <div className="p-5 border-b border-line">
+        {err && <p className="text-sm text-rose-600 mb-2">{err}</p>}
+        <div className="flex items-center gap-2 mb-2">
+          <input className="input h-9 flex-1" placeholder="https://your-app.com/webhooks/snrpmo" value={url} onChange={(e) => setUrl(e.target.value)} />
+          <button className="btn btn-primary" disabled={busy} onClick={add}><Icon name="ti-plus" />Add endpoint</button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <button onClick={() => flip('*')} className={'pill ' + (evts.includes('*') ? 'pill-green' : 'pill-gray')}>All events</button>
+          {WH_EVENTS.map((t) => <button key={t} onClick={() => flip(t)} className={'pill ' + (evts.includes(t) ? 'pill-green' : 'pill-gray')}>{t}</button>)}
+        </div>
+      </div>
+      {eps === null ? <div className="p-6"><Spinner /></div> : eps.length === 0 ? (
+        <div className="p-6"><EmptyState icon="ti-webhook" text="No webhook endpoints yet." /></div>
+      ) : (
+        <div className="divide-y divide-line">
+          {eps.map((ep) => (
+            <div key={ep.id} className="px-5 py-3 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-content font-medium break-all">{ep.url}</p>
+                <div className="flex flex-wrap gap-1 mt-1">{(ep.events || []).map((e) => <span key={e} className="pill pill-gray text-2xs">{e}</span>)}</div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-2xs text-muted2">secret</span>
+                  <code className="text-2xs text-muted">{ep.secret.slice(0, 8)}…</code>
+                  <button className="btn-ghost text-2xs" onClick={() => copy(ep.secret, ep.id)}><Icon name={copied === ep.id ? 'ti-check' : 'ti-copy'} />{copied === ep.id ? 'Copied' : 'Copy secret'}</button>
+                </div>
+              </div>
+              <button onClick={() => toggle(ep)} className={'btn-ghost text-2xs ' + (ep.active ? 'text-emerald-600' : 'text-muted2')}><Icon name={ep.active ? 'ti-circle-check' : 'ti-circle'} />{ep.active ? 'Active' : 'Paused'}</button>
+              <button onClick={() => del(ep.id)} className="btn-ghost text-2xs text-rose-600"><Icon name="ti-trash" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {deliveries.length > 0 && (
+        <div className="px-5 py-3 border-t border-line">
+          <p className="text-2xs uppercase tracking-wide text-muted2 mb-2">Recent deliveries</p>
+          <div className="space-y-1">
+            {deliveries.map((d) => (
+              <div key={d.id} className="flex items-center gap-2 text-2xs">
+                <span className={'pill ' + (d.status === 'sent' ? 'pill-green' : 'pill-gray')}>{d.status}</span>
+                <span className="text-muted">{d.last_attempt_at ? new Date(d.last_attempt_at).toLocaleString() : ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DeveloperPage() {
   const org = useActiveOrg();
   const admin = can.manageOrg(org);
@@ -96,6 +180,7 @@ export default function DeveloperPage() {
         )}
       </div>
 
+      <WebhooksSection org={org} />
       <div className="card p-5 max-w-4xl">
         <p className="text-sm font-semibold text-content mb-1">API reference</p>
         <p className="text-2xs text-muted mb-3">Read-only REST endpoints (v1). All responses are scoped to your workspace by the key.</p>
