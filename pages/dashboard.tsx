@@ -199,7 +199,7 @@ export default function Dashboard() {
   }, [activeOrg?.id, user?.id]);
 
   // ── derived ───────────────────────────────────────────────────────────────
-  const activeProjects = projects.filter((p) => p.status === 'Active').length;
+  const activeProjects = projects.filter((p) => !['Completed', 'Cancelled', 'Done', 'Archived'].includes(p.status)).length;
   const openTasks = tasks.filter((t) => t.status !== 'Done' && t.status !== 'Cancelled');
   const doneTasks = tasks.filter((t) => t.status === 'Done').length;
   const taskPct = tasks.length ? (doneTasks / tasks.length) * 100 : 0;

@@ -178,7 +178,7 @@ function genericPack(industry: string): Pack {
 export function buildDemoPayload(industry: string | null | undefined): DemoPayload {
   const ind = industry && INDUSTRIES.includes(industry) ? industry : '';
   const pack = (ind && PACKS[ind]) || genericPack(ind || 'Professional Services');
-  const pstatus = ['In Progress', 'Planning', 'Completed'];
+  const pstatus = ['Active', 'Planning', 'Completed'];
   const pprog = [55, 15, 100];
   const projects: DemoProject[] = pack.projects.map((p, i) => ({
     name: p.name,
