@@ -100,7 +100,7 @@ function NotificationPrefs() {
         {saving && <span className="text-2xs text-muted ml-2">Saving…</span>}
         {saved && !saving && <span className="text-2xs text-emerald-600 ml-2">Saved</span>}
       </div>
-      <p className="text-2xs text-muted mb-4">Choose which notifications you receive. Required ones are set by your admin and can’t be turned off.</p>
+      <p className="text-2xs text-muted mb-4">Choose which notifications you receive. Required ones are set by your admin and can't be turned off.</p>
       {rows === null ? <Spinner /> : rows.length === 0 ? (
         <p className="text-2xs text-muted2">No notification types available.</p>
       ) : (
@@ -217,9 +217,9 @@ export default function SettingsPage() {
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
   const meUser = useAuthStore((s) => s.user);
-  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger'>('business');
+  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger' | 'demo'>('business');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'lists', 'audit', 'danger'].includes(t)) setTab(t as any); } }, [router.query.tab]);
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'lists', 'audit', 'danger', 'demo'].includes(t)) setTab(t as any); } }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -345,6 +345,7 @@ export default function SettingsPage() {
           { key: 'lists', label: 'Lists & options', icon: 'ti-list-details' },
           { key: 'audit', label: 'Audit log', icon: 'ti-history' },
           ...(isOwner ? [{ key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' }] : []),
+          ...(admin ? [{ key: 'demo', label: 'Demo data', icon: 'ti-sparkles' }] : []),
         ]} active={tab} onChange={(k) => setTab(k as any)} />
       )}
       {!admin && <NotificationPrefs />}
@@ -364,44 +365,57 @@ export default function SettingsPage() {
         <div className="max-w-5xl"><ListsManager /></div>
       )}
 
+      {admin && tab === 'demo' && org && (
+        <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />
+      )}
+
       {admin && tab === 'business' && org && (
             <div className="space-y-6">
               <BusinessSetup orgId={org.id} />
-              <div className="card p-6 space-y-5 max-w-3xl">
-                <p className="text-2xs uppercase tracking-wide text-muted font-medium">Workspace &amp; logo</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-lg border border-line bg-surface2 grid place-items-center overflow-hidden shrink-0">
-                    {logo && logo.startsWith('preset:') ? <span className="w-full h-full grid place-items-center text-2xl" style={{ background: presetColor(logo.slice(7)) }}>{logo.slice(7)}</span>
-                      : logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <label className="btn btn-ghost text-xs cursor-pointer border border-line"><Icon name="ti-upload" className="text-sm" /> Upload logo<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={onLogoFile} /></label>
-                      <button type="button" onClick={() => setLogoPicker((v) => !v)} className="btn btn-ghost text-xs border border-line"><Icon name="ti-mood-smile" className="text-sm" />Use an avatar</button>
-                      {logo && <button type="button" onClick={() => { setLogo(''); setLogoPicker(false); }} className="btn btn-ghost text-xs text-rose-600">Remove</button>}
+              <OrgProfileForm
+                load={() => getOrgProfile(org.id)}
+                onSave={(patch) => saveOrgProfile(org.id, patch)}
+                orgId={org.id}
+                leadingTab={{
+                  id: 'workspace',
+                  label: 'Workspace & logo',
+                  icon: 'ti-building-store',
+                  render: () => (
+                    <div className="space-y-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-lg border border-line bg-surface2 grid place-items-center overflow-hidden shrink-0">
+                          {logo && logo.startsWith('preset:') ? <span className="w-full h-full grid place-items-center text-2xl" style={{ background: presetColor(logo.slice(7)) }}>{logo.slice(7)}</span>
+                            : logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <label className="btn btn-ghost text-xs cursor-pointer border border-line"><Icon name="ti-upload" className="text-sm" /> Upload logo<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={onLogoFile} /></label>
+                            <button type="button" onClick={() => setLogoPicker((v) => !v)} className="btn btn-ghost text-xs border border-line"><Icon name="ti-mood-smile" className="text-sm" />Use an avatar</button>
+                            {logo && <button type="button" onClick={() => { setLogo(''); setLogoPicker(false); }} className="btn btn-ghost text-xs text-rose-600">Remove</button>}
+                          </div>
+                          {logoErr && <span className="text-2xs text-rose-600">{logoErr}</span>}
+                          <span className="text-2xs text-muted">Square image, at least 256×256px, under 1.5 MB — or pick an avatar. Shown top-left, on invoices and emails.</span>
+                        </div>
+                      </div>
+                      {logoPicker && (
+                        <div className="grid grid-cols-8 sm:grid-cols-12 gap-2 p-3 rounded-lg border border-line bg-surface2/40">
+                          {PRESET_AVATARS.map((e) => (
+                            <button key={e} type="button" onClick={() => { setLogo('preset:' + e); setLogoPicker(false); }} style={{ background: presetColor(e) }} className={`w-9 h-9 rounded-lg grid place-items-center text-lg transition hover:scale-110 ${logo === 'preset:' + e ? 'ring-2 ring-offset-2 ring-accent' : ''}`}>{e}</button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div><label className="label">Workspace name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." /></div>
+                        <div><label className="label">Workspace subdomain</label><div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface2 text-sm text-muted"><Icon name="ti-world" /><span className="font-mono text-content">{org.slug}</span><span className="text-muted">.yourdomain.com</span></div></div>
+                      </div>
+                      <div className="flex items-center gap-3 pt-4 border-t border-line">
+                        <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving…' : 'Save workspace'}</button>
+                        {msg && <span className={`text-sm ${msg === 'Saved' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</span>}
+                      </div>
                     </div>
-                    {logoErr && <span className="text-2xs text-rose-600">{logoErr}</span>}
-                    <span className="text-2xs text-muted">Square image, at least 256×256px, under 1.5 MB — or pick an avatar. Shown top-left, on invoices and emails.</span>
-                  </div>
-                </div>
-                {logoPicker && (
-                  <div className="grid grid-cols-8 sm:grid-cols-12 gap-2 p-3 rounded-lg border border-line bg-surface2/40">
-                    {PRESET_AVATARS.map((e) => (
-                      <button key={e} type="button" onClick={() => { setLogo('preset:' + e); setLogoPicker(false); }} style={{ background: presetColor(e) }} className={`w-9 h-9 rounded-lg grid place-items-center text-lg transition hover:scale-110 ${logo === 'preset:' + e ? 'ring-2 ring-offset-2 ring-accent' : ''}`}>{e}</button>
-                    ))}
-                  </div>
-                )}
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div><label className="label">Workspace name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." /></div>
-                  <div><label className="label">Workspace subdomain</label><div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface2 text-sm text-muted"><Icon name="ti-world" /><span className="font-mono text-content">{org.slug}</span><span className="text-muted">.yourdomain.com</span></div></div>
-                </div>
-                <div className="flex items-center gap-3 pt-4 border-t border-line">
-                  <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving\u2026' : 'Save workspace'}</button>
-                  {msg && <span className={`text-sm ${msg === 'Saved' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</span>}
-                </div>
-              </div>
-              <OrgProfileForm load={() => getOrgProfile(org.id)} onSave={(patch) => saveOrgProfile(org.id, patch)} orgId={org.id} />
-              {admin && <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />}
+                  ),
+                }}
+              />
               <DeleteSafetyToggle org={org} />
             </div>
           )}
@@ -463,7 +477,7 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-2xs text-muted">Primary recolours buttons, links, focus rings and the active nav item. Accent is used for secondary highlights.</p>
                 <div className="flex items-center gap-3 pt-4 border-t border-line">
-                  <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving\u2026' : 'Save changes'}</button>
+                  <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving…' : 'Save changes'}</button>
                   <button onClick={reset} disabled={saving} className="btn btn-ghost">Reset colors</button>
                   {msg && <span className={`text-sm ml-auto ${msg === 'Saved' ? 'text-emerald-600' : 'text-rose-600'}`}>{msg}</span>}
                 </div>

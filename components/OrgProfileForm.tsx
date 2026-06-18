@@ -27,14 +27,15 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }: {
+export default function OrgProfileForm({ load, onSave, readOnly = false, orgId, leadingTab }: {
   load: () => Promise<OrgProfile>;
   onSave: (patch: Partial<OrgProfile>) => Promise<void>;
   readOnly?: boolean;
   orgId?: string;
+  leadingTab?: { id: string; label: string; icon: string; render: () => React.ReactNode };
 }) {
   const [v, setV] = useState<OrgProfile | null>(null);
-  const [tab, setTab] = useState('contact');
+  const [tab, setTab] = useState(leadingTab ? leadingTab.id : 'contact');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
@@ -67,10 +68,14 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }
     finally { setBusy(false); }
   };
 
+  const allTabs = leadingTab
+    ? [{ id: leadingTab.id, label: leadingTab.label, icon: leadingTab.icon }, ...TABS]
+    : TABS;
+
   return (
     <div className="card p-0 max-w-3xl overflow-hidden">
       <div className="flex gap-1 px-3 pt-3 border-b border-line bg-surface2/40 overflow-x-auto">
-        {TABS.map((t) => (
+        {allTabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap ${tab === t.id ? 'border-b-accent text-content' : 'border-b-transparent text-muted hover:text-content'}`}>
             <Icon name={t.icon} className="text-sm" />{t.label}
@@ -79,6 +84,8 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }
       </div>
 
       <div className="p-6 space-y-4">
+        {leadingTab && tab === leadingTab.id && leadingTab.render()}
+
         {tab === 'contact' && (
           <div className="grid sm:grid-cols-2 gap-4">
             <Row label="Website">{inp('website', 'url', 'https://acme.com')}</Row>
@@ -113,7 +120,7 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }
               <Row label="Founded (year)">{inp('founded_year', 'text', 'e.g. 2018')}</Row>
               <Row label="Company size">
                 <Select placeholder="Select size…" value={v.company_size || ''}
-                  options={withCurrent(['1\u201310', '11\u201350', '51\u2013200', '201\u2013500', '500+'], v.company_size)}
+                  options={withCurrent(['1–10', '11–50', '51–200', '201–500', '500+'], v.company_size)}
                   onChange={(c) => setV({ ...v, company_size: c })} disabled={readOnly} />
               </Row>
             </div>
@@ -122,7 +129,7 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }
 
         {tab === 'people' && (
           <div className="space-y-4">
-            <p className="text-2xs text-muted">Primary point of contact for this business \u2014 used on documents and for account communication.</p>
+            <p className="text-2xs text-muted">Primary point of contact for this business — used on documents and for account communication.</p>
             <div className="grid sm:grid-cols-2 gap-4">
               <Row label="Contact name">{inp('contact_person', 'text', 'Full name')}</Row>
               <Row label="Role / title">{inp('contact_role', 'text', 'e.g. Operations Director')}</Row>
@@ -160,7 +167,7 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId }
         )}
 
         {err && <p className="text-sm text-rose-600">{err}</p>}
-        {!readOnly && (
+        {!readOnly && tab !== (leadingTab?.id ?? '__none__') && (
           <div className="flex items-center gap-3 pt-2 border-t border-line">
             <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save profile'}</button>
             {ok && <span className="text-sm text-emerald-600 inline-flex items-center gap-1"><Icon name="ti-check" />Saved</span>}

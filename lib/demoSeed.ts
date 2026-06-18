@@ -1,27 +1,34 @@
 // #8 Industry-specific demo-data generator. Builds the payload consumed by the
-// tenant_seed_demo RPC. Vocabulary is keyed off the #9 taxonomy industries so each
-// industry produces realistic projects/tasks/clients/deals/ledger in its own domain
-// language. Falls back to a generic pack derived from the taxonomy for any industry
-// without a bespoke entry.
+// tenant_seed_demo RPC. Vocabulary is keyed off the #9 taxonomy industries. Generates
+// 15-20 records per module so every page looks populated for demos/pitching. Projects
+// are linked to companies + portfolios; deals/invoices/ledger/ideas link to records too.
 import { TAXONOMY, INDUSTRIES } from './taxonomy';
 
 export interface DemoTask { name: string; status?: string; priority?: string; estimated_hours?: number }
-export interface DemoProject { name: string; description?: string; status?: string; priority?: string; progress?: number; tasks: DemoTask[] }
-export interface DemoDeal { title: string; value: number; stage: string }
+export interface DemoProject { name: string; description?: string; status?: string; priority?: string; progress?: number; company_index?: number; portfolio_index?: number; tasks: DemoTask[] }
+export interface DemoPortfolio { name: string; description?: string; company_index: number }
+export interface DemoDeal { title: string; value: number; stage: string; company_index?: number }
 export interface DemoLedger { type: 'income' | 'expense'; category: string; amount: number; notes?: string; project_index?: number }
 export interface DemoProduct { name: string; type?: string; unit_price?: number }
 export interface DemoInvoiceLine { description: string; qty: number; unit_price: number }
-export interface DemoInvoice { number: string; status?: string; lines: DemoInvoiceLine[] }
+export interface DemoInvoice { number: string; status?: string; client?: string; project_index?: number; lines: DemoInvoiceLine[] }
 export interface DemoSupport { subject: string; category?: string; priority?: string; status?: string }
 export interface DemoRisk { title: string; category?: string; impact?: number; probability?: number; status?: string }
+export interface DemoIdea { title: string; pitch?: string; status?: string; project_index?: number }
+export interface DemoAutomation { name: string; trigger_type: string; match: Record<string, unknown>; actions: unknown[] }
+export interface DemoTemplate { name: string; doc_type: string; body: string }
 export interface DemoPayload {
   clients: string[]; projects: DemoProject[]; deals: DemoDeal[]; ledger: DemoLedger[];
-  companies: string[]; teams: string[]; ideas: string[];
+  companies: string[]; portfolios: DemoPortfolio[]; teams: string[]; ideas: DemoIdea[];
   products: DemoProduct[]; invoices: DemoInvoice[]; support: DemoSupport[]; risks: DemoRisk[];
+  automations: DemoAutomation[]; templates: DemoTemplate[];
 }
 
 const T = (name: string, status: string, priority = 'Medium', h = 6): DemoTask => ({ name, status, priority, estimated_hours: h });
-const STAGES = ['Qualified', 'Proposal', 'Negotiation', 'Won'];
+const STAGES = ['Qualified', 'Proposal', 'Negotiation', 'Won', 'Lead'];
+const PROJ_STATUS = ['Active', 'Planning', 'On Hold', 'Completed'];
+const PRIOS = ['High', 'Medium', 'Low'];
+const TASK_STATUS = ['Backlog', 'In Progress', 'In Review', 'Done'];
 
 type Pack = { clients: string[]; projects: { name: string; tasks: [string, string, string] }[]; deals: string[]; ledgerCats: [string, string]; };
 
@@ -158,7 +165,6 @@ const PACKS: Record<string, Pack> = {
   },
 };
 
-// Generic fallback built from the taxonomy for any industry without a bespoke pack.
 function genericPack(industry: string): Pack {
   const ind = TAXONOMY.find((i) => i.name === industry);
   const cats = ind ? ind.categories.map((c) => c.name) : ['Operations', 'Growth', 'Delivery'];
@@ -175,55 +181,162 @@ function genericPack(industry: string): Pack {
   };
 }
 
+// ---- generic pools used to reach 15-20 records/module ----
+const COMPANY_BASES = ['Northgate', 'Brightline', 'Vertex', 'Harborview', 'Cedarcrest', 'Atlas', 'Meridian', 'Quanta', 'Lumen', 'Apex', 'Beacon', 'Cobalt', 'Evergreen', 'Forge', 'Summit', 'Orion'];
+const COMPANY_SUFFIX = ['Group', 'Holdings', 'Partners', 'Industries', 'Labs', 'Solutions', 'Systems', 'Co'];
+const PORTFOLIO_DEFS: [string, string][] = [
+  ['Core Delivery', 'Flagship client and delivery work'],
+  ['Growth Initiatives', 'Revenue and expansion projects'],
+  ['Strategic Programs', 'Cross-functional strategic bets'],
+  ['Client Services', 'Account and retainer engagements'],
+  ['Internal Operations', 'Internal tooling and process work'],
+];
+const TASK_EXTRAS = ['Kickoff & planning', 'Stakeholder review', 'QA & sign-off', 'Status reporting', 'Risk assessment', 'Documentation'];
+const PROJ_QUAL = ['Phase 1', 'Phase 2', 'North region', 'EMEA', 'Q3', 'Q4', 'Pilot', 'Rollout'];
+const DEAL_QUAL = ['Renewal', 'Expansion', 'Upsell', 'New logo', 'Add-on'];
+const IDEA_POOL = ['Customer feedback portal', 'Internal process automation', 'Mobile companion app', 'Referral rewards program', 'AI-assisted reporting', 'Self-serve onboarding', 'Partner marketplace', 'Knowledge base revamp', 'Usage-based pricing tier', 'In-app live chat', 'Quarterly NPS survey', 'Template gallery', 'Dark-mode theme', 'Bulk import tool', 'Audit-log export'];
+const IDEA_STATUS = ['idea', 'under_review', 'planned'];
+const PRODUCT_POOL: [string, string, number][] = [
+  ['Consulting — Standard', 'service', 150], ['Consulting — Senior', 'service', 250],
+  ['Implementation package', 'service', 2500], ['Onboarding & setup', 'service', 1000],
+  ['Premium support (monthly)', 'service', 500], ['Training workshop', 'service', 1200],
+  ['Annual license — Starter', 'product', 1200], ['Annual license — Pro', 'product', 3600],
+  ['Add-on module', 'product', 600], ['Data migration', 'service', 1800],
+  ['Custom integration', 'service', 3200], ['Managed service (monthly)', 'service', 900],
+];
+const SUPPORT_POOL: [string, string, string, string][] = [
+  ['Cannot access the dashboard', 'Account', 'high', 'open'],
+  ['Question about my latest invoice', 'Billing', 'medium', 'resolved'],
+  ['Feature request: export to CSV', 'Feature', 'low', 'open'],
+  ['Password reset not working', 'Account', 'high', 'in_progress'],
+  ['How do I invite a teammate?', 'How-to', 'low', 'resolved'],
+  ['Report shows wrong totals', 'Bug', 'high', 'open'],
+  ['Upgrade my plan', 'Billing', 'medium', 'open'],
+  ['Mobile app keeps logging out', 'Bug', 'high', 'in_progress'],
+  ['Need an extra admin seat', 'Account', 'medium', 'resolved'],
+  ['Integration with Slack?', 'Feature', 'low', 'open'],
+  ['Data not syncing', 'Bug', 'high', 'open'],
+  ['Cancel my subscription', 'Billing', 'medium', 'resolved'],
+  ['Custom domain setup help', 'How-to', 'medium', 'open'],
+  ['Two-factor authentication issue', 'Account', 'high', 'in_progress'],
+];
+const RISK_POOL: [string, string, number, number, string][] = [
+  ['Client concentration risk', 'Strategic', 4, 3, 'Open'],
+  ['Supplier / delivery delay', 'Operational', 3, 2, 'Open'],
+  ['Key-person dependency', 'Operational', 4, 2, 'Open'],
+  ['Scope creep on major project', 'Delivery', 3, 3, 'Open'],
+  ['Cash-flow gap in Q3', 'Financial', 4, 2, 'Mitigating'],
+  ['Data security / breach', 'Compliance', 5, 2, 'Open'],
+  ['Regulatory change', 'Compliance', 3, 2, 'Open'],
+  ['Currency / FX exposure', 'Financial', 2, 3, 'Open'],
+  ['Talent attrition', 'Operational', 3, 3, 'Mitigating'],
+  ['Vendor lock-in', 'Strategic', 2, 2, 'Open'],
+  ['Reputational risk', 'Strategic', 4, 1, 'Open'],
+  ['Technical debt accumulation', 'Delivery', 3, 4, 'Open'],
+];
+const EXP_CATS = ['Software & tools', 'Payroll', 'Marketing', 'Office & admin', 'Travel', 'Contractors', 'Hosting & infra', 'Professional fees'];
+
+function genCompanies(seed: string[], n: number): string[] {
+  const out: string[] = [...seed];
+  let i = 0;
+  while (out.length < n) {
+    const base = COMPANY_BASES[i % COMPANY_BASES.length];
+    const suf = COMPANY_SUFFIX[Math.floor(i / COMPANY_BASES.length) % COMPANY_SUFFIX.length];
+    const name = `${base} ${suf}`;
+    if (!out.includes(name)) out.push(name);
+    i++;
+  }
+  return out.slice(0, n);
+}
+
 export function buildDemoPayload(industry: string | null | undefined): DemoPayload {
   const ind = industry && INDUSTRIES.includes(industry) ? industry : '';
   const pack = (ind && PACKS[ind]) || genericPack(ind || 'Professional Services');
-  const pstatus = ['Active', 'Planning', 'Completed'];
-  const pprog = [55, 15, 100];
-  const projects: DemoProject[] = pack.projects.map((p, i) => ({
-    name: p.name,
-    description: `${ind || 'Sample'} demo project — ${p.name}.`,
-    status: pstatus[i % pstatus.length],
-    priority: i === 0 ? 'High' : 'Medium',
-    progress: pprog[i % pprog.length],
-    tasks: [
-      T(p.tasks[0], 'Done', 'Medium', 8),
-      T(p.tasks[1], 'In Progress', 'High', 12),
-      T(p.tasks[2], 'Backlog', 'Medium', 6),
-    ],
+  const N_COMPANIES = 12, N_PORTFOLIOS = 5, N_PROJECTS = 16, N_CLIENTS = 14, N_DEALS = 16,
+    N_IDEAS = 15, N_INVOICES = 12, N_LEDGER = 24;
+
+  const companies = genCompanies(pack.clients, N_COMPANIES);
+  const portfolios: DemoPortfolio[] = PORTFOLIO_DEFS.slice(0, N_PORTFOLIOS).map(([name, description], i) => ({
+    name, description, company_index: i % N_COMPANIES,
   }));
-  const deals: DemoDeal[] = pack.deals.map((title, i) => ({ title, value: [18000, 42000, 9500][i % 3], stage: STAGES[i % STAGES.length] }));
-  const ledger: DemoLedger[] = [
-    { type: 'income', category: pack.ledgerCats[0], amount: 24000, notes: 'Demo income', project_index: 0 },
-    { type: 'income', category: pack.ledgerCats[0], amount: 11500, notes: 'Demo income', project_index: 1 },
-    { type: 'expense', category: pack.ledgerCats[1], amount: 7800, notes: 'Demo expense', project_index: 0 },
-    { type: 'expense', category: 'Software & tools', amount: 1200, notes: 'Demo expense' },
-  ];
-  // Plan-gated extras (RPC only seeds modules the tenant's plan enables).
-  const companies: string[] = pack.clients.slice(0, 2);
-  const teams: string[] = ['Delivery', 'Sales', 'Operations'];
-  const ideas: string[] = [
-    `${pack.projects[0].name} — phase 2`,
-    'Customer feedback portal',
-    'Internal process automation',
-  ];
-  const products: DemoProduct[] = [
-    { name: `${ind || 'Standard'} service`, type: 'service', unit_price: 150 },
-    { name: 'Premium package', type: 'service', unit_price: 500 },
-    { name: 'Onboarding & setup', type: 'service', unit_price: 1000 },
-  ];
+
+  const projects: DemoProject[] = [];
+  for (let i = 0; i < N_PROJECTS; i++) {
+    const base = pack.projects[i % pack.projects.length];
+    const round = Math.floor(i / pack.projects.length);
+    const name = round === 0 ? base.name : `${base.name} — ${PROJ_QUAL[(round - 1) % PROJ_QUAL.length]}`;
+    projects.push({
+      name,
+      description: `${ind || 'Sample'} demo project — ${name}.`,
+      status: PROJ_STATUS[i % PROJ_STATUS.length],
+      priority: PRIOS[i % PRIOS.length],
+      progress: [70, 20, 45, 100, 10, 85][i % 6],
+      company_index: i % N_COMPANIES,
+      portfolio_index: i % N_PORTFOLIOS,
+      tasks: [
+        T(base.tasks[0], 'Done', 'Medium', 8),
+        T(base.tasks[1], 'In Progress', 'High', 12),
+        T(base.tasks[2], 'Backlog', 'Medium', 6),
+        T(TASK_EXTRAS[i % TASK_EXTRAS.length], TASK_STATUS[i % TASK_STATUS.length], 'Low', 4),
+      ],
+    });
+  }
+
+  const clients = genCompanies(pack.clients, N_CLIENTS);
+
+  const deals: DemoDeal[] = [];
+  for (let i = 0; i < N_DEALS; i++) {
+    const base = pack.deals[i % pack.deals.length];
+    const round = Math.floor(i / pack.deals.length);
+    const title = round === 0 ? base : `${base} (${DEAL_QUAL[(round - 1) % DEAL_QUAL.length]})`;
+    deals.push({ title, value: [18000, 42000, 9500, 75000, 15000, 30000][i % 6], stage: STAGES[i % STAGES.length], company_index: i % N_COMPANIES });
+  }
+
+  const ideas: DemoIdea[] = IDEA_POOL.slice(0, N_IDEAS).map((title, i) => ({
+    title, pitch: `Proposal: ${title.toLowerCase()} to lift adoption and efficiency.`,
+    status: IDEA_STATUS[i % IDEA_STATUS.length], project_index: i % N_PROJECTS,
+  }));
+
+  const teams = ['Delivery', 'Sales', 'Operations', 'Engineering', 'Marketing', 'Finance'];
+
+  const products: DemoProduct[] = PRODUCT_POOL.map(([name, type, unit_price]) => ({ name, type, unit_price }));
+
   const tok = Math.random().toString(36).slice(2, 6).toUpperCase();
-  const invoices: DemoInvoice[] = [
-    { number: `INV-${tok}-1`, status: 'paid', lines: [{ description: products[0].name, qty: 10, unit_price: 150 }] },
-    { number: `INV-${tok}-2`, status: 'sent', lines: [{ description: products[1].name, qty: 2, unit_price: 500 }, { description: products[2].name, qty: 1, unit_price: 1000 }] },
+  const INV_STATUS = ['paid', 'sent', 'overdue', 'draft'];
+  const invoices: DemoInvoice[] = [];
+  for (let i = 0; i < N_INVOICES; i++) {
+    const p1 = PRODUCT_POOL[i % PRODUCT_POOL.length];
+    const p2 = PRODUCT_POOL[(i + 3) % PRODUCT_POOL.length];
+    const lines: DemoInvoiceLine[] = [{ description: p1[0], qty: (i % 3) + 1, unit_price: p1[2] }];
+    if (i % 2 === 0) lines.push({ description: p2[0], qty: 1, unit_price: p2[2] });
+    invoices.push({ number: `INV-${tok}-${i + 1}`, status: INV_STATUS[i % INV_STATUS.length], client: companies[i % N_COMPANIES], project_index: i % N_PROJECTS, lines });
+  }
+
+  const support = SUPPORT_POOL.map(([subject, category, priority, status]) => ({ subject, category, priority, status }));
+  const risks = RISK_POOL.map(([title, category, impact, probability, status]) => ({ title, category, impact, probability, status }));
+
+  const ledger: DemoLedger[] = [];
+  for (let i = 0; i < N_LEDGER; i++) {
+    const isIncome = i % 3 === 0;
+    ledger.push(isIncome
+      ? { type: 'income', category: pack.ledgerCats[0], amount: [24000, 11500, 38000, 9000][i % 4], notes: 'Demo income', project_index: i % N_PROJECTS }
+      : { type: 'expense', category: i % 2 ? pack.ledgerCats[1] : EXP_CATS[i % EXP_CATS.length], amount: [7800, 1200, 4300, 2600][i % 4], notes: 'Demo expense', project_index: i % N_PROJECTS });
+  }
+
+  const automations: DemoAutomation[] = [
+    { name: 'Notify on new task', trigger_type: 'task.created', match: {}, actions: [{ type: 'notify', title: 'New task created', body: 'A new task was added to a project.', urgent: false }] },
+    { name: 'Alert on won deals', trigger_type: 'deal.won', match: {}, actions: [{ type: 'notify', title: 'Deal won 🎉', body: 'A deal just moved to Won.', urgent: true }] },
+    { name: 'Invoice paid alert', trigger_type: 'invoice.paid', match: {}, actions: [{ type: 'notify', title: 'Invoice paid', body: 'An invoice was marked paid.', urgent: false }] },
+    { name: 'Deal stage changed', trigger_type: 'deal.stage_changed', match: {}, actions: [{ type: 'notify', title: 'Deal stage updated', body: 'A deal moved to a new stage.', urgent: false }] },
   ];
-  const support: DemoSupport[] = [
-    { subject: 'Cannot access the dashboard', category: 'Account', priority: 'high', status: 'open' },
-    { subject: 'Question about my latest invoice', category: 'Billing', priority: 'medium', status: 'resolved' },
+
+  const templates: DemoTemplate[] = [
+    { name: 'Standard Proposal', doc_type: 'proposal', body: 'Dear {{client}},\n\nThank you for the opportunity. This proposal outlines our recommended scope, timeline, and investment.\n\n## Scope\n- ...\n\n## Timeline\n- ...\n\n## Investment\nTotal: {{amount}}\n\nRegards,\n{{sender}}' },
+    { name: 'Service Agreement', doc_type: 'agreement', body: 'This Service Agreement is entered into between {{company}} and {{client}} effective {{date}}.\n\n1. Services\n2. Fees & Payment\n3. Term & Termination\n4. Confidentiality' },
+    { name: 'Master Contract', doc_type: 'contract', body: 'MASTER SERVICES CONTRACT\n\nParties: {{company}} ("Provider") and {{client}} ("Client").\n\nThe Provider agrees to deliver the services described in each Statement of Work...' },
+    { name: 'Offer Letter', doc_type: 'offer', body: 'Dear {{candidate}},\n\nWe are pleased to offer you the position of {{role}} at {{company}}, starting {{date}}.\n\nCompensation: {{salary}}\n\nWe look forward to welcoming you.' },
+    { name: 'Client Welcome Email', doc_type: 'email', body: 'Hi {{client}},\n\nWelcome aboard! Your workspace is ready. Here is how to get started:\n1. Log in\n2. Invite your team\n3. Explore your dashboard\n\nWe are here to help.' },
   ];
-  const risks: DemoRisk[] = [
-    { title: 'Client concentration risk', category: 'Strategic', impact: 4, probability: 3, status: 'Open' },
-    { title: 'Supplier / delivery delay', category: 'Operational', impact: 3, probability: 2, status: 'Open' },
-  ];
-  return { clients: pack.clients, projects, deals, ledger, companies, teams, ideas, products, invoices, support, risks };
+
+  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates };
 }
