@@ -44,7 +44,7 @@ const PRICING = [
     unit: 'forever',
     blurb: 'For small teams getting organized.',
     cta: 'Start free',
-    href: '/signup',
+    href: '/login?mode=signup',
     highlight: false,
     feats: ['Up to 5 seats', 'Projects, tasks & CRM', 'Basic accounting & invoicing', '1 GB drive storage', 'Community support'],
   },
@@ -54,7 +54,7 @@ const PRICING = [
     unit: '/ user / mo',
     blurb: 'For growing teams running real operations.',
     cta: 'Start free',
-    href: '/signup',
+    href: '/login?mode=signup',
     highlight: true,
     feats: ['Everything in Free', 'HR & payroll module', 'Full double-entry accounting', 'Time tracking & dashboards', 'API, webhooks & automations', 'Priority support'],
   },
@@ -64,7 +64,7 @@ const PRICING = [
     unit: '/ mo flat',
     blurb: 'For larger orgs that need control.',
     cta: 'Start free',
-    href: '/signup',
+    href: '/login?mode=signup',
     highlight: false,
     feats: ['Up to 100 seats', 'SSO & SAML', 'Audit logs & advanced RBAC', 'Custom domains', 'Dedicated onboarding', 'SLA & priority support'],
   },
@@ -74,7 +74,7 @@ const PRICING = [
     unit: '/ mo',
     blurb: 'For agencies reselling as their own.',
     cta: 'Talk to us',
-    href: '/signup',
+    href: '/login?mode=signup',
     highlight: false,
     feats: ['Unlimited sub-accounts', 'Your brand, logo & domain', 'Reseller console & billing', 'Per-client provisioning', 'Remove SNR-PMO branding', 'Partner support channel'],
   },
@@ -443,7 +443,7 @@ export default function Landing() {
 
             <div className="hidden md:flex items-center gap-3">
               <Link href="/login" className="text-sm text-white/70 hover:text-white transition-colors">Log in</Link>
-              <Link href="/signup" className="text-sm font-medium px-4 py-2 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] hover:bg-[#10b981] transition-colors shadow-lg shadow-[#10b981]/20">
+              <Link href="/login?mode=signup" className="text-sm font-medium px-4 py-2 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] hover:bg-[#10b981] transition-colors shadow-lg shadow-[#10b981]/20">
                 Start free
               </Link>
             </div>
@@ -466,7 +466,7 @@ export default function Landing() {
               ))}
               <div className="flex gap-3 pt-2">
                 <Link href="/login" className="flex-1 text-center text-sm py-2 rounded-lg border border-white/10 text-white/80">Log in</Link>
-                <Link href="/signup" className="flex-1 text-center text-sm py-2 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-medium">Start free</Link>
+                <Link href="/login?mode=signup" className="flex-1 text-center text-sm py-2 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-medium">Start free</Link>
               </div>
             </div>
           )}
@@ -496,7 +496,7 @@ export default function Landing() {
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link href="/signup" className="w-full sm:w-auto px-6 py-3 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
+              <Link href="/login?mode=signup" className="w-full sm:w-auto px-6 py-3 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
                 Start free
               </Link>
               <a href="#product" className="w-full sm:w-auto px-6 py-3 rounded-lg border border-white/15 text-white/85 font-medium hover:bg-white/5 transition-colors">
@@ -653,7 +653,7 @@ export default function Landing() {
                   </li>
                 ))}
               </ul>
-              <Link href="/signup" className="mt-8 inline-flex px-6 py-3 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
+              <Link href="/login?mode=signup" className="mt-8 inline-flex px-6 py-3 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
                 Become a partner
               </Link>
             </div>
@@ -776,7 +776,7 @@ export default function Landing() {
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">Run your whole business in one place.</h2>
             <p className="mt-5 text-white/55 text-lg">From projects to payroll to P&amp;L — one workspace, one login, one bill.</p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link href="/signup" className="w-full sm:w-auto px-7 py-3.5 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
+              <Link href="/login?mode=signup" className="w-full sm:w-auto px-7 py-3.5 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
                 Start free
               </Link>
               <Link href="/login" className="w-full sm:w-auto px-7 py-3.5 rounded-lg border border-white/15 text-white/85 font-medium hover:bg-white/5 transition-colors">
@@ -806,7 +806,7 @@ export default function Landing() {
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
                 <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
-                <li><Link href="/signup" className="hover:text-white transition-colors">Start free</Link></li>
+                <li><Link href="/login?mode=signup" className="hover:text-white transition-colors">Start free</Link></li>
               </ul>
             </div>
 
@@ -814,7 +814,7 @@ export default function Landing() {
               <div className="text-xs font-semibold uppercase tracking-widest text-white/40">Company</div>
               <ul className="mt-4 space-y-2.5 text-sm text-white/55">
                 <li><Link href="/login" className="hover:text-white transition-colors">Log in</Link></li>
-                <li><Link href="/signup" className="hover:text-white transition-colors">Sign up</Link></li>
+                <li><Link href="/login?mode=signup" className="hover:text-white transition-colors">Sign up</Link></li>
                 <li><a href="#product" className="hover:text-white transition-colors">Product tour</a></li>
               </ul>
             </div>

@@ -22,6 +22,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => { if (user) router.replace('/dashboard'); }, [user, router]);
+  useEffect(() => { const m = router.query.mode; if (m === 'signup' || m === 'reset') setMode(m as Mode); }, [router.query.mode]);
 
   const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 
