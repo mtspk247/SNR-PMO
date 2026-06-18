@@ -104,7 +104,7 @@ function Kpi({ href, label, value, hint, hintTone = 'muted', icon, series, serie
 
 interface WidgetMeta { title: string; icon: string; span: 1 | 2; feature?: FeatureKey; minRole?: OrgRole }
 const WIDGET_META: Record<string, WidgetMeta> = {
-  kpi_projects:  { title: 'Active projects', icon: 'ti-folder', span: 1, feature: 'projects' },
+  kpi_projects:  { title: 'Open projects', icon: 'ti-folder', span: 1, feature: 'projects' },
   kpi_tasks:     { title: 'Open tasks', icon: 'ti-checkbox', span: 1, feature: 'projects' },
   kpi_deals:     { title: 'Open deals', icon: 'ti-target', span: 1, feature: 'crm' },
   kpi_pipeline:  { title: 'Pipeline value', icon: 'ti-currency-dollar', span: 1, feature: 'crm' },
@@ -250,7 +250,7 @@ export default function Dashboard() {
 
   // ── widget renderers (v = visual variant) ─────────────────────────────────
   const W: Record<string, (v?: string) => JSX.Element> = {
-    kpi_projects: () => <Kpi href="/projects" label="Active projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />,
+    kpi_projects: () => <Kpi href="/projects" label="Open projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />,
     kpi_tasks: () => <Kpi href="/tasks" label="Open tasks" value={openTasks.length} hint={overdue ? `${overdue} overdue` : 'On schedule'} hintTone={overdue ? 'down' : 'up'} icon="ti-checkbox" />,
     kpi_deals: () => <Kpi href="/crm" label="Open deals" value={openDeals.length} hint={`${deals.length} total`} icon="ti-target" />,
     kpi_pipeline: () => <Kpi href="/crm" label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />,
