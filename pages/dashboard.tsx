@@ -167,6 +167,12 @@ export default function Dashboard() {
   const [addOpen, setAddOpen] = useState(false);
   const [varOpen, setVarOpen] = useState('');
   const [msg, setMsg] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = () => setIsMobile(window.innerWidth < 768);
+    mq(); window.addEventListener('resize', mq);
+    return () => window.removeEventListener('resize', mq);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -549,6 +555,12 @@ export default function Dashboard() {
 
       {loading ? <Spinner /> : shown.length === 0 ? (
         <EmptyState text="No widgets to show — click Customize to add some." icon="ti-layout-dashboard" />
+      ) : isMobile ? (
+        <div className="flex flex-col gap-3">
+          {shown.map((entry) => { const [k, variant] = splitKey(entry); const tall = !k.startsWith('kpi_'); return (
+            <div key={entry} className={`dash-cell overflow-hidden ${tall ? 'min-h-[260px]' : ''}`}>{W[k](variant)}</div>
+          ); })}
+        </div>
       ) : (
         <GridW className="layout" layout={rglLayout} cols={12} rowHeight={64} margin={[12, 12]} containerPadding={[0, 0]}
           isDraggable={editing} isResizable={editing} resizeHandles={['se','s','e','sw']} draggableCancel=".rgl-no-drag" compactType="vertical"
