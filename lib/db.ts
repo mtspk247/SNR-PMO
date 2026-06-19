@@ -3019,6 +3019,13 @@ export async function resellerSelfSignup(host: string, orgName: string): Promise
 }
 export interface ResellerSitePlan { plan_key: string; amount_cents: number; currency: string; interval: string }
 export interface ResellerSite { enabled: boolean; reseller_org_id?: string; name?: string; branding?: { name?: string; logo_url?: string; primary_color?: string }; theme_skin?: string | null; plans?: ResellerSitePlan[] }
+export async function getOrgImpersonation(orgId: string): Promise<boolean> {
+  const { data } = await sb.from('organizations').select('allow_sub_impersonation').eq('id', orgId).maybeSingle();
+  return !!(data as { allow_sub_impersonation?: boolean } | null)?.allow_sub_impersonation;
+}
+export async function setSubImpersonation(orgId: string, on: boolean): Promise<void> {
+  const { error } = await sb.rpc('platform_set_sub_impersonation', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);
+}
 export async function resellerPublicSite(host: string): Promise<ResellerSite> {
   const { data, error } = await sb.rpc('reseller_public_site', { p_host: host }); if (error) return { enabled: false }; return (data as ResellerSite) || { enabled: false };
 }

@@ -11,7 +11,7 @@ import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
   listTenants, getTenantInfo, setTenantPlan, setTenantActive, getTenantEvents, addTenantNote, emailTenant, TenantEvent, setTenantFeatureOverride, setTenantLimitOverride,
-  listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot,
+  listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getOrgImpersonation, setSubImpersonation,
   getTenantUsage, getOrgActivity, TenantUsage, ActivityItem,
   getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain,
   getOrgFeatures, getOrgPlanFeatures, tenantUsers, TenantUser, avatarSrc,
@@ -50,6 +50,7 @@ export default function TenantDetail() {
 
   const [tenant, setTenant] = useState<any | null>(null);
   const [subs, setSubs] = useState<any[]>([]);
+  const [impAllowed, setImpAllowed] = useState(false);
   const [info, setInfo] = useState<TenantInfo | null>(null);
   const [usage, setUsage] = useState<TenantUsage | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -95,6 +96,7 @@ export default function TenantDetail() {
         if (!t) { setNotFound(true); setLoading(false); return; }
         setTenant(t);
         setSubs(rows.filter((r: any) => r.parent_org_id === orgId));
+        if (t.is_reseller) getOrgImpersonation(orgId).then(setImpAllowed).catch(() => {});
         refreshUsage(); refreshSnaps(); loadDomain();
         getOrgActivity(orgId).then(setActivity).catch(() => {});
         tenantUsers(orgId).then(setUsers).catch(() => setUsers([]));
@@ -109,6 +111,7 @@ export default function TenantDetail() {
 
   const refreshSessionOrg = async (key?: string) => { try { const [features, planFeatures] = await Promise.all([getOrgFeatures(orgId), getOrgPlanFeatures(orgId)]); patchOrg({ id: orgId, ...(key ? { plan: key as MyOrg['plan'] } : {}), features, planFeatures }); } catch { /* not one of my orgs */ } };
   const changePlan = async (key: string, reason?: string) => { setBusy(true); try { await setTenantPlan(orgId, key, reason); await refreshInfo(); refreshUsage(); await refreshSessionOrg(key); refreshEvents(); setPlanReason(''); flash('Plan updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const toggleImp = async () => { if (!editMode) { flash('Turn on Edit mode (top-right) to change this.'); return; } try { await setSubImpersonation(orgId, !impAllowed); setImpAllowed((v) => !v); flash(impAllowed ? 'Impersonation revoked.' : 'Impersonation granted.'); } catch (e: any) { setErr(e.message); } };
   const toggleActive = async () => { if (!info) return; setBusy(true); try { await setTenantActive(orgId, !info.active); await refreshInfo(); refreshUsage(); refreshEvents(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const addNote = async () => { if (!noteText.trim()) return; setSavingNote(true); try { await addTenantNote(orgId, noteText.trim()); setNoteText(''); refreshEvents(); flash('Note added.'); } catch (e: any) { setErr(e.message); } finally { setSavingNote(false); } };
   const emailOwner = async () => { if (!emSubj.trim() || !emBody.trim()) return; setEmailing(true); setErr(''); try { const n = await emailTenant(orgId, emSubj.trim(), emBody.trim(), emLink.trim() || undefined); setEmSubj(''); setEmBody(''); setEmLink(''); refreshEvents(); flash(`Queued ${n} email(s).`); } catch (e: any) { setErr(e.message); } finally { setEmailing(false); } };
@@ -430,6 +433,14 @@ export default function TenantDetail() {
       )}
 
       {tab === 'subtenants' && (
+        <>
+        <div className="card p-4 mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-content flex items-center gap-2"><Icon name="ti-user-shield" />Sub-tenant impersonation</h3>
+            <p className="text-2xs text-muted mt-0.5">{impAllowed ? 'This reseller can “View as” (sign in as) their sub-tenants.' : 'Off — this reseller cannot impersonate their sub-tenants (our default). Grant only if needed.'}</p>
+          </div>
+          <button onClick={toggleImp} disabled={!editMode} title={!editMode ? 'Turn on Edit mode to change' : ''} className={`btn h-8 py-0 ${impAllowed ? 'btn-danger' : 'btn-primary'} ${!editMode ? 'opacity-50' : ''}`}>{impAllowed ? 'Revoke access' : 'Grant access'}</button>
+        </div>
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-line flex items-center justify-between gap-3">
             <div><h3 className="text-sm font-semibold text-content">Sub-tenants</h3><p className="text-2xs text-muted">Workspaces created under {tenant.org_name}. Click one to manage it.</p></div>
@@ -455,6 +466,7 @@ export default function TenantDetail() {
             </table></div>
           )}
         </div>
+        </>
       )}
 
       {tab === 'danger' && (
