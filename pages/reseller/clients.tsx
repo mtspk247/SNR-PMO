@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
+import ResellerOverview from '@/components/ResellerOverview';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import {
   resellerListOrgs, resellerPendingInvites, resellerCreateInvite,
+  resellerBillingSummary, resellerListPrices,
   adminImpersonateLink, snapshotList,
-  ResellerOrg, ResellerInvite, WorkspaceSnapshot,
+  ResellerOrg, ResellerInvite, WorkspaceSnapshot, ResellerBilling, ResellerPlanPrice,
 } from '@/lib/db';
 
 const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
@@ -20,6 +22,9 @@ export default function ResellerClientsPage() {
 
   // Data
   const [orgs, setOrgs] = useState<ResellerOrg[] | null>(null);
+  const [tab, setTab] = useState<'overview' | 'clients'>('overview');
+  const [billing, setBilling] = useState<ResellerBilling | null>(null);
+  const [prices, setPrices] = useState<ResellerPlanPrice[]>([]);
   const [invites, setInvites] = useState<ResellerInvite[]>([]);
   const [snaps, setSnaps] = useState<WorkspaceSnapshot[]>([]);
   const [err, setErr] = useState('');
@@ -45,6 +50,8 @@ export default function ResellerClientsPage() {
   const load = () => {
     if (!org) return;
     resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); });
+    resellerBillingSummary(org.id).then(setBilling).catch(() => {});
+    resellerListPrices(org.id).then(setPrices).catch(() => {});
     resellerPendingInvites(org.id).then(setInvites).catch(() => {});
     snapshotList(org.id).then(setSnaps).catch(() => {});
   };
@@ -125,6 +132,19 @@ export default function ResellerClientsPage() {
         </p>
       )}
 
+      <Tabs active={tab} onChange={(k) => setTab(k as 'overview' | 'clients')} tabs={[
+        { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
+        { key: 'clients', label: 'All clients', icon: 'ti-list', count: orgs?.length },
+      ]} />
+
+      {tab === 'overview' && (
+        orgs === null ? <div className="card p-8"><Spinner /></div>
+        : orgs.length === 0 ? <div className="card p-8"><EmptyState icon="ti-buildings" text="No clients yet — invite one to get started." /></div>
+        : <ResellerOverview orgs={orgs} billing={billing} prices={prices} agencyPlan={org.plan} />
+      )}
+
+      {tab === 'clients' && (
+        <>
       {/* Filter bar */}
       {orgs && orgs.length > 0 && (
         <div className="card p-3 mb-4 flex flex-wrap items-center gap-2">
@@ -249,6 +269,8 @@ export default function ResellerClientsPage() {
             </table>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Invite sub-tenant modal */}

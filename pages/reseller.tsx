@@ -16,16 +16,15 @@ import {
   WorkspaceSnapshot, ResellerConnectStatus, ResellerPlanPrice, SelfSignupConfig,
   updateOrgSettings,
 } from '@/lib/db';
-import ResellerOverview from '@/components/ResellerOverview';
 
-type TabKey = 'overview' | 'pricing' | 'snapshots' | 'payments';
+type TabKey = 'plans' | 'payments' | 'snapshots' | 'coowners';
 
 export default function ResellerPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
-  const [tab, setTab] = useState<TabKey>('overview');
+  const [tab, setTab] = useState<TabKey>('plans');
   const router = useRouter();
-  useEffect(() => { const t = router.query.tab; if (typeof t === 'string' && ['overview','pricing','snapshots','payments'].includes(t)) setTab(t as TabKey); }, [router.query.tab]);
+  useEffect(() => { const t = router.query.tab; if (typeof t === 'string' && ['plans','payments','snapshots','coowners'].includes(t)) setTab(t as TabKey); }, [router.query.tab]);
 
   // Co-owner invite
   const [coOpen, setCoOpen] = useState(false); const [coEmail, setCoEmail] = useState(''); const [coBusy, setCoBusy] = useState(false); const [coLink, setCoLink] = useState<string | null>(null); const [coErr, setCoErr] = useState(''); const [coCopied, setCoCopied] = useState(false);
@@ -150,13 +149,8 @@ export default function ResellerPage() {
     <Layout flat title="Reseller">
       <PageHeader
         title="Reseller"
-        subtitle="Create and manage your own sub-tenants — each gets its own workspace under your brand"
+        subtitle="Set up and manage your reselling business — plans, payments, snapshots and co-owners"
         icon="ti-building-community"
-        action={
-          <button className="btn" onClick={() => { setCoOpen(true); setCoLink(null); setCoErr(''); }} title="Invite a co-owner to help manage your reseller account">
-            <Icon name="ti-user-plus" />Invite co-owner
-          </button>
-        }
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
@@ -164,24 +158,15 @@ export default function ResellerPage() {
         active={tab}
         onChange={(k) => setTab(k as TabKey)}
         tabs={[
-          { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
-          { key: 'pricing', label: 'Pricing', icon: 'ti-tag' },
-          { key: 'snapshots', label: 'Snapshots', icon: 'ti-camera', count: snaps.length || undefined },
+          { key: 'plans', label: 'Plans & features', icon: 'ti-package' },
           { key: 'payments', label: 'Payments & signup', icon: 'ti-credit-card' },
+          { key: 'snapshots', label: 'Snapshots', icon: 'ti-camera', count: snaps.length || undefined },
+          { key: 'coowners', label: 'Co-owners', icon: 'ti-users' },
         ]}
       />
 
-      {/* ── Overview tab ── */}
-      {tab === 'overview' && (
-        orgs === null
-          ? <div className="card p-8"><Spinner /></div>
-          : orgs.length === 0
-            ? <div className="card p-8"><EmptyState icon="ti-buildings" text="No sub-tenants yet — invite one to get started." /></div>
-            : <ResellerOverview orgs={orgs} billing={billing} prices={prices} agencyPlan={org.plan} />
-      )}
-
       {/* ── Pricing tab ── */}
-      {tab === 'pricing' && (
+      {tab === 'plans' && (
         <div className="card overflow-hidden mb-6">
           <div className="px-4 py-3 border-b border-line">
             <h3 className="text-sm font-semibold">Sub-tenant pricing</h3>
@@ -355,6 +340,14 @@ export default function ResellerPage() {
       )}
 
       {/* Co-owner invite modal */}
+      {tab === 'coowners' && (
+        <div className="card p-5 max-w-2xl">
+          <h3 className="text-sm font-semibold flex items-center gap-2"><Icon name="ti-users" />Co-owners</h3>
+          <p className="text-2xs text-muted mt-1 mb-3">Invite a co-owner to help manage your reseller account — your clients, plans, snapshots and payments. They get admin access to this workspace only; they can’t see other resellers or the platform.</p>
+          <button className="btn btn-primary" onClick={() => { setCoOpen(true); setCoLink(null); setCoErr(''); }}><Icon name="ti-user-plus" />Invite co-owner</button>
+        </div>
+      )}
+
       <Modal open={coOpen} onClose={() => setCoOpen(false)} title="Invite a co-owner" icon="ti-user-plus" size="sm" onSubmit={submitCo}
         footer={<><button className="btn" onClick={() => setCoOpen(false)}>Close</button><button className="btn btn-primary" disabled={coBusy || !coEmail.trim()} onClick={submitCo}>{coBusy ? 'Inviting…' : 'Send invite'}</button></>}>
         <div className="space-y-3">
