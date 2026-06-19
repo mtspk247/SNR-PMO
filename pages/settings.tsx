@@ -223,6 +223,7 @@ export default function SettingsPage() {
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
+  const [brandName, setBrandName] = useState('');
   const [logoPicker, setLogoPicker] = useState(false);
   const [logoErr, setLogoErr] = useState('');
   const [primary, setPrimary] = useState(DEFAULTS.primary);
@@ -239,6 +240,7 @@ export default function SettingsPage() {
     const b = org.branding || {};
     setName(org.name || '');
     setLogo(b.logo_url || '');
+    setBrandName((b as { name?: string }).name || '');
     setPrimary(b.primary_color || DEFAULTS.primary);
     setAccent(b.accent_color || DEFAULTS.accent);
     setSkin(normalizeSkin(org.theme_skin));
@@ -281,6 +283,7 @@ export default function SettingsPage() {
     const branding = {
       ...(org.branding || {}),
       logo_url: logo.trim() || undefined,
+      name: brandName.trim() || undefined,
       // Treat the stock defaults as "no custom brand" so the chosen skin's accent
       // shows; a genuinely customised colour still persists and overrides the skin.
       primary_color: primary && primary.toLowerCase() !== DEFAULTS.primary.toLowerCase() ? primary : undefined,
@@ -460,6 +463,11 @@ export default function SettingsPage() {
                     </div>
                     <p className="text-2xs text-muted leading-relaxed">Your workspace logo is managed in <button type="button" onClick={() => setTab('business')} className="text-accentstrong hover:underline font-medium">Profile → Workspace &amp; logo</button>. It’s the single logo used across the app, the login screen and emails — set it once there.</p>
                   </div>
+                </div>
+                <div>
+                  <label className="label">Brand name <span className="text-muted2">(white-label)</span></label>
+                  <input className="input" value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder={org.name} maxLength={40} />
+                  <p className="text-2xs text-muted mt-1">Your product name — shown in the browser tab and the install prompt, and it cascades to your sub-tenants. Leave blank to use the workspace name.</p>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <ColorField label="Primary" value={primary} onChange={setPrimary} />
