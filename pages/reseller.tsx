@@ -5,7 +5,7 @@ import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, ResellerOrg, ResellerInvite, ResellerBilling } from '@/lib/db';
+import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, snapshotList, snapshotCapture, snapshotDelete, ResellerOrg, ResellerInvite, ResellerBilling, WorkspaceSnapshot } from '@/lib/db';
 
 const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
 
@@ -19,9 +19,11 @@ export default function ResellerPage() {
   const [email, setEmail] = useState(''); const [name, setName] = useState(''); const [plan, setPlan] = useState('pro');
   const [busy, setBusy] = useState(false); const [link, setLink] = useState<string | null>(null); const [copied, setCopied] = useState(false);
   const [viewMsg, setViewMsg] = useState('');
+  const [snaps, setSnaps] = useState<WorkspaceSnapshot[]>([]);
+  const [snapName, setSnapName] = useState(''); const [snapBusy, setSnapBusy] = useState(false); const [snapId, setSnapId] = useState(''); const [snapMsg, setSnapMsg] = useState('');
   const viewAsSub = async (subId: string, nm: string) => { setViewMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ sub: subId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setViewMsg(`Sign-in link for ${nm} copied — open it in a private window to view that workspace.`); setTimeout(() => setViewMsg(''), 8000); } catch (e: any) { setViewMsg(e.message || 'Failed'); } };
 
-  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); };
+  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); snapshotList(org.id).then(setSnaps).catch(() => {}); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
 
   if (!org?.is_reseller || !can.manageMembers(org)) {
@@ -30,10 +32,12 @@ export default function ResellerPage() {
 
   const submit = async () => {
     if (!org || !email.trim() || !name.trim()) return; setBusy(true); setErr(''); setLink(null);
-    try { const r = await resellerCreateInvite(org.id, email.trim(), name.trim(), plan); setLink(r.link); setEmail(''); setName(''); load(); }
+    try { const r = await resellerCreateInvite(org.id, email.trim(), name.trim(), plan, snapId || null); setLink(r.link); setEmail(''); setName(''); load(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
   const copy = (l: string) => { try { navigator.clipboard?.writeText(l); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ } };
+  const saveSnap = async () => { if (!org || !snapName.trim()) return; setSnapBusy(true); setSnapMsg(''); try { await snapshotCapture(org.id, snapName.trim()); setSnapName(''); setSnapMsg('Snapshot saved'); snapshotList(org.id).then(setSnaps).catch(() => {}); setTimeout(() => setSnapMsg(''), 2500); } catch (e: any) { setSnapMsg(e.message || 'Failed'); } finally { setSnapBusy(false); } };
+  const delSnap = async (id: string) => { if (!org) return; try { await snapshotDelete(id); setSnaps((s2) => s2.filter((x) => x.id !== id)); if (snapId === id) setSnapId(''); } catch (e: any) { setSnapMsg(e.message || 'Failed'); } };
 
   return (
     <Layout flat title="Reseller">
@@ -55,6 +59,27 @@ export default function ResellerPage() {
           <p className="text-2xs text-muted mt-2">You’re billed by the platform on these sub-tenants/seats; you bill your own clients directly.</p>
         </div>
       )}
+
+      <div className="card overflow-hidden mb-6">
+        <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Snapshots</h3><p className="text-2xs text-muted">Save this workspace’s setup (lists, statuses, tags, theme) and clone it into new sub-tenants on creation.</p></div>
+        <div className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <input className="input flex-1" placeholder="Snapshot name (e.g. Agency starter)" value={snapName} onChange={(e) => setSnapName(e.target.value)} />
+            <button className="btn btn-primary whitespace-nowrap" disabled={snapBusy || !snapName.trim()} onClick={saveSnap}><Icon name="ti-camera" />{snapBusy ? 'Saving…' : 'Save snapshot'}</button>
+          </div>
+          {snapMsg && <p className="text-2xs text-accentstrong">{snapMsg}</p>}
+          {snaps.length === 0 ? <p className="text-2xs text-muted2">No snapshots yet — save one from a configured workspace, then pick it when inviting a sub-tenant.</p> : (
+            <ul className="divide-y divide-line border border-line rounded-lg">
+              {snaps.map((sn) => (
+                <li key={sn.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span className="truncate"><span className="font-medium text-content">{sn.name}</span>{sn.description ? <span className="text-2xs text-muted2"> — {sn.description}</span> : null}</span>
+                  <button onClick={() => delSnap(sn.id)} className="btn-ghost text-2xs text-rose-600" title="Delete snapshot"><Icon name="ti-trash" /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
 
       <div className="card overflow-hidden mb-6">
         <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Your sub-tenants</h3></div>
@@ -86,6 +111,7 @@ export default function ResellerPage() {
           <Field label="Workspace name" required><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Client workspace name" /></Field>
           <Field label="Owner email" required><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@client.com" /></Field>
           <Field label="Plan"><Select value={plan} onChange={setPlan} options={PLANS} /></Field>
+          <Field label="Start from snapshot"><Select value={snapId} onChange={setSnapId} options={[{ value: '', label: 'None (empty workspace)' }, ...snaps.map((sn) => ({ value: sn.id, label: sn.name }))]} /></Field>
           {link && <div className="rounded-lg border border-emerald-400/40 bg-emerald-500/5 p-3"><p className="text-2xs text-muted mb-1.5">Invite link — share it with the sub-tenant owner:</p><div className="flex items-center gap-2"><input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="input text-2xs flex-1" /><button onClick={() => copy(link)} className="btn-ghost text-2xs"><Icon name="ti-copy" />{copied ? 'Copied' : 'Copy'}</button></div></div>}
           {err && <p className="text-2xs text-rose-600">{err}</p>}
         </div>

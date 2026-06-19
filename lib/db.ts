@@ -2956,8 +2956,19 @@ export interface ResellerBilling { sub_count: number; active: number; total_seat
 export async function resellerBillingSummary(reseller: string): Promise<ResellerBilling> {
   const { data, error } = await sb.rpc('reseller_billing_summary', { p_reseller: reseller }); if (error) throw new Error(error.message); return (data as ResellerBilling) || { sub_count: 0, active: 0, total_seats: 0, by_plan: {} };
 }
-export async function resellerCreateInvite(reseller: string, email: string, orgName: string, planKey: string): Promise<{ link: string; token: string; email: string }> {
-  const { data, error } = await sb.rpc('reseller_create_invite', { p_reseller: reseller, p_email: email, p_org_name: orgName, p_plan_key: planKey }); if (error) throw new Error(error.message); return data as { link: string; token: string; email: string };
+export async function resellerCreateInvite(reseller: string, email: string, orgName: string, planKey: string, snapshotId?: string | null): Promise<{ link: string; token: string; email: string }> {
+  const { data, error } = await sb.rpc('reseller_create_invite', { p_reseller: reseller, p_email: email, p_org_name: orgName, p_plan_key: planKey, p_snapshot_id: snapshotId ?? null }); if (error) throw new Error(error.message); return data as { link: string; token: string; email: string };
+}
+// Snapshots (cloneable workspaces) — capture self-contained config; apply on sub-tenant create.
+export interface WorkspaceSnapshot { id: string; name: string; description: string | null; created_at: string; }
+export async function snapshotList(org: string): Promise<WorkspaceSnapshot[]> {
+  const { data, error } = await sb.from('workspace_snapshots').select('id, name, description, created_at').eq('owner_org_id', org).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return (data as WorkspaceSnapshot[]) || [];
+}
+export async function snapshotCapture(sourceOrg: string, name: string, description?: string | null): Promise<string> {
+  const { data, error } = await sb.rpc('snapshot_capture', { p_source_org: sourceOrg, p_name: name, p_description: description ?? null }); if (error) throw new Error(error.message); return data as string;
+}
+export async function snapshotDelete(id: string): Promise<void> {
+  const { error } = await sb.from('workspace_snapshots').delete().eq('id', id); if (error) throw new Error(error.message);
 }
 export async function setTenantReseller(orgId: string, on: boolean): Promise<void> {
   const { error } = await sb.rpc('platform_set_reseller', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);
