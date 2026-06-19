@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '@/components/ui';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
@@ -36,8 +37,10 @@ export default function OnboardingWizard() {
   const canBrand = isReseller || (org?.features || []).includes('white_label');
   const isPlatformHome = !!(org as { is_platform_home?: boolean } | null)?.is_platform_home;
 
-  const eligible = !!org && hydrated && isAdmin && !isPlatformHome
-    && !org.onboarding?.completed_at && !org.onboarding?.skipped;
+  const router = useRouter();
+  const forced = router.query.setup === '1';   // Settings -> "Re-run setup wizard"
+  const active = !!org && hydrated && isAdmin && !isPlatformHome
+    && (forced || (!org?.onboarding?.completed_at && !org?.onboarding?.skipped));
 
   // Build the step list for this tenant's plan/role.
   const steps = useMemo<StepKey[]>(() => {
@@ -50,7 +53,7 @@ export default function OnboardingWizard() {
     return s;
   }, [canBrand, isReseller]);
 
-  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [idx, setIdx] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -81,7 +84,7 @@ export default function OnboardingWizard() {
   const [connectOk, setConnectOk] = useState(false);
 
   useEffect(() => {
-    if (!eligible || !org) return;
+    if (!active || !org) return;
     if (loadedFor.current === org.id) return;
     loadedFor.current = org.id;
     const b = (org.branding || {}) as OrgBranding;
@@ -91,8 +94,7 @@ export default function OnboardingWizard() {
     setPrimary(b.primary_color || DEFAULT_PRIMARY);
     setAccent(b.accent_color || '#6366f1');
     setTemplate(b.site_template || 'classic');
-    setIdx(Math.min(Math.max(org.onboarding?.step ?? 0, 0), steps.length - 1));
-    setOpen(true);
+    setIdx(forced ? 0 : Math.min(Math.max(org.onboarding?.step ?? 0, 0), steps.length - 1));
     // Pull profile + reseller context in the background.
     getOrgProfile(org.id).then((p: OrgProfile) => {
       setIndustry(p.industry || ''); setCategory(p.category || '');
@@ -109,9 +111,9 @@ export default function OnboardingWizard() {
       }).catch(() => {});
       resellerConnectStatus(org.id).then((s) => setConnectOk(!!s.charges_enabled)).catch(() => {});
     }
-  }, [eligible, org, steps.length, isReseller]);
+  }, [active, org, steps.length, isReseller, forced]);
 
-  if (!eligible || !open || !org) return null;
+  if (!active || dismissed || !org) return null;
 
   const step = steps[idx];
   const pct = Math.round((idx / (steps.length - 1)) * 100);
@@ -177,7 +179,8 @@ export default function OnboardingWizard() {
       patchOrg({ id: org!.id, onboarding: { ...(org!.onboarding || {}), completed_at: new Date().toISOString() } });
     } catch { /* non-fatal */ }
     setBusy(false);
-    setOpen(false);
+    setDismissed(true);
+    if (forced) router.replace('/dashboard', undefined, { shallow: true });
   }
 
   async function skipAll() {
@@ -187,7 +190,8 @@ export default function OnboardingWizard() {
       patchOrg({ id: org!.id, onboarding: { ...(org!.onboarding || {}), skipped: true, completed_at: new Date().toISOString() } });
     } catch { /* non-fatal */ }
     setBusy(false);
-    setOpen(false);
+    setDismissed(true);
+    if (forced) router.replace('/dashboard', undefined, { shallow: true });
   }
 
   async function verifyDomain() {

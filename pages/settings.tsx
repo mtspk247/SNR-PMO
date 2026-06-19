@@ -342,7 +342,7 @@ export default function SettingsPage() {
       {admin && (
         <Tabs tabs={[
           { key: 'business', label: 'Profile', icon: 'ti-id-badge-2' },
-          { key: 'branding', label: 'Branding', icon: 'ti-palette' },
+          { key: 'branding', label: 'Brand', icon: 'ti-palette' },
           { key: 'themes', label: 'Themes', icon: 'ti-color-swatch' },
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
           { key: 'lists', label: 'Lists & options', icon: 'ti-list-details' },
@@ -381,32 +381,11 @@ export default function SettingsPage() {
                 orgId={org.id}
                 leadingTab={{
                   id: 'workspace',
-                  label: 'Workspace & logo',
+                  label: 'Workspace',
                   icon: 'ti-building-store',
                   render: () => (
                     <div className="space-y-5">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-lg border border-line bg-surface2 grid place-items-center overflow-hidden shrink-0">
-                          {logo && logo.startsWith('preset:') ? <span className="w-full h-full grid place-items-center text-2xl" style={{ background: presetColor(logo.slice(7)) }}>{logo.slice(7)}</span>
-                            : logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center gap-2">
-                            <label className="btn btn-ghost text-xs cursor-pointer border border-line"><Icon name="ti-upload" className="text-sm" /> Upload logo<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={onLogoFile} /></label>
-                            <button type="button" onClick={() => setLogoPicker((v) => !v)} className="btn btn-ghost text-xs border border-line"><Icon name="ti-mood-smile" className="text-sm" />Use an avatar</button>
-                            {logo && <button type="button" onClick={() => { setLogo(''); setLogoPicker(false); }} className="btn btn-ghost text-xs text-rose-600">Remove</button>}
-                          </div>
-                          {logoErr && <span className="text-2xs text-rose-600">{logoErr}</span>}
-                          <span className="text-2xs text-muted">Square image, at least 256×256px, under 1.5 MB — or pick an avatar. Shown top-left, on invoices and emails.</span>
-                        </div>
-                      </div>
-                      {logoPicker && (
-                        <div className="grid grid-cols-8 sm:grid-cols-12 gap-2 p-3 rounded-lg border border-line bg-surface2/40">
-                          {PRESET_AVATARS.map((e) => (
-                            <button key={e} type="button" onClick={() => { setLogo('preset:' + e); setLogoPicker(false); }} style={{ background: presetColor(e) }} className={`w-9 h-9 rounded-lg grid place-items-center text-lg transition hover:scale-110 ${logo === 'preset:' + e ? 'ring-2 ring-offset-2 ring-accent' : ''}`}>{e}</button>
-                          ))}
-                        </div>
-                      )}
+                      <p className="text-2xs text-muted flex items-center gap-1.5"><Icon name="ti-info-circle" className="text-sm" />Your logo, brand name and colours now live in <button type="button" onClick={() => setTab('branding')} className="text-accentstrong hover:underline font-medium">Settings → Brand</button>.</p>
                       <div className="grid sm:grid-cols-2 gap-4">
                         <div><label className="label">Workspace name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." /></div>
                         <div><label className="label">Workspace subdomain</label><div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface2 text-sm text-muted"><Icon name="ti-world" /><span className="font-mono text-content">{org.slug}</span><span className="text-muted">.yourdomain.com</span></div></div>
@@ -456,13 +435,32 @@ export default function SettingsPage() {
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 card p-6 space-y-5">
                 <div>
-                  <label className="label">Logo</label>
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-lg border border-line bg-surface2 grid place-items-center overflow-hidden shrink-0">
-                      {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
-                    </div>
-                    <p className="text-2xs text-muted leading-relaxed">Your workspace logo is managed in <button type="button" onClick={() => setTab('business')} className="text-accentstrong hover:underline font-medium">Profile → Workspace &amp; logo</button>. It’s the single logo used across the app, the login screen and emails — set it once there.</p>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="label !mb-0">Logo</label>
+                    <button type="button" onClick={() => router.push('/dashboard?setup=1')} className="text-2xs text-accentstrong hover:underline font-medium inline-flex items-center gap-1"><Icon name="ti-rocket" className="text-xs" />Re-run setup wizard</button>
                   </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-lg border border-line bg-surface2 grid place-items-center overflow-hidden shrink-0">
+                      {logo && logo.startsWith('preset:') ? <span className="w-full h-full grid place-items-center text-2xl" style={{ background: presetColor(logo.slice(7)) }}>{logo.slice(7)}</span>
+                        : logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Icon name="ti-photo" className="text-muted2 text-xl" />}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <label className="btn btn-ghost text-xs cursor-pointer border border-line"><Icon name="ti-upload" className="text-sm" /> Upload logo<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={onLogoFile} /></label>
+                        <button type="button" onClick={() => setLogoPicker((v) => !v)} className="btn btn-ghost text-xs border border-line"><Icon name="ti-mood-smile" className="text-sm" />Use an avatar</button>
+                        {logo && <button type="button" onClick={() => { setLogo(''); setLogoPicker(false); }} className="btn btn-ghost text-xs text-rose-600">Remove</button>}
+                      </div>
+                      {logoErr && <span className="text-2xs text-rose-600">{logoErr}</span>}
+                      <span className="text-2xs text-muted">The single logo used across the app, the login screen and emails.</span>
+                    </div>
+                  </div>
+                  {logoPicker && (
+                    <div className="grid grid-cols-8 sm:grid-cols-12 gap-2 p-3 rounded-lg border border-line bg-surface2/40 mt-3">
+                      {PRESET_AVATARS.map((e) => (
+                        <button key={e} type="button" onClick={() => { setLogo('preset:' + e); setLogoPicker(false); }} style={{ background: presetColor(e) }} className={`w-9 h-9 rounded-lg grid place-items-center text-lg transition hover:scale-110 ${logo === 'preset:' + e ? 'ring-2 ring-offset-2 ring-accent' : ''}`}>{e}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="label">Brand name <span className="text-muted2">(white-label)</span></label>
