@@ -183,6 +183,18 @@ export default function ResellerPage() {
     } finally { setSsBusy(false); }
   };
 
+  const saveTemplate = async (tpl: string) => {
+    if (!org) return;
+    setTplBusy(true); setTplMsg('');
+    try {
+      const updated = await updateOrgSettings(org.id, { branding: { ...(org.branding || {}), site_template: tpl } });
+      patchOrg({ id: org.id, branding: updated.branding });
+      setTplMsg('Saved'); setTimeout(() => setTplMsg(''), 2000);
+    } catch (e: any) {
+      setTplMsg(e.message || 'Failed to save');
+    } finally { setTplBusy(false); }
+  };
+
   const savePrice = async () => {
     if (!org) return;
     const cents = Math.round(parseFloat(pAmt) * 100);
@@ -497,6 +509,41 @@ export default function ResellerPage() {
                 </>
               )}
               {ssMsg && <p className="text-2xs text-muted">{ssMsg}</p>}
+            </div>
+          </div>
+
+          {/* Landing page style */}
+          <div className="card overflow-hidden">
+            <div className="px-4 py-3 border-b border-line">
+              <h3 className="text-sm font-semibold">Landing page style</h3>
+              <p className="text-2xs text-muted">Choose the visual template visitors see on your branded domain.</p>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-2xs text-muted block mb-1">Template</label>
+                <Select
+                  value={(org?.branding as any)?.site_template || 'classic'}
+                  onChange={(v) => saveTemplate(v)}
+                  options={[
+                    { value: 'classic', label: 'Classic — branded, balanced layout' },
+                    { value: 'minimal', label: 'Minimal — whitespace-first, type-forward' },
+                    { value: 'bold', label: 'Bold — high-contrast, energetic, display type' },
+                  ]}
+                />
+              </div>
+              {tplMsg && <p className="text-2xs text-muted">{tplMsg}</p>}
+              {tplBusy && <p className="text-2xs text-muted">Saving…</p>}
+              {ss?.custom_domain && ss?.domain_verified && (
+                <p className="text-2xs text-muted">
+                  Preview your site →{' '}
+                  <a href={`https://${ss.custom_domain}`} target="_blank" rel="noopener noreferrer" className="underline">
+                    https://{ss.custom_domain}
+                  </a>
+                </p>
+              )}
+              {(!ss?.custom_domain || !ss?.domain_verified) && (
+                <p className="text-2xs text-muted2">Verify your custom domain (Settings ▸ Branding / domain) to preview the live landing page.</p>
+              )}
             </div>
           </div>
 
