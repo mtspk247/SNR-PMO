@@ -210,7 +210,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
           {!collapsed && orgMenu && orgs.length > 0 && (
             <div className="absolute left-2 right-2 top-14 z-20 bg-surface text-content rounded-md border border-line shadow-lg py-1">
               {orgs.map((o) => (
-                <button key={o.id} onClick={() => { setActiveOrg(o.id); setOrgMenu(false); }}
+                <button key={o.id} onClick={() => { setOrgMenu(false); if (o.id !== activeOrg?.id) { setActiveOrg(o.id); router.push('/dashboard'); } }}
                   className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface2 ${o.id === activeOrg?.id ? 'font-medium' : ''}`}>
                   <span className="truncate">{o.name}</span>
                   <span className="text-2xs text-muted2">{roleLabel(o.member_role)}</span>
