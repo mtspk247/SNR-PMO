@@ -5,7 +5,7 @@ import type { AppProps } from 'next/app';
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { sb, FEATURES } from '@/lib/supabase';
-import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, isPlatformAdmin, ensurePersonalWorkspace } from '@/lib/db';
+import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, isPlatformAdmin, ensurePersonalWorkspace, claimPendingInvite } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import { ErrorBoundary } from '@/components/ui';
@@ -61,8 +61,12 @@ export default function App({ Component, pageProps }: AppProps) {
         if (!active) return;
         if (!user) { clear(); return; }
         let orgs = await getMyOrgs(user.id);
-        // Open self-serve: a signed-in user with no workspace (e.g. Google sign-in)
-        // gets a free personal workspace auto-provisioned (skipped if they have a pending invite).
+        // A signed-in user with no workspace: FIRST claim any pending invite (e.g. a reseller
+        // sub-tenant) so they land in the right workspace instead of a throwaway personal one.
+        if (orgs.length === 0) {
+          try { const claimed = await claimPendingInvite(); if (claimed) orgs = await getMyOrgs(user.id); } catch { /* ignore */ }
+        }
+        // Otherwise (open self-serve, e.g. Google sign-in) auto-provision a free personal workspace.
         if (orgs.length === 0) {
           try { const r = await ensurePersonalWorkspace(); if (r?.created) orgs = await getMyOrgs(user.id); } catch { /* ignore */ }
         }

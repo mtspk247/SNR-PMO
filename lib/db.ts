@@ -2514,6 +2514,9 @@ export async function revokeMemberInvite(id: string): Promise<void> {
   const { error } = await sb.rpc('org_revoke_member_invite', { p_id: id }); if (error) throw new Error(error.message);
 }
 export interface InvitePreview { valid: boolean; reason?: string; email?: string; role?: string; plan?: string; new_org?: boolean; org_name?: string | null; kind?: 'org' | 'platform'; }
+export async function claimPendingInvite(): Promise<string | null> {
+  const { data, error } = await sb.rpc('claim_pending_invite'); if (error) return null; return (data as string) || null;
+}
 export async function invitePreview(token: string): Promise<InvitePreview> {
   const { data, error } = await sb.rpc('invite_preview', { p_token: token }); if (error) throw new Error(error.message); return data as InvitePreview;
 }

@@ -113,7 +113,7 @@ export const Tabs = ({ tabs, active, onChange }: {
   active: string;
   onChange: (key: string) => void;
 }) => (
-  <div className="flex items-center gap-1 border-b border-line mb-4 overflow-x-auto">
+  <div className="flex items-center gap-1 border-b border-line mb-4 overflow-x-auto overflow-y-hidden">
     {tabs.map((t) => (
       <button key={t.key} onClick={() => onChange(t.key)}
         className={`relative flex items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap transition -mb-px border-b-2
