@@ -49,6 +49,7 @@ export default function TenantDetail() {
   const patchOrg = useAuthStore((s) => s.patchOrg);
 
   const [tenant, setTenant] = useState<any | null>(null);
+  const [subs, setSubs] = useState<any[]>([]);
   const [info, setInfo] = useState<TenantInfo | null>(null);
   const [usage, setUsage] = useState<TenantUsage | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -92,6 +93,7 @@ export default function TenantDetail() {
         if (!active) return;
         if (!t) { setNotFound(true); setLoading(false); return; }
         setTenant(t);
+        setSubs(rows.filter((r: any) => r.parent_org_id === orgId));
         refreshUsage(); refreshSnaps(); loadDomain();
         getOrgActivity(orgId).then(setActivity).catch(() => {});
         tenantUsers(orgId).then(setUsers).catch(() => setUsers([]));
@@ -185,6 +187,7 @@ export default function TenantDetail() {
         { key: 'users', label: 'Users', icon: 'ti-users' },
         { key: 'plan', label: 'Plan & features', icon: 'ti-package' },
         { key: 'lifecycle', label: 'Lifecycle & billing', icon: 'ti-timeline' },
+        ...(tenant?.is_reseller ? [{ key: 'subtenants', label: 'Sub-tenants', icon: 'ti-buildings' }] : []),
         { key: 'profile', label: 'Profile', icon: 'ti-id-badge-2' },
         { key: 'domain', label: 'Custom domain', icon: 'ti-world' },
         { key: 'danger', label: 'Danger zone', icon: 'ti-alert-triangle' },
@@ -417,6 +420,34 @@ export default function TenantDetail() {
               <p className="text-2xs text-muted mt-1">Paid invoices appear here once Stripe is connected (Platform → Billing).</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {tab === 'subtenants' && (
+        <div className="card overflow-hidden">
+          <div className="px-4 py-3 border-b border-line flex items-center justify-between gap-3">
+            <div><h3 className="text-sm font-semibold text-content">Sub-tenants</h3><p className="text-2xs text-muted">Workspaces created under {tenant.org_name}. Click one to manage it.</p></div>
+            <span className="pill pill-gray">{subs.length} total</span>
+          </div>
+          {subs.length === 0 ? <div className="p-8"><EmptyState icon="ti-buildings" text="No sub-tenants yet — this reseller hasn't onboarded any clients." /></div> : (
+            <div className="overflow-x-auto"><table className="w-full text-sm">
+              <thead className="bg-surface2/60 text-muted2 text-left text-2xs uppercase tracking-wider font-semibold">
+                <tr><th className="px-4 py-2.5">Workspace</th><th className="px-4 py-2.5">Plan</th><th className="px-4 py-2.5">Members</th><th className="px-4 py-2.5">Seats</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5"></th></tr>
+              </thead>
+              <tbody>
+                {subs.map((sub) => (
+                  <tr key={sub.org_id} className="border-t border-line hover:bg-surface2/60 cursor-pointer transition-colors" onClick={() => router.push(`/tenants/${sub.org_id}`)}>
+                    <td className="px-4 py-3"><span className="font-medium text-content">{sub.org_name}</span><span className="block text-2xs text-muted2">{sub.slug}</span></td>
+                    <td className="px-4 py-3 text-muted capitalize">{sub.plan_name || sub.plan_key || 'free'}</td>
+                    <td className="px-4 py-3 text-muted tabular-nums">{sub.member_count ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted tabular-nums">{sub.seats ?? 0}{sub.seat_limit ? ` / ${sub.seat_limit}` : ''}</td>
+                    <td className="px-4 py-3"><span className={`pill ${sub.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{sub.sub_status || 'free'}</span></td>
+                    <td className="px-4 py-3 text-right"><Icon name="ti-chevron-right" className="text-muted2" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table></div>
+          )}
         </div>
       )}
 
