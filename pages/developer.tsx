@@ -10,7 +10,7 @@ const RESOURCES = ['tasks', 'projects', 'deals', 'contacts', 'companies', 'invoi
 
 type KeyRow = { id: string; name: string; key_prefix: string; scopes: string[]; last_used_at: string | null; revoked_at: string | null; created_at: string };
 
-const WH_EVENTS = ['task.created', 'deal.stage_changed', 'deal.won', 'invoice.paid'];
+const WH_EVENTS = ['task.created', 'deal.created', 'deal.stage_changed', 'deal.won', 'invoice.created', 'invoice.paid', 'project.created', 'client.created'];
 type Endpoint = { id: string; url: string; events: string[]; secret: string; active: boolean; created_at: string };
 type Delivery = { id: string; event_id: string | null; status: string; last_attempt_at: string | null };
 
