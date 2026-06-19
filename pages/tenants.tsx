@@ -22,7 +22,7 @@ const SOURCES = [
 ];
 const sourceLabel = (s?: string | null) => SOURCES.find((x) => x.value === s)?.label || (s || '—');
 
-type TenantGroup = { label: string; items: any[] };
+type TenantGroup = { label: string; items: any[]; count?: number };
 function groupsFor(rows: any[], groupBy: 'hierarchy' | 'plan' | 'none'): TenantGroup[] {
   if (groupBy === 'plan') {
     const m = new Map<string, any[]>();
@@ -36,7 +36,7 @@ function groupsFor(rows: any[], groupBy: 'hierarchy' | 'plan' | 'none'): TenantG
     const groups: TenantGroup[] = []; const claimed = new Set<string>();
     for (const rsl of resellers) {
       const subs = byParent.get(rsl.org_id) || [];
-      groups.push({ label: rsl.org_name + ' · reseller', items: [rsl, ...subs] });
+      groups.push({ label: rsl.org_name + ' · reseller', items: [rsl, ...subs], count: subs.length });
       claimed.add(rsl.org_id); subs.forEach((x) => claimed.add(x.org_id));
     }
     const others = rows.filter((r) => !claimed.has(r.org_id));
@@ -103,10 +103,10 @@ export default function TenantsPage() {
             <tbody>
               {groupsFor(rows, groupBy).map((g) => (
                 <Fragment key={g.label || 'all'}>
-                  {g.label && <GroupHeader label={g.label} count={g.items.length} asTableRow colSpan={6} />}
+                  {g.label && <GroupHeader label={g.label} count={g.count ?? g.items.length} asTableRow colSpan={6} />}
                   {g.items.map((t) => (
                     <tr key={t.org_id} className="border-t border-line hover:bg-surface2/60 cursor-pointer transition-colors" style={t.is_reseller ? { background: 'rgb(139 92 246 / .06)' } : undefined} onClick={() => router.push(`/tenants/${t.org_id}`)}>
-                      <td className="px-4 py-3"><span className="font-medium text-content">{t.parent_org_id ? '↳ ' : ''}{t.org_name}</span><span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` · under ${(rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller'}` : ''}</span></td>
+                      <td className="px-4 py-3"><span className="font-medium text-content">{t.parent_org_id ? '↳ ' : ''}{t.org_name}</span>{t.is_reseller && (() => { const n = (rows || []).filter((x: any) => x.parent_org_id === t.org_id).length; return <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-2xs font-medium text-violet-600 align-middle"><Icon name="ti-buildings" className="text-2xs" />{n} sub-tenant{n === 1 ? '' : 's'}</span>; })()}<span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` · under ${(rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller'}` : ''}</span></td>
                       <td className="px-4 py-3"><PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" /></td>
                       <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
                       <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
