@@ -24,6 +24,7 @@ export default function RolesManager() {
 
   const load = () => listRoleTemplates().then(setRoles).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
+  const prefs = useViewPrefs('snrpmo.roles.view', { view: 'cards', groupBy: 'type' });
 
   if (!can.manageMembers(org)) {
     return <div className="card p-10 text-center text-sm text-muted"><Icon name="ti-lock" className="text-2xl text-muted2 block mb-2" />You need admin access to manage roles.</div>;
@@ -54,7 +55,6 @@ export default function RolesManager() {
   };
 
   const permCount = (r: RoleTemplate) => Object.values(r.permissions).filter(Boolean).length;
-  const prefs = useViewPrefs('snrpmo.roles.view', { view: 'cards', groupBy: 'type' });
   const VIEWS = [{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }];
   const GROUPS = [{ value: 'none', label: 'No grouping' }, { value: 'type', label: 'Group: Type' }];
   const gKey = (r: RoleTemplate) => (r.is_system ? 'system' : 'custom');
