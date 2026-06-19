@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { sb } from '@/lib/supabase';
-import { invitePreview, acceptOrgInvite, InvitePreview } from '@/lib/db';
+import { invitePreview, acceptOrgInvite, resellerSelfSignupContext, resellerSelfSignup, InvitePreview, SelfSignupContext } from '@/lib/db';
 import { Icon } from '@/components/ui';
 import { useHostBranding } from '@/lib/useHostBranding';
 
@@ -125,13 +125,15 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [selfCtx, setSelfCtx] = useState<SelfSignupContext | null>(null);
+  const [wsName, setWsName] = useState(''); const [ssEmail, setSsEmail] = useState('');
   const brand = useHostBranding();
 
   useEffect(() => {
     if (!router.isReady) return;
     const t = typeof router.query.token === 'string' ? router.query.token : '';
     setToken(t);
-    if (!t) { setLoadingPreview(false); return; }
+    if (!t) { resellerSelfSignupContext(window.location.host).then(setSelfCtx).catch(() => {}).finally(() => setLoadingPreview(false)); return; }
     Promise.race([invitePreview(t), new Promise<never>((_, rej) => setTimeout(() => rej(new Error('We couldn’t verify your invitation — check your connection and try again.')), 12000))])
       .then((pv) => setPreview(pv as InvitePreview)).catch((e) => setError(e.message)).finally(() => setLoadingPreview(false));
     sb.auth.getSession().then(({ data }) => setSessionEmail(data.session?.user?.email ?? null)).catch(() => {});
@@ -141,6 +143,18 @@ export default function SignupPage() {
     setBusy(true); setError('');
     try { await acceptOrgInvite(token); window.location.href = '/dashboard'; }
     catch (e: any) { setError(e.message); setBusy(false); }
+  };
+
+  const selfSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wsName.trim() || !ssEmail.trim() || password.length < 8) return;
+    setBusy(true); setError(''); setInfo('');
+    try {
+      const { data, error: se } = await sb.auth.signUp({ email: ssEmail.trim(), password, options: { data: { full_name: fullName.trim() } } });
+      if (se) throw new Error(se.message);
+      if (data.session) { await resellerSelfSignup(window.location.host, wsName.trim()); window.location.href = '/dashboard'; }
+      else { setInfo('Account created. Check your email to confirm, then sign in to finish setting up your workspace.'); setBusy(false); }
+    } catch (err: any) { setError(err.message || 'Something went wrong.'); setBusy(false); }
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -170,6 +184,32 @@ export default function SignupPage() {
       </div>
     </Shell>
   );
+
+  /* ── Public self-serve signup on a reseller's verified domain (no token) ── */
+  if (!token && selfCtx?.enabled) {
+    return (
+      <Shell brand={brand}>
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-[1.4rem] font-semibold text-white tracking-tight">Create your {selfCtx.name || 'workspace'}</h2>
+            <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,.45)' }}>Start your free workspace — projects, CRM, HR and accounting in one place.</p>
+          </div>
+          {error && <div className="flex items-center gap-2 text-sm rounded-xl px-3.5 py-2.5" style={{ background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', color: '#f87171' }}><Icon name="ti-alert-circle" />{error}</div>}
+          {info && <div className="flex items-start gap-2 text-sm rounded-xl px-3.5 py-2.5" style={{ background: 'rgba(56,189,248,.08)', border: '1px solid rgba(56,189,248,.2)', color: '#7dd3fc' }}><Icon name="ti-mail" className="mt-0.5 shrink-0" />{info}</div>}
+          <form onSubmit={selfSubmit} className="space-y-4">
+            <div className="space-y-1.5"><label htmlFor="ss-ws" className="block text-xs font-medium" style={{ color: 'rgba(255,255,255,.55)' }}>Workspace name</label><StyledInput id="ss-ws" value={wsName} onChange={(e) => setWsName(e.target.value)} placeholder="Acme Inc" disabled={busy} autoFocus /></div>
+            <div className="space-y-1.5"><label htmlFor="ss-name" className="block text-xs font-medium" style={{ color: 'rgba(255,255,255,.55)' }}>Your name</label><StyledInput id="ss-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" disabled={busy} /></div>
+            <div className="space-y-1.5"><label htmlFor="ss-email" className="block text-xs font-medium" style={{ color: 'rgba(255,255,255,.55)' }}>Email</label><StyledInput id="ss-email" type="email" value={ssEmail} onChange={(e) => setSsEmail(e.target.value)} placeholder="you@company.com" required disabled={busy} /></div>
+            <div className="space-y-1.5"><label htmlFor="ss-pw" className="block text-xs font-medium" style={{ color: 'rgba(255,255,255,.55)' }}>Create a password</label><StyledInput id="ss-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" minLength={8} required disabled={busy} /></div>
+            <button className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all" style={{ background: 'linear-gradient(135deg, #3ECF8E 0%, #10b981 100%)', color: '#0a0a0a', boxShadow: '0 0 20px rgba(62,207,142,.25)', opacity: (busy || !wsName.trim() || !ssEmail.trim() || password.length < 8) ? '.5' : '1' }} disabled={busy || !wsName.trim() || !ssEmail.trim() || password.length < 8}>
+              {busy ? <Icon name="ti-loader-2" className="animate-spin" /> : 'Create my workspace'}
+            </button>
+            <p className="text-[11px] text-center" style={{ color: 'rgba(255,255,255,.3)' }}>Already have an account? <a href="/login" style={{ color: 'rgba(255,255,255,.6)' }}>Sign in</a>.</p>
+          </form>
+        </div>
+      </Shell>
+    );
+  }
 
   /* ── Invalid / expired / missing token ── */
   if (!token || !preview || !preview.valid) {
