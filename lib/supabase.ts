@@ -38,7 +38,7 @@ export interface Organization {
   theme_skin?: 'classic' | 'daylight' | 'vivid' | 'midnight' | null;
   allow_user_themes?: boolean;
   plan: 'free' | 'pro' | 'enterprise';
-  onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string } | null;
+  onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string; step?: number; skipped?: boolean } | null;
 }
 
 // #5 full tenant profile — editable contact/web/location/classification fields.

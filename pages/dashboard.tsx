@@ -3,6 +3,7 @@ import Link from 'next/link';
 import GridLayout, { WidthProvider } from 'react-grid-layout';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
+import OnboardingWizard from '@/components/OnboardingWizard';
 import FirstRunChecklist from '@/components/FirstRunChecklist';
 import WelcomeWizard from '@/components/WelcomeWizard';
 import ProfileCompletion from '@/components/ProfileCompletion';
@@ -535,6 +536,7 @@ export default function Dashboard() {
 
       <WelcomeWizard />
       <InstallPrompt />
+      <OnboardingWizard />
       <FirstRunChecklist />
       <ProfileCompletion />
 

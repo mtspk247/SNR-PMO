@@ -226,6 +226,13 @@ export async function saveOnboarding(orgId: string, name: string, meta: Record<s
   const { error } = await sb.rpc('save_onboarding', { p_org: orgId, p_name: name, p_meta: meta });
   if (error) throw new Error(error.message);
 }
+// Resumable onboarding-wizard state: merges patch into organizations.onboarding;
+// pass complete=true to stamp completed_at (finish or skip). Owner/admin gated.
+export async function setOnboardingState(orgId: string, patch: Record<string, any>, complete = false): Promise<Record<string, any>> {
+  const { data, error } = await sb.rpc('set_onboarding_state', { p_org: orgId, p_patch: patch, p_complete: complete });
+  if (error) throw new Error(error.message);
+  return (data || {}) as Record<string, any>;
+}
 export interface MyProfile { id: string; full_name: string | null; phone: string | null; job_title: string | null; avatar_url: string | null; }
 export async function getMyProfile(userId: string): Promise<MyProfile> {
   const { data, error } = await sb.from('users').select('id, full_name, phone, job_title, avatar_url').eq('id', userId).single();
