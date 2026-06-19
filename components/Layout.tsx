@@ -12,6 +12,7 @@ import NotificationBell from '@/components/NotificationBell';
 import RequestsBell from '@/components/RequestsBell';
 import NoticeBoardIcon from '@/components/NoticeBoardIcon';
 import StickyNotesFab from '@/components/StickyNotesFab';
+import HelpAssistant from '@/components/HelpAssistant';
 import GlobalSearch from '@/components/GlobalSearch';
 import ActivityTicker from '@/components/ActivityTicker';
 import ChatPanel from '@/components/ChatPanel';
@@ -303,6 +304,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
       <StickyNotesFab />
+      <HelpAssistant />
       <Toaster />
     </div>
   );

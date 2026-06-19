@@ -3065,3 +3065,27 @@ export async function userGmailOauthStart(orgId: string): Promise<{ client_id: s
   const { data, error } = await sb.rpc('user_email_oauth_start', { p_org: orgId });
   if (error) throw new Error(error.message); return data as { client_id: string; redirect_uri: string; token: string };
 }
+
+// --- In-app AI help assistant (grounded in live /docs SECTIONS) --------------
+export interface AssistantStatus { provider: string; model: string; enabled: boolean; has_key: boolean; updated_at: string | null; }
+export async function assistantGetStatus(): Promise<AssistantStatus | null> {
+  const { data, error } = await sb.rpc('assistant_status');
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as AssistantStatus) || null;
+}
+export async function assistantSetConfig(p: { provider?: string; apiKey?: string; model?: string; enabled?: boolean }): Promise<void> {
+  const { error } = await sb.rpc('assistant_set_config', {
+    p_provider: p.provider ?? '', p_api_key: p.apiKey ?? '', p_model: p.model ?? '', p_enabled: p.enabled ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+export type AssistantTurn = { role: 'user' | 'assistant'; content: string };
+export interface AssistantReply { configured: boolean; answer?: string; model?: string; }
+// Grounding is built client-side from the live SECTIONS and passed per request,
+// so the assistant never relies on a stale snapshot. See lib/docs.ts.
+export async function askAssistant(p: { question: string; brand?: string; history?: AssistantTurn[]; grounding: { id: string; title: string; text: string }[] }): Promise<AssistantReply> {
+  const { data, error } = await sb.functions.invoke('docs-assistant', { body: { question: p.question, brand: p.brand, history: p.history ?? [], grounding: p.grounding } });
+  if (error) { let msg = error.message; try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* noop */ } throw new Error(msg); }
+  return data as AssistantReply;
+}

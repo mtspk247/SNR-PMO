@@ -5,12 +5,12 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon, EmptyState } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow } from '@/lib/db';
+import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow, assistantGetStatus, assistantSetConfig, AssistantStatus } from '@/lib/db';
 import { Plan, Feature, PlanFeature, FEATURES } from '@/lib/supabase';
 import { ALL_ITEMS } from '@/lib/nav';
 import { formatPrice } from '@/lib/entitlements';
 
-type Tab = 'plans' | 'billing' | 'email' | 'backups' | 'errors' | 'owners' | 'campaigns' | 'activity';
+type Tab = 'plans' | 'billing' | 'email' | 'assistant' | 'backups' | 'errors' | 'owners' | 'campaigns' | 'activity';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -267,6 +267,91 @@ function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promis
 }
 
 // Transactional email (Resend) config — platform admin only. The API key is write-only;
+// AI help assistant config — secret-isolated key + model (Stripe/Email pattern).
+// The assistant grounds answers in the live /docs SECTIONS at query time; this
+// only stores the LLM provider key so answers can be synthesized conversationally.
+function AssistantTab() {
+  const [status, setStatus] = useState<AssistantStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [provider, setProvider] = useState('openai');
+  const [model, setModel] = useState('gpt-4o-mini');
+  const [apiKey, setApiKey] = useState('');
+  const [enabled, setEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(''); const [err, setErr] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const st = await assistantGetStatus(); setStatus(st);
+      if (st) { setProvider(st.provider || 'openai'); setModel(st.model || 'gpt-4o-mini'); setEnabled(st.enabled); }
+    } catch (e: any) { setErr(e?.message || 'Failed to load assistant status'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const save = async () => {
+    setSaving(true); setErr(''); setMsg('');
+    try {
+      await assistantSetConfig({ provider, model, apiKey, enabled });
+      setApiKey(''); setMsg('Saved. Assistant configuration updated.');
+      await load();
+    } catch (e: any) { setErr(e?.message || 'Save failed'); } finally { setSaving(false); }
+  };
+
+  if (loading) return <div className="card rounded-t-none p-6"><Spinner /></div>;
+  const provBtn = (id: string, label: string, icon: string, defModel: string) => (
+    <button onClick={() => { setProvider(id); if (!status?.has_key) setModel(defModel); }} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition ${provider === id ? 'border-accent bg-accent/10 text-accentstrong font-medium' : 'border-line text-muted hover:bg-surface2'}`}><Icon name={icon} className="text-base" />{label}</button>
+  );
+
+  return (
+    <div className="card rounded-t-none p-5 sm:p-6 space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`pill ${status?.has_key ? 'pill-green' : 'pill-red'}`}>{status?.has_key ? 'Key set' : 'No key'}</span>
+        <span className={`pill ${status?.enabled ? 'pill-green' : 'pill-gray'}`}>{status?.enabled ? 'Assistant on' : 'Assistant off'}</span>
+        {status?.model && <span className="pill pill-gray">{status.model}</span>}
+      </div>
+
+      <div className="flex items-start gap-3 rounded-lg bg-accent/10 border border-accent/20 px-4 py-3">
+        <Icon name="ti-sparkles" className="text-base text-accentstrong mt-0.5 shrink-0" />
+        <p className="text-sm text-content leading-relaxed">The in-app "Ask" assistant answers users from your live guide (<code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code>). Add an LLM key to make answers conversational. With no key, it still works — it shows the most relevant guide section. Editing <code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code> updates the assistant automatically; no retraining.</p>
+      </div>
+
+      <div>
+        <label className="label mb-1.5 block">Provider</label>
+        <div className="flex gap-2">
+          {provBtn('openai', 'OpenAI', 'ti-circle-key', 'gpt-4o-mini')}
+          {provBtn('anthropic', 'Anthropic', 'ti-sparkles', 'claude-3-5-haiku-latest')}
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="label mb-1.5 block">Model</label>
+          <input className="input w-full" value={model} onChange={(e) => setModel(e.target.value)} placeholder={provider === 'anthropic' ? 'claude-3-5-haiku-latest' : 'gpt-4o-mini'} />
+          <p className="text-2xs text-muted mt-1">A small, cheap model is plenty — answers are short and grounded.</p>
+        </div>
+        <div>
+          <label className="label mb-1.5 block">API key</label>
+          <input className="input w-full" type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={status?.has_key ? '•••• (unchanged)' : (provider === 'anthropic' ? 'sk-ant-…' : 'sk-…')} />
+          <p className="text-2xs text-muted mt-1">Stored encrypted server-side. Never shown back or sent to the browser.</p>
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2.5 text-sm text-content cursor-pointer">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="accent-accent w-4 h-4" />
+        Enable the assistant (off = users get guide-section answers only)
+      </label>
+
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+      <div>
+        <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? 'Saving…' : 'Save configuration'}</button>
+      </div>
+    </div>
+  );
+}
+
 // status never returns it. In-app notifications are emailed via a server-side outbox + cron drain.
 function EmailTab() {
   const router = useRouter();
@@ -951,7 +1036,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['plans', 'billing', 'email', 'backups', 'errors', 'owners', 'campaigns', 'activity'] as const).map((t) => (
+            {(['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'campaigns', 'activity'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -961,7 +1046,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : t === 'campaigns' ? 'Campaigns' : 'Activity'}
+                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'assistant' ? 'AI assistant' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : t === 'campaigns' ? 'Campaigns' : 'Activity'}
               </button>
             ))}
           </div>
@@ -1021,6 +1106,8 @@ export default function PlatformPage() {
             <BillingTab plans={plans} onReload={load} />
           ) : tab === 'email' ? (
             <EmailTab />
+          ) : tab === 'assistant' ? (
+            <AssistantTab />
           ) : tab === 'backups' ? (
             <BackupsTab />
           ) : tab === 'errors' ? (
