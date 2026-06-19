@@ -301,7 +301,7 @@ function AssistantTab() {
 
   if (loading) return <div className="card rounded-t-none p-6"><Spinner /></div>;
   const provBtn = (id: string, label: string, icon: string, defModel: string) => (
-    <button onClick={() => { setProvider(id); if (!status?.has_key) setModel(defModel); }} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition ${provider === id ? 'border-accent bg-accent/10 text-accentstrong font-medium' : 'border-line text-muted hover:bg-surface2'}`}><Icon name={icon} className="text-base" />{label}</button>
+    <button onClick={() => { setProvider(id); setModel(defModel); }} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition ${provider === id ? 'border-accent bg-accent/10 text-accentstrong font-medium' : 'border-line text-muted hover:bg-surface2'}`}><Icon name={icon} className="text-base" />{label}</button>
   );
 
   return (
@@ -314,13 +314,14 @@ function AssistantTab() {
 
       <div className="flex items-start gap-3 rounded-lg bg-accent/10 border border-accent/20 px-4 py-3">
         <Icon name="ti-sparkles" className="text-base text-accentstrong mt-0.5 shrink-0" />
-        <p className="text-sm text-content leading-relaxed">The in-app "Ask" assistant answers users from your live guide (<code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code>). Add an LLM key to make answers conversational. With no key, it still works — it shows the most relevant guide section. Editing <code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code> updates the assistant automatically; no retraining.</p>
+        <p className="text-sm text-content leading-relaxed">The in-app "Ask" assistant answers users from your live guide (<code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code>). Add an LLM key to make answers conversational — <b>Groq is free (no credit card)</b>: create a key at console.groq.com, pick Groq below, and paste it. With no key, it still works — it shows the most relevant guide section. Editing <code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code> updates the assistant automatically; no retraining.</p>
       </div>
 
       <div>
         <label className="label mb-1.5 block">Provider</label>
         <div className="flex gap-2">
           {provBtn('openai', 'OpenAI', 'ti-circle-key', 'gpt-4o-mini')}
+          {provBtn('groq', 'Groq (free)', 'ti-bolt', 'openai/gpt-oss-20b')}
           {provBtn('anthropic', 'Anthropic', 'ti-sparkles', 'claude-3-5-haiku-latest')}
         </div>
       </div>
@@ -328,7 +329,7 @@ function AssistantTab() {
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <label className="label mb-1.5 block">Model</label>
-          <input className="input w-full" value={model} onChange={(e) => setModel(e.target.value)} placeholder={provider === 'anthropic' ? 'claude-3-5-haiku-latest' : 'gpt-4o-mini'} />
+          <input className="input w-full" value={model} onChange={(e) => setModel(e.target.value)} placeholder={provider === 'anthropic' ? 'claude-3-5-haiku-latest' : provider === 'groq' ? 'openai/gpt-oss-20b' : 'gpt-4o-mini'} />
           <p className="text-2xs text-muted mt-1">A small, cheap model is plenty — answers are short and grounded.</p>
         </div>
         <div>
