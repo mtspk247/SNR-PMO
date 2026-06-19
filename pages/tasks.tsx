@@ -253,7 +253,7 @@ export default function Tasks() {
     if (t) { setSelectedId(t.id); setShowDetail(true); }
   }, [router.query.task, tasks.length]);
 
-  const mutate = async (fn: () => Promise<void>) => { setBusy(true); try { await fn(); } catch (e: any) { alert(e.message); } finally { setBusy(false); } };
+  const mutate = async (fn: () => Promise<unknown>) => { setBusy(true); try { await fn(); } catch (e: any) { alert(e.message); } finally { setBusy(false); } };
 
   // Bulk select + mass-assign (List view)
   const toggleSel = (id: string) => setSel((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });

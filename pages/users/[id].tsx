@@ -65,14 +65,14 @@ export default function UserDetail() {
 
   const myTeams = teams.filter((t) => (t.members || []).some((m) => m.user_id === id)).map((t) => t.name);
 
-  const tabs: { key: Tab; label: string; icon: string; show: boolean }[] = [
+  const tabs: { key: Tab; label: string; icon: string; show: boolean }[] = ([
     { key: 'profile', label: 'Profile', icon: 'ti-user', show: true },
     { key: 'access', label: 'Access & roles', icon: 'ti-shield-lock', show: isAdmin },
     { key: 'email', label: 'Email', icon: 'ti-mail', show: isSelf },
     { key: 'notifications', label: 'Notifications', icon: 'ti-bell', show: isSelf },
     { key: 'security', label: 'Security', icon: 'ti-key', show: isSelf },
     { key: 'activity', label: 'Activity', icon: 'ti-history', show: isAdmin || isSelf },
-  ].filter((t) => t.show);
+  ] as { key: Tab; label: string; icon: string; show: boolean }[]).filter((t) => t.show);
 
   return (
     <Layout flat title={u?.full_name || 'User'}>

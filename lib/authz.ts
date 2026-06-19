@@ -3,7 +3,7 @@ import { OrgRole, MyOrg } from './supabase';
 // Mirror of the server-side RLS model for UI gating (hide/disable, never trust on client).
 // The database is the source of truth; these helpers only shape what the UI offers.
 
-const RANK: Record<OrgRole, number> = { viewer: 0, member: 1, admin: 2, owner: 3 };
+const RANK: Record<OrgRole, number> = { guest: -1, viewer: 0, member: 1, admin: 2, owner: 3 };
 
 export function atLeast(role: OrgRole | undefined, min: OrgRole): boolean {
   if (!role) return false;

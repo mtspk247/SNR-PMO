@@ -16,7 +16,7 @@ import { buildGroups } from '@/components/ViewControls';
 import RolesManager from '@/components/RolesManager';
 import AvatarPicker from '@/components/AvatarPicker';
 import { avatarSrc, seedDefaultTeams } from '@/lib/db';
-import qk from '@/lib/queryKeys';
+import { qk } from '@/lib/queryKeys';
 
 const SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 type Tab = 'manage' | 'templates' | 'teams';

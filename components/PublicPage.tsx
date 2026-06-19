@@ -86,8 +86,8 @@ export default function PublicPage({
 export function H2({ children }: { children: ReactNode }) {
   return <h2 className="text-xl font-bold tracking-tight text-[#0f0f0f] mt-10 first:mt-0 mb-3">{children}</h2>;
 }
-export function P({ children }: { children: ReactNode }) {
-  return <p className="text-[15px] text-[#3f3f46] leading-relaxed mb-4">{children}</p>;
+export function P({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <p className={`text-[15px] text-[#3f3f46] leading-relaxed mb-4 ${className}`}>{children}</p>;
 }
 export function UL({ items }: { items: ReactNode[] }) {
   return (

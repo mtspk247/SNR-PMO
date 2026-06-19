@@ -1,8 +1,8 @@
 import React from 'react';
 import { sb } from '@/lib/supabase';
 
-export const Icon = ({ name, className = '' }: { name: string; className?: string }) => (
-  <i className={`ti ${name} ${className}`} aria-hidden="true" />
+export const Icon = ({ name, className = '', title, style }: { name: string; className?: string; title?: string; style?: React.CSSProperties }) => (
+  <i className={`ti ${name} ${className}`} style={style} title={title} aria-hidden="true" />
 );
 
 const COLOR: Record<string, string> = {

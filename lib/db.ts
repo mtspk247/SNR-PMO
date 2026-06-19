@@ -440,7 +440,7 @@ export async function listCompanyMembers(companyId: string): Promise<CompanyMemb
   const { data, error } = await sb.from('company_members')
     .select('company_id, user_id, role, created_at, users(full_name, email)')
     .eq('company_id', companyId).order('created_at', { ascending: true });
-  if (error) throw error; return (data as CompanyMember[]) || [];
+  if (error) throw error; return (data as unknown as CompanyMember[]) || [];
 }
 export async function addCompanyMember(companyId: string, userId: string, role: MemberRole = 'member'): Promise<CompanyMember[]> {
   const { error } = await sb.from('company_members').insert({ company_id: companyId, user_id: userId, role });
@@ -495,7 +495,7 @@ export async function listPortfolioMembers(portfolioId: string): Promise<Portfol
   const { data, error } = await sb.from('portfolio_members')
     .select('portfolio_id, user_id, role, created_at, users(full_name, email)')
     .eq('portfolio_id', portfolioId).order('created_at', { ascending: true });
-  if (error) throw error; return (data as PortfolioMember[]) || [];
+  if (error) throw error; return (data as unknown as PortfolioMember[]) || [];
 }
 export async function addPortfolioMember(portfolioId: string, userId: string, role: MemberRole = 'member'): Promise<PortfolioMember[]> {
   const { error } = await sb.from('portfolio_members').insert({ portfolio_id: portfolioId, user_id: userId, role });
@@ -1303,11 +1303,11 @@ export async function userAffiliations(orgId: string): Promise<UserAffiliation[]
 }
 export async function getAdminUsers(): Promise<AdminUser[]> {
   const { data, error } = await sb.from('users').select(ADMIN_USER_COLS).order('full_name');
-  if (error) throw error; return (data as AdminUser[]) || [];
+  if (error) throw error; return (data as unknown as AdminUser[]) || [];
 }
 export async function updateUserAdmin(id: string, patch: Partial<AdminUser>): Promise<AdminUser> {
   const { data, error } = await sb.from('users').update(patch).eq('id', id).select(ADMIN_USER_COLS).single();
-  if (error) throw new Error(error.message); return data as AdminUser;
+  if (error) throw new Error(error.message); return data as unknown as AdminUser;
 }
 
 // ---- Custom role templates (RBAC) ----------------------------------------
@@ -2375,7 +2375,7 @@ const GREQ_SEL_G = GREQ_SEL + ', project:projects(name)';
 export async function listAllGuestRequests(): Promise<GuestRequestG[]> {
   const { data, error } = await sb.from('guest_requests').select(GREQ_SEL_G).order('created_at', { ascending: false }).limit(200);
   if (error) throw new Error(error.message);
-  return (data as GuestRequestG[]) || [];
+  return (data as unknown as GuestRequestG[]) || [];
 }
 export async function createGuestRequest(p: { org_id: string; project_id: string; created_by: string; type: string; title: string; body?: string }): Promise<void> {
   const { error } = await sb.from('guest_requests').insert({ org_id: p.org_id, project_id: p.project_id, created_by: p.created_by, type: p.type, title: p.title, body: p.body || null });

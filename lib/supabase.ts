@@ -19,7 +19,7 @@ export let activeOrgScope: string | null = null;
 export function setActiveOrgScope(id: string | null) { activeOrgScope = id; }
 
 export type Role = 'super_admin' | 'pm' | 'team_member' | 'viewer';
-export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer';
+export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer' | 'guest';
 
 export interface OrgBranding {
   logo_url?: string;
@@ -173,7 +173,7 @@ export interface Project {
   id: string; name: string; description: string | null;
   status: string; priority: string; progress: number | null;
   start_date: string | null; end_date: string | null; pm_id: string | null;
-  org_id?: string; company_id?: string | null; portfolio_id?: string | null;
+  org_id?: string; company_id?: string | null; portfolio_id?: string | null; created_at?: string;
 }
 
 export interface Task {
@@ -187,7 +187,7 @@ export interface Task {
   recur_every?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | null;
   recur_until?: string | null;
   team_id?: string | null;
-  org_id?: string; created_by?: string | null;
+  org_id?: string; created_by?: string | null; created_at?: string;
   projects?: { name: string } | null;
 }
 
@@ -233,7 +233,7 @@ export interface Contact {
 export interface Deal {
   id: string; title: string; value: number | null; stage: string;
   expected_close: string | null; company_id: string | null; contact_id: string | null;
-  notes?: string | null; created_at?: string | null;
+  notes?: string | null; created_at?: string | null; owner_id?: string | null;
   crm_companies?: { name: string } | null; crm_contacts?: { full_name: string; email: string | null } | null;
 }
 
@@ -456,7 +456,7 @@ export interface JobDescription {
   id: string; org_id: string;
   title: string; department?: string | null;
   role_template_id?: string | null;
-  summary?: string | null; responsibilities?: string | null; requirements?: string | null;
+  summary?: string | null; responsibilities?: string | null; requirements?: string | null; link_url?: string | null;
   doc_path?: string | null; doc_name?: string | null; doc_uploaded_at?: string | null;
   created_by?: string | null; created_at?: string;
   role_template?: { name: string | null } | null;

@@ -8,7 +8,7 @@ import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { useTeams, useTasks } from '@/lib/queries';
-import qk from '@/lib/queryKeys';
+import { qk } from '@/lib/queryKeys';
 import { createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, getOrgUsers, getTimeEntriesRange } from '@/lib/db';
 import { Team, Task, OrgUser, TimeEntry } from '@/lib/supabase';
 import { ViewControls, useViewPrefs } from '@/components/ViewControls';
