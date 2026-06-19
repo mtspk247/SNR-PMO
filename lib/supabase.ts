@@ -23,6 +23,7 @@ export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer' | 'guest';
 
 export interface OrgBranding {
   name?: string;
+  site_template?: string;
   logo_url?: string;
   primary_color?: string;
   accent_color?: string;

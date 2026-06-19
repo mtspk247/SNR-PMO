@@ -3018,7 +3018,7 @@ export async function resellerSelfSignup(host: string, orgName: string): Promise
   const { data, error } = await sb.rpc('reseller_self_signup', { p_host: host, p_org_name: orgName }); if (error) throw new Error(error.message); return data as string;
 }
 export interface ResellerSitePlan { plan_key: string; amount_cents: number; currency: string; interval: string }
-export interface ResellerSite { enabled: boolean; reseller_org_id?: string; name?: string; branding?: { name?: string; logo_url?: string; primary_color?: string }; theme_skin?: string | null; plans?: ResellerSitePlan[] }
+export interface ResellerSite { enabled: boolean; reseller_org_id?: string; name?: string; branding?: { name?: string; logo_url?: string; primary_color?: string; site_template?: string }; theme_skin?: string | null; plans?: ResellerSitePlan[] }
 export async function getOrgImpersonation(orgId: string): Promise<boolean> {
   const { data } = await sb.from('organizations').select('allow_sub_impersonation').eq('id', orgId).maybeSingle();
   return !!(data as { allow_sub_impersonation?: boolean } | null)?.allow_sub_impersonation;
