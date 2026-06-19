@@ -168,7 +168,7 @@ export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', lab
 export const RESELLER_LINK: NavSection = { kind: 'link', item: { href: '/reseller', label: 'Reseller', icon: 'ti-building-community' } };
 export const RESELLER_SECTION: NavSection = { kind: 'menu', key: 'reseller', label: 'Reseller', icon: 'ti-building-community', items: [
   { href: '/reseller', label: 'Console', icon: 'ti-dashboard' },
-  { href: '/reseller?tab=subtenants', label: 'Clients', icon: 'ti-buildings' },
+  { href: '/reseller/clients', label: 'Clients', icon: 'ti-buildings' },
 ] };
 
 export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } };

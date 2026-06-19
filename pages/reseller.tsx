@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
@@ -7,53 +7,38 @@ import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import {
-  resellerListOrgs, resellerPendingInvites, resellerCreateInvite,
-  resellerBillingSummary, adminImpersonateLink,
+  resellerListOrgs, resellerBillingSummary,
   snapshotList, snapshotCapture, snapshotDelete,
   resellerConnectOnboard, resellerConnectStatus,
   resellerListPrices, resellerSetPrice,
   resellerGetSelfSignup, resellerSetSelfSignup, inviteMember,
-  ResellerOrg, ResellerInvite, ResellerBilling,
+  ResellerOrg, ResellerBilling,
   WorkspaceSnapshot, ResellerConnectStatus, ResellerPlanPrice, SelfSignupConfig,
   updateOrgSettings,
 } from '@/lib/db';
 import ResellerOverview from '@/components/ResellerOverview';
 
-const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
-
-type TabKey = 'overview' | 'subtenants' | 'pricing' | 'snapshots' | 'payments';
+type TabKey = 'overview' | 'pricing' | 'snapshots' | 'payments';
 
 export default function ResellerPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const [tab, setTab] = useState<TabKey>('overview');
   const router = useRouter();
-  useEffect(() => { const t = router.query.tab; if (typeof t === 'string' && ['overview','subtenants','pricing','snapshots','payments'].includes(t)) setTab(t as TabKey); }, [router.query.tab]);
+  useEffect(() => { const t = router.query.tab; if (typeof t === 'string' && ['overview','pricing','snapshots','payments'].includes(t)) setTab(t as TabKey); }, [router.query.tab]);
+
+  // Co-owner invite
   const [coOpen, setCoOpen] = useState(false); const [coEmail, setCoEmail] = useState(''); const [coBusy, setCoBusy] = useState(false); const [coLink, setCoLink] = useState<string | null>(null); const [coErr, setCoErr] = useState(''); const [coCopied, setCoCopied] = useState(false);
   const submitCo = async () => { if (!org || !coEmail.trim()) return; setCoBusy(true); setCoErr(''); setCoLink(null); try { const r2 = await inviteMember(org.id, coEmail.trim(), 'admin'); setCoLink(r2.link); setCoEmail(''); } catch (e: any) { setCoErr(e.message); } finally { setCoBusy(false); } };
 
   const [orgs, setOrgs] = useState<ResellerOrg[] | null>(null);
-  const [invites, setInvites] = useState<ResellerInvite[]>([]);
   const [billing, setBilling] = useState<ResellerBilling | null>(null);
   const [err, setErr] = useState('');
-
-  // Invite modal
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
-  const [plan, setPlan] = useState('pro');
-  const [busy, setBusy] = useState(false);
-  const [link, setLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  // View-as
-  const [viewMsg, setViewMsg] = useState('');
 
   // Snapshots
   const [snaps, setSnaps] = useState<WorkspaceSnapshot[]>([]);
   const [snapName, setSnapName] = useState('');
   const [snapBusy, setSnapBusy] = useState(false);
-  const [snapId, setSnapId] = useState('');
   const [snapMsg, setSnapMsg] = useState('');
 
   // Stripe Connect
@@ -75,15 +60,9 @@ export default function ResellerPage() {
   const [tplBusy, setTplBusy] = useState(false);
   const [tplMsg, setTplMsg] = useState('');
 
-  // Sub-tenant filter bar state
-  const [q, setQ] = useState('');
-  const [fPlan, setFPlan] = useState('all');
-  const [fStatus, setFStatus] = useState('all');
-
   const load = () => {
     if (!org) return;
     resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); });
-    resellerPendingInvites(org.id).then(setInvites).catch(() => {});
     resellerBillingSummary(org.id).then(setBilling).catch(() => {});
     snapshotList(org.id).then(setSnaps).catch(() => {});
     resellerConnectStatus(org.id).then(setConnect).catch(() => {});
@@ -91,27 +70,6 @@ export default function ResellerPage() {
     resellerGetSelfSignup(org.id).then(setSs).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
-
-  // ── All hooks must be called before any early return ──
-  // Filtered sub-tenants for the Sub-tenants tab
-  const filteredOrgs = useMemo(() => {
-    const all = orgs || [];
-    const term = q.trim().toLowerCase();
-    return all.filter((o) => {
-      if (term && !(`${o.org_name || ''}`.toLowerCase().includes(term) || `${o.slug || ''}`.toLowerCase().includes(term))) return false;
-      if (fPlan !== 'all' && (o.plan_key || o.plan_name) !== fPlan) return false;
-      if (fStatus === 'active' && o.sub_status !== 'active') return false;
-      if (fStatus === 'other' && o.sub_status === 'active') return false;
-      return true;
-    });
-  }, [orgs, q, fPlan, fStatus]);
-  const filtersOn = q.trim() !== '' || fPlan !== 'all' || fStatus !== 'all';
-
-  // Unique plan keys for the plan filter dropdown
-  const planOptions = useMemo(() => {
-    const keys = new Set((orgs || []).map((o) => o.plan_key || o.plan_name || 'free').filter(Boolean));
-    return [{ value: 'all', label: 'All plans' }, ...[...keys].map((k) => ({ value: k, label: k }))];
-  }, [orgs]);
 
   if (!org?.is_reseller || !can.manageMembers(org)) {
     return (
@@ -124,29 +82,6 @@ export default function ResellerPage() {
       </Layout>
     );
   }
-
-  const viewAsSub = async (subId: string, nm: string) => {
-    setViewMsg('Generating sign-in link…');
-    try {
-      const r = await adminImpersonateLink({ sub: subId });
-      try { await navigator.clipboard?.writeText(r.link); } catch { /* */ }
-      setViewMsg(`Sign-in link for ${nm} copied — open it in a private window to view that workspace.`);
-      setTimeout(() => setViewMsg(''), 8000);
-    } catch (e: any) { setViewMsg(e.message || 'Failed'); }
-  };
-
-  const submit = async () => {
-    if (!org || !email.trim() || !name.trim()) return;
-    setBusy(true); setErr(''); setLink(null);
-    try {
-      const r = await resellerCreateInvite(org.id, email.trim(), name.trim(), plan, snapId || null);
-      setLink(r.link); setEmail(''); setName(''); load();
-    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
-
-  const copy = (l: string) => {
-    try { navigator.clipboard?.writeText(l); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ }
-  };
 
   const saveSnap = async () => {
     if (!org || !snapName.trim()) return;
@@ -164,7 +99,6 @@ export default function ResellerPage() {
     try {
       await snapshotDelete(id);
       setSnaps((s2) => s2.filter((x) => x.id !== id));
-      if (snapId === id) setSnapId('');
     } catch (e: any) { setSnapMsg(e.message || 'Failed'); }
   };
 
@@ -219,29 +153,18 @@ export default function ResellerPage() {
         subtitle="Create and manage your own sub-tenants — each gets its own workspace under your brand"
         icon="ti-building-community"
         action={
-          <div className="flex items-center gap-2">
-            <button className="btn" onClick={() => { setCoOpen(true); setCoLink(null); setCoErr(''); }} title="Invite a co-owner to help manage your reseller account">
-              <Icon name="ti-user-plus" />Invite co-owner
-            </button>
-            <button className="btn btn-primary" onClick={() => { setOpen(true); setLink(null); setErr(''); }}>
-              <Icon name="ti-plus" />Invite sub-tenant
-            </button>
-          </div>
+          <button className="btn" onClick={() => { setCoOpen(true); setCoLink(null); setCoErr(''); }} title="Invite a co-owner to help manage your reseller account">
+            <Icon name="ti-user-plus" />Invite co-owner
+          </button>
         }
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
-      {viewMsg && (
-        <p className="text-2xs text-accentstrong mb-3 inline-flex items-center gap-1.5">
-          <Icon name="ti-info-circle" />{viewMsg}
-        </p>
-      )}
 
       <Tabs
         active={tab}
         onChange={(k) => setTab(k as TabKey)}
         tabs={[
           { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
-          { key: 'subtenants', label: 'Sub-tenants', icon: 'ti-buildings', count: orgs?.length },
           { key: 'pricing', label: 'Pricing', icon: 'ti-tag' },
           { key: 'snapshots', label: 'Snapshots', icon: 'ti-camera', count: snaps.length || undefined },
           { key: 'payments', label: 'Payments & signup', icon: 'ti-credit-card' },
@@ -255,137 +178,6 @@ export default function ResellerPage() {
           : orgs.length === 0
             ? <div className="card p-8"><EmptyState icon="ti-buildings" text="No sub-tenants yet — invite one to get started." /></div>
             : <ResellerOverview orgs={orgs} billing={billing} prices={prices} agencyPlan={org.plan} />
-      )}
-
-      {/* ── Sub-tenants tab ── */}
-      {tab === 'subtenants' && (
-        <>
-          {/* Filter bar */}
-          {orgs && orgs.length > 0 && (
-            <div className="card p-3 mb-4 flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[180px]">
-                <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2 text-sm pointer-events-none" />
-                <input
-                  className="input pl-8 w-full"
-                  placeholder="Search by name or slug…"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                />
-              </div>
-              <div className="w-36">
-                <Select value={fPlan} onChange={setFPlan} options={planOptions} />
-              </div>
-              <div className="w-36">
-                <Select
-                  value={fStatus}
-                  onChange={setFStatus}
-                  options={[{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'other', label: 'Other' }]}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Sub-tenants table */}
-          <div className="card overflow-hidden mb-6">
-            {orgs === null ? (
-              <div className="p-8"><Spinner /></div>
-            ) : orgs.length === 0 ? (
-              <div className="p-6"><EmptyState icon="ti-buildings" text="No sub-tenants yet — invite one to get started." /></div>
-            ) : filteredOrgs.length === 0 ? (
-              <div className="p-8">
-                <EmptyState
-                  icon="ti-search"
-                  title="No matches"
-                  text="No sub-tenants match the current filters."
-                  action={filtersOn
-                    ? <button className="btn" onClick={() => { setQ(''); setFPlan('all'); setFStatus('all'); }}>Clear filters</button>
-                    : undefined}
-                />
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface2/60 text-muted text-left text-2xs uppercase tracking-wider font-semibold sticky top-0 z-10">
-                    <tr>
-                      <th className="px-4 py-2.5 text-muted2">Workspace</th>
-                      <th className="px-4 py-2.5 text-muted2">Plan</th>
-                      <th className="px-4 py-2.5 text-muted2">Members</th>
-                      <th className="px-4 py-2.5 text-muted2">Seats</th>
-                      <th className="px-4 py-2.5 text-muted2">Status</th>
-                      <th className="px-4 py-2.5 text-muted2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrgs.map((o) => (
-                      <tr key={o.org_id} className="border-t border-line hover:bg-surface2/60 transition-colors">
-                        <td className="px-4 py-3">
-                          <span className="font-medium text-content">{o.org_name}</span>
-                          <span className="block text-2xs text-muted2">{o.slug}</span>
-                        </td>
-                        <td className="px-4 py-3 capitalize text-muted">{o.plan_name || o.plan_key || 'free'}</td>
-                        <td className="px-4 py-3 tabular-nums text-muted">{o.member_count}</td>
-                        <td className="px-4 py-3 tabular-nums text-muted">{o.seats}{o.seat_limit ? ` / ${o.seat_limit}` : ''}</td>
-                        <td className="px-4 py-3">
-                          <span className={`pill ${o.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{o.sub_status || 'free'}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => viewAsSub(o.org_id, o.org_name)}
-                            className="btn-ghost text-2xs"
-                            title="View this sub-tenant's workspace (private window)"
-                          >
-                            <Icon name="ti-login-2" />View as
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Invitations */}
-          {invites.length > 0 && (
-            <div className="card overflow-hidden">
-              <div className="px-4 py-3 border-b border-line">
-                <h3 className="text-sm font-semibold">Invitations</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                    <tr>
-                      <th className="px-4 py-3">Email</th>
-                      <th className="px-4 py-3">Workspace</th>
-                      <th className="px-4 py-3">Plan</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invites.map((i) => (
-                      <tr key={i.id} className="border-t border-line hover:bg-surface2/60 transition-colors">
-                        <td className="px-4 py-3 text-content">{i.email}</td>
-                        <td className="px-4 py-3 text-muted">{i.org_name || '—'}</td>
-                        <td className="px-4 py-3 capitalize text-muted">{i.plan_key}</td>
-                        <td className="px-4 py-3">
-                          <span className={`pill ${i.status === 'pending' ? 'pill-amber' : i.status === 'accepted' ? 'pill-green' : 'pill-gray'}`}>{i.status}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {i.status === 'pending' && (
-                            <button onClick={() => copy(`https://snr-pmo.vercel.app/signup?token=${i.token}`)} className="btn-ghost text-2xs">
-                              <Icon name="ti-copy" />Copy link
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
       )}
 
       {/* ── Pricing tab ── */}
@@ -566,11 +358,11 @@ export default function ResellerPage() {
         </div>
       )}
 
-      {/* Invite modal — shared across all tabs */}
+      {/* Co-owner invite modal */}
       <Modal open={coOpen} onClose={() => setCoOpen(false)} title="Invite a co-owner" icon="ti-user-plus" size="sm" onSubmit={submitCo}
         footer={<><button className="btn" onClick={() => setCoOpen(false)}>Close</button><button className="btn btn-primary" disabled={coBusy || !coEmail.trim()} onClick={submitCo}>{coBusy ? 'Inviting…' : 'Send invite'}</button></>}>
         <div className="space-y-3">
-          <p className="text-2xs text-muted">A co-owner gets admin access to manage your reseller account — your sub-tenants, pricing, snapshots and billing. They join your workspace; they can\u2019t see other resellers or the platform.</p>
+          <p className="text-2xs text-muted">A co-owner gets admin access to manage your reseller account — your sub-tenants, pricing, snapshots and billing. They join your workspace; they can't see other resellers or the platform.</p>
           <Field label="Co-owner email" required><input className="input" value={coEmail} onChange={(e) => setCoEmail(e.target.value)} placeholder="partner@youragency.com" /></Field>
           {coErr && <p className="text-2xs text-rose-600">{coErr}</p>}
           {coLink && (
@@ -579,42 +371,6 @@ export default function ResellerPage() {
               <div className="flex items-center gap-2"><input readOnly value={coLink} onFocus={(e) => e.currentTarget.select()} className="input text-2xs flex-1" /><button onClick={() => { try { navigator.clipboard?.writeText(coLink); setCoCopied(true); setTimeout(() => setCoCopied(false), 1500); } catch { /* */ } }} className="btn-ghost text-2xs"><Icon name="ti-copy" />{coCopied ? 'Copied' : 'Copy'}</button></div>
             </div>
           )}
-        </div>
-      </Modal>
-
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title="Invite a sub-tenant"
-        icon="ti-building-plus"
-        size="sm"
-        onSubmit={submit}
-        footer={
-          <>
-            <button className="btn" onClick={() => setOpen(false)}>Close</button>
-            <button className="btn btn-primary" disabled={busy || !email.trim() || !name.trim()} onClick={submit}>
-              {busy ? 'Creating…' : 'Create invite'}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <Field label="Workspace name" required><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Client workspace name" /></Field>
-          <Field label="Owner email" required><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@client.com" /></Field>
-          <Field label="Plan"><Select value={plan} onChange={setPlan} options={PLANS} /></Field>
-          <Field label="Start from snapshot">
-            <Select value={snapId} onChange={setSnapId} options={[{ value: '', label: 'None (empty workspace)' }, ...snaps.map((sn) => ({ value: sn.id, label: sn.name }))]} />
-          </Field>
-          {link && (
-            <div className="rounded-lg border border-emerald-400/40 bg-emerald-500/5 p-3">
-              <p className="text-2xs text-muted mb-1.5">Invite link — share it with the sub-tenant owner:</p>
-              <div className="flex items-center gap-2">
-                <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="input text-2xs flex-1" />
-                <button onClick={() => copy(link)} className="btn-ghost text-2xs"><Icon name="ti-copy" />{copied ? 'Copied' : 'Copy'}</button>
-              </div>
-            </div>
-          )}
-          {err && <p className="text-2xs text-rose-600">{err}</p>}
         </div>
       </Modal>
     </Layout>
