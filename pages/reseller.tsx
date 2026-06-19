@@ -317,15 +317,11 @@ export default function ResellerPage() {
             <div className="p-4 space-y-3">
               <div>
                 <label className="text-2xs text-muted block mb-1">Template</label>
-                <Select
-                  value={(org?.branding as any)?.site_template || 'classic'}
-                  onChange={(v) => saveTemplate(v)}
-                  options={[
-                    { value: 'classic', label: 'Classic — branded, balanced layout' },
-                    { value: 'minimal', label: 'Minimal — whitespace-first, type-forward' },
-                    { value: 'bold', label: 'Bold — high-contrast, energetic, display type' },
-                  ]}
-                />
+                <select className="input" value={(org?.branding as { site_template?: string } | undefined)?.site_template || 'classic'} onChange={(e) => saveTemplate(e.target.value)}>
+                  <option value="classic">Classic — branded, balanced layout</option>
+                  <option value="minimal">Minimal — whitespace-first, type-forward</option>
+                  <option value="bold">Bold — high-contrast, energetic, display type</option>
+                </select>
               </div>
               {tplMsg && <p className="text-2xs text-muted">{tplMsg}</p>}
               {tplBusy && <p className="text-2xs text-muted">Saving…</p>}

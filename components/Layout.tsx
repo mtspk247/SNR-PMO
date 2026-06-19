@@ -136,8 +136,8 @@ export default function Layout({ title, children, flat = false }: { title: strin
     ? [{ label: rootLabel, href: rootHref }, { label: title }]
     : [{ label: title }];
 
-  const NavLink = ({ href, label, icon, feature, sub = false }: Item & { sub?: boolean }) => {
-    const active = isActive(href);
+  const NavLink = ({ href, label, icon, feature, exact, sub = false }: Item & { sub?: boolean }) => {
+    const active = exact ? router.pathname === href : isActive(href);
     const locked = isUpsellLocked(activeOrg, feature);
     return (
       <Link href={href} title={collapsed ? label : undefined}

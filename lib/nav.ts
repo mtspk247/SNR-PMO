@@ -23,7 +23,7 @@ export type SearchSpec = {
 // `search` (optional) makes the page searchable from the header.
 export type NavItem = {
   href: string; label: string; icon: string;
-  feature?: FeatureKey; adminOnly?: boolean; platformOnly?: boolean; search?: SearchSpec;
+  feature?: FeatureKey; adminOnly?: boolean; platformOnly?: boolean; exact?: boolean; search?: SearchSpec;
 };
 export type NavSection =
   | { kind: 'link'; item: NavItem }
@@ -167,7 +167,7 @@ export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', lab
 
 export const RESELLER_LINK: NavSection = { kind: 'link', item: { href: '/reseller', label: 'Reseller', icon: 'ti-building-community' } };
 export const RESELLER_SECTION: NavSection = { kind: 'menu', key: 'reseller', label: 'Reseller', icon: 'ti-building-community', items: [
-  { href: '/reseller', label: 'Console', icon: 'ti-dashboard' },
+  { href: '/reseller', label: 'Console', icon: 'ti-dashboard', exact: true },
   { href: '/reseller/clients', label: 'Clients', icon: 'ti-buildings' },
 ] };
 
