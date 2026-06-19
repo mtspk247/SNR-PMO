@@ -22,6 +22,7 @@ export type Role = 'super_admin' | 'pm' | 'team_member' | 'viewer';
 export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer' | 'guest';
 
 export interface OrgBranding {
+  name?: string;
   logo_url?: string;
   primary_color?: string;
   accent_color?: string;

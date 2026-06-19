@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui';
+import { useActiveOrg } from '@/lib/store';
 
 /**
  * Invite the user to install the PWA + offer a shareable install link.
@@ -7,6 +8,8 @@ import { Icon } from '@/components/ui';
  * The shareable link (/install) works for anyone, logged in or not.
  */
 export default function InstallPrompt() {
+  const org = useActiveOrg();
+  const brand = org?.branding?.name || org?.name || 'this app';
   const [deferred, setDeferred] = useState<any>(null);
   const [show, setShow] = useState(false);
   const [iosHint, setIosHint] = useState(false);
@@ -37,7 +40,7 @@ export default function InstallPrompt() {
       <span className="w-9 h-9 rounded-lg grid place-items-center bg-accent/15 text-accentstrong shrink-0"><Icon name="ti-device-mobile" className="text-lg" /></span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-content">Install the app</p>
-        <p className="text-2xs text-muted">{iosHint ? 'Tap the Share icon, then “Add to Home Screen.”' : 'Add SNR-PMO to your home screen — faster, full-screen, offline-ready.'} Share the install link with your team.</p>
+        <p className="text-2xs text-muted">{iosHint ? 'Tap the Share icon, then “Add to Home Screen.”' : `Add ${brand} to your home screen — faster, full-screen, offline-ready.`} Share the install link with your team.</p>
       </div>
       <button onClick={copyLink} className="btn-ghost text-2xs border border-line shrink-0"><Icon name={copied ? 'ti-check' : 'ti-link'} />{copied ? 'Link copied' : 'Copy install link'}</button>
       {!iosHint && <button onClick={install} className="btn btn-primary shrink-0"><Icon name="ti-download" />Install</button>}

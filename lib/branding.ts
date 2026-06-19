@@ -14,6 +14,8 @@ export function applyBranding(org: (Pick<Organization, 'name' | 'branding'> & { 
   const b = org?.branding || {};
   applySkin(skinOverride ?? org?.theme_skin);
   if (org?.name) root.dataset.orgName = org.name;
+  const _brandName = (b as { name?: string }).name || org?.name;
+  if (typeof document !== 'undefined' && _brandName) document.title = _brandName;
 
   // A primary colour equal to the stock default is treated as "not customised"
   // so the active skin's own accent shows; a genuinely custom colour still overrides.
