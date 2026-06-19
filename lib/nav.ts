@@ -195,9 +195,11 @@ export function featureForRoute(pathname: string): FeatureKey | undefined {
       if (!best || href.length > best.href.length) best = { href, feature };
     }
   };
+  const items: NavItem[] = [];
   for (const sec of SECTIONS) {
-    if (sec.kind === 'link') consider(sec.item.href, sec.item.feature);
-    else (sec.items as NavItem[]).forEach((i: NavItem) => consider(i.href, i.feature));
+    if (sec.kind === 'link') items.push(sec.item);
+    else items.push(...sec.items);
   }
+  items.forEach((i) => consider(i.href, i.feature));
   return best?.feature;
 }

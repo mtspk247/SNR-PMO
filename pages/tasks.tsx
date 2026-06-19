@@ -607,7 +607,7 @@ export default function Tasks() {
       case 'project':
         return <span key={id} className="text-2xs text-muted truncate">{t.projects?.name || '—'}</span>;
       case 'created':
-        return <span key={id} className="text-2xs text-muted2 tnum">{new Date(t.created_at).toLocaleDateString()}</span>;
+        return <span key={id} className="text-2xs text-muted2 tnum">{new Date(t.created_at!).toLocaleDateString()}</span>;
       case 'due': {
         const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
         return <span key={id} className={`text-2xs tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>;
