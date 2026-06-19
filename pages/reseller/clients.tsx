@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
 import Select from '@/components/Select';
@@ -15,6 +16,7 @@ const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' },
 
 export default function ResellerClientsPage() {
   const org = useActiveOrg();
+  const router = useRouter();
 
   // Data
   const [orgs, setOrgs] = useState<ResellerOrg[] | null>(null);
@@ -180,7 +182,7 @@ export default function ResellerClientsPage() {
               </thead>
               <tbody>
                 {filteredOrgs.map((o) => (
-                  <tr key={o.org_id} className="border-t border-line hover:bg-surface2/60 transition-colors">
+                  <tr key={o.org_id} className="border-t border-line hover:bg-surface2/60 transition-colors cursor-pointer" onClick={() => router.push(`/reseller/clients/${o.org_id}`)}>
                     <td className="px-4 py-3">
                       <span className="font-medium text-content">{o.org_name}</span>
                       <span className="block text-2xs text-muted2">{o.slug}</span>
@@ -193,7 +195,7 @@ export default function ResellerClientsPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
-                        onClick={() => viewAsSub(o.org_id, o.org_name)}
+                        onClick={(e) => { e.stopPropagation(); viewAsSub(o.org_id, o.org_name); }}
                         className="btn-ghost text-2xs"
                         title="View this sub-tenant's workspace (private window)"
                       >
