@@ -176,6 +176,8 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    if (!activeOrg?.id) return;          // refetch when the active workspace changes
+    setLoading(true);
     Promise.all([
       getProjects().catch(() => [] as Project[]),
       getTasks().catch(() => [] as Task[]),
@@ -187,7 +189,7 @@ export default function Dashboard() {
     ]).then(([p, t, d, l, emp, lv, ob]) => {
       setProjects(p); setTasks(t); setDeals(d); setLedger(l); setEmployees(emp); setLeaves(lv); setOnboardingTasks(ob);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [activeOrg?.id]);
 
   useEffect(() => {
     if (!activeOrg?.id || !user?.id) return;

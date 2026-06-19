@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { sb } from '@/lib/supabase';
@@ -66,6 +66,16 @@ export default function Layout({ title, children, flat = false }: { title: strin
 
   const [checking, setChecking] = useState(true);
   const [orgMenu, setOrgMenu] = useState(false);
+  const orgMenuRef = useRef<HTMLDivElement>(null);
+  // Close the workspace switcher when clicking outside it.
+  useEffect(() => {
+    if (!orgMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (orgMenuRef.current && !orgMenuRef.current.contains(e.target as Node)) setOrgMenu(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [orgMenu]);
   const [mobileOpen, setMobileOpen] = useState(false);  // off-canvas drawer (< lg)
   const [chatOpen, setChatOpen] = useState(false);       // S5 slide-in chat panel
   const [isLg, setIsLg] = useState(true);                // collapse is a desktop-only concept
@@ -175,7 +185,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
         </button>
 
         {/* Brand + org switcher */}
-        <div className="relative h-14 shrink-0 flex items-center gap-2.5 px-3 border-b border-line">
+        <div ref={orgMenuRef} className="relative h-14 shrink-0 flex items-center gap-2.5 px-3 border-b border-line">
           <Link href="/dashboard" title="Dashboard" className="flex items-center shrink-0">
             {activeOrg?.branding?.logo_url && activeOrg.branding.logo_url.startsWith('preset:')
               ? <span className="w-7 h-7 rounded-md grid place-items-center text-base shrink-0" style={{ background: ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#ec4899','#8b5cf6','#14b8a6','#f97316','#22c55e','#3b82f6','#a855f7'][activeOrg.branding.logo_url.slice(7).split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % 12] }}>{activeOrg.branding.logo_url.slice(7)}</span>
