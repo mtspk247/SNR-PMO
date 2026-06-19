@@ -113,7 +113,7 @@ export default function ContractsPage() {
 
   return (
     <Layout flat title="Contracts">
-      <PageHeader title="Contracts" subtitle="Track signed agreements, values and expiry dates" icon="ti-file-certificate"
+      <PageHeader help="crm" title="Contracts" subtitle="Track signed agreements, values and expiry dates" icon="ti-file-certificate"
         action={isAdmin && (
           <button className="btn btn-primary" onClick={() => setEditor({ draft: emptyDraft() })}>
             <Icon name="ti-plus" />Add contract

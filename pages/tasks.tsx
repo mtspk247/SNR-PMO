@@ -682,7 +682,7 @@ export default function Tasks() {
     <Layout title="Tasks">
       {loading ? <Spinner /> : (
         <div className="flex flex-col h-full">
-          <PageHeader title="Tasks" subtitle="Track work across all your projects"
+          <PageHeader help="work" title="Tasks" subtitle="Track work across all your projects"
             action={<button onClick={openCreate} className="btn btn-primary"><Icon name="ti-plus" />New task</button>} />
 
           <div className="flex flex-col sm:flex-row gap-3 mb-4">

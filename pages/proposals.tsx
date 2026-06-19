@@ -108,7 +108,7 @@ export default function ProposalsPage() {
 
   return (
     <Layout flat title="Proposals">
-      <PageHeader
+      <PageHeader help="crm"
         title="Proposals"
         subtitle="Manage client proposals, values and statuses"
         icon="ti-file-description"

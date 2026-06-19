@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { sb } from '@/lib/supabase';
 
 export const Icon = ({ name, className = '', title, style }: { name: string; className?: string; title?: string; style?: React.CSSProperties }) => (
@@ -75,8 +76,24 @@ export const StatCard = ({ label, value, hint, hintTone = 'muted', icon }:
   </div>
 );
 
-export const PageHeader = ({ title, subtitle, action, icon, badge }:
-  { title: string; subtitle?: string; action?: React.ReactNode; icon?: string; badge?: React.ReactNode }) => (
+// Lightweight contextual help affordance. Renders a small "?" that deep-links to
+// the relevant section of /docs (the single source of truth). Use next to a page
+// title (via PageHeader `help`), a field label, or a module header.
+//   <HelpHint anchor="billing-plans" />            // page/module help
+//   <HelpHint anchor="business-profile" label="About tax IDs" />  // field help
+export const HelpHint = ({ anchor, label, className = '' }: { anchor: string; label?: string; className?: string }) => (
+  <Link
+    href={`/docs#${anchor}`}
+    title={label || 'Open the guide for this'}
+    aria-label={label || 'Open help'}
+    className={`inline-grid place-items-center w-5 h-5 rounded-full text-muted hover:text-accentstrong hover:bg-accent/10 transition-colors shrink-0 align-middle ${className}`}
+  >
+    <Icon name="ti-help-circle" className="text-sm" />
+  </Link>
+);
+
+export const PageHeader = ({ title, subtitle, action, icon, badge, help }:
+  { title: string; subtitle?: string; action?: React.ReactNode; icon?: string; badge?: React.ReactNode; help?: string }) => (
   <div className="flex items-start justify-between gap-3 mb-5">
     <div className="flex items-start gap-3 min-w-0">
       {icon && (
@@ -87,6 +104,7 @@ export const PageHeader = ({ title, subtitle, action, icon, badge }:
       <div className="min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           <h1 className="text-xl font-semibold tracking-tight truncate">{title}</h1>
+          {help && <HelpHint anchor={help} label="Open the guide for this page" />}
           {badge && <span className="shrink-0">{badge}</span>}
         </div>
         {subtitle && <p className="text-sm text-muted mt-0.5">{subtitle}</p>}

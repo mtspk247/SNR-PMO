@@ -222,7 +222,7 @@ export default function IdeasPage() {
   );
   return (
     <Layout title="Ideas">
-      <PageHeader
+      <PageHeader help="work"
         title="Ideas"
         subtitle="Idea backlog — capture, vote, and convert your best ideas into projects."
         action={

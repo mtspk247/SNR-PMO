@@ -88,7 +88,7 @@ export default function AutomationsPage() {
 
   return (
     <Layout flat title="Automations">
-      <PageHeader title="Automations" subtitle="When something happens, automatically act on it" icon="ti-bolt" />
+      <PageHeader help="connections" title="Automations" subtitle="When something happens, automatically act on it" icon="ti-bolt" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
       <div className="card p-5 mb-5 max-w-3xl">

@@ -104,7 +104,7 @@ export default function JobsPage() {
 
   return (
     <Layout flat title="Jobs">
-      <PageHeader title="Job Postings" subtitle="Manage open roles, hiring status and headcount" icon="ti-briefcase"
+      <PageHeader help="hr" title="Job Postings" subtitle="Manage open roles, hiring status and headcount" icon="ti-briefcase"
         action={isAdmin && (
           <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
             <Icon name="ti-plus" />Add job

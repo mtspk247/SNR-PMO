@@ -88,7 +88,7 @@ export default function EmployeesPage() {
 
   return (
     <Layout flat title="Employees">
-      <PageHeader title="Employee directory" subtitle="Everyone in your organization, with role, department and manager"
+      <PageHeader help="hr" title="Employee directory" subtitle="Everyone in your organization, with role, department and manager"
         action={isAdmin ? <button onClick={() => setShowNew(true)} className="btn btn-primary"><Icon name="ti-user-plus" />New employee</button> : undefined} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">

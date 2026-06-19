@@ -114,7 +114,7 @@ export default function ClientsPage() {
 
   return (
     <Layout flat title="Clients">
-      <PageHeader
+      <PageHeader help="crm"
         title="Clients"
         subtitle="Manage your client accounts and relationships"
         icon="ti-users"

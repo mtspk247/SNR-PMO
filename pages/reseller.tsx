@@ -147,7 +147,7 @@ export default function ResellerPage() {
 
   return (
     <Layout flat title="Reseller">
-      <PageHeader
+      <PageHeader help="reselling"
         title="Reseller"
         subtitle="Set up and manage your reselling business — plans, payments, snapshots and co-owners"
         icon="ti-building-community"

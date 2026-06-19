@@ -315,7 +315,7 @@ export default function SettingsPage() {
 
   return (
     <Layout flat title="Settings">
-      <PageHeader title="Settings" subtitle="Your preferences, subscription, and white-label settings" />
+      <PageHeader help="business-profile" title="Settings" subtitle="Your preferences, subscription, and white-label settings" />
       {!admin && <ProfileSettings />}
       {org.allow_user_themes && (
         <div className="card p-6 mb-6 max-w-4xl">

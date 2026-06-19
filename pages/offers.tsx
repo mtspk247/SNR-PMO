@@ -153,7 +153,7 @@ export default function OffersPage() {
 
   return (
     <Layout flat title="Offer letters">
-      <PageHeader
+      <PageHeader help="hr"
         title="Offer letters"
         subtitle="Manage and track offer letters for candidates"
         icon="ti-mail"

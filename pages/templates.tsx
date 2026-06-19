@@ -170,7 +170,7 @@ export default function TemplatesPage() {
 
   return (
     <Layout flat title="Templates">
-      <PageHeader title="Document templates" subtitle="Branded, reusable templates for proposals, contracts, offer letters and more — write once, use many" icon="ti-files"
+      <PageHeader help="templates" title="Document templates" subtitle="Branded, reusable templates for proposals, contracts, offer letters and more — write once, use many" icon="ti-files"
         action={<button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New template</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {rows === null ? <Spinner /> : rows.length === 0 ? (

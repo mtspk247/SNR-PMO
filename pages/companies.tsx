@@ -120,7 +120,7 @@ export default function CompaniesPage() {
 
   return (
     <Layout flat title="Companies">
-      <PageHeader title="Companies" subtitle={`${companies.length} companies`}
+      <PageHeader help="hierarchy" title="Companies" subtitle={`${companies.length} companies`}
         action={<div className="flex items-center gap-2"><ViewControls prefs={vp} views={VIEWS} />{admin && <button onClick={() => { setErr(''); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New company</button>}</div>} />
       {loading ? <Spinner /> : companies.length === 0 ? (
         <EmptyState icon="ti-building" text={admin ? 'No companies yet — create your first one' : 'No companies you can access yet'} />

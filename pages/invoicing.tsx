@@ -53,7 +53,7 @@ export default function InvoicingPage() {
 
   return (
     <Layout flat title="Invoicing">
-      <PageHeader title="Invoicing" subtitle="Create invoices, track payments and balances" icon="ti-file-invoice"
+      <PageHeader help="tracking" title="Invoicing" subtitle="Create invoices, track payments and balances" icon="ti-file-invoice"
         action={<button className="btn btn-primary" disabled={busy} onClick={newInvoice}><Icon name="ti-plus" />New invoice</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">

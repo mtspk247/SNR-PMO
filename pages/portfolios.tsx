@@ -128,7 +128,7 @@ export default function PortfoliosPage() {
 
   return (
     <Layout flat title="Portfolios">
-      <PageHeader title="Portfolios" subtitle={`${portfolios.length} portfolios`}
+      <PageHeader help="hierarchy" title="Portfolios" subtitle={`${portfolios.length} portfolios`}
         action={<div className="flex items-center gap-2"><ViewControls prefs={vp} views={VIEWS} />{canCreate && <button onClick={() => { setErr(''); setNp({ name: '', company_id: createableCompanies[0]?.id || '', description: '' }); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New portfolio</button>}</div>} />
       {loading ? <Spinner /> : portfolios.length === 0 ? (
         <EmptyState icon="ti-stack-2" text={canCreate ? 'No portfolios yet — create your first one' : 'No portfolios you can access yet'} />

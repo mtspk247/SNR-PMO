@@ -183,7 +183,7 @@ export default function LedgerPage() {
 
   return (
     <Layout flat title="General Ledger">
-      <PageHeader title="General Ledger" subtitle="Double-entry chart of accounts, journal and trial balance" icon="ti-book-2"
+      <PageHeader help="tracking" title="General Ledger" subtitle="Double-entry chart of accounts, journal and trial balance" icon="ti-book-2"
         action={<div className="flex items-center gap-2">
           {tab === 'coa' && accounts.length > 0 && <button onClick={openNewAcct} className="btn btn-primary"><Icon name="ti-plus" />New account</button>}
           {tab === 'journal' && accounts.length > 0 && (<><button onClick={importExisting} disabled={busy} className="btn"><Icon name="ti-download" />Import existing</button><button onClick={openJournal} className="btn btn-primary"><Icon name="ti-plus" />New journal entry</button></>)}

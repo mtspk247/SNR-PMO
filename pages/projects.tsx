@@ -159,7 +159,7 @@ export default function Projects() {
 
   return (
     <Layout title="Projects">
-      <PageHeader title="Projects" subtitle={`${projects.length} projects`}
+      <PageHeader help="work" title="Projects" subtitle={`${projects.length} projects`}
         action={canCreate ? <div className="flex items-center gap-2"><button onClick={() => setStatusMgr(true)} className="btn"><Icon name="ti-flag-3" className="text-sm" />Statuses</button><button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New project</button></div> : undefined} />
       {isLoading ? <Spinner /> : projects.length === 0 ? (
         <EmptyState text={canCreate ? 'No projects yet — create your first one' : 'No projects yet'} />

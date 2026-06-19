@@ -103,7 +103,7 @@ export default function LeavePage() {
     <Layout flat title="Leave">
       {loading ? <Spinner /> : (
         <>
-          <PageHeader title="Leave" subtitle="Request time off and track approvals"
+          <PageHeader help="hr" title="Leave" subtitle="Request time off and track approvals"
             action={<button onClick={() => setShow(true)} className="btn btn-primary"><Icon name="ti-plus" />Request leave</button>} />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             <StatCard label="Pending" value={pending} icon="ti-clock" />

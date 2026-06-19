@@ -119,7 +119,7 @@ export default function LeadsPage() {
 
   return (
     <Layout flat title="Leads">
-      <PageHeader
+      <PageHeader help="crm"
         title="Leads"
         subtitle="Capture and qualify prospects, then convert them into the Pipeline (a deal) or directly to a Client"
         icon="ti-user-search"

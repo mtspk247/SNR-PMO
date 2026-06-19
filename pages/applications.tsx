@@ -110,7 +110,7 @@ export default function ApplicationsPage() {
 
   return (
     <Layout flat title="Applications">
-      <PageHeader
+      <PageHeader help="hr"
         title="Applications"
         subtitle="Track candidates across every stage of hiring"
         icon="ti-users"

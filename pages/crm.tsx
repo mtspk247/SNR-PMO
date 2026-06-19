@@ -298,7 +298,7 @@ export default function CRM() {
 
   return (
     <Layout flat title="CRM">
-      <PageHeader title="CRM" subtitle={`${deals.length} deals · ${contacts.length} contacts`}
+      <PageHeader help="crm" title="CRM" subtitle={`${deals.length} deals · ${contacts.length} contacts`}
         action={
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-surface2 border border-line rounded-lg p-1"><Tab id="pipeline" label="Pipeline" /><Tab id="contacts" label="Contacts" /></div>

@@ -215,7 +215,7 @@ export default function TrainingPage() {
 
   return (
     <Layout flat title="Training & JDs">
-      <PageHeader
+      <PageHeader help="hr"
         title="Training & Job Descriptions"
         subtitle="Manage training materials and job description documents for your organisation."
         action={

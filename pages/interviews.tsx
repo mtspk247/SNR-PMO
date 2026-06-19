@@ -184,7 +184,7 @@ export default function InterviewsPage() {
 
   return (
     <Layout flat title="Interviews">
-      <PageHeader
+      <PageHeader help="hr"
         title="Interviews"
         subtitle="Schedule interviews and collect feedback against candidate applications"
         icon="ti-calendar-event"

@@ -66,7 +66,7 @@ export default function AttendancePage() {
     <Layout flat title="Attendance">
       {isLoading ? <Spinner /> : (
         <>
-          <PageHeader title="Attendance" subtitle={isAdmin ? 'Your time plus the team’s recent activity' : 'Track your working hours'}
+          <PageHeader help="hr" title="Attendance" subtitle={isAdmin ? 'Your time plus the team’s recent activity' : 'Track your working hours'}
             action={openRow
               ? <button onClick={doCheckOut} disabled={busy} className="btn btn-primary"><Icon name="ti-logout" />Check out</button>
               : <button onClick={doCheckIn} disabled={busy} className="btn btn-primary"><Icon name="ti-login" />Check in</button>} />

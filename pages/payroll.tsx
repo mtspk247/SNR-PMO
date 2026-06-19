@@ -118,7 +118,7 @@ export default function PayrollPage() {
 
   return (
     <Layout flat title="Payroll">
-      <PageHeader title="Payroll" subtitle="Manage payroll runs and employee payslips"
+      <PageHeader help="hr" title="Payroll" subtitle="Manage payroll runs and employee payslips"
         action={<button onClick={() => setShowNew(true)} className="btn btn-primary"><Icon name="ti-plus" />New run</button>} />
 
       {loading ? <Spinner /> : (
