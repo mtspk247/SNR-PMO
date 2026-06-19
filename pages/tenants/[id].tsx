@@ -63,7 +63,8 @@ export default function TenantDetail() {
   const [loading, setLoading] = useState(true); const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState('overview');
   const [confirmState, setConfirmState] = useState<{ title: string; body: string; onYes: () => void; danger?: boolean } | null>(null);
-  const ask = (title: string, body: string, onYes: () => void, danger = false) => setConfirmState({ title, body, onYes, danger });
+  const [editMode, setEditMode] = useState(false);
+  const ask = (title: string, body: string, onYes: () => void, danger = false) => { if (!editMode) { flash('Turn on Edit mode (top-right) before changing this tenant.'); return; } setConfirmState({ title, body, onYes, danger }); };
   const [okMsg, setOkMsg] = useState('');
   const flash = (m: string) => { setOkMsg(m); window.setTimeout(() => setOkMsg(''), 2500); };
   const [planSel, setPlanSel] = useState('');
@@ -111,8 +112,8 @@ export default function TenantDetail() {
   const toggleActive = async () => { if (!info) return; setBusy(true); try { await setTenantActive(orgId, !info.active); await refreshInfo(); refreshUsage(); refreshEvents(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const addNote = async () => { if (!noteText.trim()) return; setSavingNote(true); try { await addTenantNote(orgId, noteText.trim()); setNoteText(''); refreshEvents(); flash('Note added.'); } catch (e: any) { setErr(e.message); } finally { setSavingNote(false); } };
   const emailOwner = async () => { if (!emSubj.trim() || !emBody.trim()) return; setEmailing(true); setErr(''); try { const n = await emailTenant(orgId, emSubj.trim(), emBody.trim(), emLink.trim() || undefined); setEmSubj(''); setEmBody(''); setEmLink(''); refreshEvents(); flash(`Queued ${n} email(s).`); } catch (e: any) { setErr(e.message); } finally { setEmailing(false); } };
-  const setFeature = async (key: string, val: boolean | null) => { setBusy(true); try { await setTenantFeatureOverride(orgId, key, val); await refreshInfo(); await refreshSessionOrg(); flash('Feature access updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
-  const saveQuota = async (mb: string) => { setBusy(true); try { await setTenantLimitOverride(orgId, 'storage_mb', mb === '' ? null : Number(mb)); await refreshInfo(); flash('Storage quota updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const setFeature = async (key: string, val: boolean | null) => { if (!editMode) { flash('Turn on Edit mode before changing features.'); return; } setBusy(true); try { await setTenantFeatureOverride(orgId, key, val); await refreshInfo(); await refreshSessionOrg(); flash('Feature access updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const saveQuota = async (mb: string) => { if (!editMode) { flash('Turn on Edit mode before changing storage.'); return; } setBusy(true); try { await setTenantLimitOverride(orgId, 'storage_mb', mb === '' ? null : Number(mb)); await refreshInfo(); flash('Storage quota updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
   const saveDomain = async () => { setDomBusy(true); setErr(''); try { const d = await setCustomDomain(orgId, domInput.trim()); setDom(d); setDomInput(d.custom_domain || ''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
   const removeDomain = async () => { setDomBusy(true); setErr(''); try { const d = await setCustomDomain(orgId, ''); setDom(d); setDomInput(''); } catch (e: any) { setErr(e.message); } finally { setDomBusy(false); } };
@@ -133,6 +134,7 @@ export default function TenantDetail() {
 
   const doWipe = async () => {
     if (!tenant || wipeName.trim() !== tenant.org_name) return;
+    if (!editMode) { flash('Turn on Edit mode before wiping.'); return; }
     setWiping(true); setErr('');
     try { await tenantSnapshot(orgId, 'Pre-wipe backup'); await wipeTenantData(orgId); setWipeName(''); await refreshSnaps(); await refreshInfo(); refreshUsage(); }
     catch (e: any) { setErr(e.message); } finally { setWiping(false); }
@@ -166,7 +168,8 @@ export default function TenantDetail() {
         badge={<PlanBadge planKey={tenant.plan_key} planName={usage?.plan || tenant.plan_name} />}
         action={<div className="flex items-center gap-2">
           <span className={`pill ${info?.active === false ? 'pill-red' : 'pill-green'}`}>{info?.active === false ? 'Suspended' : 'Active'}</span>
-          <button className={`btn h-8 py-0 ${info?.active === false ? 'btn-primary' : 'btn-danger'}`} disabled={busy || !info} onClick={() => ask(info?.active === false ? 'Reactivate tenant?' : 'Suspend tenant?', info?.active === false ? `Reactivate ${tenant.org_name}? Members regain access.` : `Suspend ${tenant.org_name}? Members lose access until reactivated.`, toggleActive, info?.active !== false)}>
+          <button onClick={() => setEditMode((v) => !v)} title={editMode ? 'Changes are enabled — click to lock' : 'Locked (read-only). Click to enable changes to this tenant.'} className={`btn h-8 py-0 ${editMode ? 'border border-amber-400 text-amber-700 bg-amber-500/10' : 'border border-line text-muted'}`}><Icon name={editMode ? 'ti-lock-open' : 'ti-lock'} />{editMode ? 'Editing' : 'Locked'}</button>
+          <button className={`btn h-8 py-0 ${info?.active === false ? 'btn-primary' : 'btn-danger'}`} disabled={busy || !info || !editMode} onClick={() => ask(info?.active === false ? 'Reactivate tenant?' : 'Suspend tenant?', info?.active === false ? `Reactivate ${tenant.org_name}? Members regain access.` : `Suspend ${tenant.org_name}? Members lose access until reactivated.`, toggleActive, info?.active !== false)}>
             <Icon name={info?.active === false ? 'ti-circle-check' : 'ti-ban'} />{info?.active === false ? 'Reactivate' : 'Suspend'}
           </button>
           <button className="btn h-8 py-0" onClick={() => router.push('/tenants')}><Icon name="ti-arrow-left" />Back</button>
@@ -182,6 +185,9 @@ export default function TenantDetail() {
         <StatCard label="Created" value={usage?.created_at ? new Date(usage.created_at).toLocaleDateString() : '—'} icon="ti-calendar" hint={info?.active === false ? 'Suspended' : 'Active'} hintTone={info?.active === false ? 'down' : 'up'} />
       </div>
 
+      {!editMode && (
+        <div className="flex items-center gap-2 mb-4 rounded-lg border border-line bg-surface2/40 px-3 py-2 text-2xs text-muted"><Icon name="ti-lock" className="text-sm" />This tenant is in <b className="mx-1 text-content">read-only</b> mode. Turn on <b className="mx-1 text-content">Edit mode</b> (top-right) to change its plan, features, storage or status — every change is then confirmed.</div>
+      )}
       <Tabs active={tab} onChange={setTab} tabs={[
         { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
         { key: 'users', label: 'Users', icon: 'ti-users' },
@@ -278,7 +284,7 @@ export default function TenantDetail() {
               <Field label="Plan override (operator)" hint="Sets the plan directly — bypasses the tenant's paid self-serve upgrade. Use for comps, trials or support.">
                 <div className="flex items-center gap-2">
                   <div className="flex-1"><Select value={planSel} disabled={busy} onChange={setPlanSel} placeholder="Select a plan…" options={plans.map((p) => ({ value: p.key, label: p.name }))} /></div>
-                  <button className="btn btn-primary shrink-0" disabled={busy || !planSel || planSel === (info.plan || '')}
+                  <button className="btn btn-primary shrink-0" disabled={busy || !editMode || !planSel || planSel === (info.plan || '')}
                     onClick={() => ask('Override plan?', `Override ${tenant.org_name}\u2019s plan to "${plans.find((p) => p.key === planSel)?.name || planSel}"? This bypasses their paid upgrade flow — for comps/support.`, () => changePlan(planSel, planReason))}>
                     {busy ? '…' : 'Apply'}
                   </button>
@@ -311,7 +317,7 @@ export default function TenantDetail() {
                       <div className="flex items-center rounded-lg border border-line overflow-hidden text-2xs shrink-0">
                         {([['default', undefined], ['on', true], ['off', false]] as const).map(([lab, val]) => {
                           const activeSel = ov === val;
-                          return <button key={lab} disabled={busy} onClick={() => setFeature(key, (val as boolean | undefined) ?? null)}
+                          return <button key={lab} disabled={busy || !editMode} onClick={() => setFeature(key, (val as boolean | undefined) ?? null)}
                             className={`px-2.5 h-7 capitalize transition ${activeSel ? 'bg-accent/15 text-accentstrong font-medium' : 'text-muted hover:bg-surface2'}`}>{lab}</button>;
                         })}
                       </div>
@@ -469,7 +475,7 @@ export default function TenantDetail() {
           )}
           <label className="text-2xs text-muted">Type <span className="font-mono font-semibold text-content">{tenant.org_name}</span> to confirm</label>
           <input className="input mt-1 max-w-sm" value={wipeName} onChange={(e) => setWipeName(e.target.value)} placeholder={tenant.org_name} />
-          <div className="mt-2"><button className="btn btn-danger" disabled={wiping || busy || wipeName.trim() !== tenant.org_name} onClick={doWipe}>
+          <div className="mt-2"><button className="btn btn-danger" disabled={wiping || busy || !editMode || wipeName.trim() !== tenant.org_name} onClick={doWipe}>
             <Icon name="ti-trash-x" />{wiping ? 'Backing up & wiping…' : 'Back up & wipe tenant data'}
           </button></div>
         </div>
