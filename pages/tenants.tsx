@@ -9,6 +9,7 @@ import { useAuthStore } from '@/lib/store';
 import { listTenants, listPlans, listOrgInvites, createOrgInvite, setOrgInviteSource, revokeOrgInvite, platformAccounts, PlatformAccount, emailGetStatus, EmailStatus, adminImpersonateLink, setTenantReseller } from '@/lib/db';
 import { Plan, OrgInvite } from '@/lib/supabase';
 import { GroupHeader } from '@/components/GroupHeader';
+import Dropdown from '@/components/Dropdown';
 
 const SOURCES = [
   { value: 'website', label: 'Website' },
@@ -110,7 +111,17 @@ export default function TenantsPage() {
                       <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
                       <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
                       <td className="px-4 py-3"><span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span></td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">{t.is_reseller && <span className="pill mr-1" style={{ background: 'rgb(139 92 246 / .12)', color: 'rgb(124 58 237)' }}>Reseller</span>}<button onClick={(e) => { e.stopPropagation(); toggleReseller(t.org_id, !t.is_reseller); }} className="btn-ghost text-2xs" title={t.is_reseller ? 'Remove reseller capability' : 'Designate as reseller (requires White-label plan)'}>{t.is_reseller ? 'Unset' : 'Make reseller'}</button><button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="Open this workspace as its owner (use a private window)" className="btn-ghost text-2xs"><Icon name="ti-login-2" />View as</button><Icon name="ti-chevron-right" className="text-muted2 ml-1 align-middle" /></td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-2">
+                          {t.is_reseller && <span className="inline-flex items-center gap-1 rounded-full border border-violet-300/50 bg-violet-500/10 px-2 py-0.5 text-2xs font-medium text-violet-600"><Icon name="ti-building-community" className="text-2xs" />Reseller</span>}
+                          <button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="View as owner (opens in a private window)" aria-label="View as owner" className="h-8 w-8 grid place-items-center rounded-md border border-line text-muted hover:bg-surface2 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accentstrong/40 transition-colors"><Icon name="ti-login-2" /></button>
+                          <Dropdown align="right" width={208}
+                            trigger={<span className="h-8 w-8 grid place-items-center rounded-md border border-line text-muted hover:bg-surface2 hover:text-content transition-colors" title="More actions" aria-label="More actions"><Icon name="ti-dots-vertical" /></span>}
+                            items={[{ value: 'open', label: 'Open details', icon: 'ti-arrow-right' }, { value: 'reseller', label: t.is_reseller ? 'Unset reseller' : 'Make reseller', icon: t.is_reseller ? 'ti-circle-minus' : 'ti-building-community' }]}
+                            onChange={(v) => { if (v === 'open') router.push(`/tenants/${t.org_id}`); else if (v === 'reseller') toggleReseller(t.org_id, !t.is_reseller); }}
+                          />
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </Fragment>
