@@ -194,7 +194,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
           )}
           {!collapsed && orgs.length > 1 && (
             <button onClick={() => setOrgMenu((v) => !v)} title="Switch workspace" className="shrink-0 side-dim hover:text-content p-1 -mr-1">
-              <Icon name="ti-selector" className="text-sm" />
+              <Icon name="ti-chevron-down" className={`text-sm transition-transform ${orgMenu ? 'rotate-180' : ''}`} />
             </button>
           )}
           {!collapsed && orgMenu && orgs.length > 0 && (

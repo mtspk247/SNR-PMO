@@ -10,6 +10,14 @@ export const sb = createClient(url, anon, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
+// Active-workspace scope: the org id of the currently selected workspace.
+// db.ts getters default their `org_id` filter to this so that a user who belongs
+// to multiple workspaces only ever loads the active workspace's data (RLS allows
+// the union of all their orgs; this fences reads to one). Kept in sync by the
+// auth store on session load / workspace switch.
+export let activeOrgScope: string | null = null;
+export function setActiveOrgScope(id: string | null) { activeOrgScope = id; }
+
 export type Role = 'super_admin' | 'pm' | 'team_member' | 'viewer';
 export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer';
 

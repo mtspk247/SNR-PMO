@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppUser, MyOrg } from './supabase';
+import { AppUser, MyOrg, setActiveOrgScope } from './supabase';
 
 interface AuthState {
   user: AppUser | null;
@@ -29,28 +29,26 @@ export const useAuthStore = create<AuthState>()(
       hasHydrated: false,
 
       setSession: (user, orgs, platformAdmin = false) =>
-        set((s) => ({
-          user,
-          orgs,
-          platformAdmin,
-          // keep current active org if still valid, else default to first
-          activeOrgId:
+        set((s) => {
+          const activeOrgId =
             s.activeOrgId && orgs.some((o) => o.id === s.activeOrgId)
               ? s.activeOrgId
-              : orgs[0]?.id ?? null,
-        })),
-      setActiveOrg: (activeOrgId) => set({ activeOrgId }),
+              : orgs[0]?.id ?? null;
+          setActiveOrgScope(activeOrgId);   // fence db reads to the active workspace
+          return { user, orgs, platformAdmin, activeOrgId };
+        }),
+      setActiveOrg: (activeOrgId) => { setActiveOrgScope(activeOrgId); set({ activeOrgId }); },
       patchOrg: (patch) =>
         set((s) => ({ orgs: s.orgs.map((o) => (o.id === patch.id ? { ...o, ...patch } : o)) })),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-      clear: () => set({ user: null, orgs: [], platformAdmin: false, activeOrgId: null }),
+      clear: () => { setActiveOrgScope(null); set({ user: null, orgs: [], platformAdmin: false, activeOrgId: null }); },
       setHydrated: () => set({ hasHydrated: true }),
     }),
     {
       name: 'snr-auth',
       // only persist lightweight prefs; session/user are rehydrated from Supabase
       partialize: (s) => ({ activeOrgId: s.activeOrgId, sidebarCollapsed: s.sidebarCollapsed }),
-      onRehydrateStorage: () => (state) => state?.setHydrated(),
+      onRehydrateStorage: () => (state) => { if (state) { setActiveOrgScope(state.activeOrgId); state.setHydrated(); } },
     }
   )
 );

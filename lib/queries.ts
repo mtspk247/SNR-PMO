@@ -34,18 +34,18 @@ import {
 // --- Projects --------------------------------------------------------------
 export function useProjects() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.projects(org?.id), queryFn: getProjects, enabled: !!org });
+  return useQuery({ queryKey: qk.projects(org?.id), queryFn: () => getProjects(org?.id), enabled: !!org });
 }
 export function useOrgCompanies() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.companies(org?.id), queryFn: getOrgCompanies, enabled: !!org });
+  return useQuery({ queryKey: qk.companies(org?.id), queryFn: () => getOrgCompanies(org?.id), enabled: !!org });
 }
 export function usePortfolios() {
   const org = useActiveOrg();
   // portfolios is a plan-gated feature; tolerate RLS/feature rejection as empty.
   return useQuery({
     queryKey: qk.portfolios(org?.id),
-    queryFn: () => getPortfolios().catch(() => []),
+    queryFn: () => getPortfolios(org?.id).catch(() => []),
     enabled: !!org,
   });
 }
@@ -75,23 +75,23 @@ export function useDeleteProject() {
 // --- List reads for rollout pages ------------------------------------------
 export function useAuditLog() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.auditLog(org?.id), queryFn: getAuditLog, enabled: !!org });
+  return useQuery({ queryKey: qk.auditLog(org?.id), queryFn: () => getAuditLog(org?.id), enabled: !!org });
 }
 export function useAttendance() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.attendance(org?.id), queryFn: getAttendance, enabled: !!org });
+  return useQuery({ queryKey: qk.attendance(org?.id), queryFn: () => getAttendance(org?.id), enabled: !!org });
 }
 export function useEmployees() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.employees(org?.id), queryFn: getEmployees, enabled: !!org });
+  return useQuery({ queryKey: qk.employees(org?.id), queryFn: () => getEmployees(org?.id), enabled: !!org });
 }
 export function useLeaves() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.leaves(org?.id), queryFn: getLeaves, enabled: !!org });
+  return useQuery({ queryKey: qk.leaves(org?.id), queryFn: () => getLeaves(org?.id), enabled: !!org });
 }
 export function usePayrollRuns() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.payrollRuns(org?.id), queryFn: getPayrollRuns, enabled: !!org });
+  return useQuery({ queryKey: qk.payrollRuns(org?.id), queryFn: () => getPayrollRuns(org?.id), enabled: !!org });
 }
 
 // --- Tasks & CRM (batch 2) ---------------------------------------------------
@@ -101,38 +101,38 @@ export function usePayrollRuns() {
 // mutations above, without forcing a whole-list refetch per inline edit.
 export function useTasks() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.tasks(org?.id), queryFn: getTasks, enabled: !!org });
+  return useQuery({ queryKey: qk.tasks(org?.id), queryFn: () => getTasks(org?.id), enabled: !!org });
 }
 export function useDeals() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.deals(org?.id), queryFn: getDeals, enabled: !!org });
+  return useQuery({ queryKey: qk.deals(org?.id), queryFn: () => getDeals(org?.id), enabled: !!org });
 }
 export function useContacts() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.contacts(org?.id), queryFn: getContacts, enabled: !!org });
+  return useQuery({ queryKey: qk.contacts(org?.id), queryFn: () => getContacts(org?.id), enabled: !!org });
 }
 export function useCrmCompanies() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.crmCompanies(org?.id), queryFn: getCompanies, enabled: !!org });
+  return useQuery({ queryKey: qk.crmCompanies(org?.id), queryFn: () => getCompanies(org?.id), enabled: !!org });
 }
 
 export function useLedgerEntries() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.ledger(org?.id), queryFn: getLedgerEntries, enabled: !!org });
+  return useQuery({ queryKey: qk.ledger(org?.id), queryFn: () => getLedgerEntries(org?.id), enabled: !!org });
 }
 
 export function useIdeas() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.ideas(org?.id), queryFn: getIdeas, enabled: !!org });
+  return useQuery({ queryKey: qk.ideas(org?.id), queryFn: () => getIdeas(org?.id), enabled: !!org });
 }
 
 export function useTrainingDocs() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.trainingDocs(org?.id), queryFn: getTrainingDocs, enabled: !!org });
+  return useQuery({ queryKey: qk.trainingDocs(org?.id), queryFn: () => getTrainingDocs(org?.id), enabled: !!org });
 }
 export function useJobDescriptions() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.jobDescriptions(org?.id), queryFn: getJobDescriptions, enabled: !!org });
+  return useQuery({ queryKey: qk.jobDescriptions(org?.id), queryFn: () => getJobDescriptions(org?.id), enabled: !!org });
 }
 
 // S5 chat: poll every 12s (decision: polling, not realtime — NotificationBell pattern).
@@ -142,7 +142,7 @@ export function useChatMessages(projectId: string | null) {
   const org = useActiveOrg();
   return useQuery({
     queryKey: qk.chat(org?.id, projectId),
-    queryFn: () => getChatMessages(projectId),
+    queryFn: () => getChatMessages(projectId, org?.id),
     enabled: !!org,
     refetchInterval: 12000,
   });
@@ -160,7 +160,7 @@ export function useMyOpenTimer(userId?: string | null) {
   const org = useActiveOrg();
   return useQuery({
     queryKey: qk.myTimer(org?.id, userId),
-    queryFn: () => getMyOpenTimer(userId!),
+    queryFn: () => getMyOpenTimer(userId!, org?.id),
     enabled: !!org && !!userId,
     refetchInterval: 60000,
   });
@@ -168,5 +168,5 @@ export function useMyOpenTimer(userId?: string | null) {
 
 export function useTeams() {
   const org = useActiveOrg();
-  return useQuery({ queryKey: qk.teams(org?.id), queryFn: getTeams, enabled: !!org });
+  return useQuery({ queryKey: qk.teams(org?.id), queryFn: () => getTeams(org?.id), enabled: !!org });
 }

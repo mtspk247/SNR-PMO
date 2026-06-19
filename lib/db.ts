@@ -1,4 +1,4 @@
-import { sb, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES } from './supabase';
+import { sb, activeOrgScope, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES } from './supabase';
 import { buildDemoPayload } from './demoSeed';
 
 // ---------------------------------------------------------------------------
@@ -165,8 +165,11 @@ export async function resetUserDashboard(orgId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function getOrgUsers(): Promise<OrgUser[]> {
-  const { data, error } = await sb.from('users').select('id, full_name, email, avatar_url').order('full_name');
+export async function getOrgUsers(orgId: string | null = activeOrgScope): Promise<OrgUser[]> {
+  let q = orgId
+    ? sb.from('users').select('id, full_name, email, avatar_url, org_members!inner(org_id)').eq('org_members.org_id', orgId).order('full_name')
+    : sb.from('users').select('id, full_name, email, avatar_url').order('full_name');
+  const { data, error } = await q;
   if (error) throw error;
   return (data as OrgUser[]) || [];
 }
@@ -357,8 +360,10 @@ export async function setPlanLimit(planId: string, key: string, value: number | 
 // ---------------------------------------------------------------------------
 // Data (RLS-scoped to the user's org + project access)
 // ---------------------------------------------------------------------------
-export async function getProjects(): Promise<Project[]> {
-  const { data, error } = await sb.from('projects').select('*').order('created_at', { ascending: false });
+export async function getProjects(orgId: string | null = activeOrgScope): Promise<Project[]> {
+  let q = sb.from('projects').select('*').order('created_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return data || [];
 }
 
@@ -402,8 +407,10 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 // --- Tenancy companies (Org → Company → Project). RLS: org owner/admin only. ---
-export async function getOrgCompanies(): Promise<OrgCompany[]> {
-  const { data, error } = await sb.from('companies').select('id, name, description, org_id').order('name');
+export async function getOrgCompanies(orgId: string | null = activeOrgScope): Promise<OrgCompany[]> {
+  let q = sb.from('companies').select('id, name, description, org_id').order('name');
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error;
   return (data as OrgCompany[]) || [];
 }
@@ -462,9 +469,11 @@ export async function getMyCompanyManagerships(userId: string): Promise<string[]
 // RLS: pf_select = can_access_portfolio AND org_has_feature('portfolios');
 // pf_write = (org owner/admin OR company manager) AND feature. Insert with
 // return=minimal then refetch (RETURNING re-applies pf_select feature+access).
-export async function getPortfolios(): Promise<Portfolio[]> {
-  const { data, error } = await sb.from('portfolios')
+export async function getPortfolios(orgId: string | null = activeOrgScope): Promise<Portfolio[]> {
+  let q = sb.from('portfolios')
     .select('id, org_id, company_id, name, description').order('name');
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as Portfolio[]) || [];
 }
 export async function createPortfolio(p: { name: string; org_id: string; company_id: string; description?: string | null }): Promise<Portfolio[]> {
@@ -511,8 +520,10 @@ export async function getMyPortfolioManagerships(userId: string): Promise<string
   if (error) throw error; return ((data || []) as any[]).map((r) => r.portfolio_id);
 }
 
-export async function getTasks(): Promise<Task[]> {
-  const { data, error } = await sb.from('tasks').select('*, projects(name)').order('due_date', { ascending: true });
+export async function getTasks(orgId: string | null = activeOrgScope): Promise<Task[]> {
+  let q = sb.from('tasks').select('*, projects(name)').order('due_date', { ascending: true });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as Task[]) || [];
 }
 
@@ -537,20 +548,26 @@ export async function deleteTask(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function getCompanies(): Promise<Company[]> {
-  const { data, error } = await sb.from('crm_companies').select('*').order('name');
+export async function getCompanies(orgId: string | null = activeOrgScope): Promise<Company[]> {
+  let q = sb.from('crm_companies').select('*').order('name');
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return data || [];
 }
 
-export async function getContacts(): Promise<Contact[]> {
-  const { data, error } = await sb.from('crm_contacts').select('*, crm_companies(name)').order('full_name');
+export async function getContacts(orgId: string | null = activeOrgScope): Promise<Contact[]> {
+  let q = sb.from('crm_contacts').select('*, crm_companies(name)').order('full_name');
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as Contact[]) || [];
 }
 
-export async function getDeals(): Promise<Deal[]> {
-  const { data, error } = await sb.from('crm_deals')
+export async function getDeals(orgId: string | null = activeOrgScope): Promise<Deal[]> {
+  let q = sb.from('crm_deals')
     .select('*, crm_companies(name), crm_contacts(full_name, email)')
     .order('value', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as Deal[]) || [];
 }
 
@@ -664,9 +681,11 @@ import { Attendance, Leave, AppNotification, Tag, Integration, AuditEntry, Admin
 const today = () => new Date().toISOString().slice(0, 10);
 
 // ---- 2.3 Attendance -------------------------------------------------------
-export async function getAttendance(): Promise<Attendance[]> {
-  const { data, error } = await sb.from('attendance')
+export async function getAttendance(orgId: string | null = activeOrgScope): Promise<Attendance[]> {
+  let q = sb.from('attendance')
     .select('*, users(full_name)').order('work_date', { ascending: false }).limit(200);
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as Attendance[]) || [];
 }
 export async function getMyOpenToday(userId: string): Promise<Attendance | null> {
@@ -692,9 +711,11 @@ export async function checkOut(row: Attendance): Promise<Attendance> {
 
 // ---- 2.4 Leave ------------------------------------------------------------
 const LEAVE_SEL = '*, requester:users!leaves_user_id_fkey(full_name)';
-export async function getLeaves(): Promise<Leave[]> {
-  const { data, error } = await sb.from('leaves').select(LEAVE_SEL)
+export async function getLeaves(orgId: string | null = activeOrgScope): Promise<Leave[]> {
+  let q = sb.from('leaves').select(LEAVE_SEL)
     .order('requested_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as Leave[]) || [];
 }
 export async function requestLeave(p: {
@@ -1256,9 +1277,11 @@ export async function deleteCannedReply(id: string): Promise<void> {
 }
 
 // ---- 2.6 Audit log --------------------------------------------------------
-export async function getAuditLog(): Promise<AuditEntry[]> {
-  const { data, error } = await sb.from('audit_log').select('*')
+export async function getAuditLog(orgId: string | null = activeOrgScope): Promise<AuditEntry[]> {
+  let q = sb.from('audit_log').select('*')
     .order('ts', { ascending: false }).limit(200);
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as AuditEntry[]) || [];
 }
 export async function logAudit(p: {
@@ -1461,8 +1484,11 @@ import { Employee, EmployeeCompensation, PayrollRun, Payslip } from './supabase'
 
 // ---- Employee directory + profile -----------------------------------------
 const EMPLOYEE_SEL = 'id, full_name, email, role, department, status, reports_to, phone, job_title, hire_date, company_id, address, emergency_contact, manager:users!reports_to(full_name), company:companies!users_company_id_fkey(name)';
-export async function getEmployees(): Promise<Employee[]> {
-  const { data, error } = await sb.from('users').select(EMPLOYEE_SEL).order('full_name');
+export async function getEmployees(orgId: string | null = activeOrgScope): Promise<Employee[]> {
+  let q = orgId
+    ? sb.from('users').select(EMPLOYEE_SEL + ', org_members!inner(org_id)').eq('org_members.org_id', orgId).order('full_name')
+    : sb.from('users').select(EMPLOYEE_SEL).order('full_name');
+  const { data, error } = await q;
   if (error) throw error; return (data as unknown as Employee[]) || [];
 }
 export async function getEmployee(id: string): Promise<Employee | null> {
@@ -1548,9 +1574,11 @@ export async function setCompensation(p: {
 }
 
 // ---- Payroll runs -------------------------------------------------------------
-export async function getPayrollRuns(): Promise<PayrollRun[]> {
-  const { data, error } = await sb.from('payroll_runs').select('*')
+export async function getPayrollRuns(orgId: string | null = activeOrgScope): Promise<PayrollRun[]> {
+  let q = sb.from('payroll_runs').select('*')
     .order('period_start', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as PayrollRun[]) || [];
 }
 export async function createPayrollRun(p: {
@@ -1698,9 +1726,11 @@ export const LEDGER_CATEGORIES: Record<'income' | 'expense', string[]> = {
 };
 const LEDGER_SEL = '*, project:projects(name), company:companies(name)';
 
-export async function getLedgerEntries(): Promise<LedgerEntry[]> {
-  const { data, error } = await sb.from('ledger_entries').select(LEDGER_SEL)
+export async function getLedgerEntries(orgId: string | null = activeOrgScope): Promise<LedgerEntry[]> {
+  let q = sb.from('ledger_entries').select(LEDGER_SEL)
     .order('entry_date', { ascending: false }).order('created_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as LedgerEntry[]) || [];
 }
 export async function createLedgerEntry(p: {
@@ -1731,9 +1761,11 @@ import { Idea, IdeaStatus } from './supabase';
 export const IDEA_STATUSES: IdeaStatus[] = ['idea', 'exploring', 'approved', 'building', 'shipped', 'parked'];
 const IDEA_SEL = '*, votes:idea_votes(user_id, value, reason, voter:users(full_name)), project:projects(name), creator:users!ideas_created_by_fkey(full_name)';
 
-export async function getIdeas(): Promise<Idea[]> {
-  const { data, error } = await sb.from('ideas').select(IDEA_SEL)
+export async function getIdeas(orgId: string | null = activeOrgScope): Promise<Idea[]> {
+  let q = sb.from('ideas').select(IDEA_SEL)
     .order('created_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as Idea[]) || [];
 }
 export async function createIdea(p: {
@@ -1831,9 +1863,11 @@ const TDOC_SEL = '*, role_template:role_templates(name), creator:users(full_name
 const JD_SEL = TDOC_SEL;
 type HrDocTable = 'training_docs' | 'job_descriptions';
 
-export async function getTrainingDocs(): Promise<TrainingDoc[]> {
-  const { data, error } = await sb.from('training_docs').select(TDOC_SEL)
+export async function getTrainingDocs(orgId: string | null = activeOrgScope): Promise<TrainingDoc[]> {
+  let q = sb.from('training_docs').select(TDOC_SEL)
     .order('created_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as TrainingDoc[]) || [];
 }
 export async function createTrainingDoc(p: {
@@ -1860,9 +1894,11 @@ export async function deleteTrainingDoc(d: { id: string; doc_path?: string | nul
   if (error) throw new Error(error.message);
 }
 
-export async function getJobDescriptions(): Promise<JobDescription[]> {
-  const { data, error } = await sb.from('job_descriptions').select(JD_SEL)
+export async function getJobDescriptions(orgId: string | null = activeOrgScope): Promise<JobDescription[]> {
+  let q = sb.from('job_descriptions').select(JD_SEL)
     .order('created_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as JobDescription[]) || [];
 }
 export async function createJobDescription(p: {
@@ -1936,8 +1972,10 @@ import { Team } from './supabase';
 // ---- W3 Teams -----------------------------------------------------------------
 // split policies: member read / owner-admin write => RETURNING safe for admins.
 const TEAM_SEL = '*, members:team_members(user_id, users(full_name))';
-export async function getTeams(): Promise<Team[]> {
-  const { data, error } = await sb.from('teams').select(TEAM_SEL).order('name');
+export async function getTeams(orgId: string | null = activeOrgScope): Promise<Team[]> {
+  let q = sb.from('teams').select(TEAM_SEL).order('name');
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q;
   if (error) throw error; return (data as Team[]) || [];
 }
 export async function createTeam(p: { org_id: string; name: string; description?: string; color?: string; avatar?: string }): Promise<Team> {
@@ -2019,9 +2057,11 @@ export async function getRunningTimers(orgId: string): Promise<RunningTimer[]> {
   if (error) throw new Error(error.message);
   return (data as RunningTimer[]) || [];
 }
-export async function getMyOpenTimer(userId: string): Promise<TimeEntry | null> {
-  const { data, error } = await sb.from('time_entries').select(TIME_SEL)
-    .eq('user_id', userId).is('ended_at', null).maybeSingle();
+export async function getMyOpenTimer(userId: string, orgId: string | null = activeOrgScope): Promise<TimeEntry | null> {
+  let q = sb.from('time_entries').select(TIME_SEL)
+    .eq('user_id', userId).is('ended_at', null);
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q.maybeSingle();
   if (error) throw error; return (data as TimeEntry) || null;
 }
 export async function startTimer(p: { org_id: string; task_id: string; project_id?: string | null; user_id: string }): Promise<TimeEntry> {
@@ -2065,10 +2105,11 @@ import { ChatMessage } from './supabase';
 const CHAT_SEL = '*, sender:users(full_name)';
 const CHAT_PAGE = 50;
 
-export async function getChatMessages(projectId: string | null): Promise<ChatMessage[]> {
+export async function getChatMessages(projectId: string | null, orgId: string | null = activeOrgScope): Promise<ChatMessage[]> {
   let q = sb.from('chat_messages').select(CHAT_SEL)
     .order('created_at', { ascending: false }).limit(CHAT_PAGE);
   q = projectId === null ? q.is('project_id', null) : q.eq('project_id', projectId);
+  if (orgId) q = q.eq('org_id', orgId);
   const { data, error } = await q;
   if (error) throw error;
   return (((data as ChatMessage[]) || [])).reverse(); // oldest -> newest for rendering
