@@ -6,7 +6,7 @@ import { signOut, recordGuestActivity, avatarSrc } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
 import { hasFeature, roleAllowsFeature, navVisible, isUpsellLocked } from '@/lib/entitlements';
-import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, RESELLER_LINK, DOCS_LINK, ROUTE_LABELS, featureForRoute } from '@/lib/nav';
+import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, RESELLER_LINK, RESELLER_SECTION, DOCS_LINK, ROUTE_LABELS, featureForRoute } from '@/lib/nav';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import NotificationBell from '@/components/NotificationBell';
 import RequestsBell from '@/components/RequestsBell';
@@ -54,7 +54,6 @@ export default function Layout({ title, children, flat = false }: { title: strin
   const sections = [
     ...SECTIONS,
     ...(can.manageMembers(activeOrg) ? [ADMIN_SECTION] : []),
-    ...(activeOrg?.is_reseller && can.manageMembers(activeOrg) ? [RESELLER_LINK] : []),
     DOCS_LINK,
   ]
     .map((s) => s.kind === 'menu'
@@ -238,6 +237,12 @@ export default function Layout({ title, children, flat = false }: { title: strin
               ? <NavLink key={s.item.href} {...s.item} />
               : <Menu key={s.key} section={s} />;
           })}
+          {activeOrg?.is_reseller && can.manageMembers(activeOrg) && RESELLER_SECTION.kind === 'menu' && (
+            <div className="mt-3 pt-3 border-t border-line">
+              {!collapsed && <p className="px-2.5 pb-1 text-2xs font-semibold uppercase tracking-wider text-violet-600/80 flex items-center gap-1.5"><Icon name="ti-building-community" className="text-xs" />Reseller</p>}
+              {RESELLER_SECTION.items.map((i) => <NavLink key={i.href} {...i} />)}
+            </div>
+          )}
           {platformAdmin && PLATFORM_SECTION.kind === 'menu' && (
             <div className="mt-3 pt-3 border-t border-line">
               {!collapsed && <p className="px-2.5 pb-1 text-2xs font-semibold uppercase tracking-wider text-amber-600/80 flex items-center gap-1.5"><Icon name="ti-building-skyscraper" className="text-xs" />Platform operator</p>}

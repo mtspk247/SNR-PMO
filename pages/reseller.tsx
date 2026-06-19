@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import Select from '@/components/Select';
@@ -11,7 +12,7 @@ import {
   snapshotList, snapshotCapture, snapshotDelete,
   resellerConnectOnboard, resellerConnectStatus,
   resellerListPrices, resellerSetPrice,
-  resellerGetSelfSignup, resellerSetSelfSignup,
+  resellerGetSelfSignup, resellerSetSelfSignup, inviteMember,
   ResellerOrg, ResellerInvite, ResellerBilling,
   WorkspaceSnapshot, ResellerConnectStatus, ResellerPlanPrice, SelfSignupConfig,
 } from '@/lib/db';
@@ -24,6 +25,10 @@ type TabKey = 'overview' | 'subtenants' | 'pricing' | 'snapshots' | 'payments';
 export default function ResellerPage() {
   const org = useActiveOrg();
   const [tab, setTab] = useState<TabKey>('overview');
+  const router = useRouter();
+  useEffect(() => { const t = router.query.tab; if (typeof t === 'string' && ['overview','subtenants','pricing','snapshots','payments'].includes(t)) setTab(t as TabKey); }, [router.query.tab]);
+  const [coOpen, setCoOpen] = useState(false); const [coEmail, setCoEmail] = useState(''); const [coBusy, setCoBusy] = useState(false); const [coLink, setCoLink] = useState<string | null>(null); const [coErr, setCoErr] = useState(''); const [coCopied, setCoCopied] = useState(false);
+  const submitCo = async () => { if (!org || !coEmail.trim()) return; setCoBusy(true); setCoErr(''); setCoLink(null); try { const r2 = await inviteMember(org.id, coEmail.trim(), 'admin'); setCoLink(r2.link); setCoEmail(''); } catch (e: any) { setCoErr(e.message); } finally { setCoBusy(false); } };
 
   const [orgs, setOrgs] = useState<ResellerOrg[] | null>(null);
   const [invites, setInvites] = useState<ResellerInvite[]>([]);
@@ -198,9 +203,14 @@ export default function ResellerPage() {
         subtitle="Create and manage your own sub-tenants — each gets its own workspace under your brand"
         icon="ti-building-community"
         action={
-          <button className="btn btn-primary" onClick={() => { setOpen(true); setLink(null); setErr(''); }}>
-            <Icon name="ti-plus" />Invite sub-tenant
-          </button>
+          <div className="flex items-center gap-2">
+            <button className="btn" onClick={() => { setCoOpen(true); setCoLink(null); setCoErr(''); }} title="Invite a co-owner to help manage your reseller account">
+              <Icon name="ti-user-plus" />Invite co-owner
+            </button>
+            <button className="btn btn-primary" onClick={() => { setOpen(true); setLink(null); setErr(''); }}>
+              <Icon name="ti-plus" />Invite sub-tenant
+            </button>
+          </div>
         }
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
@@ -506,6 +516,21 @@ export default function ResellerPage() {
       )}
 
       {/* Invite modal — shared across all tabs */}
+      <Modal open={coOpen} onClose={() => setCoOpen(false)} title="Invite a co-owner" icon="ti-user-plus" size="sm" onSubmit={submitCo}
+        footer={<><button className="btn" onClick={() => setCoOpen(false)}>Close</button><button className="btn btn-primary" disabled={coBusy || !coEmail.trim()} onClick={submitCo}>{coBusy ? 'Inviting…' : 'Send invite'}</button></>}>
+        <div className="space-y-3">
+          <p className="text-2xs text-muted">A co-owner gets admin access to manage your reseller account — your sub-tenants, pricing, snapshots and billing. They join your workspace; they can\u2019t see other resellers or the platform.</p>
+          <Field label="Co-owner email" required><input className="input" value={coEmail} onChange={(e) => setCoEmail(e.target.value)} placeholder="partner@youragency.com" /></Field>
+          {coErr && <p className="text-2xs text-rose-600">{coErr}</p>}
+          {coLink && (
+            <div className="rounded-lg border border-emerald-400/40 bg-emerald-500/5 p-3">
+              <p className="text-2xs text-muted mb-1.5">Invite link — share it with your co-owner:</p>
+              <div className="flex items-center gap-2"><input readOnly value={coLink} onFocus={(e) => e.currentTarget.select()} className="input text-2xs flex-1" /><button onClick={() => { try { navigator.clipboard?.writeText(coLink); setCoCopied(true); setTimeout(() => setCoCopied(false), 1500); } catch { /* */ } }} className="btn-ghost text-2xs"><Icon name="ti-copy" />{coCopied ? 'Copied' : 'Copy'}</button></div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
       <Modal
         open={open}
         onClose={() => setOpen(false)}
