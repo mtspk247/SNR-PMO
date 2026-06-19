@@ -2970,6 +2970,19 @@ export async function snapshotCapture(sourceOrg: string, name: string, descripti
 export async function snapshotDelete(id: string): Promise<void> {
   const { error } = await sb.from('workspace_snapshots').delete().eq('id', id); if (error) throw new Error(error.message);
 }
+// Reseller Stripe Connect (rebilling) — onboard the reseller's connected account + status.
+export interface ResellerConnectStatus { connected: boolean; charges_enabled?: boolean; payouts_enabled?: boolean; details_submitted?: boolean; }
+async function invokeResellerConnect(orgId: string, action: 'onboard' | 'status'): Promise<any> {
+  const { data, error } = await sb.functions.invoke('reseller-connect', { body: { action, org_id: orgId } });
+  if (error) { let msg = error.message; try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* noop */ } throw new Error(msg); }
+  return data;
+}
+export async function resellerConnectOnboard(orgId: string): Promise<{ url: string }> {
+  const d = await invokeResellerConnect(orgId, 'onboard'); if (!d?.url) throw new Error('No onboarding URL returned'); return d as { url: string };
+}
+export async function resellerConnectStatus(orgId: string): Promise<ResellerConnectStatus> {
+  return (await invokeResellerConnect(orgId, 'status')) as ResellerConnectStatus;
+}
 export async function setTenantReseller(orgId: string, on: boolean): Promise<void> {
   const { error } = await sb.rpc('platform_set_reseller', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);
 }

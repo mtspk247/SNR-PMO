@@ -5,7 +5,7 @@ import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, snapshotList, snapshotCapture, snapshotDelete, ResellerOrg, ResellerInvite, ResellerBilling, WorkspaceSnapshot } from '@/lib/db';
+import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, snapshotList, snapshotCapture, snapshotDelete, resellerConnectOnboard, resellerConnectStatus, ResellerOrg, ResellerInvite, ResellerBilling, WorkspaceSnapshot, ResellerConnectStatus } from '@/lib/db';
 
 const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
 
@@ -21,9 +21,10 @@ export default function ResellerPage() {
   const [viewMsg, setViewMsg] = useState('');
   const [snaps, setSnaps] = useState<WorkspaceSnapshot[]>([]);
   const [snapName, setSnapName] = useState(''); const [snapBusy, setSnapBusy] = useState(false); const [snapId, setSnapId] = useState(''); const [snapMsg, setSnapMsg] = useState('');
+  const [connect, setConnect] = useState<ResellerConnectStatus | null>(null); const [connectBusy, setConnectBusy] = useState(false);
   const viewAsSub = async (subId: string, nm: string) => { setViewMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ sub: subId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setViewMsg(`Sign-in link for ${nm} copied — open it in a private window to view that workspace.`); setTimeout(() => setViewMsg(''), 8000); } catch (e: any) { setViewMsg(e.message || 'Failed'); } };
 
-  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); snapshotList(org.id).then(setSnaps).catch(() => {}); };
+  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); snapshotList(org.id).then(setSnaps).catch(() => {}); resellerConnectStatus(org.id).then(setConnect).catch(() => {}); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
 
   if (!org?.is_reseller || !can.manageMembers(org)) {
@@ -38,6 +39,7 @@ export default function ResellerPage() {
   const copy = (l: string) => { try { navigator.clipboard?.writeText(l); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ } };
   const saveSnap = async () => { if (!org || !snapName.trim()) return; setSnapBusy(true); setSnapMsg(''); try { await snapshotCapture(org.id, snapName.trim()); setSnapName(''); setSnapMsg('Snapshot saved'); snapshotList(org.id).then(setSnaps).catch(() => {}); setTimeout(() => setSnapMsg(''), 2500); } catch (e: any) { setSnapMsg(e.message || 'Failed'); } finally { setSnapBusy(false); } };
   const delSnap = async (id: string) => { if (!org) return; try { await snapshotDelete(id); setSnaps((s2) => s2.filter((x) => x.id !== id)); if (snapId === id) setSnapId(''); } catch (e: any) { setSnapMsg(e.message || 'Failed'); } };
+  const startConnect = async () => { if (!org) return; setConnectBusy(true); setErr(''); try { const r = await resellerConnectOnboard(org.id); window.location.href = r.url; } catch (e: any) { setErr(e.message || 'Failed'); setConnectBusy(false); } };
 
   return (
     <Layout flat title="Reseller">
@@ -59,6 +61,18 @@ export default function ResellerPage() {
           <p className="text-2xs text-muted mt-2">You’re billed by the platform on these sub-tenants/seats; you bill your own clients directly.</p>
         </div>
       )}
+
+      <div className="card p-4 mb-6 flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2"><Icon name="ti-credit-card" />Payments (Stripe Connect)</h3>
+          <p className="text-2xs text-muted mt-0.5">{connect?.charges_enabled ? 'Connected — you can bill your sub-tenants and receive payouts directly.' : connect?.connected ? 'Setup incomplete — finish Stripe onboarding to enable billing.' : 'Connect your Stripe account to bill your sub-tenants directly and receive payouts. The platform takes a small application fee on each charge.'}</p>
+        </div>
+        <div className="shrink-0">
+          {connect?.charges_enabled
+            ? <span className="pill pill-green inline-flex items-center gap-1"><Icon name="ti-circle-check" />Payments enabled</span>
+            : <button className="btn btn-primary" disabled={connectBusy} onClick={startConnect}>{connectBusy ? 'Opening…' : connect?.connected ? 'Finish Stripe setup' : 'Connect Stripe'}</button>}
+        </div>
+      </div>
 
       <div className="card overflow-hidden mb-6">
         <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Snapshots</h3><p className="text-2xs text-muted">Save this workspace’s setup (lists, statuses, tags, theme) and clone it into new sub-tenants on creation.</p></div>
