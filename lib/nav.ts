@@ -189,17 +189,16 @@ export function pageModuleFor(path: string): string | null {
 
 // Map a route to the plan feature that gates it (longest-prefix match over SECTIONS).
 export function featureForRoute(pathname: string): FeatureKey | undefined {
-  let best: { href: string; feature?: FeatureKey } | null = null;
-  const consider = (href: string, feature?: FeatureKey) => {
-    if (pathname === href || pathname.startsWith(href + '/')) {
-      if (!best || href.length > best.href.length) best = { href, feature };
-    }
-  };
   const items: NavItem[] = [];
   for (const sec of SECTIONS) {
     if (sec.kind === 'link') items.push(sec.item);
     else items.push(...sec.items);
   }
-  items.forEach((i) => consider(i.href, i.feature));
+  let best: NavItem | undefined;
+  for (const it of items) {
+    if (pathname === it.href || pathname.startsWith(it.href + '/')) {
+      if (!best || it.href.length > best.href.length) best = it;
+    }
+  }
   return best?.feature;
 }
