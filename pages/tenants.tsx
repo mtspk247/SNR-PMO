@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import { PlanBadge } from '@/components/PlanBadge';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
@@ -10,6 +10,7 @@ import { listTenants, listPlans, listOrgInvites, createOrgInvite, setOrgInviteSo
 import { Plan, OrgInvite } from '@/lib/supabase';
 import { GroupHeader } from '@/components/GroupHeader';
 import Dropdown from '@/components/Dropdown';
+import TenantsOverview from '@/components/TenantsOverview';
 
 const SOURCES = [
   { value: 'website', label: 'Website' },
@@ -49,6 +50,7 @@ function groupsFor(rows: any[], groupBy: 'hierarchy' | 'plan' | 'none'): TenantG
 export default function TenantsPage() {
   const router = useRouter();
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
+  const [tab, setTab] = useState<'overview' | 'all'>('overview');
   const [rows, setRows] = useState<any[] | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [err, setErr] = useState('');
@@ -62,12 +64,34 @@ export default function TenantsPage() {
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const [impMsg, setImpMsg] = useState('');
   const [groupBy, setGroupBy] = useState<'hierarchy' | 'plan' | 'none'>('hierarchy');
+  // Filter-bar state (All tenants tab).
+  const [q, setQ] = useState('');
+  const [fPlan, setFPlan] = useState('all');
+  const [fType, setFType] = useState<'all' | 'direct' | 'reseller' | 'sub'>('all');
+  const [fStatus, setFStatus] = useState<'all' | 'active' | 'other'>('all');
   const toggleReseller = async (orgId: string, on: boolean) => { try { await setTenantReseller(orgId, on); load(); } catch (e: any) { alert(e.message); } };
   const openAsOwner = async (orgId: string, nm: string) => { setImpMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ org: orgId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setImpMsg(`Sign-in link for ${nm} copied — open it in a private/incognito window to view that workspace as its owner.`); setTimeout(() => setImpMsg(''), 8000); } catch (e: any) { setImpMsg(e.message || 'Failed'); } };
 
   const load = () => { listTenants().then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   const loadInvites = () => listOrgInvites().then(setInvites).catch(() => {});
   useEffect(() => { if (platformAdmin) { load(); loadInvites(); listPlans().then(setPlans).catch(() => {}); platformAccounts().then((a) => setOrphans(a.filter((x) => x.org_count === 0))).catch(() => {}); emailGetStatus().then(setEmailStatus).catch(() => {}); } }, [platformAdmin]);
+
+  // Rows after applying the filter bar — filtering happens BEFORE grouping.
+  const filteredRows = useMemo(() => {
+    const all = rows || [];
+    const term = q.trim().toLowerCase();
+    return all.filter((t) => {
+      if (term && !(`${t.org_name || ''}`.toLowerCase().includes(term) || `${t.slug || ''}`.toLowerCase().includes(term))) return false;
+      if (fPlan !== 'all' && (t.plan_key || t.plan_name) !== fPlan) return false;
+      if (fType === 'reseller' && !t.is_reseller) return false;
+      if (fType === 'sub' && !t.parent_org_id) return false;
+      if (fType === 'direct' && (t.is_reseller || t.parent_org_id)) return false;
+      if (fStatus === 'active' && t.sub_status !== 'active') return false;
+      if (fStatus === 'other' && t.sub_status === 'active') return false;
+      return true;
+    });
+  }, [rows, q, fPlan, fType, fStatus]);
+  const filtersOn = q.trim() !== '' || fPlan !== 'all' || fType !== 'all' || fStatus !== 'all';
 
   const copyLink = (link: string) => { try { navigator.clipboard?.writeText(link); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const submitInvite = async () => {
@@ -85,23 +109,53 @@ export default function TenantsPage() {
       <PageHeader title="Tenants" subtitle="Manage every organization — plan, features, quotas and access" icon="ti-building-community" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {impMsg && <p className="text-2xs text-accentstrong mb-3 inline-flex items-center gap-1.5"><Icon name="ti-info-circle" />{impMsg}</p>}
+
+      <Tabs
+        active={tab}
+        onChange={(k) => setTab(k as 'overview' | 'all')}
+        tabs={[
+          { key: 'overview', label: 'Overview', icon: 'ti-layout-dashboard' },
+          { key: 'all', label: 'All tenants', icon: 'ti-list', count: rows?.length },
+        ]}
+      />
+
+      {tab === 'overview' && (
+        rows === null ? <div className="card p-8"><Spinner /></div>
+          : rows.length === 0 ? <div className="card p-8"><EmptyState icon="ti-building-community" text="No tenants yet." /></div>
+          : <TenantsOverview rows={rows} plans={plans} onOpenTenant={(id) => router.push(`/tenants/${id}`)} />
+      )}
+
+      {tab === 'all' && (
+      <>
+      {/* Filter bar — applies to rows before grouping. */}
       {rows && rows.length > 0 && (
-        <div className="flex items-center gap-1 mb-3 text-2xs"><span className="text-muted mr-1">Group by:</span>
-          {([['hierarchy', 'Reseller'], ['plan', 'Plan'], ['none', 'None']] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setGroupBy(v)} className={`btn-ghost ${groupBy === v ? 'text-accentstrong font-medium' : ''}`}>{l}</button>
-          ))}
+        <div className="card p-3 mb-4 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[180px]">
+            <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2 text-sm pointer-events-none" />
+            <input className="input pl-8 w-full" placeholder="Search by name or slug…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="w-40"><Select value={fPlan} onChange={setFPlan} options={[{ value: 'all', label: 'All plans' }, ...plans.map((p) => ({ value: p.key, label: p.name }))]} /></div>
+          <div className="w-40"><Select value={fType} onChange={(v) => setFType(v as any)} options={[{ value: 'all', label: 'All types' }, { value: 'direct', label: 'Direct' }, { value: 'reseller', label: 'Resellers' }, { value: 'sub', label: 'Sub-tenants' }]} /></div>
+          <div className="w-36"><Select value={fStatus} onChange={(v) => setFStatus(v as any)} options={[{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'other', label: 'Other' }]} /></div>
+          <div className="ml-auto flex items-center gap-1 text-2xs"><span className="text-muted mr-1">Group by:</span>
+            {([['hierarchy', 'Reseller'], ['plan', 'Plan'], ['none', 'None']] as const).map(([v, l]) => (
+              <button key={v} onClick={() => setGroupBy(v)} className={`btn-ghost ${groupBy === v ? 'text-accentstrong font-medium' : ''}`}>{l}</button>
+            ))}
+          </div>
         </div>
       )}
       <div className="card overflow-hidden">
         {rows === null ? <div className="p-8"><Spinner /></div> : rows.length === 0 ? (
           <div className="p-8"><EmptyState icon="ti-building-community" text="No tenants." /></div>
+        ) : filteredRows.length === 0 ? (
+          <div className="p-8"><EmptyState icon="ti-search" title="No matches" text="No tenants match the current filters." action={filtersOn ? <button className="btn" onClick={() => { setQ(''); setFPlan('all'); setFType('all'); setFStatus('all'); }}>Clear filters</button> : undefined} /></div>
         ) : (
           <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-surface2/60 text-muted text-left text-2xs uppercase tracking-wider font-semibold sticky top-0 z-10">
               <tr><th className="px-4 py-2.5 text-muted2">Organization</th><th className="px-4 py-2.5 text-muted2">Plan</th><th className="px-4 py-2.5 text-muted2">Members</th><th className="px-4 py-2.5 text-muted2">Seats</th><th className="px-4 py-2.5 text-muted2">Status</th><th className="px-4 py-2.5 text-muted2"></th></tr>
             </thead>
             <tbody>
-              {groupsFor(rows, groupBy).map((g) => (
+              {groupsFor(filteredRows, groupBy).map((g) => (
                 <Fragment key={g.label || 'all'}>
                   {g.label && <GroupHeader label={g.label} count={g.count ?? g.items.length} asTableRow colSpan={6} />}
                   {g.items.map((t) => (
@@ -143,7 +197,7 @@ export default function TenantsPage() {
               <tr><th className="px-4 py-2.5">Email</th><th className="px-4 py-2.5">Workspace</th><th className="px-4 py-2.5">Plan</th><th className="px-4 py-2.5">Source</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Expires</th><th className="px-4 py-2.5"></th></tr>
             </thead>
             <tbody>
-              {[...invites.reduce((mm: Map<string, typeof invites>, iv) => { const k = iv.parent_org_id ? `${(rows || []).find((x: any) => x.org_id === iv.parent_org_id)?.org_name || 'Reseller'} \u00b7 invitations` : 'Platform invitations'; if (!mm.has(k)) mm.set(k, [] as any); (mm.get(k) as any).push(iv); return mm; }, new Map()).entries()].map(([label, items]) => (
+              {[...invites.reduce((mm: Map<string, typeof invites>, iv) => { const k = iv.parent_org_id ? `${(rows || []).find((x: any) => x.org_id === iv.parent_org_id)?.org_name || 'Reseller'} · invitations` : 'Platform invitations'; if (!mm.has(k)) mm.set(k, [] as any); (mm.get(k) as any).push(iv); return mm; }, new Map()).entries()].map(([label, items]) => (
                 <Fragment key={label}>
                   <GroupHeader label={label} count={(items as any).length} asTableRow colSpan={7} />
                   {(items as any).map((iv: any) => (
@@ -191,6 +245,8 @@ export default function TenantsPage() {
             </tbody>
           </table></div>
         </div>
+      )}
+      </>
       )}
 
       {invOpen && (
