@@ -410,6 +410,29 @@ const SECTIONS: Section[] = [
       },
     ],
   },
+  {
+    id: 'reselling',
+    title: 'Reselling & snapshots',
+    icon: 'ti-building-community',
+    blocks: [
+      { kind: 'p', text: 'If your workspace is enabled as a reseller, you can create and manage your own client workspaces (sub-tenants) under your brand — each with its own login, data and team. Reselling turns your workspace into a mini-platform. Open Reseller in the sidebar (it appears only when reselling is enabled on your plan).' },
+      { kind: 'steps', items: [
+        { title: '1. Get reselling enabled', body: 'Reselling is part of the white-label plan. The platform team switches it on for your workspace; once on, a Reseller item appears in your sidebar.' },
+        { title: '2. Build a master workspace', body: 'Set up one workspace the way you want every client to start: managed lists, custom task statuses, tags, theme/branding, custom fields, role templates and document templates. This becomes the blueprint for your snapshots.' },
+        { title: '3. Save a snapshot', body: 'On the Reseller page, type a name (e.g. “Agency starter”) and click Save snapshot. It captures your workspace configuration as a reusable blueprint.' },
+        { title: '4. Invite a sub-tenant', body: 'Click Invite sub-tenant, enter the client workspace name, the owner’s email and a plan, and pick a snapshot under “Start from snapshot”. Share the generated invite link. When the owner accepts, their workspace is created and the snapshot is applied automatically — they start fully configured, not empty.' },
+        { title: '5. Manage and view', body: 'The Reseller page lists your sub-tenants with member and seat counts, plus a wholesale billing summary of what the platform bills you. Use “View as” to open a sub-tenant’s workspace in a private window. You bill your own clients directly.' },
+      ] },
+      { kind: 'table', headers: ['A snapshot clones', 'A snapshot does NOT clone'], rows: [
+        ['Managed lists & options, custom task statuses, tags', 'Business data (projects, tasks, deals, invoices)'],
+        ['Theme skin & branding', 'Team members or user accounts'],
+        ['Custom field definitions, role templates', 'Automations & onboarding templates (planned)'],
+        ['Document templates', 'Anything referencing specific people'],
+      ] },
+      { kind: 'callout', icon: 'ti-camera', text: 'Snapshots capture configuration, not data — a new client starts with your setup but a clean slate. Keep several snapshots (e.g. one per client type) and choose the right one per invite.' },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'A reseller can only see and manage its own sub-tenants, and sub-tenants can never be put on the white-label or reseller plan. These limits are enforced on the server.' },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
