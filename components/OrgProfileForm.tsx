@@ -73,17 +73,18 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId, 
     : TABS;
 
   return (
-    <div className="card p-0 max-w-3xl overflow-hidden">
-      <div className="flex gap-1 px-3 pt-3 border-b border-line bg-surface2/40 overflow-x-auto">
-        {allTabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap ${tab === t.id ? 'border-b-accent text-content' : 'border-b-transparent text-muted hover:text-content'}`}>
-            <Icon name={t.icon} className="text-sm" />{t.label}
-          </button>
-        ))}
-      </div>
+    <div className="card p-0 max-w-4xl overflow-hidden">
+      <div className="flex flex-col sm:flex-row">
+        <nav aria-label="Profile sections" className="sm:w-56 shrink-0 border-b border-line sm:border-b-0 sm:border-r bg-surface2/40 p-2 flex sm:flex-col gap-1 overflow-x-auto sm:overflow-visible">
+          {allTabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors inline-flex items-center gap-2 whitespace-nowrap sm:w-full text-left ${tab === t.id ? 'bg-surface text-content shadow-sm' : 'text-muted hover:text-content hover:bg-surface/60'}`}>
+              <Icon name={t.icon} className="text-sm shrink-0" />{t.label}
+            </button>
+          ))}
+        </nav>
 
-      <div className="p-6 space-y-4">
+        <div className="flex-1 min-w-0 p-6 space-y-4">
         {leadingTab && tab === leadingTab.id && leadingTab.render()}
 
         {tab === 'contact' && (
@@ -173,6 +174,7 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId, 
             {ok && <span className="text-sm text-emerald-600 inline-flex items-center gap-1"><Icon name="ti-check" />Saved</span>}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
