@@ -1,8 +1,7 @@
-name: CI (report-only)
-# Surfaces the type/lint errors that next.config currently ignores
-# (typescript.ignoreBuildErrors + eslint.ignoreDuringBuilds). Non-blocking to
-# start so it never blocks a merge; flip continue-on-error to false once the
-# backlog is clean to make it an enforced gate.
+name: CI (enforced gate)
+# Enforced type + lint gate. npm ci now works (package-lock.json committed).
+# tsc/lint failures fail the check. next.config still ignores build errors at
+# deploy time until the first enforced run is confirmed green (then flip those).
 on:
   push:
     branches: [main]
@@ -18,9 +17,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: TypeScript (report-only)
+      - name: TypeScript
         run: npx tsc --noEmit
-        continue-on-error: true
+        continue-on-error: false
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -30,6 +29,6 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: ESLint (report-only)
+      - name: ESLint
         run: npx next lint
-        continue-on-error: true
+        continue-on-error: false
