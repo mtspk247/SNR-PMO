@@ -3017,6 +3017,11 @@ export async function resellerSelfSignupContext(host: string): Promise<SelfSignu
 export async function resellerSelfSignup(host: string, orgName: string): Promise<string> {
   const { data, error } = await sb.rpc('reseller_self_signup', { p_host: host, p_org_name: orgName }); if (error) throw new Error(error.message); return data as string;
 }
+export interface ResellerSitePlan { plan_key: string; amount_cents: number; currency: string; interval: string }
+export interface ResellerSite { enabled: boolean; reseller_org_id?: string; name?: string; branding?: { name?: string; logo_url?: string; primary_color?: string }; theme_skin?: string | null; plans?: ResellerSitePlan[] }
+export async function resellerPublicSite(host: string): Promise<ResellerSite> {
+  const { data, error } = await sb.rpc('reseller_public_site', { p_host: host }); if (error) return { enabled: false }; return (data as ResellerSite) || { enabled: false };
+}
 export async function setTenantReseller(orgId: string, on: boolean): Promise<void> {
   const { error } = await sb.rpc('platform_set_reseller', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);
 }
