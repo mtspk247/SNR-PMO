@@ -2997,6 +2997,23 @@ export async function startResellerCheckout(orgId: string, planKey: string): Pro
   if (error) { let msg = error.message; try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* noop */ } throw new Error(msg); }
   if (!data?.url) throw new Error('No checkout URL returned'); return data.url as string;
 }
+// Reseller self-serve signup config (public signup on the reseller's verified domain).
+export interface SelfSignupConfig { enabled: boolean; plan_key: string | null; snapshot_id: string | null; custom_domain: string | null; domain_verified: boolean; }
+export async function resellerGetSelfSignup(org: string): Promise<SelfSignupConfig> {
+  const { data, error } = await sb.from('organizations').select('self_signup_enabled, self_signup_plan_key, self_signup_snapshot_id, custom_domain, domain_verified').eq('id', org).maybeSingle();
+  if (error) throw new Error(error.message);
+  return { enabled: !!data?.self_signup_enabled, plan_key: (data as any)?.self_signup_plan_key ?? null, snapshot_id: (data as any)?.self_signup_snapshot_id ?? null, custom_domain: (data as any)?.custom_domain ?? null, domain_verified: !!(data as any)?.domain_verified };
+}
+export async function resellerSetSelfSignup(reseller: string, enabled: boolean, planKey: string | null, snapshotId: string | null): Promise<void> {
+  const { error } = await sb.rpc('reseller_set_self_signup', { p_reseller: reseller, p_enabled: enabled, p_plan_key: planKey, p_snapshot_id: snapshotId }); if (error) throw new Error(error.message);
+}
+export interface SelfSignupContext { enabled: boolean; reseller_org_id?: string; name?: string; branding?: any; plan_key?: string }
+export async function resellerSelfSignupContext(host: string): Promise<SelfSignupContext> {
+  const { data, error } = await sb.rpc('reseller_self_signup_context', { p_host: host }); if (error) throw new Error(error.message); return (data as SelfSignupContext) || { enabled: false };
+}
+export async function resellerSelfSignup(host: string, orgName: string): Promise<string> {
+  const { data, error } = await sb.rpc('reseller_self_signup', { p_host: host, p_org_name: orgName }); if (error) throw new Error(error.message); return data as string;
+}
 export async function setTenantReseller(orgId: string, on: boolean): Promise<void> {
   const { error } = await sb.rpc('platform_set_reseller', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);
 }

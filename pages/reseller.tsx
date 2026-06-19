@@ -5,7 +5,7 @@ import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, snapshotList, snapshotCapture, snapshotDelete, resellerConnectOnboard, resellerConnectStatus, resellerListPrices, resellerSetPrice, ResellerOrg, ResellerInvite, ResellerBilling, WorkspaceSnapshot, ResellerConnectStatus, ResellerPlanPrice } from '@/lib/db';
+import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, snapshotList, snapshotCapture, snapshotDelete, resellerConnectOnboard, resellerConnectStatus, resellerListPrices, resellerSetPrice, resellerGetSelfSignup, resellerSetSelfSignup, ResellerOrg, ResellerInvite, ResellerBilling, WorkspaceSnapshot, ResellerConnectStatus, ResellerPlanPrice, SelfSignupConfig } from '@/lib/db';
 
 const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
 
@@ -23,9 +23,10 @@ export default function ResellerPage() {
   const [snapName, setSnapName] = useState(''); const [snapBusy, setSnapBusy] = useState(false); const [snapId, setSnapId] = useState(''); const [snapMsg, setSnapMsg] = useState('');
   const [connect, setConnect] = useState<ResellerConnectStatus | null>(null); const [connectBusy, setConnectBusy] = useState(false);
   const [prices, setPrices] = useState<ResellerPlanPrice[]>([]); const [pPlan, setPPlan] = useState('pro'); const [pAmt, setPAmt] = useState(''); const [pInt, setPInt] = useState('month'); const [pBusy, setPBusy] = useState(false); const [pMsg, setPMsg] = useState('');
+  const [ss, setSs] = useState<SelfSignupConfig | null>(null); const [ssBusy, setSsBusy] = useState(false); const [ssMsg, setSsMsg] = useState('');
   const viewAsSub = async (subId: string, nm: string) => { setViewMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ sub: subId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setViewMsg(`Sign-in link for ${nm} copied — open it in a private window to view that workspace.`); setTimeout(() => setViewMsg(''), 8000); } catch (e: any) { setViewMsg(e.message || 'Failed'); } };
 
-  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); snapshotList(org.id).then(setSnaps).catch(() => {}); resellerConnectStatus(org.id).then(setConnect).catch(() => {}); resellerListPrices(org.id).then(setPrices).catch(() => {}); };
+  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); snapshotList(org.id).then(setSnaps).catch(() => {}); resellerConnectStatus(org.id).then(setConnect).catch(() => {}); resellerListPrices(org.id).then(setPrices).catch(() => {}); resellerGetSelfSignup(org.id).then(setSs).catch(() => {}); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
 
   if (!org?.is_reseller || !can.manageMembers(org)) {
@@ -41,6 +42,7 @@ export default function ResellerPage() {
   const saveSnap = async () => { if (!org || !snapName.trim()) return; setSnapBusy(true); setSnapMsg(''); try { await snapshotCapture(org.id, snapName.trim()); setSnapName(''); setSnapMsg('Snapshot saved'); snapshotList(org.id).then(setSnaps).catch(() => {}); setTimeout(() => setSnapMsg(''), 2500); } catch (e: any) { setSnapMsg(e.message || 'Failed'); } finally { setSnapBusy(false); } };
   const delSnap = async (id: string) => { if (!org) return; try { await snapshotDelete(id); setSnaps((s2) => s2.filter((x) => x.id !== id)); if (snapId === id) setSnapId(''); } catch (e: any) { setSnapMsg(e.message || 'Failed'); } };
   const startConnect = async () => { if (!org) return; setConnectBusy(true); setErr(''); try { const r = await resellerConnectOnboard(org.id); window.location.href = r.url; } catch (e: any) { setErr(e.message || 'Failed'); setConnectBusy(false); } };
+  const saveSelfSignup = async (patch: Partial<SelfSignupConfig>) => { if (!org || !ss) return; const next = { ...ss, ...patch }; setSs(next); setSsBusy(true); setSsMsg(''); try { await resellerSetSelfSignup(org.id, next.enabled, next.plan_key, next.snapshot_id); setSsMsg('Saved'); setTimeout(() => setSsMsg(''), 2000); } catch (e: any) { setSsMsg(e.message || 'Failed'); resellerGetSelfSignup(org.id).then(setSs).catch(() => {}); } finally { setSsBusy(false); } };
   const savePrice = async () => { if (!org) return; const cents = Math.round(parseFloat(pAmt) * 100); if (!(cents >= 0) || !pAmt) { setPMsg('Enter a valid amount'); return; } setPBusy(true); setPMsg(''); try { await resellerSetPrice(org.id, pPlan, cents, pInt); setPAmt(''); setPMsg('Price saved'); resellerListPrices(org.id).then(setPrices).catch(() => {}); setTimeout(() => setPMsg(''), 2500); } catch (e: any) { setPMsg(e.message || 'Failed'); } finally { setPBusy(false); } };
 
   return (
@@ -96,6 +98,25 @@ export default function ResellerPage() {
               ))}
             </ul>
           )}
+        </div>
+      </div>
+
+      <div className="card overflow-hidden mb-6">
+        <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Public signup (your website)</h3><p className="text-2xs text-muted">Let visitors on your branded domain create their own workspace under you. Each signup becomes your sub-tenant, pre-loaded with your snapshot and branding.</p></div>
+        <div className="p-4 space-y-3">
+          {!ss?.custom_domain || !ss?.domain_verified ? (
+            <p className="text-2xs text-muted2">Add and verify your custom domain first (Settings ▸ Branding / domain). Public signup runs on your verified domain.</p>
+          ) : (
+            <>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!ss?.enabled} disabled={ssBusy} onChange={(e) => saveSelfSignup({ enabled: e.target.checked })} />Enable public signup on <span className="font-medium">{ss.custom_domain}</span></label>
+              <div className="flex flex-wrap items-end gap-2">
+                <div><label className="text-2xs text-muted block mb-1">Default plan</label><Select value={ss?.plan_key || 'free'} onChange={(v) => saveSelfSignup({ plan_key: v })} options={[{ value: 'free', label: 'Free / trial' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }]} /></div>
+                <div><label className="text-2xs text-muted block mb-1">Apply snapshot</label><Select value={ss?.snapshot_id || ''} onChange={(v) => saveSelfSignup({ snapshot_id: v || null })} options={[{ value: '', label: 'None' }, ...snaps.map((sn) => ({ value: sn.id, label: sn.name }))]} /></div>
+              </div>
+              {ss?.enabled && <p className="text-2xs text-accentstrong">Signup link: https://{ss.custom_domain}/signup</p>}
+            </>
+          )}
+          {ssMsg && <p className="text-2xs text-muted">{ssMsg}</p>}
         </div>
       </div>
 
