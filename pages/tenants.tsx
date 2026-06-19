@@ -132,7 +132,10 @@ export default function TenantsPage() {
               <tr><th className="px-4 py-2.5">Email</th><th className="px-4 py-2.5">Workspace</th><th className="px-4 py-2.5">Plan</th><th className="px-4 py-2.5">Source</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Expires</th><th className="px-4 py-2.5"></th></tr>
             </thead>
             <tbody>
-              {invites.map((iv) => (
+              {[...invites.reduce((mm: Map<string, typeof invites>, iv) => { const k = iv.parent_org_id ? `${(rows || []).find((x: any) => x.org_id === iv.parent_org_id)?.org_name || 'Reseller'} \u00b7 invitations` : 'Platform invitations'; if (!mm.has(k)) mm.set(k, [] as any); (mm.get(k) as any).push(iv); return mm; }, new Map()).entries()].map(([label, items]) => (
+                <Fragment key={label}>
+                  <GroupHeader label={label} count={(items as any).length} asTableRow colSpan={7} />
+                  {(items as any).map((iv: any) => (
                 <tr key={iv.id} className="border-t border-line hover:bg-surface2/60 transition-colors">
                   <td className="px-4 py-3 text-content">{iv.email}</td>
                   <td className="px-4 py-3 text-muted">{iv.org_name || '—'}</td>
@@ -149,6 +152,8 @@ export default function TenantsPage() {
                     )}
                   </td>
                 </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table></div>
