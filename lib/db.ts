@@ -2983,6 +2983,20 @@ export async function resellerConnectOnboard(orgId: string): Promise<{ url: stri
 export async function resellerConnectStatus(orgId: string): Promise<ResellerConnectStatus> {
   return (await invokeResellerConnect(orgId, 'status')) as ResellerConnectStatus;
 }
+// Reseller-defined sub-tenant pricing (used as inline price_data at Connect checkout).
+export interface ResellerPlanPrice { id: string; plan_key: string; amount_cents: number; currency: string; interval: string; active: boolean; }
+export async function resellerListPrices(reseller: string): Promise<ResellerPlanPrice[]> {
+  const { data, error } = await sb.from('reseller_plan_prices').select('id, plan_key, amount_cents, currency, interval, active').eq('reseller_org_id', reseller).order('plan_key'); if (error) throw new Error(error.message); return (data as ResellerPlanPrice[]) || [];
+}
+export async function resellerSetPrice(reseller: string, planKey: string, amountCents: number, interval: string, currency = 'usd'): Promise<void> {
+  const { error } = await sb.from('reseller_plan_prices').upsert({ reseller_org_id: reseller, plan_key: planKey, amount_cents: amountCents, interval, currency, active: true }, { onConflict: 'reseller_org_id,plan_key' }); if (error) throw new Error(error.message);
+}
+// Sub-tenant subscribes through its parent reseller's connected account (1.2c).
+export async function startResellerCheckout(orgId: string, planKey: string): Promise<string> {
+  const { data, error } = await sb.functions.invoke('reseller-checkout', { body: { org_id: orgId, plan_key: planKey } });
+  if (error) { let msg = error.message; try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* noop */ } throw new Error(msg); }
+  if (!data?.url) throw new Error('No checkout URL returned'); return data.url as string;
+}
 export async function setTenantReseller(orgId: string, on: boolean): Promise<void> {
   const { error } = await sb.rpc('platform_set_reseller', { p_org: orgId, p_on: on }); if (error) throw new Error(error.message);
 }

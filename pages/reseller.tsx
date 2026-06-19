@@ -5,7 +5,7 @@ import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, snapshotList, snapshotCapture, snapshotDelete, resellerConnectOnboard, resellerConnectStatus, ResellerOrg, ResellerInvite, ResellerBilling, WorkspaceSnapshot, ResellerConnectStatus } from '@/lib/db';
+import { resellerListOrgs, resellerPendingInvites, resellerCreateInvite, resellerBillingSummary, adminImpersonateLink, snapshotList, snapshotCapture, snapshotDelete, resellerConnectOnboard, resellerConnectStatus, resellerListPrices, resellerSetPrice, ResellerOrg, ResellerInvite, ResellerBilling, WorkspaceSnapshot, ResellerConnectStatus, ResellerPlanPrice } from '@/lib/db';
 
 const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
 
@@ -22,9 +22,10 @@ export default function ResellerPage() {
   const [snaps, setSnaps] = useState<WorkspaceSnapshot[]>([]);
   const [snapName, setSnapName] = useState(''); const [snapBusy, setSnapBusy] = useState(false); const [snapId, setSnapId] = useState(''); const [snapMsg, setSnapMsg] = useState('');
   const [connect, setConnect] = useState<ResellerConnectStatus | null>(null); const [connectBusy, setConnectBusy] = useState(false);
+  const [prices, setPrices] = useState<ResellerPlanPrice[]>([]); const [pPlan, setPPlan] = useState('pro'); const [pAmt, setPAmt] = useState(''); const [pInt, setPInt] = useState('month'); const [pBusy, setPBusy] = useState(false); const [pMsg, setPMsg] = useState('');
   const viewAsSub = async (subId: string, nm: string) => { setViewMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ sub: subId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setViewMsg(`Sign-in link for ${nm} copied — open it in a private window to view that workspace.`); setTimeout(() => setViewMsg(''), 8000); } catch (e: any) { setViewMsg(e.message || 'Failed'); } };
 
-  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); snapshotList(org.id).then(setSnaps).catch(() => {}); resellerConnectStatus(org.id).then(setConnect).catch(() => {}); };
+  const load = () => { if (!org) return; resellerListOrgs(org.id).then(setOrgs).catch((e) => { setErr(e.message); setOrgs([]); }); resellerPendingInvites(org.id).then(setInvites).catch(() => {}); resellerBillingSummary(org.id).then(setBilling).catch(() => {}); snapshotList(org.id).then(setSnaps).catch(() => {}); resellerConnectStatus(org.id).then(setConnect).catch(() => {}); resellerListPrices(org.id).then(setPrices).catch(() => {}); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
 
   if (!org?.is_reseller || !can.manageMembers(org)) {
@@ -40,6 +41,7 @@ export default function ResellerPage() {
   const saveSnap = async () => { if (!org || !snapName.trim()) return; setSnapBusy(true); setSnapMsg(''); try { await snapshotCapture(org.id, snapName.trim()); setSnapName(''); setSnapMsg('Snapshot saved'); snapshotList(org.id).then(setSnaps).catch(() => {}); setTimeout(() => setSnapMsg(''), 2500); } catch (e: any) { setSnapMsg(e.message || 'Failed'); } finally { setSnapBusy(false); } };
   const delSnap = async (id: string) => { if (!org) return; try { await snapshotDelete(id); setSnaps((s2) => s2.filter((x) => x.id !== id)); if (snapId === id) setSnapId(''); } catch (e: any) { setSnapMsg(e.message || 'Failed'); } };
   const startConnect = async () => { if (!org) return; setConnectBusy(true); setErr(''); try { const r = await resellerConnectOnboard(org.id); window.location.href = r.url; } catch (e: any) { setErr(e.message || 'Failed'); setConnectBusy(false); } };
+  const savePrice = async () => { if (!org) return; const cents = Math.round(parseFloat(pAmt) * 100); if (!(cents >= 0) || !pAmt) { setPMsg('Enter a valid amount'); return; } setPBusy(true); setPMsg(''); try { await resellerSetPrice(org.id, pPlan, cents, pInt); setPAmt(''); setPMsg('Price saved'); resellerListPrices(org.id).then(setPrices).catch(() => {}); setTimeout(() => setPMsg(''), 2500); } catch (e: any) { setPMsg(e.message || 'Failed'); } finally { setPBusy(false); } };
 
   return (
     <Layout flat title="Reseller">
@@ -71,6 +73,29 @@ export default function ResellerPage() {
           {connect?.charges_enabled
             ? <span className="pill pill-green inline-flex items-center gap-1"><Icon name="ti-circle-check" />Payments enabled</span>
             : <button className="btn btn-primary" disabled={connectBusy} onClick={startConnect}>{connectBusy ? 'Opening…' : connect?.connected ? 'Finish Stripe setup' : 'Connect Stripe'}</button>}
+        </div>
+      </div>
+
+      <div className="card overflow-hidden mb-6">
+        <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold">Sub-tenant pricing</h3><p className="text-2xs text-muted">Set what you charge your clients per plan. These prices are billed to your sub-tenants through your connected Stripe account.</p></div>
+        <div className="p-4 space-y-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div><label className="text-2xs text-muted block mb-1">Plan</label><Select value={pPlan} onChange={setPPlan} options={[{ value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }]} /></div>
+            <div><label className="text-2xs text-muted block mb-1">Price (USD)</label><input className="input w-28" type="number" min="0" step="0.01" placeholder="0.00" value={pAmt} onChange={(e) => setPAmt(e.target.value)} /></div>
+            <div><label className="text-2xs text-muted block mb-1">Billing</label><Select value={pInt} onChange={setPInt} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} /></div>
+            <button className="btn btn-primary" disabled={pBusy || !pAmt} onClick={savePrice}>{pBusy ? 'Saving…' : 'Save price'}</button>
+          </div>
+          {pMsg && <p className="text-2xs text-accentstrong">{pMsg}</p>}
+          {prices.length > 0 && (
+            <ul className="divide-y divide-line border border-line rounded-lg">
+              {prices.map((pr) => (
+                <li key={pr.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span className="capitalize font-medium text-content">{pr.plan_key}</span>
+                  <span className="text-muted tabular-nums">{pr.currency.toUpperCase()} {(pr.amount_cents / 100).toFixed(2)} / {pr.interval === 'year' ? 'yr' : 'mo'}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
