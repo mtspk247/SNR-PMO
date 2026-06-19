@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
@@ -20,6 +20,30 @@ const SOURCES = [
 ];
 const sourceLabel = (s?: string | null) => SOURCES.find((x) => x.value === s)?.label || (s || '—');
 
+type TenantGroup = { label: string; items: any[] };
+function groupsFor(rows: any[], groupBy: 'hierarchy' | 'plan' | 'none'): TenantGroup[] {
+  if (groupBy === 'plan') {
+    const m = new Map<string, any[]>();
+    for (const t of rows) { const k = t.plan_name || t.plan_key || 'Free'; if (!m.has(k)) m.set(k, []); m.get(k)!.push(t); }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([label, items]) => ({ label, items }));
+  }
+  if (groupBy === 'hierarchy') {
+    const resellers = rows.filter((r) => r.is_reseller);
+    const byParent = new Map<string, any[]>();
+    for (const t of rows) if (t.parent_org_id) { if (!byParent.has(t.parent_org_id)) byParent.set(t.parent_org_id, []); byParent.get(t.parent_org_id)!.push(t); }
+    const groups: TenantGroup[] = []; const claimed = new Set<string>();
+    for (const rsl of resellers) {
+      const subs = byParent.get(rsl.org_id) || [];
+      groups.push({ label: rsl.org_name + ' \u00b7 reseller', items: [rsl, ...subs] });
+      claimed.add(rsl.org_id); subs.forEach((x) => claimed.add(x.org_id));
+    }
+    const others = rows.filter((r) => !claimed.has(r.org_id));
+    if (others.length) groups.push({ label: 'Direct tenants', items: others });
+    return groups;
+  }
+  return [{ label: '', items: rows }];
+}
+
 export default function TenantsPage() {
   const router = useRouter();
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
@@ -35,6 +59,7 @@ export default function TenantsPage() {
   const [invSource, setInvSource] = useState('website');
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const [impMsg, setImpMsg] = useState('');
+  const [groupBy, setGroupBy] = useState<'hierarchy' | 'plan' | 'none'>('hierarchy');
   const toggleReseller = async (orgId: string, on: boolean) => { try { await setTenantReseller(orgId, on); load(); } catch (e: any) { alert(e.message); } };
   const openAsOwner = async (orgId: string, nm: string) => { setImpMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ org: orgId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setImpMsg(`Sign-in link for ${nm} copied — open it in a private/incognito window to view that workspace as its owner.`); setTimeout(() => setImpMsg(''), 8000); } catch (e: any) { setImpMsg(e.message || 'Failed'); } };
 
@@ -58,6 +83,13 @@ export default function TenantsPage() {
       <PageHeader title="Tenants" subtitle="Manage every organization — plan, features, quotas and access" icon="ti-building-community" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {impMsg && <p className="text-2xs text-accentstrong mb-3 inline-flex items-center gap-1.5"><Icon name="ti-info-circle" />{impMsg}</p>}
+      {rows && rows.length > 0 && (
+        <div className="flex items-center gap-1 mb-3 text-2xs"><span className="text-muted mr-1">Group by:</span>
+          {([['hierarchy', 'Reseller'], ['plan', 'Plan'], ['none', 'None']] as const).map(([v, l]) => (
+            <button key={v} onClick={() => setGroupBy(v)} className={`btn-ghost ${groupBy === v ? 'text-accentstrong font-medium' : ''}`}>{l}</button>
+          ))}
+        </div>
+      )}
       <div className="card overflow-hidden">
         {rows === null ? <div className="p-8"><Spinner /></div> : rows.length === 0 ? (
           <div className="p-8"><EmptyState icon="ti-building-community" text="No tenants." /></div>
@@ -67,15 +99,20 @@ export default function TenantsPage() {
               <tr><th className="px-4 py-3">Organization</th><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Members</th><th className="px-4 py-3">Seats</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr>
             </thead>
             <tbody>
-              {rows.map((t) => (
-                <tr key={t.org_id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => router.push(`/tenants/${t.org_id}`)}>
-                  <td className="px-4 py-3"><span className="font-medium text-content">{t.org_name}</span><span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` \u00b7 \u21b3 under ${(rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller'}` : ''}</span></td>
-                  <td className="px-4 py-3"><PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" /></td>
-                  <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
-                  <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
-                  <td className="px-4 py-3"><span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span></td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">{t.is_reseller && <span className="pill mr-1" style={{ background: 'rgb(139 92 246 / .12)', color: 'rgb(124 58 237)' }}>Reseller</span>}<button onClick={(e) => { e.stopPropagation(); toggleReseller(t.org_id, !t.is_reseller); }} className="btn-ghost text-2xs" title={t.is_reseller ? 'Remove reseller capability' : 'Designate as reseller (requires White-label plan)'}>{t.is_reseller ? 'Unset' : 'Make reseller'}</button><button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="Open this workspace as its owner (use a private window)" className="btn-ghost text-2xs"><Icon name="ti-login-2" />View as</button><Icon name="ti-chevron-right" className="text-muted2 ml-1 align-middle" /></td>
-                </tr>
+              {groupsFor(rows, groupBy).map((g) => (
+                <Fragment key={g.label || 'all'}>
+                  {g.label && <tr className="bg-surface2/70"><td colSpan={6} className="px-4 py-2 text-2xs font-semibold uppercase tracking-wide text-muted">{g.label} <span className="text-muted2">· {g.items.length}</span></td></tr>}
+                  {g.items.map((t) => (
+                    <tr key={t.org_id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" style={t.is_reseller ? { background: 'rgb(139 92 246 / .06)' } : undefined} onClick={() => router.push(`/tenants/${t.org_id}`)}>
+                      <td className="px-4 py-3"><span className="font-medium text-content">{t.parent_org_id ? '↳ ' : ''}{t.org_name}</span><span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` · under ${(rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller'}` : ''}</span></td>
+                      <td className="px-4 py-3"><PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" /></td>
+                      <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
+                      <td className="px-4 py-3"><span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span></td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">{t.is_reseller && <span className="pill mr-1" style={{ background: 'rgb(139 92 246 / .12)', color: 'rgb(124 58 237)' }}>Reseller</span>}<button onClick={(e) => { e.stopPropagation(); toggleReseller(t.org_id, !t.is_reseller); }} className="btn-ghost text-2xs" title={t.is_reseller ? 'Remove reseller capability' : 'Designate as reseller (requires White-label plan)'}>{t.is_reseller ? 'Unset' : 'Make reseller'}</button><button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="Open this workspace as its owner (use a private window)" className="btn-ghost text-2xs"><Icon name="ti-login-2" />View as</button><Icon name="ti-chevron-right" className="text-muted2 ml-1 align-middle" /></td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table></div>
