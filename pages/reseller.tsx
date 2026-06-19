@@ -4,7 +4,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
-import { useActiveOrg } from '@/lib/store';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import {
   resellerListOrgs, resellerPendingInvites, resellerCreateInvite,
@@ -15,6 +15,7 @@ import {
   resellerGetSelfSignup, resellerSetSelfSignup, inviteMember,
   ResellerOrg, ResellerInvite, ResellerBilling,
   WorkspaceSnapshot, ResellerConnectStatus, ResellerPlanPrice, SelfSignupConfig,
+  updateOrgSettings,
 } from '@/lib/db';
 import ResellerOverview from '@/components/ResellerOverview';
 
@@ -24,6 +25,7 @@ type TabKey = 'overview' | 'subtenants' | 'pricing' | 'snapshots' | 'payments';
 
 export default function ResellerPage() {
   const org = useActiveOrg();
+  const patchOrg = useAuthStore((s) => s.patchOrg);
   const [tab, setTab] = useState<TabKey>('overview');
   const router = useRouter();
   useEffect(() => { const t = router.query.tab; if (typeof t === 'string' && ['overview','subtenants','pricing','snapshots','payments'].includes(t)) setTab(t as TabKey); }, [router.query.tab]);
@@ -70,6 +72,8 @@ export default function ResellerPage() {
   const [ss, setSs] = useState<SelfSignupConfig | null>(null);
   const [ssBusy, setSsBusy] = useState(false);
   const [ssMsg, setSsMsg] = useState('');
+  const [tplBusy, setTplBusy] = useState(false);
+  const [tplMsg, setTplMsg] = useState('');
 
   // Sub-tenant filter bar state
   const [q, setQ] = useState('');
