@@ -314,7 +314,7 @@ function AssistantTab() {
 
       <div className="flex items-start gap-3 rounded-lg bg-accent/10 border border-accent/20 px-4 py-3">
         <Icon name="ti-sparkles" className="text-base text-accentstrong mt-0.5 shrink-0" />
-        <p className="text-sm text-content leading-relaxed">The in-app "Ask" assistant answers users from your live guide (<code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code>). Add an LLM key to make answers conversational — <b>Groq is free (no credit card)</b>: create a key at console.groq.com, pick Groq below, and paste it. With no key, it still works — it shows the most relevant guide section. Editing <code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code> updates the assistant automatically; no retraining.</p>
+        <p className="text-sm text-content leading-relaxed">The in-app "Ask" assistant answers users from your live guide (<code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code>). Add an LLM key to make answers conversational. Free options: <b>Groq</b> (no card, key starts <code className="text-2xs bg-surface2 rounded px-1 py-0.5">gsk_</code>, console.groq.com) or <b>xAI Grok</b> (free credits, key starts <code className="text-2xs bg-surface2 rounded px-1 py-0.5">xai-</code>, console.x.ai) — note Groq ≠ Grok. Pick the matching provider below and paste the key. With no key, it still works — it shows the most relevant guide section. Editing <code className="text-2xs bg-surface2 rounded px-1 py-0.5">/docs</code> updates the assistant automatically; no retraining.</p>
       </div>
 
       <div>
@@ -322,6 +322,7 @@ function AssistantTab() {
         <div className="flex gap-2">
           {provBtn('openai', 'OpenAI', 'ti-circle-key', 'gpt-4o-mini')}
           {provBtn('groq', 'Groq (free)', 'ti-bolt', 'openai/gpt-oss-20b')}
+          {provBtn('xai', 'xAI (Grok)', 'ti-brand-x', 'grok-4.3')}
           {provBtn('anthropic', 'Anthropic', 'ti-sparkles', 'claude-3-5-haiku-latest')}
         </div>
       </div>
@@ -329,7 +330,7 @@ function AssistantTab() {
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <label className="label mb-1.5 block">Model</label>
-          <input className="input w-full" value={model} onChange={(e) => setModel(e.target.value)} placeholder={provider === 'anthropic' ? 'claude-3-5-haiku-latest' : provider === 'groq' ? 'openai/gpt-oss-20b' : 'gpt-4o-mini'} />
+          <input className="input w-full" value={model} onChange={(e) => setModel(e.target.value)} placeholder={provider === 'anthropic' ? 'claude-3-5-haiku-latest' : provider === 'groq' ? 'openai/gpt-oss-20b' : provider === 'xai' ? 'grok-4.3' : 'gpt-4o-mini'} />
           <p className="text-2xs text-muted mt-1">A small, cheap model is plenty — answers are short and grounded.</p>
         </div>
         <div>
