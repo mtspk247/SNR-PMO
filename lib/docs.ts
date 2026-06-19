@@ -432,10 +432,11 @@ export const SECTIONS: Section[] = [
       { kind: 'table', headers: ['A snapshot clones', 'A snapshot does NOT clone'], rows: [
         ['Managed lists & options, custom task statuses, tags', 'Business data (projects, tasks, deals, invoices)'],
         ['Theme skin & branding', 'Team members or user accounts'],
-        ['Custom field definitions, role templates', 'Automations & onboarding templates (planned)'],
-        ['Document templates', 'Anything referencing specific people'],
+        ['Custom fields, role templates, document & onboarding templates', 'Anything tied to specific people or records'],
+        ['Automations (copied as inactive drafts)', 'Live automation history (fire counts, last run)'],
       ] },
       { kind: 'callout', icon: 'ti-camera', text: 'Snapshots capture configuration, not data — a new client starts with your setup but a clean slate. Keep several snapshots (e.g. one per client type) and choose the right one per invite.' },
+      { kind: 'callout', icon: 'ti-bolt', text: 'Automations come across as inactive drafts: any reference to a specific person (such as an assignee) is cleared so nothing can misfire in the new workspace. Review each one and switch it on when ready.' },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'A reseller can only see and manage its own sub-tenants, and sub-tenants can never be put on the white-label or reseller plan. These limits are enforced on the server.' },
     ],
   },
