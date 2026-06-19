@@ -132,7 +132,8 @@ export default function SignupPage() {
     const t = typeof router.query.token === 'string' ? router.query.token : '';
     setToken(t);
     if (!t) { setLoadingPreview(false); return; }
-    invitePreview(t).then(setPreview).catch((e) => setError(e.message)).finally(() => setLoadingPreview(false));
+    Promise.race([invitePreview(t), new Promise<never>((_, rej) => setTimeout(() => rej(new Error('We couldn’t verify your invitation — check your connection and try again.')), 12000))])
+      .then((pv) => setPreview(pv as InvitePreview)).catch((e) => setError(e.message)).finally(() => setLoadingPreview(false));
     sb.auth.getSession().then(({ data }) => setSessionEmail(data.session?.user?.email ?? null)).catch(() => {});
   }, [router.isReady, router.query.token]);
 
@@ -173,7 +174,8 @@ export default function SignupPage() {
   /* ── Invalid / expired / missing token ── */
   if (!token || !preview || !preview.valid) {
     const reason = !token ? 'no_token' : preview?.reason || 'invalid';
-    const msg = reason === 'expired' ? 'This invitation has expired. Ask your administrator to send a new one.'
+    const msg = error ? error
+      : reason === 'expired' ? 'This invitation has expired. Ask your administrator to send a new one.'
       : reason === 'used' ? 'This invitation has already been used. Try signing in instead.'
       : 'This invitation link is invalid. Check the link in your email, or ask your administrator to re-send it.';
     return (
@@ -187,9 +189,16 @@ export default function SignupPage() {
             <h2 className="text-[1.4rem] font-semibold text-white tracking-tight">Invitation unavailable</h2>
             <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,.45)' }}>{msg}</p>
           </div>
+          {error && (
+            <button onClick={() => window.location.reload()}
+              className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all"
+              style={{ background: 'linear-gradient(135deg, #3ECF8E 0%, #10b981 100%)', color: '#0a0a0a', boxShadow: '0 0 20px rgba(62,207,142,.25)' }}>
+              <Icon name="ti-refresh" />Try again
+            </button>
+          )}
           <a href="/login"
             className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all"
-            style={{ background: 'linear-gradient(135deg, #3ECF8E 0%, #10b981 100%)', color: '#0a0a0a', boxShadow: '0 0 20px rgba(62,207,142,.25)' }}
+            style={error ? { background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.7)', border: '1px solid rgba(255,255,255,.1)' } : { background: 'linear-gradient(135deg, #3ECF8E 0%, #10b981 100%)', color: '#0a0a0a', boxShadow: '0 0 20px rgba(62,207,142,.25)' }}
           >
             <Icon name="ti-arrow-left" />Go to sign in
           </a>

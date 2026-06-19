@@ -258,6 +258,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
                 </div>
               )}
             </Link>
+            <Link href="/install" title="Install app / get the link & QR" className="p-1.5 rounded-md side-dim hover:text-content hover:bg-surface2 shrink-0"><Icon name="ti-device-mobile" className="text-base" /></Link>
             <button onClick={logout} title="Sign out" className="p-1.5 rounded-md side-dim hover:text-content hover:bg-surface2 shrink-0">
               <Icon name="ti-logout" className="text-base" />
             </button>
