@@ -266,8 +266,8 @@ export default function TrainingPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
+                <table className="w-full list-card">
+                  <thead className="bg-surface2/60">
                     <tr>
                       {tdLp.ordered.map((id) => <th key={id} className="th">{TD_COLS.find((c) => c.id === id)?.label}</th>)}
                       <th className="th w-24"></th>
@@ -323,8 +323,8 @@ export default function TrainingPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
+                <table className="w-full list-card">
+                  <thead className="bg-surface2/60">
                     <tr>
                       {jdLp.ordered.map((id) => <th key={id} className="th">{JD_COLS.find((c) => c.id === id)?.label}</th>)}
                       <th className="th w-24"></th>

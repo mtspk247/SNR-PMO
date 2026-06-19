@@ -10,6 +10,7 @@ import { can } from '@/lib/authz';
 import { useProjects } from '@/lib/queries';
 import Dropdown from '@/components/Dropdown';
 import { buildGroups } from '@/components/ViewControls';
+import { GroupHeader } from '@/components/GroupHeader';
 import { listGuests, revokeGuest, createGuest, guestSetAccess, GuestRow } from '@/lib/db';
 
 const LEVEL_META: Record<string, { label: string; pill: string; desc: string }> = {
@@ -170,7 +171,7 @@ export default function GuestsPage() {
               <div className="space-y-5">
                 {groups.map((grp) => (
                   <div key={grp.key}>
-                    {grp.label && <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-content">{grp.label}</h3><span className="text-2xs text-muted2 bg-surface2 rounded-full px-2 py-0.5">{grp.items.length}</span></div>}
+                    {grp.label && <div className="mb-3"><GroupHeader label={grp.label} count={grp.items.length} /></div>}
                     <GuestTable items={grp.items} />
                   </div>
                 ))}

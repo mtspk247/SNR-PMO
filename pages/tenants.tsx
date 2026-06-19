@@ -8,6 +8,7 @@ import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { listTenants, listPlans, listOrgInvites, createOrgInvite, setOrgInviteSource, revokeOrgInvite, platformAccounts, PlatformAccount, emailGetStatus, EmailStatus, adminImpersonateLink, setTenantReseller } from '@/lib/db';
 import { Plan, OrgInvite } from '@/lib/supabase';
+import { GroupHeader } from '@/components/GroupHeader';
 
 const SOURCES = [
   { value: 'website', label: 'Website' },
@@ -34,7 +35,7 @@ function groupsFor(rows: any[], groupBy: 'hierarchy' | 'plan' | 'none'): TenantG
     const groups: TenantGroup[] = []; const claimed = new Set<string>();
     for (const rsl of resellers) {
       const subs = byParent.get(rsl.org_id) || [];
-      groups.push({ label: rsl.org_name + ' \u00b7 reseller', items: [rsl, ...subs] });
+      groups.push({ label: rsl.org_name + ' · reseller', items: [rsl, ...subs] });
       claimed.add(rsl.org_id); subs.forEach((x) => claimed.add(x.org_id));
     }
     const others = rows.filter((r) => !claimed.has(r.org_id));
@@ -95,15 +96,15 @@ export default function TenantsPage() {
           <div className="p-8"><EmptyState icon="ti-building-community" text="No tenants." /></div>
         ) : (
           <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-              <tr><th className="px-4 py-3">Organization</th><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Members</th><th className="px-4 py-3">Seats</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr>
+            <thead className="bg-surface2/60 text-muted text-left text-2xs uppercase tracking-wider font-semibold sticky top-0 z-10">
+              <tr><th className="px-4 py-2.5 text-muted2">Organization</th><th className="px-4 py-2.5 text-muted2">Plan</th><th className="px-4 py-2.5 text-muted2">Members</th><th className="px-4 py-2.5 text-muted2">Seats</th><th className="px-4 py-2.5 text-muted2">Status</th><th className="px-4 py-2.5 text-muted2"></th></tr>
             </thead>
             <tbody>
               {groupsFor(rows, groupBy).map((g) => (
                 <Fragment key={g.label || 'all'}>
-                  {g.label && <tr className="bg-surface2/70"><td colSpan={6} className="px-4 py-2 text-2xs font-semibold uppercase tracking-wide text-muted">{g.label} <span className="text-muted2">· {g.items.length}</span></td></tr>}
+                  {g.label && <GroupHeader label={g.label} count={g.items.length} asTableRow colSpan={6} />}
                   {g.items.map((t) => (
-                    <tr key={t.org_id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" style={t.is_reseller ? { background: 'rgb(139 92 246 / .06)' } : undefined} onClick={() => router.push(`/tenants/${t.org_id}`)}>
+                    <tr key={t.org_id} className="border-t border-line hover:bg-surface2/60 cursor-pointer transition-colors" style={t.is_reseller ? { background: 'rgb(139 92 246 / .06)' } : undefined} onClick={() => router.push(`/tenants/${t.org_id}`)}>
                       <td className="px-4 py-3"><span className="font-medium text-content">{t.parent_org_id ? '↳ ' : ''}{t.org_name}</span><span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` · under ${(rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller'}` : ''}</span></td>
                       <td className="px-4 py-3"><PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" /></td>
                       <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
@@ -122,17 +123,17 @@ export default function TenantsPage() {
       <div className="card overflow-hidden mt-4">
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
           <div><h3 className="text-sm font-semibold text-content">Invitations</h3>
-            <p className="text-2xs text-muted">Invite a tenant to provision a new workspace. They set up their account via a secure signup link.{emailStatus && !emailStatus.enabled ? ' Email isn\u2019t configured \u2014 share the link directly.' : ' An email is also queued.'}</p></div>
+            <p className="text-2xs text-muted">Invite a tenant to provision a new workspace. They set up their account via a secure signup link.{emailStatus && !emailStatus.enabled ? ' Email isn’t configured — share the link directly.' : ' An email is also queued.'}</p></div>
           <button className="btn btn-primary shrink-0" onClick={() => { setInvOpen(true); setInvLink(null); setInvErr(''); }}><Icon name="ti-mail-plus" />Invite tenant</button>
         </div>
         {invites.length === 0 ? <div className="p-6"><EmptyState icon="ti-mail" text="No invitations yet." /></div> : (
           <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-              <tr><th className="px-4 py-3">Email</th><th className="px-4 py-3">Workspace</th><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Expires</th><th className="px-4 py-3"></th></tr>
+            <thead className="bg-surface2/60 text-muted2 text-left text-2xs uppercase tracking-wider font-semibold">
+              <tr><th className="px-4 py-2.5">Email</th><th className="px-4 py-2.5">Workspace</th><th className="px-4 py-2.5">Plan</th><th className="px-4 py-2.5">Source</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Expires</th><th className="px-4 py-2.5"></th></tr>
             </thead>
             <tbody>
               {invites.map((iv) => (
-                <tr key={iv.id} className="border-t border-line">
+                <tr key={iv.id} className="border-t border-line hover:bg-surface2/60 transition-colors">
                   <td className="px-4 py-3 text-content">{iv.email}</td>
                   <td className="px-4 py-3 text-muted">{iv.org_name || '—'}</td>
                   <td className="px-4 py-3"><span className="pill pill-gray">{iv.plan_key}</span></td>
@@ -161,12 +162,12 @@ export default function TenantsPage() {
             <p className="text-2xs text-muted">{orphans.length} {orphans.length === 1 ? 'person has' : 'people have'} signed in but don&rsquo;t belong to any tenant yet.</p>
           </div>
           <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-              <tr><th className="px-4 py-3">Person</th><th className="px-4 py-3">Signed up</th></tr>
+            <thead className="bg-surface2/60 text-muted2 text-left text-2xs uppercase tracking-wider font-semibold">
+              <tr><th className="px-4 py-2.5">Person</th><th className="px-4 py-2.5">Signed up</th></tr>
             </thead>
             <tbody>
               {orphans.map((a) => (
-                <tr key={a.user_id} className="border-t border-line">
+                <tr key={a.user_id} className="border-t border-line hover:bg-surface2/60 transition-colors">
                   <td className="px-4 py-3"><span className="block font-medium text-content">{a.full_name || a.email}</span><span className="block text-2xs text-muted">{a.email}</span></td>
                   <td className="px-4 py-3 text-2xs text-muted2">{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
                 </tr>
@@ -184,7 +185,7 @@ export default function TenantsPage() {
                 <button className="btn btn-primary" disabled={invBusy || !invEmail.trim() || !invName.trim()} onClick={submitInvite}>{invBusy ? 'Creating…' : 'Create invite'}</button></>}>
           {invLink ? (
             <div className="space-y-3">
-              <p className="text-sm text-content">{emailStatus && !emailStatus.enabled ? 'Invitation created. Email isn\u2019t set up yet \u2014 share this secure link with them directly to join.' : 'Invitation created \u2014 an email was queued. You can also share this secure link directly.'}</p>
+              <p className="text-sm text-content">{emailStatus && !emailStatus.enabled ? 'Invitation created. Email isn’t set up yet — share this secure link with them directly to join.' : 'Invitation created — an email was queued. You can also share this secure link directly.'}</p>
               <div className="flex items-center gap-2">
                 <input className="input flex-1 font-mono text-2xs" readOnly value={invLink} onFocus={(e) => e.currentTarget.select()} />
                 <button className="btn btn-primary shrink-0" onClick={() => copyLink(invLink)}>{copied ? 'Copied!' : 'Copy'}</button>

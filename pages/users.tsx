@@ -13,6 +13,7 @@ import { can } from '@/lib/authz';
 import { useTeams } from '@/lib/queries';
 import Dropdown from '@/components/Dropdown';
 import { buildGroups } from '@/components/ViewControls';
+import { GroupHeader } from '@/components/GroupHeader';
 import RolesManager from '@/components/RolesManager';
 import AvatarPicker from '@/components/AvatarPicker';
 import { avatarSrc, seedDefaultTeams } from '@/lib/db';
@@ -215,7 +216,7 @@ export default function UsersPage() {
                 )}
                 {users.length === 0 ? <EmptyState text="No users" /> : (uGroup === 'none' ? [{ key: 'all', label: '', items: users }] : buildGroups(users, ugKey, ugLabel)).map((g) => (
                   <div key={g.key}>
-                    {g.label && <div className="px-4 py-1.5 bg-surface2/70 text-2xs font-medium text-muted2 uppercase tracking-wide capitalize">{g.label} · {g.items.length}</div>}
+                    {g.label && <GroupHeader label={g.label} count={g.items.length} />}
                     {uView === 'cards' ? (
                       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 p-3">
                         {g.items.map((x) => (
@@ -251,7 +252,7 @@ export default function UsersPage() {
                 <div className="space-y-5">
                   {(tGroup === 'none' ? [{ key: 'all', label: '', items: teams }] : buildGroups(teams, tgKey, tgLabel)).map((g) => (
                     <div key={g.key}>
-                      {g.label && <div className="text-2xs font-medium text-muted2 uppercase tracking-wide mb-2 capitalize">{g.label} · {g.items.length}</div>}
+                      {g.label && <div className="mb-3"><GroupHeader label={g.label} count={g.items.length} /></div>}
                       {tView === 'cards' ? (
                         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                           {g.items.map((team) => {
