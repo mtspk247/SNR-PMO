@@ -12,7 +12,8 @@ import { listProposals, createProposal, updateProposal, deleteProposal, Proposal
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection, HeadCheckbox, RowCheckbox, BulkBar } from '@/components/RowSelection';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { DataList, GroupMeta } from '@/components/DataList';
 
 const STATUS_PILL: Record<string, string> = {
   draft: 'pill-gray',
@@ -22,6 +23,8 @@ const STATUS_PILL: Record<string, string> = {
   expired: 'pill-amber',
 };
 const STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'] as const;
+
+const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: titleCase(s), pill: STATUS_PILL[s] || 'pill-gray' }));
 
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -44,6 +47,8 @@ const emptyDraft = (): Draft => ({
   status: 'draft', valid_until: null, owner_id: null, notes: '',
 });
 
+type GroupBy = 'status' | 'none';
+
 export default function ProposalsPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
@@ -59,6 +64,7 @@ export default function ProposalsPage() {
   const [detail, setDetail] = useState<Proposal | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [groupBy, setGroupBy] = useState<GroupBy>('status');
 
   const load = () => {
     if (!org) return;
@@ -176,41 +182,51 @@ export default function ProposalsPage() {
         <StatCard label="Total value" value={fmtMoney(kpis.value)} icon="ti-currency-dollar" />
       </div>
 
-      <ListToolbar prefs={prefs} cols={COLS} filters={PROPOSAL_FILTERS} placeholder="Search proposals…" />
+      {/* Toolbar + Group-by control */}
+      <div className="flex items-end gap-2 flex-wrap mb-4">
+        <div className="flex-1 min-w-0">
+          <ListToolbar prefs={prefs} cols={COLS} filters={PROPOSAL_FILTERS} placeholder="Search proposals…" />
+        </div>
+        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+          <button
+            onClick={() => setGroupBy('status')}
+            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+          >
+            Status
+          </button>
+          <button
+            onClick={() => setGroupBy('none')}
+            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+          >
+            None
+          </button>
+        </div>
+      </div>
 
       <BulkBar count={rs.count} onClear={rs.clear}>
         <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
         {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
       </BulkBar>
 
-      <div className="card overflow-hidden">
-        {proposals === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-file-description" text="No proposals yet." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm list-card">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3 w-10"><HeadCheckbox checked={rs.allSelected} indeterminate={rs.someSelected} onChange={rs.toggleAll} /></th>
-                  {prefs.ordered.map((id) => <th key={id} className="px-4 py-3">{COLS.find((c) => c.id === id)?.label}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((p) => (
-                  <tr key={p.id}
-                    className={`group border-t border-line hover:bg-surface2/50 cursor-pointer ${rs.isSelected(p.id) ? 'bg-accent/5' : ''}`}
-                    onClick={() => setDetail(p)}>
-                    <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={rs.isSelected(p.id)} onChange={() => rs.toggle(p.id)} /></td>
-                    {prefs.ordered.map((id) => <td key={id} className="px-4 py-3 text-muted">{cell(id, p)}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {proposals === null ? (
+        <div className="card p-8 border border-line/40"><Spinner /></div>
+      ) : shown.length === 0 ? (
+        <div className="card p-8 border border-line/40"><EmptyState icon="ti-file-description" text="No proposals yet." /></div>
+      ) : (
+        <DataList
+          rows={shown}
+          rowKey={(p) => p.id}
+          cols={COLS}
+          prefs={prefs}
+          cell={cell}
+          onRowClick={(p) => setDetail(p)}
+          selection={rs}
+          groupBy={groupBy}
+          groupOf={(p) => p.status}
+          groups={GROUPS}
+        />
+      )}
 
       {editor && !editor.draft.id && (
         <Modal
