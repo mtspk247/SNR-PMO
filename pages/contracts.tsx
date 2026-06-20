@@ -215,6 +215,7 @@ export default function ContractsPage() {
           groupBy={groupBy}
           groupOf={(c) => c.status}
           groups={GROUPS}
+          onAddInGroup={(g) => setEditor({ draft: { ...emptyDraft(), status: g as typeof STATUSES[number] } })}
         />
       )}
 

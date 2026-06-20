@@ -225,6 +225,7 @@ export default function ProposalsPage() {
           groupBy={groupBy}
           groupOf={(p) => p.status}
           groups={GROUPS}
+          onAddInGroup={(g) => setEditor({ draft: { ...emptyDraft(), status: g as Proposal['status'] } })}
         />
       )}
 
