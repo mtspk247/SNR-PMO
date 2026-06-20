@@ -10,67 +10,68 @@ import { can } from '@/lib/authz';
 //  - webhook : works TODAY — registers a webhook_endpoint the events bus delivers to
 //              (Slack/Discord get their native payload; "custom" gets signed JSON).
 //  - link    : a real capability elsewhere in the app (deep-link).
-//  - soon    : not built yet — shown honestly with a "Coming soon" tag (NEVER a fake
-//              "Connected"). One-click OAuth for these is rolling out via our connector engine.
-type Kind = 'webhook' | 'link' | 'soon';
+//  - import  : migrate your data in via the CSV importer (/import) — works today.
+//  - api     : connect via our public API + webhooks / Zapier / Make (/developer) — works today.
+//              (Native one-click OAuth for these is also rolling out via our connector engine.)
+type Kind = 'webhook' | 'link' | 'import' | 'api';
 type Item = {
   key: string; name: string; icon: string; category: string; kind: Kind;
   format?: 'slack' | 'discord' | 'json'; href?: string; cta?: string; blurb: string; help?: string;
 };
 
 const CATALOG: Item[] = [
-  // Communication
+  // Communication — real webhooks (push notifications on events)
   { key: 'slack', name: 'Slack', icon: 'ti-brand-slack', category: 'Communication', kind: 'webhook', format: 'slack', blurb: 'Post to a Slack channel when deals, invoices, projects or clients change.', help: 'Slack → Apps → Incoming Webhooks → add to a channel → copy the URL (https://hooks.slack.com/services/…).' },
   { key: 'discord', name: 'Discord', icon: 'ti-brand-discord', category: 'Communication', kind: 'webhook', format: 'discord', blurb: 'Send event notifications to a Discord channel.', help: 'Discord → Channel → Edit → Integrations → Webhooks → New Webhook → copy URL.' },
-  { key: 'teams', name: 'Microsoft Teams', icon: 'ti-brand-teams', category: 'Communication', kind: 'soon', blurb: 'Post activity to a Teams channel.' },
-  { key: 'telegram', name: 'Telegram', icon: 'ti-brand-telegram', category: 'Communication', kind: 'soon', blurb: 'Notify a Telegram chat or channel.' },
-  { key: 'twilio', name: 'Twilio SMS', icon: 'ti-message', category: 'Communication', kind: 'soon', blurb: 'Send SMS alerts on key events.' },
-  { key: 'whatsapp', name: 'WhatsApp', icon: 'ti-brand-whatsapp', category: 'Communication', kind: 'soon', blurb: 'Message clients and teammates on WhatsApp.' },
-  // Automation
+  { key: 'teams', name: 'Microsoft Teams', icon: 'ti-brand-teams', category: 'Communication', kind: 'webhook', format: 'teams', blurb: 'Post activity to a Microsoft Teams channel.', help: 'Teams → channel → ⋯ → Workflows/Connectors → Incoming Webhook → copy the URL.' },
+  { key: 'telegram', name: 'Telegram', icon: 'ti-brand-telegram', category: 'Communication', kind: 'api', blurb: 'Notify a Telegram chat via your API key + a Zapier/Make scenario.' },
+  { key: 'twilio', name: 'Twilio SMS', icon: 'ti-message', category: 'Communication', kind: 'api', blurb: 'Send SMS alerts on key events via Zapier/Make + your API key.' },
+  { key: 'whatsapp', name: 'WhatsApp', icon: 'ti-brand-whatsapp', category: 'Communication', kind: 'api', blurb: 'Message clients via Zapier/Make using your API key.' },
+  // Automation — connect via API/webhooks
   { key: 'zapier', name: 'Zapier', icon: 'ti-bolt', category: 'Automation', kind: 'link', href: '/developer', cta: 'Get API key', blurb: 'Connect to thousands of apps with your API key + webhooks.' },
   { key: 'make', name: 'Make', icon: 'ti-settings-automation', category: 'Automation', kind: 'link', href: '/developer', cta: 'Get API key', blurb: 'Build visual scenarios off our API and webhooks.' },
   { key: 'n8n', name: 'n8n', icon: 'ti-hierarchy-2', category: 'Automation', kind: 'link', href: '/developer', cta: 'Get API key', blurb: 'Self-hosted workflow automation via our API.' },
-  // Project tools (competitors — migrate in)
-  { key: 'clickup', name: 'ClickUp', icon: 'ti-checklist', category: 'Project tools', kind: 'soon', blurb: 'Import your spaces, lists and tasks from ClickUp.' },
-  { key: 'monday', name: 'monday.com', icon: 'ti-layout-board', category: 'Project tools', kind: 'soon', blurb: 'Bring boards and items over from monday.' },
-  { key: 'asana', name: 'Asana', icon: 'ti-circle-check', category: 'Project tools', kind: 'soon', blurb: 'Import projects and tasks from Asana.' },
-  { key: 'trello', name: 'Trello', icon: 'ti-brand-trello', category: 'Project tools', kind: 'soon', blurb: 'Pull in Trello boards and cards.' },
-  { key: 'jira', name: 'Jira', icon: 'ti-ticket', category: 'Project tools', kind: 'soon', blurb: 'Sync issues and sprints with Jira.' },
-  { key: 'notion', name: 'Notion', icon: 'ti-brand-notion', category: 'Project tools', kind: 'soon', blurb: 'Connect Notion databases and docs.' },
-  { key: 'linear', name: 'Linear', icon: 'ti-brand-linear', category: 'Project tools', kind: 'soon', blurb: 'Link Linear issues to tasks.' },
-  { key: 'ghl', name: 'GoHighLevel', icon: 'ti-rocket', category: 'Project tools', kind: 'soon', blurb: 'Migrate sub-accounts, contacts and pipelines from GHL.' },
-  // CRM
-  { key: 'hubspot', name: 'HubSpot', icon: 'ti-affiliate', category: 'CRM', kind: 'soon', blurb: 'Two-way sync contacts and deals.' },
-  { key: 'salesforce', name: 'Salesforce', icon: 'ti-cloud', category: 'CRM', kind: 'soon', blurb: 'Sync leads, contacts and opportunities.' },
-  { key: 'pipedrive', name: 'Pipedrive', icon: 'ti-target-arrow', category: 'CRM', kind: 'soon', blurb: 'Connect your Pipedrive pipeline.' },
-  { key: 'zohocrm', name: 'Zoho CRM', icon: 'ti-briefcase', category: 'CRM', kind: 'soon', blurb: 'Sync with Zoho CRM.' },
+  // Project tools — migrate your data in (real, via the importer)
+  { key: 'clickup', name: 'ClickUp', icon: 'ti-checklist', category: 'Project tools', kind: 'import', blurb: 'Import your lists and tasks from ClickUp (export CSV → Import).' },
+  { key: 'monday', name: 'monday.com', icon: 'ti-layout-board', category: 'Project tools', kind: 'import', blurb: 'Bring boards and items over from monday.' },
+  { key: 'asana', name: 'Asana', icon: 'ti-circle-check', category: 'Project tools', kind: 'import', blurb: 'Import projects and tasks from Asana.' },
+  { key: 'trello', name: 'Trello', icon: 'ti-brand-trello', category: 'Project tools', kind: 'import', blurb: 'Pull in Trello boards and cards.' },
+  { key: 'jira', name: 'Jira', icon: 'ti-ticket', category: 'Project tools', kind: 'import', blurb: 'Import issues and projects from Jira.' },
+  { key: 'notion', name: 'Notion', icon: 'ti-brand-notion', category: 'Project tools', kind: 'import', blurb: 'Import Notion database rows as projects or tasks.' },
+  { key: 'linear', name: 'Linear', icon: 'ti-brand-linear', category: 'Project tools', kind: 'import', blurb: 'Import Linear issues as tasks.' },
+  { key: 'ghl', name: 'GoHighLevel', icon: 'ti-rocket', category: 'Project tools', kind: 'import', blurb: 'Migrate contacts and pipelines from GoHighLevel.' },
+  // CRM — migrate clients & deals in
+  { key: 'hubspot', name: 'HubSpot', icon: 'ti-affiliate', category: 'CRM', kind: 'import', blurb: 'Import contacts and deals from HubSpot.' },
+  { key: 'salesforce', name: 'Salesforce', icon: 'ti-cloud', category: 'CRM', kind: 'import', blurb: 'Import accounts and opportunities from Salesforce.' },
+  { key: 'pipedrive', name: 'Pipedrive', icon: 'ti-target-arrow', category: 'CRM', kind: 'import', blurb: 'Import your Pipedrive contacts and deals.' },
+  { key: 'zohocrm', name: 'Zoho CRM', icon: 'ti-briefcase', category: 'CRM', kind: 'import', blurb: 'Import clients and deals from Zoho CRM.' },
   // Payments & accounting
   { key: 'stripe', name: 'Stripe', icon: 'ti-credit-card', category: 'Payments & accounting', kind: 'link', href: '/billing', cta: 'Open billing', blurb: 'Subscriptions and checkout — configured under Billing.' },
-  { key: 'paypal', name: 'PayPal', icon: 'ti-brand-paypal', category: 'Payments & accounting', kind: 'soon', blurb: 'Accept payments via PayPal.' },
-  { key: 'quickbooks', name: 'QuickBooks', icon: 'ti-calculator', category: 'Payments & accounting', kind: 'soon', blurb: 'Push invoices and payments to QuickBooks.' },
-  { key: 'xero', name: 'Xero', icon: 'ti-receipt', category: 'Payments & accounting', kind: 'soon', blurb: 'Sync invoices with Xero.' },
+  { key: 'paypal', name: 'PayPal', icon: 'ti-brand-paypal', category: 'Payments & accounting', kind: 'api', blurb: 'Connect PayPal via Zapier/Make + your API key.' },
+  { key: 'quickbooks', name: 'QuickBooks', icon: 'ti-calculator', category: 'Payments & accounting', kind: 'api', blurb: 'Sync invoices to QuickBooks via Zapier/Make + your API key.' },
+  { key: 'xero', name: 'Xero', icon: 'ti-receipt', category: 'Payments & accounting', kind: 'api', blurb: 'Connect Xero via Zapier/Make + your API key.' },
   // Calendar
-  { key: 'gcal', name: 'Google Calendar', icon: 'ti-calendar', category: 'Calendar', kind: 'soon', blurb: 'Two-way calendar sync for tasks and events.' },
-  { key: 'outlookcal', name: 'Outlook Calendar', icon: 'ti-calendar-event', category: 'Calendar', kind: 'soon', blurb: 'Sync with your Outlook calendar.' },
-  { key: 'calendly', name: 'Calendly', icon: 'ti-calendar-time', category: 'Calendar', kind: 'soon', blurb: 'Turn bookings into tasks and events.' },
+  { key: 'gcal', name: 'Google Calendar', icon: 'ti-calendar', category: 'Calendar', kind: 'api', blurb: 'Sync tasks/events to Google Calendar via Zapier/Make.' },
+  { key: 'outlookcal', name: 'Outlook Calendar', icon: 'ti-calendar-event', category: 'Calendar', kind: 'api', blurb: 'Connect Outlook Calendar via Zapier/Make.' },
+  { key: 'calendly', name: 'Calendly', icon: 'ti-calendar-time', category: 'Calendar', kind: 'api', blurb: 'Turn Calendly bookings into tasks via Zapier/Make.' },
   // Email & marketing
   { key: 'email', name: 'Gmail / SMTP', icon: 'ti-mail', category: 'Email & marketing', kind: 'link', href: '/users', cta: 'Open Users ▸ Email', blurb: 'Send reports and automations from your own mailbox.' },
-  { key: 'outlook', name: 'Outlook', icon: 'ti-mail-opened', category: 'Email & marketing', kind: 'soon', blurb: 'Send from your Outlook mailbox.' },
-  { key: 'mailchimp', name: 'Mailchimp', icon: 'ti-brand-mailchimp', category: 'Email & marketing', kind: 'soon', blurb: 'Sync contacts to Mailchimp audiences.' },
-  { key: 'sendgrid', name: 'SendGrid', icon: 'ti-send', category: 'Email & marketing', kind: 'soon', blurb: 'Transactional email via SendGrid.' },
+  { key: 'outlook', name: 'Outlook', icon: 'ti-mail-opened', category: 'Email & marketing', kind: 'api', blurb: 'Connect Outlook mail via Zapier/Make + your API key.' },
+  { key: 'mailchimp', name: 'Mailchimp', icon: 'ti-brand-mailchimp', category: 'Email & marketing', kind: 'api', blurb: 'Sync contacts to Mailchimp via Zapier/Make.' },
+  { key: 'sendgrid', name: 'SendGrid', icon: 'ti-send', category: 'Email & marketing', kind: 'api', blurb: 'Transactional email via SendGrid + your API key.' },
   // Storage
-  { key: 'gdrive', name: 'Google Drive', icon: 'ti-brand-google-drive', category: 'Storage', kind: 'soon', blurb: 'Attach and sync files from Drive.' },
-  { key: 'dropbox', name: 'Dropbox', icon: 'ti-brand-dropbox', category: 'Storage', kind: 'soon', blurb: 'Connect Dropbox files.' },
-  { key: 'onedrive', name: 'OneDrive', icon: 'ti-brand-onedrive', category: 'Storage', kind: 'soon', blurb: 'Sync files from OneDrive.' },
-  { key: 'box', name: 'Box', icon: 'ti-box', category: 'Storage', kind: 'soon', blurb: 'Connect Box file storage.' },
+  { key: 'gdrive', name: 'Google Drive', icon: 'ti-brand-google-drive', category: 'Storage', kind: 'api', blurb: 'Connect Google Drive via Zapier/Make + your API key.' },
+  { key: 'dropbox', name: 'Dropbox', icon: 'ti-brand-dropbox', category: 'Storage', kind: 'api', blurb: 'Connect Dropbox via Zapier/Make + your API key.' },
+  { key: 'onedrive', name: 'OneDrive', icon: 'ti-brand-onedrive', category: 'Storage', kind: 'api', blurb: 'Connect OneDrive via Zapier/Make + your API key.' },
+  { key: 'box', name: 'Box', icon: 'ti-box', category: 'Storage', kind: 'api', blurb: 'Connect Box via Zapier/Make + your API key.' },
   // Developer
   { key: 'webhook', name: 'Custom webhook', icon: 'ti-webhook', category: 'Developer', kind: 'webhook', format: 'json', blurb: 'POST the full signed event JSON to any endpoint.', help: 'We POST signed JSON (verify X-SNRPMO-Signature). See Developer for the payload shape.' },
-  { key: 'github', name: 'GitHub', icon: 'ti-brand-github', category: 'Developer', kind: 'soon', blurb: 'Link issues and pull requests to tasks.' },
-  { key: 'gitlab', name: 'GitLab', icon: 'ti-brand-gitlab', category: 'Developer', kind: 'soon', blurb: 'Connect GitLab issues and merge requests.' },
+  { key: 'github', name: 'GitHub', icon: 'ti-brand-github', category: 'Developer', kind: 'api', blurb: 'Link issues/PRs via Zapier/Make + your API key.' },
+  { key: 'gitlab', name: 'GitLab', icon: 'ti-brand-gitlab', category: 'Developer', kind: 'api', blurb: 'Connect GitLab via Zapier/Make + your API key.' },
   // Support
-  { key: 'zendesk', name: 'Zendesk', icon: 'ti-headset', category: 'Support', kind: 'soon', blurb: 'Turn tickets into tasks.' },
-  { key: 'intercom', name: 'Intercom', icon: 'ti-message-chatbot', category: 'Support', kind: 'soon', blurb: 'Sync conversations and contacts.' },
-  { key: 'freshdesk', name: 'Freshdesk', icon: 'ti-lifebuoy', category: 'Support', kind: 'soon', blurb: 'Connect Freshdesk tickets.' },
+  { key: 'zendesk', name: 'Zendesk', icon: 'ti-headset', category: 'Support', kind: 'api', blurb: 'Turn Zendesk tickets into tasks via Zapier/Make.' },
+  { key: 'intercom', name: 'Intercom', icon: 'ti-message-chatbot', category: 'Support', kind: 'api', blurb: 'Sync Intercom conversations via Zapier/Make.' },
+  { key: 'freshdesk', name: 'Freshdesk', icon: 'ti-lifebuoy', category: 'Support', kind: 'api', blurb: 'Connect Freshdesk via Zapier/Make + your API key.' },
 ];
 
 type Endpoint = { id: string; url: string; label: string | null; format: string | null };
@@ -272,7 +273,8 @@ export default function IntegrationsPage() {
                                 </span>
                               )}
                               {it.kind === 'link' && <span className="pill pill-sky">Available</span>}
-                              {it.kind === 'soon' && <span className="pill pill-gray">Coming soon</span>}
+                              {it.kind === 'import' && <span className="pill pill-violet">Migrate in</span>}
+                              {it.kind === 'api' && <span className="pill pill-sky">Via API</span>}
                             </div>
                           </div>
                         </div>
@@ -304,10 +306,15 @@ export default function IntegrationsPage() {
                               {it.cta || 'Open'}
                             </Link>
                           )}
-                          {it.kind === 'soon' && (
-                            <button disabled className="btn w-full justify-center text-xs opacity-50 cursor-not-allowed">
-                              Coming soon
-                            </button>
+                          {it.kind === 'import' && (
+                            <Link href="/import" className="btn btn-primary w-full justify-center text-xs">
+                              <Icon name="ti-file-import" className="text-xs" />Import data
+                            </Link>
+                          )}
+                          {it.kind === 'api' && (
+                            <Link href="/developer" className="btn w-full justify-center text-xs">
+                              Connect via API
+                            </Link>
                           )}
                         </div>
                       </div>
