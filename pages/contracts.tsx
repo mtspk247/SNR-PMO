@@ -12,7 +12,7 @@ import { listContracts, createContract, updateContract, deleteContract, Contract
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { useRowSelection, BulkBar, BulkAssign } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
 
 const STATUS_PILL: Record<string, string> = {
@@ -115,6 +115,11 @@ export default function ContractsPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'contracts-selected.csv'; a.click(); URL.revokeObjectURL(url);
   };
 
+  const bulkAssign = async (uid: string | null) => {
+    if (!rs.count) return; setBusy(true); setErr('');
+    try { for (const x of rs.selected) await updateContract(x.id, { owner_id: uid } as any); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const bulkDelete = async () => {
     if (!rs.count || !confirm(`Delete ${rs.count} contract${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
     setBusy(true); setErr('');
@@ -195,6 +200,7 @@ export default function ContractsPage() {
       </div>
 
       <BulkBar count={rs.count} onClear={rs.clear}>
+        <BulkAssign users={users} onAssign={bulkAssign} />
         <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
         {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
       </BulkBar>

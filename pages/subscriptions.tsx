@@ -13,7 +13,7 @@ import {
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { useRowSelection, BulkBar, BulkAssign } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
 
 const STATUS_PILL: Record<string, string> = { requested: 'pill-violet', active: 'pill-green', trial: 'pill-blue', paused: 'pill-amber', cancelled: 'pill-gray', expired: 'pill-red', rejected: 'pill-red' };
@@ -81,6 +81,11 @@ export default function SubscriptionsPage() {
     const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'subscriptions-selected.csv'; a.click(); URL.revokeObjectURL(url);
   };
+  const bulkAssign = async (uid: string | null) => {
+    if (!rs.count) return; setBusy(true); setErr('');
+    try { for (const x of rs.selected) await updateVendorSubscription(x.id, { owner_id: uid } as any); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const bulkDelete = async () => {
     if (!rs.count || !confirm(`Delete ${rs.count} subscription${rs.count > 1 ? 's' : ''}?`)) return;
     setBusy(true); setErr('');
@@ -136,6 +141,7 @@ export default function SubscriptionsPage() {
       </div>
 
       <BulkBar count={rs.count} onClear={rs.clear}>
+        <BulkAssign users={users} onAssign={bulkAssign} />
         <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
         {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
       </BulkBar>

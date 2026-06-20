@@ -10,7 +10,7 @@ import { listJobs, createJob, updateJob, deleteJob, JobPosting } from '@/lib/db'
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { useRowSelection, BulkBar, BulkAssign } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
 
 const fmtType = (t: string) => t.replace(/_/g, ' ');
@@ -93,6 +93,11 @@ export default function JobsPage() {
     const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'jobs-selected.csv'; a.click(); URL.revokeObjectURL(url);
   };
+  const bulkAssign = async (uid: string | null) => {
+    if (!rs.count) return; setBusy(true); setErr('');
+    try { for (const x of rs.selected) await updateJob(x.id, { owner_id: uid } as any); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const bulkDelete = async () => {
     if (!rs.count || !confirm(`Delete ${rs.count} job${rs.count > 1 ? 's' : ''}?`)) return;
     setBusy(true); setErr('');
@@ -173,6 +178,7 @@ export default function JobsPage() {
       </div>
 
       <BulkBar count={rs.count} onClear={rs.clear}>
+        <BulkAssign users={users} onAssign={bulkAssign} />
         <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
         {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
       </BulkBar>

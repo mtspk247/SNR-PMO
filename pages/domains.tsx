@@ -9,7 +9,7 @@ import { hasFeature } from '@/lib/entitlements';
 import { listDomains, createDomain, updateDomain, deleteDomain, getOrgUsers, Domain } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection } from '@/components/RowSelection';
+import { useRowSelection, BulkAssign } from '@/components/RowSelection';
 import { GroupMeta, EditSpec } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 
@@ -212,6 +212,11 @@ export default function DomainsPage() {
     }
   };
 
+  const bulkAssign = async (uid: string | null) => {
+    if (!rs.count) return; setBusy(true); setErr('');
+    try { for (const x of rs.selected) await updateDomain(x.id, { owner_id: uid } as any); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const bulkDelete = async () => {
     if (!rs.count || !confirm(`Delete ${rs.count} domain${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
     setBusy(true); setErr('');
@@ -294,6 +299,7 @@ export default function DomainsPage() {
         onRowClick={(d) => setEditor({ mode: 'edit', draft: { ...d } })}
         exportName="domains"
         exportValue={exportValue}
+        bulkActions={() => <BulkAssign users={users} onAssign={bulkAssign} />}
         onDelete={() => bulkDelete()}
         canDelete={isAdmin}
         busy={busy}
