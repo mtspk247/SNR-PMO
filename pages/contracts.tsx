@@ -10,7 +10,8 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listContracts, createContract, updateContract, deleteContract, Contract } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
-import { getOrgUsers } from '@/lib/db';
+import { getOrgUsers, getTaskStatuses, TaskStatus } from '@/lib/db';
+import StatusManager from '@/components/StatusManager';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar, BulkAssign } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
@@ -22,9 +23,7 @@ const STATUS_PILL: Record<string, string> = {
   expired: 'pill-amber',
   terminated: 'pill-red',
 };
-const STATUSES = ['draft', 'active', 'signed', 'expired', 'terminated'] as const;
-const GROUP_ORDER = ['active', 'signed', 'draft', 'expired', 'terminated'];
-const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({ value: st, label: titleCase(st), pill: STATUS_PILL[st] || 'pill-gray' }));
+const DEFAULT_STATUSES = ['draft', 'active', 'signed', 'expired', 'terminated'];
 
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -55,6 +54,8 @@ export default function ContractsPage() {
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'crm');
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [statusDefs, setStatusDefs] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
 
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
@@ -75,11 +76,17 @@ export default function ContractsPage() {
     if (org?.id && enabled) {
       load();
       getOrgUsers(org.id).then(setUsers).catch(() => {});
+      getTaskStatuses(org.id, 'contracts').then(setStatusDefs).catch(() => {});
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
   const name = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
+  const reloadStatusDefs = () => { if (org?.id) getTaskStatuses(org.id, 'contracts').then(setStatusDefs).catch(() => {}); };
+  const STATUSES = statusDefs.length ? statusDefs.map((s) => s.name) : DEFAULT_STATUSES;
+  const catPill: Record<string, string> = { todo: 'pill-amber', active: 'pill-green', done: 'pill-gray', blocked: 'pill-rose' };
+  const statusPill = (nm: string) => { const d = statusDefs.find((s) => s.name === nm); return d ? (catPill[d.category] || 'pill-gray') : (STATUS_PILL[nm] || 'pill-gray'); };
+  const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: titleCase(s), pill: statusPill(s) }));
 
   const shown = useMemo(() =>
     (contracts || []).filter((c) =>
@@ -102,7 +109,7 @@ export default function ContractsPage() {
           </span>
         : <span className="text-muted2">—</span>;
       case 'owner': return <PersonTag name={name(c.owner_id)} />;
-      case 'status': return <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'}`}>{c.status}</span>;
+      case 'status': return <span className={`pill ${statusPill(c.status)}`}>{c.status}</span>;
       default: return '—';
     }
   };
@@ -174,9 +181,12 @@ export default function ContractsPage() {
     <Layout flat title="Contracts">
       <PageHeader help="crm" title="Contracts" subtitle="Track signed agreements, values and expiry dates" icon="ti-file-certificate"
         action={isAdmin && (
-          <button className="btn btn-primary" onClick={() => setEditor({ draft: emptyDraft() })}>
-            <Icon name="ti-plus" />Add contract
-          </button>
+          <div className="flex items-center gap-2">
+            <button className="btn" onClick={() => setStatusMgr(true)}><Icon name="ti-flag-3" className="text-sm" />Statuses</button>
+            <button className="btn btn-primary" onClick={() => setEditor({ draft: emptyDraft() })}>
+              <Icon name="ti-plus" />Add contract
+            </button>
+          </div>
         )} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
@@ -284,6 +294,7 @@ export default function ContractsPage() {
           nameOf={name}
         />
       )}
+      {org?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="contracts" statuses={statusDefs} onChanged={reloadStatusDefs} />}
     </Layout>
   );
 }

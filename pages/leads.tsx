@@ -19,7 +19,7 @@ const STATUS_PILL: Record<string, string> = {
   new: 'pill-blue', contacted: 'pill-amber', qualified: 'pill-green',
   unqualified: 'pill-gray', converted: 'pill-violet',
 };
-const STATUSES: Lead['status'][] = ['new', 'contacted', 'qualified', 'unqualified', 'converted'];
+const DEFAULT_STATUSES = ['new', 'contacted', 'qualified', 'unqualified', 'converted'];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -48,8 +48,6 @@ const LEAD_FILTERS: FilterDef[] = [
   },
 ];
 
-const GROUP_ORDER: Lead['status'][] = ['new', 'contacted', 'qualified', 'unqualified', 'converted'];
-const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({ value: st, label: cap(st), pill: STATUS_PILL[st] || 'pill-gray' }));
 
 type Draft = Partial<Lead>;
 const emptyDraft = (): Draft => ({ name: '', contact_name: '', email: '', phone: '', source: '', status: 'new', value: 0, currency: 'USD', notes: '' });
@@ -61,6 +59,8 @@ export default function LeadsPage() {
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'crm');
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [statusDefs, setStatusDefs] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
 
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[] | null>(null);
@@ -81,11 +81,17 @@ export default function LeadsPage() {
     if (org?.id && enabled) {
       load();
       getOrgUsers(org.id).then(setUsers).catch(() => {});
+      getTaskStatuses(org.id, 'leads').then(setStatusDefs).catch(() => {});
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
   const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
+  const reloadStatusDefs = () => { if (org?.id) getTaskStatuses(org.id, 'leads').then(setStatusDefs).catch(() => {}); };
+  const STATUSES = statusDefs.length ? statusDefs.map((s) => s.name) : DEFAULT_STATUSES;
+  const catPill: Record<string, string> = { todo: 'pill-amber', active: 'pill-green', done: 'pill-gray', blocked: 'pill-rose' };
+  const statusPill = (name: string) => { const d = statusDefs.find((s) => s.name === name); return d ? (catPill[d.category] || 'pill-gray') : (STATUS_PILL[name] || 'pill-gray'); };
+  const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: cap(s), pill: statusPill(s) }));
 
   const shown = useMemo(() =>
     (leads || []).filter((l) =>
@@ -103,7 +109,7 @@ export default function LeadsPage() {
       case 'source': return l.source || '—';
       case 'value': return <span className="tabular-nums">{fmtMoney(l.value || 0, l.currency)}</span>;
       case 'owner': return <PersonTag name={nameOf(l.owner_id)} />;
-      case 'status': return <span className={`pill ${STATUS_PILL[l.status] || 'pill-gray'}`}>{l.status}</span>;
+      case 'status': return <span className={`pill ${statusPill(l.status)}`}>{l.status}</span>;
       default: return '—';
     }
   };
@@ -187,9 +193,12 @@ export default function LeadsPage() {
         subtitle="Capture and qualify prospects, then convert them into the Pipeline (a deal) or directly to a Client"
         icon="ti-user-search"
         action={
-          <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
-            <Icon name="ti-plus" />Add lead
-          </button>
+          <div className="flex items-center gap-2">
+            {isAdmin && <button className="btn" onClick={() => setStatusMgr(true)}><Icon name="ti-flag-3" className="text-sm" />Statuses</button>}
+            <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
+              <Icon name="ti-plus" />Add lead
+            </button>
+          </div>
         }
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
@@ -362,6 +371,7 @@ export default function LeadsPage() {
           </div>
         </Modal>
       )}
+      {org?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="leads" statuses={statusDefs} onChanged={reloadStatusDefs} />}
     </Layout>
   );
 }

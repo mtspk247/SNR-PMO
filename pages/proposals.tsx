@@ -10,7 +10,8 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listProposals, createProposal, updateProposal, deleteProposal, Proposal } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
-import { getOrgUsers } from '@/lib/db';
+import { getOrgUsers, getTaskStatuses, TaskStatus } from '@/lib/db';
+import StatusManager from '@/components/StatusManager';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
@@ -22,9 +23,8 @@ const STATUS_PILL: Record<string, string> = {
   rejected: 'pill-red',
   expired: 'pill-amber',
 };
-const STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'] as const;
+const DEFAULT_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
 
-const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: titleCase(s), pill: STATUS_PILL[s] || 'pill-gray' }));
 
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -54,6 +54,8 @@ export default function ProposalsPage() {
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'crm');
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [statusDefs, setStatusDefs] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
 
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
@@ -74,11 +76,17 @@ export default function ProposalsPage() {
     if (org?.id && enabled) {
       load();
       getOrgUsers(org.id).then(setUsers).catch(() => {});
+      getTaskStatuses(org.id, 'proposals').then(setStatusDefs).catch(() => {});
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
   const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
+  const reloadStatusDefs = () => { if (org?.id) getTaskStatuses(org.id, 'proposals').then(setStatusDefs).catch(() => {}); };
+  const STATUSES = statusDefs.length ? statusDefs.map((s) => s.name) : DEFAULT_STATUSES;
+  const catPill: Record<string, string> = { todo: 'pill-amber', active: 'pill-green', done: 'pill-gray', blocked: 'pill-rose' };
+  const statusPill = (name: string) => { const d = statusDefs.find((s) => s.name === name); return d ? (catPill[d.category] || 'pill-gray') : (STATUS_PILL[name] || 'pill-gray'); };
+  const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: titleCase(s), pill: statusPill(s) }));
 
   const shown = useMemo(() =>
     (proposals || []).filter((p) =>
@@ -101,7 +109,7 @@ export default function ProposalsPage() {
         </span>
       ) : <span className="text-muted2">—</span>;
       case 'owner': return <PersonTag name={nameOf(p.owner_id)} />;
-      case 'status': return <span className={`pill ${STATUS_PILL[p.status] || 'pill-gray'}`}>{p.status}</span>;
+      case 'status': return <span className={`pill ${statusPill(p.status)}`}>{p.status}</span>;
       default: return '—';
     }
   };
@@ -167,9 +175,12 @@ export default function ProposalsPage() {
         icon="ti-file-description"
         action={
           isAdmin && (
-            <button className="btn btn-primary" onClick={() => setEditor({ draft: emptyDraft() })}>
-              <Icon name="ti-plus" />Add proposal
-            </button>
+            <div className="flex items-center gap-2">
+              <button className="btn" onClick={() => setStatusMgr(true)}><Icon name="ti-flag-3" className="text-sm" />Statuses</button>
+              <button className="btn btn-primary" onClick={() => setEditor({ draft: emptyDraft() })}>
+                <Icon name="ti-plus" />Add proposal
+              </button>
+            </div>
           )
         }
       />
@@ -268,6 +279,7 @@ export default function ProposalsPage() {
           }}
         />
       )}
+      {org?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="proposals" statuses={statusDefs} onChanged={reloadStatusDefs} />}
     </Layout>
   );
 }
@@ -288,7 +300,7 @@ function EditorFields({ draft, setD, users }: { draft: Draft; setD: (p: Draft) =
         <input className="input" value={draft.currency || 'USD'} onChange={(e) => setD({ currency: e.target.value })} />
       </Field>
       <Field label="Status">
-        <Select value={draft.status || 'draft'} onChange={(v) => setD({ status: v as Proposal['status'] })} options={[...(['draft', 'sent', 'accepted', 'rejected', 'expired'] as const).map((s) => ({ value: s, label: titleCase(s) }))]} />
+        <Select value={draft.status || 'draft'} onChange={(v) => setD({ status: v as Proposal['status'] })} options={STATUSES.map((s) => ({ value: s, label: titleCase(s) }))} />
       </Field>
       <Field label="Valid until">
         <input className="input" type="date" value={draft.valid_until || ''} onChange={(e) => setD({ valid_until: e.target.value || null })} />
