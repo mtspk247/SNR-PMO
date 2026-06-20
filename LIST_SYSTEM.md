@@ -52,3 +52,8 @@ Reference = ClickUp List view (what.NGO screenshot). Honest status of EVERY elem
 - [ ] **Row-hover quick actions** (tag / link / comment) on the right.
 
 **Next slice:** make it TRULY global — migrate Ideas, Teams, CRM, Leads, Workload onto ListView/DataList so toolbar + rows are identical, then roll `orderKey` + pill colors to all.
+
+## Status log (cont.)
+- 2026-06-20 — **ClickUp row/column model LIVE** (`44aaa5c`, READY): plain borderless rows + hover highlight, left 6-dot grip → drag rows up/down (persisted via `orderKey`, Clients wired) + across status groups, draggable column headers (reorder), "+ add column" in header. Shared DataList → every ListView page. Also: toolbar unified (`b1b521b`), Ideas double-group removed (`01acfa8`).
+- OPS GOTCHAS this batch: (1) `[id,i]` in `new Map(...)` infers `(string|number)[]` not a tuple → annotate `as [string,number]` (esbuild parse can't catch; tsc fails the Vercel build). (2) A no-count `str.replace` of `onAddInGroup={p.onAddInGroup}\n />` hit BOTH the Board AND DataList call sites → added `orderKey` to Board (no such prop) → build fail at ListView:154. ALWAYS check for a second identical call site when injecting a prop. (3) Vercel build logs > token cap → saved to file; `grep "Type error"` it.
+- STILL DIVERGENT (next slice): Ideas, Teams, CRM, Leads, Workload don't use ListView → migrate them so toolbar+rows match everywhere.
