@@ -69,6 +69,16 @@ function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value:
 
 export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropGroup, setDropGroup] = useState<string | null>(null);
+  // B3.1: drag a row onto another status group -> change its status (only when that field is inline-editable).
+  const canDragRows = !!(groupBy && groupBy !== 'none' && groupOf && groups && editable && editable[groupBy] && onEdit && rawValue);
+  const handleDropTo = (target: string) => {
+    setDropGroup(null);
+    const r = rows.find((x) => rowKey(x) === dragId);
+    setDragId(null);
+    if (r && onEdit && groupOf && groupOf(r) !== target) onEdit(r, groupBy, target);
+  };
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const labelOf = (id: string) => cols.find((c) => c.id === id)?.label;
   const selCol = !!selection;
@@ -89,7 +99,10 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     const sel = selection?.isSelected(id) || false;
     return (
       <tr key={id}
-        className={`group relative transition border-b border-line/70 last:border-0 ${onRowClick ? 'cursor-pointer' : ''} ${sel ? 'bg-accent/5 border-l-2 border-l-accent' : 'bg-surface hover:bg-surface2 hover:shadow-md hover:z-10 border-l-2 border-l-transparent'}`}
+        draggable={canDragRows}
+        onDragStart={canDragRows ? (e) => { e.stopPropagation(); setDragId(id); } : undefined}
+        onDragEnd={canDragRows ? () => { setDragId(null); setDropGroup(null); } : undefined}
+        className={`group relative transition border-b border-line/70 last:border-0 ${onRowClick ? 'cursor-pointer' : ''} ${dragId === id ? 'opacity-40' : ''} ${sel ? 'bg-accent/5 border-l-2 border-l-accent' : 'bg-surface hover:bg-surface2 hover:shadow-md hover:z-10 border-l-2 border-l-transparent'}`}
         onClick={onRowClick ? () => onRowClick(r) : undefined}>
         {selCol && <td className="px-4 py-2.5 w-10 align-middle" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={sel} onChange={() => selection!.toggle(id)} /></td>}
         {prefs.ordered.map((cid) => {
@@ -128,7 +141,10 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
         if (gr.length === 0) return null;
         const isC = collapsed.has(g.value);
         return (
-          <div key={g.value} className="mt-5 first:mt-1">
+          <div key={g.value}
+            className={`mt-5 first:mt-1 rounded-lg transition ${canDragRows && dropGroup === g.value && dragId ? 'ring-2 ring-accent/40' : ''}`}
+            onDragOver={canDragRows ? (e) => { e.preventDefault(); if (dropGroup !== g.value) setDropGroup(g.value); } : undefined}
+            onDrop={canDragRows ? () => handleDropTo(g.value) : undefined}>
             {/* Group title sits ABOVE the card (collapse chevron + colored status pill + count) */}
             <div className="px-1 py-2 mb-2 flex items-center gap-2.5">
               <button onClick={() => toggle(g.value)} className="shrink-0 text-muted2 hover:text-content transition" aria-expanded={!isC} title={isC ? 'Expand' : 'Collapse'}>
