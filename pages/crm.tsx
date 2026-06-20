@@ -390,7 +390,7 @@ export default function CRM() {
                     </div>
                     {!collapsed && items.map((d) => (
                       <div key={d.id} onClick={() => selectDeal(d.id)}
-                        className={`group w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line cursor-pointer transition ${selectedId === d.id ? 'bg-accent/5 border-l-2 border-l-accent' : 'hover:bg-surface2/60 border-l-2 border-l-transparent'}`}>
+                        className={`group w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line/50 cursor-pointer transition ${selectedId === d.id ? 'bg-accent/5' : 'hover:bg-surface2'}`}>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-content truncate">{d.title}</p>
                           <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>

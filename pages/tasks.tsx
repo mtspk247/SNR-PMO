@@ -618,7 +618,7 @@ export default function Tasks() {
   };
 
   const ColHeader = () => (
-    <div className={`${GRID} py-2 border-b border-line bg-surface2/60 text-2xs font-semibold uppercase tracking-wider text-muted2`} style={gridStyle}>
+    <div className={`${GRID} py-2 border-b border-line text-2xs font-semibold uppercase tracking-wider text-muted2`} style={gridStyle}>
       <span className="flex items-center gap-2"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} onClick={(e) => e.stopPropagation()} className="accent-accentstrong" title="Select all" />Name</span>
       {shownCols.map((c) => <span key={c.id}>{c.label}</span>)}
       <span />
@@ -629,7 +629,7 @@ export default function Tasks() {
     const subs = tasks.filter((s) => s.parent_task_id === t.id);
     return (
       <div key={t.id}
-        className={`group relative ${GRID} py-2.5 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 border-l-2 border-l-accent z-10' : 'bg-surface hover:bg-surface2 hover:shadow-md hover:z-10 border-l-2 border-l-transparent'}`}
+        className={`group relative ${GRID} py-2.5 border-b border-line/50 transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5' : 'hover:bg-surface2'}`}
         style={gridStyle} onClick={() => selectTask(t.id)}>
         <div className="flex items-center gap-2 min-w-0">
           <input type="checkbox" checked={sel.has(t.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSel(t.id)} className="accent-accentstrong shrink-0" title="Select" />
@@ -656,7 +656,7 @@ export default function Tasks() {
 
   const SubRow = (t: Task) => (
     <div key={t.id}
-      className={`group relative ${GRID} py-2 border-b border-line transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5 z-10' : 'bg-surface2/40 hover:bg-surface2 hover:shadow-md hover:z-10'}`}
+      className={`group relative ${GRID} py-2 border-b border-line/50 transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5' : 'bg-surface2/30 hover:bg-surface2'}`}
       style={gridStyle} onClick={() => selectTask(t.id)}>
       <div className="flex items-center gap-2 min-w-0 pl-5">
         <Icon name="ti-corner-down-right" className="text-muted2 text-sm shrink-0" />
