@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -81,7 +81,7 @@ export default function JobsPage() {
       case 'location': return j.location || '—';
       case 'type': return <span className="pill pill-gray">{fmtType(j.employment_type || '')}</span>;
       case 'openings': return j.openings ?? '—';
-      case 'owner': return name(j.owner_id);
+      case 'owner': return <PersonTag name={name(j.owner_id)} />;
       case 'status': return <span className={`pill ${STATUS_PILL[j.status] || 'pill-gray'}`}>{fmtType(j.status)}</span>;
       default: return '—';
     }

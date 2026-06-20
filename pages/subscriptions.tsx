@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
+import { PersonTag, PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Attachments from '@/components/Attachments';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -69,7 +69,7 @@ export default function SubscriptionsPage() {
       case 'plan': return [s.plan_name, s.plan_type].filter(Boolean).join(' · ') || '—';
       case 'cost': return <span className="tabular-nums">{fmtMoney(s.cost, s.currency)}{s.plan_type ? <span className="text-2xs text-muted2">{`/${s.plan_type === 'annual' ? 'yr' : s.plan_type === 'monthly' ? 'mo' : ''}`}</span> : ''}</span>;
       case 'renews': { const d = daysTo(s.next_renewal); return s.next_renewal ? <span className={d != null && d < 0 ? 'text-rose-600' : d != null && d <= 30 ? 'text-amber-600' : 'text-muted'}>{s.next_renewal}{d != null && d >= 0 && d <= 30 ? ` · ${d}d` : d != null && d < 0 ? ' · overdue' : ''}</span> : <span className="text-muted2">—</span>; }
-      case 'owner': return s.owner_id ? name(s.owner_id) : '—';
+      case 'owner': return <PersonTag name={s.owner_id ? name(s.owner_id) : ''} />;
       case 'status': return <span className={`pill ${STATUS_PILL[s.status] || 'pill-gray'}`}>{s.status}</span>;
       default: return '—';
     }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -102,7 +102,7 @@ export default function LeadsPage() {
       case 'email': return l.email || '—';
       case 'source': return l.source || '—';
       case 'value': return <span className="tabular-nums">{fmtMoney(l.value || 0, l.currency)}</span>;
-      case 'owner': return nameOf(l.owner_id);
+      case 'owner': return <PersonTag name={nameOf(l.owner_id)} />;
       case 'status': return <span className={`pill ${STATUS_PILL[l.status] || 'pill-gray'}`}>{l.status}</span>;
       default: return '—';
     }

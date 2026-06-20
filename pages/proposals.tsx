@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import Attachments from '@/components/Attachments';
@@ -100,7 +100,7 @@ export default function ProposalsPage() {
           {p.valid_until}
         </span>
       ) : <span className="text-muted2">—</span>;
-      case 'owner': return nameOf(p.owner_id);
+      case 'owner': return <PersonTag name={nameOf(p.owner_id)} />;
       case 'status': return <span className={`pill ${STATUS_PILL[p.status] || 'pill-gray'}`}>{p.status}</span>;
       default: return '—';
     }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import Attachments from '@/components/Attachments';
@@ -101,7 +101,7 @@ export default function ContractsPage() {
             {c.end_date}{isSoon ? ` · ${d}d` : isPast ? ' · overdue' : ''}
           </span>
         : <span className="text-muted2">—</span>;
-      case 'owner': return name(c.owner_id);
+      case 'owner': return <PersonTag name={name(c.owner_id)} />;
       case 'status': return <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'}`}>{c.status}</span>;
       default: return '—';
     }

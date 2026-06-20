@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
-import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Attachments from '@/components/Attachments';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -153,7 +153,7 @@ export default function ApplicationsPage() {
       case 'email': return a.email || '—';
       case 'stage': return <span className={`pill capitalize ${STAGE_PILL[a.stage] || 'pill-gray'}`}>{a.stage}</span>;
       case 'rating': return a.rating != null ? `${a.rating}/5` : '—';
-      case 'owner': return userName(a.owner_id);
+      case 'owner': return <PersonTag name={userName(a.owner_id)} />;
       default: return '—';
     }
   };

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Layout from '@/components/Layout';
-import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -109,7 +109,7 @@ export default function AssetsPage() {
       case 'revenue':  return Number(a.revenue) > 0
         ? <span className="text-emerald-600 font-medium tabular-nums">{fmtMoney(a.revenue, a.currency)}</span>
         : <span className="text-muted2">—</span>;
-      case 'owner':    return nameOf(a.owner_id);
+      case 'owner':    return <PersonTag name={nameOf(a.owner_id)} />;
       case 'status':   return <span className={`pill capitalize ${STATUS_PILL[a.status] || 'pill-gray'}`}>{a.status}</span>;
       default:         return '—';
     }

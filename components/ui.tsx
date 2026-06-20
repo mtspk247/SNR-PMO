@@ -29,6 +29,11 @@ export const Pill = ({ label }: { label: string }) => (
 );
 
 const AVATAR_COLORS = ['#6366F1', '#0EA5A4', '#EC8C36', '#E1568E', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4', '#7C3AED', '#0891B2'];
+export const PersonTag = ({ name }: { name?: string | null }) => {
+  if (!name || name === '\u2014') return <span className="text-muted2">\u2014</span>;
+  return <span className="inline-flex items-center gap-1.5 min-w-0"><Avatar name={name} size={20} /><span className="truncate">{name}</span></span>;
+};
+
 export const PriorityBars = ({ priority }: { priority?: string }) => {
   const p = (priority || '').toLowerCase();
   const level = /urgent|critical/.test(p) ? 4 : /high/.test(p) ? 3 : /medium|normal/.test(p) ? 2 : 1;

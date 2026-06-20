@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -147,7 +147,7 @@ export default function RecurringPage() {
         ) : <span className="text-muted2">—</span>;
       }
       case 'vendor':  return r.vendor || '—';
-      case 'owner':   return <span className="text-2xs text-muted">{nameOf(r.owner_id)}</span>;
+      case 'owner':   return <PersonTag name={nameOf(r.owner_id)} />;
       case 'status':  return <span className={`pill ${STATUS_PILL[r.status] || 'pill-gray'}`}>{r.status}</span>;
       default:        return '—';
     }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -101,7 +101,7 @@ export default function ClientsPage() {
       case 'email': return c.email || '—';
       case 'phone': return c.phone || '—';
       case 'since': return c.since || '—';
-      case 'owner': return nameOf(c.owner_id);
+      case 'owner': return <PersonTag name={nameOf(c.owner_id)} />;
       case 'status': return <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'}`}>{c.status}</span>;
       default: return '—';
     }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
-import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -209,7 +209,7 @@ export default function BankAccountsPage() {
           }
         </span>
       );
-      case 'owner': return <span className="text-2xs text-muted">{nameOf(a.owner_id)}</span>;
+      case 'owner': return <PersonTag name={nameOf(a.owner_id)} />;
       case 'actions': return (
         <span className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
           {a.account_id && (

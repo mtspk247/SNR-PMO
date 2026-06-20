@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -141,7 +141,7 @@ export default function DomainsPage() {
       }
       case 'cost': return fmtMoney(d.cost, d.currency);
       case 'auto_renew': return d.auto_renew ? <Icon name="ti-check" className="text-emerald-600" /> : <span className="text-muted2">—</span>;
-      case 'owner': return nameOf(d.owner_id);
+      case 'owner': return <PersonTag name={nameOf(d.owner_id)} />;
       case 'status': return <span className={`pill ${STATUS_PILL[d.status] || 'pill-gray'}`}>{d.status.replace('_', ' ')}</span>;
       default: return '—';
     }
