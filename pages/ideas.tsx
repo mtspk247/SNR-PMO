@@ -46,7 +46,6 @@ const GROUPS: GroupMeta[] = IDEA_STATUSES.map((st) => ({
   pill: STATUS_PILL[st] || 'pill-gray',
 }));
 
-type GroupBy = 'status' | 'none';
 
 export default function IdeasPage() {
   const org = useActiveOrg();
@@ -72,7 +71,6 @@ export default function IdeasPage() {
   const [votingId, setVotingId] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [pollAfter, setPollAfter] = useState(false);
-  const [groupBy, setGroupBy] = useState<GroupBy>('status');
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -310,23 +308,6 @@ export default function IdeasPage() {
             <ViewControls prefs={vp} views={[{ id: 'list', icon: 'ti-list', label: 'List' }, { id: 'card', icon: 'ti-layout-grid', label: 'Cards' }]} groupOptions={groupOptions} />
           </ListToolbar>
         </div>
-        {vp.view === 'list' && (
-          <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
-            <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
-            <button
-              onClick={() => setGroupBy('status')}
-              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
-            >
-              Status
-            </button>
-            <button
-              onClick={() => setGroupBy('none')}
-              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
-            >
-              None
-            </button>
-          </div>
-        )}
       </div>
 
       <BulkBar count={rs.count} onClear={rs.clear}>
@@ -359,9 +340,9 @@ export default function IdeasPage() {
             onRowClick={(idea) => router.push(`/ideas/${idea.id}`)}
             onAddInGroup={(g) => { setEditing(null); setForm({ ...emptyForm(), status: g as IdeaStatus }); setPollAfter(false); setShowModal(true); }}
             selection={rs}
-            groupBy={groupBy}
-            groupOf={(idea) => idea.status}
-            groups={GROUPS}
+            groupBy={vp.groupBy}
+            groupOf={gKey}
+            groups={vp.groupBy === 'status' ? GROUPS : buildGroups(filtered, gKey, gLabel).map((g) => ({ value: g.key, label: g.label }))}
             editable={editable}
             rawValue={rawValue}
             onEdit={onInlineEdit}
