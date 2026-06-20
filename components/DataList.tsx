@@ -122,7 +122,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   // Apply the saved manual order (unknown rows keep their natural order, appended).
   const orderedRows = (() => {
     if (!orderKey || manualOrder.length === 0) return rows;
-    const idx = new Map(manualOrder.map((id, i) => [id, i]));
+    const idx = new Map(manualOrder.map((id, i) => [id, i] as [string, number]));
     return [...rows].sort((a, b) => (idx.has(rowKey(a)) ? idx.get(rowKey(a))! : 1e9) - (idx.has(rowKey(b)) ? idx.get(rowKey(b))! : 1e9));
   })();
 
