@@ -44,10 +44,10 @@ export function ViewControls({ prefs, views, groupOptions }:
           } />
       )}
       {views.length > 1 && (
-        <div className="inline-flex items-center rounded-lg border border-line bg-surface p-0.5 h-9">
+        <div className="flex items-center rounded-md border border-line overflow-hidden h-9 shrink-0">
           {views.map((v) => (
             <button key={v.id} onClick={() => prefs.setView(v.id)} title={v.label}
-              className={`h-8 px-2.5 rounded-md inline-flex items-center gap-1.5 text-sm transition ${prefs.view === v.id ? 'bg-accent/15 text-accentstrong font-medium' : 'text-muted hover:text-content'}`}>
+              className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${prefs.view === v.id ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
               <Icon name={v.icon} className="text-sm" /><span className="hidden lg:inline">{v.label}</span>
             </button>
           ))}
