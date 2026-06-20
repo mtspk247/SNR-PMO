@@ -21,6 +21,9 @@ const STATUS_PILL: Record<string, string> = {
 const STATUSES = ['prospect', 'active', 'inactive'] as const;
 type ClientStatus = typeof STATUSES[number];
 
+// Group ordering: active first, then prospect, then inactive
+const GROUP_ORDER: ClientStatus[] = ['active', 'prospect', 'inactive'];
+
 const COLS: ColDef[] = [
   { id: 'name', label: 'Name', locked: true },
   { id: 'contact', label: 'Contact' },
@@ -46,6 +49,8 @@ const emptyDraft = (): Draft => ({
   notes: '',
 });
 
+type GroupBy = 'status' | 'none';
+
 export default function ClientsPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
@@ -60,6 +65,9 @@ export default function ClientsPage() {
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [groupBy, setGroupBy] = useState<GroupBy>('status');
+  // Set of collapsed group keys
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const load = () => {
     if (!org) return;
@@ -85,6 +93,7 @@ export default function ClientsPage() {
   );
 
   const rs = useRowSelection(shown);
+
   const cell = (id: string, c: Client) => {
     switch (id) {
       case 'name': return <span className="font-medium text-content">{c.name}</span>;
@@ -97,12 +106,14 @@ export default function ClientsPage() {
       default: return '—';
     }
   };
+
   const bulkDelete = async () => {
     if (!rs.count || !confirm(`Delete ${rs.count} client${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
     setBusy(true); setErr('');
     try { for (const c of rs.selected) await deleteClient(c.id); rs.clear(); load(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
+
   const exportSelected = () => {
     const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
     const heads = ['Name', 'Contact', 'Email', 'Phone', 'Since', 'Owner', 'Status'];
@@ -148,6 +159,8 @@ export default function ClientsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
+  const toggleGroup = (key: string) =>
+    setCollapsed((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   if (!enabled) return (
     <Layout flat title="Clients">
@@ -176,37 +189,128 @@ export default function ClientsPage() {
         <StatCard label="Inactive" value={String(kpis.inactive)} icon="ti-user-off" />
       </div>
 
-      <ListToolbar prefs={prefs} cols={COLS} filters={CLIENT_FILTERS} placeholder="Search clients…" />
+      {/* Toolbar + Group-by control */}
+      <div className="flex items-end gap-2 flex-wrap mb-4">
+        <div className="flex-1 min-w-0">
+          <ListToolbar prefs={prefs} cols={COLS} filters={CLIENT_FILTERS} placeholder="Search clients…" />
+        </div>
+        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+          <button
+            onClick={() => setGroupBy('status')}
+            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+          >
+            Status
+          </button>
+          <button
+            onClick={() => setGroupBy('none')}
+            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+          >
+            None
+          </button>
+        </div>
+      </div>
 
       <BulkBar count={rs.count} onClear={rs.clear}>
         <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
         {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
       </BulkBar>
 
-      <div className="card overflow-hidden">
+      {/* Main list card — borderless ClickUp style */}
+      <div className="card overflow-hidden border border-line/40">
         {clients === null ? (
           <div className="p-8"><Spinner /></div>
         ) : shown.length === 0 ? (
           <div className="p-8"><EmptyState icon="ti-users" text="No clients found." /></div>
-        ) : (
+        ) : groupBy === 'none' ? (
+          /* ── Flat list (no grouping) ── */
           <div className="overflow-x-auto">
-            <table className="w-full text-sm list-card">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3 w-10"><HeadCheckbox checked={rs.allSelected} indeterminate={rs.someSelected} onChange={rs.toggleAll} /></th>
-                  {prefs.ordered.map((id) => <th key={id} className="px-4 py-3">{COLS.find((c) => c.id === id)?.label}</th>)}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line/40">
+                  <th className="px-4 py-2.5 w-10">
+                    <HeadCheckbox checked={rs.allSelected} indeterminate={rs.someSelected} onChange={rs.toggleAll} />
+                  </th>
+                  {prefs.ordered.map((id) => (
+                    <th key={id} className="px-4 py-2.5 text-left text-2xs font-medium uppercase tracking-wider text-muted2">
+                      {COLS.find((c) => c.id === id)?.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {shown.map((c) => (
                   <tr key={c.id}
-                    className={`group border-t border-line hover:bg-surface2/50 cursor-pointer ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
+                    className={`group cursor-pointer transition-colors hover:bg-surface2/40 ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
                     onClick={() => setEditor({ mode: 'edit', draft: c })}>
-                    <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={rs.isSelected(c.id)} onChange={() => rs.toggle(c.id)} /></td>
-                    {prefs.ordered.map((id) => <td key={id} className="px-4 py-3 text-muted">{cell(id, c)}</td>)}
+                    <td className="px-4 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
+                      <RowCheckbox checked={rs.isSelected(c.id)} onChange={() => rs.toggle(c.id)} />
+                    </td>
+                    {prefs.ordered.map((id) => (
+                      <td key={id} className="px-4 py-2.5 text-sm text-muted">{cell(id, c)}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
+            </table>
+          </div>
+        ) : (
+          /* ── Grouped by status ── */
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              {GROUP_ORDER.map((status) => {
+                const rows = shown.filter((c) => c.status === status);
+                if (rows.length === 0) return null;
+                const isCollapsed = collapsed.has(status);
+                return (
+                  <tbody key={status}>
+                    {/* Group header row */}
+                    <tr className="border-t border-line/30 first:border-t-0 bg-surface2/60">
+                      <td colSpan={prefs.ordered.length + 1} className="px-3 py-2">
+                        <button
+                          className="flex items-center gap-2 w-full text-left hover:opacity-80 transition-opacity"
+                          onClick={() => toggleGroup(status)}
+                          aria-expanded={!isCollapsed}
+                        >
+                          <Icon
+                            name={isCollapsed ? 'ti-chevron-right' : 'ti-chevron-down'}
+                            className="text-xs text-muted2 shrink-0"
+                          />
+                          <span className={`pill ${STATUS_PILL[status] || 'pill-gray'} text-2xs`}>
+                            {titleCase(status)}
+                          </span>
+                          <span className="text-xs font-medium text-content">{titleCase(status)}</span>
+                          <span className="text-2xs text-muted2 ml-1">{rows.length}</span>
+                        </button>
+                      </td>
+                    </tr>
+                    {/* Column sub-header row — shown when group is expanded */}
+                    {!isCollapsed && (
+                      <tr className="border-b border-line/30">
+                        <th className="px-4 py-1.5 w-10" />
+                        {prefs.ordered.map((id) => (
+                          <th key={id} className="px-4 py-1.5 text-left text-2xs font-medium uppercase tracking-wider text-muted2">
+                            {COLS.find((c) => c.id === id)?.label}
+                          </th>
+                        ))}
+                      </tr>
+                    )}
+                    {/* Data rows */}
+                    {!isCollapsed && rows.map((c) => (
+                      <tr key={c.id}
+                        className={`group cursor-pointer transition-colors hover:bg-surface2/40 ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
+                        onClick={() => setEditor({ mode: 'edit', draft: c })}>
+                        <td className="px-4 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
+                          <RowCheckbox checked={rs.isSelected(c.id)} onChange={() => rs.toggle(c.id)} />
+                        </td>
+                        {prefs.ordered.map((id) => (
+                          <td key={id} className="px-4 py-2.5 text-sm text-muted">{cell(id, c)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                );
+              })}
             </table>
           </div>
         )}
