@@ -98,7 +98,7 @@ export default function IntegrationsPage() {
 
   const isConnected = (it: Item) => eps.some((e) => e.label === it.name);
   const connectedCount = CATALOG.filter((it) => it.kind === 'webhook' && isConnected(it)).length;
-  const liveCount = CATALOG.filter((i) => i.kind !== 'soon').length;
+  const liveCount = CATALOG.length;
 
   const categories = useMemo(() => Array.from(new Set(CATALOG.map((i) => i.category))), []);
 
@@ -156,7 +156,7 @@ export default function IntegrationsPage() {
           </div>
         )}
         <p className="text-xs text-muted ml-auto hidden sm:block">
-          Slack, Discord &amp; custom webhooks work today. The rest are coming soon — shown honestly, never faked.
+          Webhooks fire on live events, competitor tools migrate your data in, and the rest connect via your API. Nothing is faked.
         </p>
       </div>
 
