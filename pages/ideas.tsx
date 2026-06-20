@@ -357,6 +357,7 @@ export default function IdeasPage() {
             prefs={lp}
             cell={cell}
             onRowClick={(idea) => router.push(`/ideas/${idea.id}`)}
+            onAddInGroup={(g) => { setEditing(null); setForm({ ...emptyForm(), status: g as IdeaStatus }); setPollAfter(false); setShowModal(true); }}
             selection={rs}
             groupBy={groupBy}
             groupOf={(idea) => idea.status}

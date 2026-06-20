@@ -182,7 +182,7 @@ export default function JobsPage() {
       ) : shown.length === 0 ? (
         <div className="card p-8 border border-line/40"><EmptyState icon="ti-briefcase" text="No job postings yet." /></div>
       ) : (
-        <DataList rows={shown} rowKey={(j) => j.id} cols={COLS} prefs={prefs} cell={cell} onRowClick={(j) => setEditor({ mode: 'edit', draft: j })} selection={rs} groupBy={groupBy} groupOf={(j) => j.status} groups={GROUPS} />
+        <DataList rows={shown} rowKey={(j) => j.id} cols={COLS} prefs={prefs} cell={cell} onRowClick={(j) => setEditor({ mode: 'edit', draft: j })} selection={rs} groupBy={groupBy} groupOf={(j) => j.status} groups={GROUPS} onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as typeof STATUSES[number] } })} />
       )}
 
       {editor && (

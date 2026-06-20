@@ -240,6 +240,7 @@ export default function LeadsPage() {
           prefs={prefs}
           cell={cell}
           onRowClick={(l) => setEditor({ mode: 'edit', draft: l })}
+          onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as Lead['status'] } })}
           selection={rs}
           groupBy={groupBy}
           groupOf={(l) => l.status}
