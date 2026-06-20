@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listClients, createClient, updateClient, deleteClient, Client } from '@/lib/db';
-import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection, BulkBar } from '@/components/RowSelection';
-import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
 
@@ -51,7 +52,6 @@ const emptyDraft = (): Draft => ({
   notes: '',
 });
 
-type GroupBy = 'status' | 'none';
 
 export default function ClientsPage() {
   const org = useActiveOrg();
@@ -67,7 +67,6 @@ export default function ClientsPage() {
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [groupBy, setGroupBy] = useState<GroupBy>('status');
   // Set of collapsed group keys
 
   const load = () => {
@@ -115,13 +114,10 @@ export default function ClientsPage() {
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const exportSelected = () => {
-    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
-    const heads = ['Name', 'Contact', 'Email', 'Phone', 'Since', 'Owner', 'Status'];
-    const rows = rs.selected.map((c) => [c.name, c.contact_name, c.email, c.phone, c.since, nameOf(c.owner_id), c.status]);
-    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'clients-selected.csv'; a.click(); URL.revokeObjectURL(url);
-  };
+  const exportValue = (id: string, c: Client) =>
+    id === 'name' ? c.name : id === 'contact' ? (c.contact_name || '') : id === 'email' ? (c.email || '')
+    : id === 'phone' ? (c.phone || '') : id === 'since' ? (c.since || '') : id === 'owner' ? nameOf(c.owner_id)
+    : id === 'status' ? c.status : '';
 
   const kpis = useMemo(() => {
     const all = clients || [];
@@ -199,55 +195,30 @@ export default function ClientsPage() {
         <StatCard label="Inactive" value={String(kpis.inactive)} icon="ti-user-off" />
       </div>
 
-      {/* Toolbar + Group-by control */}
-      <div className="flex items-end gap-2 flex-wrap mb-4">
-        <div className="flex-1 min-w-0">
-          <ListToolbar prefs={prefs} cols={COLS} filters={CLIENT_FILTERS} placeholder="Search clients…" />
-        </div>
-        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
-          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
-          <button
-            onClick={() => setGroupBy('status')}
-            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
-          >
-            Status
-          </button>
-          <button
-            onClick={() => setGroupBy('none')}
-            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
-          >
-            None
-          </button>
-        </div>
-      </div>
-
-      <BulkBar count={rs.count} onClear={rs.clear}>
-        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
-        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
-      </BulkBar>
-
-      {/* Main list card — borderless ClickUp style */}
-      {clients === null ? (
-        <div className="card p-8 border border-line/40"><Spinner /></div>
-      ) : shown.length === 0 ? (
-        <div className="card p-8 border border-line/40"><EmptyState icon="ti-users" text="No clients found." /></div>
-      ) : (
-        <DataList
-          rows={shown}
-          rowKey={(c) => c.id}
-          cols={COLS}
-          prefs={prefs}
-          cell={cell}
-          onRowClick={(c) => setEditor({ mode: 'edit', draft: c })}
-          selection={rs}
-          groupBy={groupBy}
-          groupOf={(c) => c.status}
-          groups={GROUPS}
-          editable={editable}
-          rawValue={rawValue}
-          onEdit={onInlineEdit}
-        />
-      )}
+      <ListView
+        rows={clients === null ? null : shown}
+        rowKey={(c) => c.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={CLIENT_FILTERS}
+        searchPlaceholder="Search clients…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(c) => c.status}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(c) => setEditor({ mode: 'edit', draft: c })}
+        exportName="clients"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-users"
+        emptyText="No clients found."
+      />
 
       {editor && (
         <Modal
