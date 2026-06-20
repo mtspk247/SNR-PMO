@@ -1,8 +1,9 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useMemo } from 'react';
 import { ListToolbar, useListPrefs, ColDef, FilterDef, ListPrefs } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
 import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
 import { Spinner, EmptyState, Icon } from '@/components/ui';
+import Dropdown from '@/components/Dropdown';
 
 /**
  * ListView — the single, centralized shell for EVERY module list in the app.
@@ -68,6 +69,22 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
   const canGroup = !!p.groupField && !!p.groupOf && !!p.groups;
   const [grouped, setGrouped] = useState<boolean>(canGroup ? (p.defaultGroup ?? true) : false);
   const groupBy = canGroup && grouped ? p.groupField!.value : 'none';
+  const [sortBy, setSortBy] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const sorted = useMemo<T[] | null>(() => {
+    if (rows === null) return null;
+    if (!sortBy) return rows;
+    const get = (r: T) => (p.exportValue ? p.exportValue(sortBy, r) : p.rawValue ? p.rawValue(sortBy, r) : '');
+    const arr = [...rows];
+    arr.sort((a, b) => {
+      const av = get(a) ?? '', bv = get(b) ?? '';
+      const an = parseFloat(av), bn = parseFloat(bv);
+      const num = !isNaN(an) && !isNaN(bn) && av.trim() !== '' && bv.trim() !== '';
+      const c = num ? an - bn : av.localeCompare(bv);
+      return sortDir === 'asc' ? c : -c;
+    });
+    return arr;
+  }, [rows, sortBy, sortDir, p.exportValue, p.rawValue]);
 
   const doExport = () => {
     if (!p.exportName) return;
@@ -105,6 +122,13 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
             </button>
           </div>
         )}
+        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Sort</span>
+          <Dropdown value={sortBy} onChange={setSortBy} width={180}
+            items={[{ value: '', label: 'No sort' }, ...prefs.ordered.map((id) => ({ value: id, label: cols.find((c) => c.id === id)?.label || id }))]}
+            trigger={<span className="inline-flex items-center justify-between gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-line bg-surface text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{sortBy ? (cols.find((c) => c.id === sortBy)?.label || sortBy) : 'No sort'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+          {sortBy && <button onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} title={sortDir === 'asc' ? 'Ascending' : 'Descending'} className="h-8 px-2 rounded-md text-muted hover:text-content hover:bg-surface2"><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>}
+        </div>
       </div>
 
       {hasBulk && (
@@ -121,7 +145,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
         <div className="card p-8 border border-line/40"><EmptyState icon={p.emptyIcon || 'ti-list'} text={p.emptyText || 'Nothing here yet.'} /></div>
       ) : (
         <DataList
-          rows={rows}
+          rows={sorted as T[]}
           rowKey={p.rowKey}
           cols={cols}
           prefs={prefs}
