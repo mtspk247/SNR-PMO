@@ -4,8 +4,10 @@ import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PageHeader, StatCard, Spinner, EmptyState, Pill, Icon, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
-import { usePagination, Pagination } from '@/components/Pagination';
-import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 import { useLeaves } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,7 +17,24 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 
 const TYPES = ['Annual', 'Sick', 'Casual', 'Unpaid', 'Work From Home'];
-const LEAVE_COLS: ColDef[] = [{ id: 'type', label: 'Type', locked: true }, { id: 'dates', label: 'Dates' }, { id: 'days', label: 'Days' }, { id: 'status', label: 'Status' }];
+
+const STATUS_PILL: Record<string, string> = {
+  Pending: 'pill-amber',
+  Approved: 'pill-green',
+  Rejected: 'pill-red',
+  Cancelled: 'pill-gray',
+};
+const STATUS_ORDER = ['Pending', 'Approved', 'Rejected', 'Cancelled'] as const;
+const GROUPS: GroupMeta[] = STATUS_ORDER.map((s) => ({ value: s, label: titleCase(s), pill: STATUS_PILL[s] || 'pill-gray' }));
+
+const COLS: ColDef[] = [
+  { id: 'type', label: 'Type', locked: true },
+  { id: 'dates', label: 'Dates' },
+  { id: 'days', label: 'Days' },
+  { id: 'status', label: 'Status' },
+  { id: 'actions', label: '' },
+];
+
 const daysBetween = (a: string, b: string) => { const d = Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000) + 1; return d > 0 ? d : 0; };
 
 export default function LeavePage() {
@@ -37,21 +56,23 @@ export default function LeavePage() {
   const queue = useMemo(() => rows.filter((r) => r.status === 'Pending' && r.user_id !== me?.id), [rows, me?.id]);
   const days = f.start_date && f.end_date ? daysBetween(f.start_date, f.end_date) : 0;
 
-  const lp = useListPrefs(`snr-leave-view-${me?.id || 'anon'}`, LEAVE_COLS);
+  const prefs = useListPrefs('snrpmo.leave.cols', COLS);
   const FILTERS: FilterDef[] = [
     { id: 'type', label: 'Type', options: [{ value: 'all', label: 'All types' }, ...TYPES.map((t) => ({ value: t, label: titleCase(t) }))] },
-    { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...['Pending', 'Approved', 'Rejected', 'Cancelled'].map((x) => ({ value: x, label: titleCase(x) }))] },
+    { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...STATUS_ORDER.map((x) => ({ value: x, label: titleCase(x) }))] },
   ];
-  const mineFiltered = useMemo(() => {
-    const term = lp.query.trim().toLowerCase();
+
+  const shown = useMemo(() => {
+    const term = prefs.query.trim().toLowerCase();
     return mine.filter((l) => {
       if (term && !(`${l.type} ${l.reason || ''}`.toLowerCase().includes(term))) return false;
-      if (lp.filters.type && lp.filters.type !== 'all' && l.type !== lp.filters.type) return false;
-      if (lp.filters.status && lp.filters.status !== 'all' && l.status !== lp.filters.status) return false;
+      if (prefs.filters.type && prefs.filters.type !== 'all' && l.type !== prefs.filters.type) return false;
+      if (prefs.filters.status && prefs.filters.status !== 'all' && l.status !== prefs.filters.status) return false;
       return true;
     });
-  }, [mine, lp.query, lp.filters]);
-  const minePg = usePagination(mineFiltered, 25);
+  }, [mine, prefs.query, prefs.filters]);
+
+  const rs = useRowSelection(shown);
 
   const submit = async () => {
     if (!me || !org || days <= 0) return; setBusy(true);
@@ -79,22 +100,43 @@ export default function LeavePage() {
   const approved = mine.filter((r) => r.status === 'Approved').length;
   const approvedDays = mine.filter((r) => r.status === 'Approved').reduce((a, r) => a + (Number(r.days) || 0), 0);
 
-  const Row = ({ l, withPerson, actions }: { l: Leave; withPerson?: boolean; actions?: boolean }) => (
+  const cell = (id: string, l: Leave) => {
+    switch (id) {
+      case 'type': return l.type;
+      case 'dates': return <span className="whitespace-nowrap">{l.start_date} → {l.end_date}</span>;
+      case 'days': return l.days;
+      case 'status': return <span className={`pill ${STATUS_PILL[l.status] || 'pill-gray'}`}>{l.status}</span>;
+      case 'actions':
+        return (l.status === 'Pending' && l.user_id === me?.id)
+          ? <button onClick={(e) => { e.stopPropagation(); cancel(l); }} disabled={busy} className="btn h-7 px-2 text-xs text-muted">Cancel</button>
+          : null;
+      default: return null;
+    }
+  };
+
+  const exportValue = (id: string, l: Leave) => {
+    switch (id) {
+      case 'type': return l.type;
+      case 'dates': return `${l.start_date} → ${l.end_date}`;
+      case 'days': return String(l.days ?? '');
+      case 'status': return l.status;
+      default: return '';
+    }
+  };
+
+  // Approval queue row (hand-built table — different dataset, kept as-is)
+  const QueueRow = ({ l }: { l: Leave }) => (
     <tr className="border-b border-line last:border-0">
-      {withPerson && <td className="px-4 py-2.5"><span className="inline-flex items-center gap-2"><Avatar name={l.requester?.full_name || '?'} size={22} />{l.requester?.full_name || '—'}</span></td>}
+      <td className="px-4 py-2.5"><span className="inline-flex items-center gap-2"><Avatar name={l.requester?.full_name || '?'} size={22} />{l.requester?.full_name || '—'}</span></td>
       <td className="px-4 py-2.5">{l.type}</td>
       <td className="px-4 py-2.5 whitespace-nowrap">{l.start_date} → {l.end_date}</td>
       <td className="px-4 py-2.5">{l.days}</td>
       <td className="px-4 py-2.5"><Pill label={l.status} /></td>
       <td className="px-4 py-2.5 text-right">
-        {actions ? (
-          <span className="inline-flex gap-1">
-            <button onClick={() => decide(l, 'Approved')} disabled={busy} className="btn h-7 px-2 text-xs text-emerald-600"><Icon name="ti-check" />Approve</button>
-            <button onClick={() => decide(l, 'Rejected')} disabled={busy} className="btn h-7 px-2 text-xs text-rose-600"><Icon name="ti-x" />Reject</button>
-          </span>
-        ) : (l.status === 'Pending' && l.user_id === me?.id) ? (
-          <button onClick={() => cancel(l)} disabled={busy} className="btn h-7 px-2 text-xs text-muted">Cancel</button>
-        ) : null}
+        <span className="inline-flex gap-1">
+          <button onClick={() => decide(l, 'Approved')} disabled={busy} className="btn h-7 px-2 text-xs text-emerald-600"><Icon name="ti-check" />Approve</button>
+          <button onClick={() => decide(l, 'Rejected')} disabled={busy} className="btn h-7 px-2 text-xs text-rose-600"><Icon name="ti-x" />Reject</button>
+        </span>
       </td>
     </tr>
   );
@@ -128,7 +170,7 @@ export default function LeavePage() {
                   <thead><tr className="text-2xs uppercase tracking-wide text-muted2 border-b border-line">
                     <th className="text-left font-medium px-4 py-2.5">Person</th><th className="text-left font-medium px-4 py-2.5">Type</th><th className="text-left font-medium px-4 py-2.5">Dates</th><th className="text-left font-medium px-4 py-2.5">Days</th><th className="text-left font-medium px-4 py-2.5">Status</th><th></th>
                   </tr></thead>
-                  <tbody>{queue.map((l) => <Row key={l.id} l={l} withPerson actions />)}</tbody>
+                  <tbody>{queue.map((l) => <QueueRow key={l.id} l={l} />)}</tbody>
                 </table></div>
                 {queue.length === 0 && <EmptyState icon="ti-inbox" text="No pending requests" />}
               </div>
@@ -136,33 +178,24 @@ export default function LeavePage() {
           )}
 
           <p className="text-sm font-medium mb-2">My requests</p>
-          <ListToolbar prefs={lp} cols={LEAVE_COLS} filters={FILTERS} placeholder="Search my requests…" />
-          <div className="card overflow-hidden">
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="text-2xs uppercase tracking-wide text-muted2 border-b border-line">
-                {lp.ordered.map((id) => <th key={id} className="text-left font-medium px-4 py-2.5">{LEAVE_COLS.find((c) => c.id === id)?.label}</th>)}<th></th>
-              </tr></thead>
-              <tbody>{minePg.pageItems.map((l) => {
-                const cell = (id: string) => {
-                  switch (id) {
-                    case 'type': return l.type;
-                    case 'dates': return <span className="whitespace-nowrap">{l.start_date} → {l.end_date}</span>;
-                    case 'days': return l.days;
-                    case 'status': return <Pill label={l.status} />;
-                    default: return null;
-                  }
-                };
-                return (
-                  <tr key={l.id} className="border-b border-line last:border-0">
-                    {lp.ordered.map((id) => <td key={id} className="px-4 py-2.5">{cell(id)}</td>)}
-                    <td className="px-4 py-2.5 text-right">{(l.status === 'Pending' && l.user_id === me?.id) ? <button onClick={() => cancel(l)} disabled={busy} className="btn h-7 px-2 text-xs text-muted">Cancel</button> : null}</td>
-                  </tr>
-                );
-              })}</tbody>
-            </table></div>
-            {mineFiltered.length === 0 && <EmptyState icon="ti-beach" text="No leave requests yet" />}
-            <Pagination page={minePg.page} pageCount={minePg.pageCount} total={minePg.total} start={minePg.start} end={minePg.end} onPage={minePg.setPage} />
-          </div>
+          <ListView
+            rows={loading ? null : shown}
+            rowKey={(l) => l.id}
+            cols={COLS}
+            prefs={prefs}
+            cell={cell}
+            selection={rs}
+            filters={FILTERS}
+            searchPlaceholder="Search my requests…"
+            groupField={{ value: 'status', label: 'Status' }}
+            groupOf={(l) => l.status}
+            groups={GROUPS}
+            exportName="leave"
+            exportValue={exportValue}
+            busy={busy}
+            emptyIcon="ti-beach"
+            emptyText="No leave requests yet."
+          />
         </>
       )}
 

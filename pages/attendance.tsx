@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
-import { PageHeader, StatCard, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
-import { usePagination, Pagination } from '@/components/Pagination';
-import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { PageHeader, StatCard, Spinner, Avatar, Icon } from '@/components/ui';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 import { useAttendance } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
 import { useQueryClient } from '@tanstack/react-query';
@@ -14,6 +16,11 @@ import { can } from '@/lib/authz';
 const fmtTime = (s: string | null) => (s ? new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—');
 const ATT_PILL: Record<string, string> = { OPEN: 'pill-amber', CLOSED: 'pill-green', AUTO_CHECKOUT: 'pill-gray' };
 const ATT_LABEL: Record<string, string> = { OPEN: 'Open', CLOSED: 'Closed', AUTO_CHECKOUT: 'Auto' };
+
+const GROUP_ORDER = ['OPEN', 'CLOSED', 'AUTO_CHECKOUT'] as const;
+const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({ value: st, label: ATT_LABEL[st], pill: ATT_PILL[st] || 'pill-gray' }));
+
+const FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'OPEN', label: 'Open' }, { value: 'CLOSED', label: 'Closed' }, { value: 'AUTO_CHECKOUT', label: 'Auto' }] }];
 
 export default function AttendancePage() {
   const me = useAuthStore((s) => s.user);
@@ -34,22 +41,49 @@ export default function AttendancePage() {
   const todayMine = mine.find((r) => r.work_date === new Date().toISOString().slice(0, 10));
   const monthHours = mine.filter((r) => r.work_date.slice(0, 7) === month).reduce((a, r) => a + (Number(r.hours) || 0), 0);
   const visible = isAdmin ? rows : mine;
+
   const COLS: ColDef[] = useMemo(() => [
     ...(isAdmin ? [{ id: 'person', label: 'Person' }] : []),
     { id: 'date', label: 'Date', locked: true },
     { id: 'in', label: 'In' }, { id: 'out', label: 'Out' }, { id: 'hours', label: 'Hours' }, { id: 'status', label: 'Status' },
   ], [isAdmin]);
-  const lp = useListPrefs(`snr-attendance-view-${me?.id || 'anon'}`, COLS);
-  const FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'OPEN', label: 'Open' }, { value: 'CLOSED', label: 'Closed' }, { value: 'AUTO_CHECKOUT', label: 'Auto' }] }];
-  const filtered = useMemo(() => {
-    const term = lp.query.trim().toLowerCase();
+
+  const prefs = useListPrefs(`snr-attendance-view-${me?.id || 'anon'}`, COLS);
+
+  const shown = useMemo(() => {
+    const term = prefs.query.trim().toLowerCase();
     return visible.filter((r) => {
       if (term && !(`${r.users?.full_name || ''} ${r.work_date}`.toLowerCase().includes(term))) return false;
-      if (lp.filters.status && lp.filters.status !== 'all' && r.status !== lp.filters.status) return false;
+      if (prefs.filters.status && prefs.filters.status !== 'all' && r.status !== prefs.filters.status) return false;
       return true;
     });
-  }, [visible, lp.query, lp.filters]);
-  const pg = usePagination(filtered, 25);
+  }, [visible, prefs.query, prefs.filters]);
+
+  const rs = useRowSelection(shown);
+
+  const cell = (id: string, r: Attendance) => {
+    switch (id) {
+      case 'person': return <span className="inline-flex items-center gap-2"><Avatar name={r.users?.full_name || '?'} size={22} />{r.users?.full_name || '—'}</span>;
+      case 'date': return r.work_date;
+      case 'in': return fmtTime(r.check_in);
+      case 'out': return fmtTime(r.check_out);
+      case 'hours': return r.hours ?? '—';
+      case 'status': return <span className={`pill ${ATT_PILL[r.status] || 'pill-gray'}`}>{ATT_LABEL[r.status] || r.status}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, r: Attendance) => {
+    switch (id) {
+      case 'person': return r.users?.full_name || '';
+      case 'date': return r.work_date;
+      case 'in': return fmtTime(r.check_in);
+      case 'out': return fmtTime(r.check_out);
+      case 'hours': return String(r.hours ?? '');
+      case 'status': return ATT_LABEL[r.status] || r.status;
+      default: return '';
+    }
+  };
 
   const doCheckIn = async () => {
     if (!me || !org) return; setBusy(true);
@@ -58,7 +92,7 @@ export default function AttendancePage() {
   };
   const doCheckOut = async () => {
     if (!openRow || !org) return; setBusy(true);
-    try { const r = await checkOut(openRow); setOpenRow(null); qc.invalidateQueries({ queryKey: qk.attendance(org?.id) }); }
+    try { await checkOut(openRow); setOpenRow(null); qc.invalidateQueries({ queryKey: qk.attendance(org?.id) }); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
@@ -76,38 +110,23 @@ export default function AttendancePage() {
             <StatCard label="This month" value={`${Math.round(monthHours * 10) / 10} h`} icon="ti-calendar" />
             <StatCard label="Days logged" value={mine.length} icon="ti-checklist" />
           </div>
-          <ListToolbar prefs={lp} cols={COLS} filters={FILTERS} placeholder="Search attendance…" />
-          <div className="card overflow-hidden">
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead>
-                <tr className="text-2xs uppercase tracking-wide text-muted2 border-b border-line">
-                  {lp.ordered.map((id) => <th key={id} className="text-left font-medium px-4 py-2.5">{COLS.find((c) => c.id === id)?.label}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {pg.pageItems.map((r) => {
-                  const cell = (id: string) => {
-                    switch (id) {
-                      case 'person': return <span className="inline-flex items-center gap-2"><Avatar name={r.users?.full_name || '?'} size={22} />{r.users?.full_name || '—'}</span>;
-                      case 'date': return r.work_date;
-                      case 'in': return fmtTime(r.check_in);
-                      case 'out': return fmtTime(r.check_out);
-                      case 'hours': return r.hours ?? '—';
-                      case 'status': return <span className={`pill ${ATT_PILL[r.status] || 'pill-gray'}`}>{ATT_LABEL[r.status] || r.status}</span>;
-                      default: return null;
-                    }
-                  };
-                  return (
-                    <tr key={r.id} className="border-b border-line last:border-0">
-                      {lp.ordered.map((id) => <td key={id} className="px-4 py-2.5">{cell(id)}</td>)}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table></div>
-            {filtered.length === 0 && <EmptyState icon="ti-clock" text="No attendance yet — check in to start" />}
-            {filtered.length > 0 && <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />}
-          </div>
+          <ListView
+            rows={rows.length === 0 && !isLoading ? null : shown}
+            rowKey={(r) => r.id}
+            cols={COLS}
+            prefs={prefs}
+            cell={cell}
+            selection={rs}
+            filters={FILTERS}
+            searchPlaceholder="Search attendance…"
+            groupField={{ value: 'status', label: 'Status' }}
+            groupOf={(r) => r.status}
+            groups={GROUPS}
+            exportName="attendance"
+            exportValue={exportValue}
+            emptyIcon="ti-clock"
+            emptyText="No attendance yet — check in to start"
+          />
         </>
       )}
     </Layout>

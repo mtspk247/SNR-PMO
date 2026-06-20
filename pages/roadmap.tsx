@@ -6,11 +6,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
 import { useProjects, usePortfolios } from '@/lib/queries';
-import { updateProject } from '@/lib/db';
+import { updateProject, deleteProject } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { Project, Portfolio } from '@/lib/supabase';
+import { ColDef, useListPrefs } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { ListView } from '@/components/ListView';
+import { GroupMeta } from '@/components/DataList';
 
 // ── Status → bar colour (bg token) ─────────────────────────────────────────
 const STATUS_BAR: Record<string, string> = {
@@ -27,8 +31,29 @@ const STATUS_PROGRESS: Record<string, string> = {
   Completed: 'bg-violet-700',
   Cancelled: 'bg-rose-700',
 };
+const STATUS_PILL: Record<string, string> = {
+  Active:    'pill-green',
+  Planning:  'pill-blue',
+  'On Hold': 'pill-amber',
+  Completed: 'pill-violet',
+  Cancelled: 'pill-red',
+};
 const STATUS_ORDER = ['Active', 'Planning', 'On Hold', 'Completed', 'Cancelled'];
 const PRIORITY_ORDER = ['Urgent', 'High', 'Medium', 'Low'];
+
+// ── Unscheduled list config ──────────────────────────────────────────────────
+const COLS: ColDef[] = [
+  { id: 'name',     label: 'Project', locked: true },
+  { id: 'status',   label: 'Status' },
+  { id: 'priority', label: 'Priority' },
+  { id: 'progress', label: 'Progress' },
+];
+
+const UNSCHED_GROUPS: GroupMeta[] = STATUS_ORDER.map((st) => ({
+  value: st,
+  label: st,
+  pill: STATUS_PILL[st] || 'pill-gray',
+}));
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 function parseDate(d: string | null | undefined): Date | null {
@@ -41,9 +66,6 @@ function startOfMonth(d: Date): Date {
 }
 function addMonths(d: Date, n: number): Date {
   return new Date(d.getFullYear(), d.getMonth() + n, 1);
-}
-function monthsBetween(a: Date, b: Date): number {
-  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
 }
 function isoDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -260,13 +282,16 @@ export default function RoadmapPage() {
   const { data: projects = [], isLoading } = useProjects();
   const { data: portfolios = [] } = usePortfolios();
   const canEdit = can.write(org);
+  const isAdmin = can.manageOrg(org);
 
   // ── View options
   const [groupBy, setGroupBy] = useState<'portfolio' | 'status' | 'priority' | 'none'>('portfolio');
   const [statusF, setStatusF] = useState('all');
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  // ── Partition scheduled vs unscheduled (status filter applied)
+  // ── Unscheduled list prefs + selection
+  const prefs = useListPrefs('snrpmo.roadmap.cols', COLS);
   const { scheduled, unscheduled } = useMemo(() => {
     const sched: Project[] = [];
     const unsched: Project[] = [];
@@ -277,6 +302,8 @@ export default function RoadmapPage() {
     }
     return { scheduled: sched, unscheduled: unsched };
   }, [projects, statusF]);
+
+  const rs = useRowSelection(unscheduled);
 
   // ── Compute timeline range (fits the visible/scheduled set)
   const { rangeStart, rangeEnd, months } = useMemo(() => {
@@ -348,6 +375,62 @@ export default function RoadmapPage() {
   const handleSave = async (id: string, patch: { start_date: string | null; end_date: string | null }) => {
     const list = await updateProject(id, patch);
     qc.setQueryData(qk.projects(org?.id), list);
+  };
+
+  // ── Unscheduled: inline status/priority edit via updateProject
+  const handleEdit = async (p: Project, colId: string, value: string) => {
+    const patch: Partial<Project> = colId === 'status' ? { status: value } : { priority: value };
+    const list = await updateProject(p.id, patch);
+    qc.setQueryData(qk.projects(org?.id), list);
+  };
+
+  // ── Unscheduled: bulk delete (admin-gated, cache-invalidated)
+  const handleBulkDelete = async (sel: typeof rs) => {
+    if (!sel.count || !confirm(`Delete ${sel.count} project${sel.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true);
+    try {
+      for (const p of sel.selected) await deleteProject(p.id);
+      sel.clear();
+      qc.invalidateQueries({ queryKey: qk.projects(org?.id) });
+    } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+
+
+  const cell = (id: string, p: Project) => {
+    switch (id) {
+      case 'name':
+        return (
+          <Link href={`/projects/${p.id}`} className="font-medium text-content hover:text-accent">
+            {p.name}
+          </Link>
+        );
+      case 'status':   return <Pill label={p.status} />;
+      case 'priority': return <Pill label={p.priority} />;
+      case 'progress':
+        return (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 rounded bg-surface2">
+              <div
+                className={`h-1.5 rounded ${STATUS_PROGRESS[p.status] ?? 'bg-accent'}`}
+                style={{ width: `${p.progress ?? 0}%` }}
+              />
+            </div>
+            <span className="text-2xs text-muted tabular-nums w-8 text-right">{p.progress ?? 0}%</span>
+          </div>
+        );
+      default: return '—';
+    }
+  };
+
+  // ── Unscheduled: export plain-text values
+  const exportValue = (id: string, p: Project) => {
+    switch (id) {
+      case 'name':     return p.name;
+      case 'status':   return p.status || '';
+      case 'priority': return p.priority || '';
+      case 'progress': return String(p.progress ?? 0) + '%';
+      default: return '';
+    }
   };
 
   const todayPct = pct(new Date(), rangeStart, rangeEnd);
@@ -496,48 +579,39 @@ export default function RoadmapPage() {
             </div>
           )}
 
-          {/* ── Unscheduled */}
+          {/* ── Unscheduled (ListView) */}
           {unscheduled.length > 0 && (
             <div className="card overflow-hidden">
               <div className="px-4 py-2.5 border-b border-line flex items-center gap-2">
                 <Icon name="ti-calendar-off" className="text-muted" />
                 <span className="text-sm font-medium text-muted">Unscheduled ({unscheduled.length})</span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      <th className="th">Project</th>
-                      <th className="th">Status</th>
-                      <th className="th">Priority</th>
-                      <th className="th w-44">Progress</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {unscheduled.map(p => (
-                      <tr key={p.id} className="row">
-                        <td className="td">
-                          <Link href={`/projects/${p.id}`} className="font-medium text-content hover:text-accent">
-                            {p.name}
-                          </Link>
-                        </td>
-                        <td className="td"><Pill label={p.status} /></td>
-                        <td className="td"><Pill label={p.priority} /></td>
-                        <td className="td">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 rounded bg-surface2">
-                              <div
-                                className={`h-1.5 rounded ${STATUS_PROGRESS[p.status] ?? 'bg-accent'}`}
-                                style={{ width: `${p.progress ?? 0}%` }}
-                              />
-                            </div>
-                            <span className="text-2xs text-muted tabular-nums w-8 text-right">{p.progress ?? 0}%</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="p-4">
+                <ListView
+                  rows={unscheduled}
+                  rowKey={(p) => p.id}
+                  cols={COLS}
+                  prefs={prefs}
+                  cell={cell}
+                  selection={rs}
+                  groupField={{ value: 'status', label: 'Status' }}
+                  groupOf={(p) => p.status}
+                  groups={UNSCHED_GROUPS}
+                  exportName="roadmap"
+                  exportValue={exportValue}
+                  onDelete={handleBulkDelete}
+                  canDelete={isAdmin}
+                  busy={busy}
+                  editable={canEdit ? {
+                    status:   { type: 'select', options: STATUS_ORDER.map(s => ({ value: s, label: s })) },
+                    priority: { type: 'select', options: PRIORITY_ORDER.map(s => ({ value: s, label: s })) },
+                  } : undefined}
+                  rawValue={(id, p) => id === 'status' ? p.status : id === 'priority' ? (p.priority || '') : ''}
+                  onEdit={handleEdit}
+                  onRowClick={(p) => window.location.href = `/projects/${p.id}`}
+                  emptyIcon="ti-calendar-off"
+                  emptyText="No unscheduled projects."
+                />
               </div>
             </div>
           )}

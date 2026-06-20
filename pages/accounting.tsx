@@ -3,9 +3,8 @@ import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, StatCard, Icon, Tabs } from '@/components/ui';
-import { usePagination, Pagination } from '@/components/Pagination';
-import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { PageHeader, StatCard, Icon, Tabs } from '@/components/ui';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import CustomFields from '@/components/CustomFields';
 import EntityTags from '@/components/EntityTags';
@@ -14,6 +13,9 @@ import { createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, LEDGER_CATEGOR
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { LedgerEntry } from '@/lib/supabase';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const money = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
@@ -106,6 +108,11 @@ const LEDGER_COLS: ColDef[] = [
   { id: 'amount', label: 'Amount' },
 ];
 
+const LEDGER_GROUPS: GroupMeta[] = [
+  { value: 'income', label: 'Income', pill: 'pill-green' },
+  { value: 'expense', label: 'Expense', pill: 'pill-red' },
+];
+
 export default function AccountingPage() {
   const org = useActiveOrg();
   const [cats, setCats] = useState<{ income: string[]; expense: string[] }>(LEDGER_CATEGORIES);
@@ -172,7 +179,7 @@ export default function AccountingPage() {
     });
   }, [entries, lp.query, lp.filters]);
 
-  const pg = usePagination(filtered, 25);
+  const rs = useRowSelection(filtered);
 
   // ---- Stats (over ALL entries) ----
   const income = entries.filter((e) => e.type === 'income').reduce((s, e) => s + (e.amount || 0), 0);
@@ -254,12 +261,31 @@ export default function AccountingPage() {
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
-  const remove = async (e: LedgerEntry) => {
-    if (!org || !confirm(`Delete this ${e.type} entry (${money(e.amount)})?`)) return;
-    try {
-      await deleteLedgerEntry(e.id);
-      qc.invalidateQueries({ queryKey: qk.ledger(org.id) });
-    } catch (err: any) { alert(err.message); }
+  // ── Cell renderer (top-level — no :ReactNode annotation) ──
+  const cell = (id: string, e: LedgerEntry) => {
+    switch (id) {
+      case 'date': return <span className="text-2xs text-muted tabular-nums">{e.entry_date}</span>;
+      case 'type': return <span className={`pill ${e.type === 'income' ? 'pill-green' : 'pill-red'}`}>{e.type}</span>;
+      case 'category': return <span className="font-medium">{e.category}{e.payroll_run_id && <Icon name="ti-lock" className="ml-1 text-2xs text-muted2" />}</span>;
+      case 'project': return <span className="text-2xs text-muted">{e.project?.name || '—'}</span>;
+      case 'company': return <span className="text-2xs text-muted">{e.company?.name || '—'}</span>;
+      case 'notes': return <span className="text-2xs text-muted block max-w-[16rem] truncate">{e.notes || '—'}</span>;
+      case 'amount': return <span className={`block text-right font-medium tabular-nums ${e.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>{e.type === 'income' ? '+' : '−'}{money(e.amount)}</span>;
+      default: return null;
+    }
+  };
+
+  const exportValue = (id: string, e: LedgerEntry) => {
+    switch (id) {
+      case 'date': return e.entry_date || '';
+      case 'type': return e.type;
+      case 'category': return e.category;
+      case 'project': return e.project?.name || '';
+      case 'company': return e.company?.name || '';
+      case 'notes': return e.notes || '';
+      case 'amount': return String(e.amount ?? 0);
+      default: return '';
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -317,58 +343,25 @@ export default function AccountingPage() {
 
       {/* ── ENTRIES VIEW ─────────────────────────────────────────────────────── */}
       {pageView === 'entries' && (
-        <div className="bg-surface overflow-hidden">
-          <div className="px-4 py-3 border-b border-line">
-            <ListToolbar prefs={lp} cols={LEDGER_COLS} filters={FILTERS} placeholder="Search ledger…" />
-          </div>
-
-          {isLoading ? <div className="p-8"><Spinner /></div> : filtered.length === 0 ? (
-            <div className="p-5"><EmptyState icon="ti-report-money" text="No ledger entries match." /></div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      {lp.ordered.map((id) => <th key={id} className={`th ${id === 'amount' ? 'text-right' : ''}`}>{LEDGER_COLS.find((c) => c.id === id)?.label}</th>)}
-                      <th className="th w-20"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pg.pageItems.map((e) => {
-                      const cell = (id: string) => {
-                        switch (id) {
-                          case 'date': return <span className="text-2xs text-muted tabular-nums">{e.entry_date}</span>;
-                          case 'type': return <span className={`pill ${e.type === 'income' ? 'pill-green' : 'pill-red'}`}>{e.type}</span>;
-                          case 'category': return <span className="font-medium">{e.category}{e.payroll_run_id && <Icon name="ti-lock" className="ml-1 text-2xs text-muted2" />}</span>;
-                          case 'project': return <span className="text-2xs text-muted">{e.project?.name || '—'}</span>;
-                          case 'company': return <span className="text-2xs text-muted">{e.company?.name || '—'}</span>;
-                          case 'notes': return <span className="text-2xs text-muted block max-w-[16rem] truncate">{e.notes || '—'}</span>;
-                          case 'amount': return <span className={`block text-right font-medium tabular-nums ${e.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>{e.type === 'income' ? '+' : '−'}{money(e.amount)}</span>;
-                          default: return null;
-                        }
-                      };
-                      return (
-                        <tr key={e.id} className="row">
-                          {lp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
-                          <td className="td">
-                            <div className="flex items-center justify-end gap-1">
-                              <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEdit(e)}><Icon name="ti-pencil" /></button>
-                              {!e.payroll_run_id && (
-                                <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => remove(e)}><Icon name="ti-trash" /></button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
-            </>
-          )}
-        </div>
+        <ListView
+          rows={isLoading ? null : filtered}
+          rowKey={(e) => e.id}
+          cols={LEDGER_COLS}
+          prefs={lp}
+          cell={cell}
+          selection={rs}
+          filters={FILTERS}
+          searchPlaceholder="Search ledger…"
+          groupField={{ value: 'type', label: 'Type' }}
+          groupOf={(e) => e.type}
+          groups={LEDGER_GROUPS}
+          onRowClick={openEdit}
+          exportName="accounting"
+          exportValue={exportValue}
+          canDelete={false}
+          emptyIcon="ti-report-money"
+          emptyText="No ledger entries match."
+        />
       )}
 
       {/* ── P&L VIEW ─────────────────────────────────────────────────────────── */}

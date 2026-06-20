@@ -11,6 +11,10 @@ import {
   SupportTicket, SupportReply,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const PRIORITY_PILL: Record<string, string> = { low: 'pill-gray', medium: 'pill-blue', high: 'pill-amber', urgent: 'pill-red' };
 const STATUS_PILL: Record<string, string> = { open: 'pill-amber', in_progress: 'pill-blue', waiting: 'pill-violet', resolved: 'pill-green', closed: 'pill-gray' };
@@ -24,6 +28,32 @@ const fmtDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleSt
 type NewDraft = { subject: string; category: string; priority: string; body: string };
 const emptyDraft = (): NewDraft => ({ subject: '', category: '', priority: 'medium', body: '' });
 
+const GROUP_ORDER = ['open', 'in_progress', 'waiting', 'resolved', 'closed'] as const;
+const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({
+  value: st,
+  label: st.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+  pill: STATUS_PILL[st] || 'pill-gray',
+}));
+
+const COLS: ColDef[] = [
+  { id: 'subject', label: 'Subject', locked: true },
+  { id: 'requester', label: 'Requester' },
+  { id: 'priority', label: 'Priority' },
+  { id: 'status', label: 'Status' },
+  { id: 'updated', label: 'Updated' },
+];
+
+const TICKET_FILTERS: FilterDef[] = [
+  {
+    id: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all', label: 'All statuses' },
+      ...STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') })),
+    ],
+  },
+];
+
 export default function SupportPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
@@ -32,8 +62,9 @@ export default function SupportPage() {
 
   const [tickets, setTickets] = useState<SupportTicket[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.support.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [newOpen, setNewOpen] = useState(false);
   const [draft, setDraft] = useState<NewDraft>(emptyDraft());
   const [detail, setDetail] = useState<SupportTicket | null>(null);
@@ -63,6 +94,8 @@ export default function SupportPage() {
     [tickets, q, statusF]
   );
 
+  const rs = useRowSelection(shown);
+
   const kpis = useMemo(() => {
     const all = tickets || [];
     return {
@@ -72,6 +105,28 @@ export default function SupportPage() {
       total: all.length,
     };
   }, [tickets]);
+
+  const cell = (id: string, t: SupportTicket) => {
+    switch (id) {
+      case 'subject': return <span className="font-medium text-content">{t.subject}</span>;
+      case 'requester': return name(t.requester_id);
+      case 'priority': return <span className={`pill ${PRIORITY_PILL[t.priority] || 'pill-gray'}`}>{t.priority}</span>;
+      case 'status': return <span className={`pill ${STATUS_PILL[t.status] || 'pill-gray'}`}>{t.status.replace('_', ' ')}</span>;
+      case 'updated': return fmtDate(t.updated_at);
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, t: SupportTicket) => {
+    switch (id) {
+      case 'subject': return t.subject;
+      case 'requester': return name(t.requester_id);
+      case 'priority': return t.priority;
+      case 'status': return t.status;
+      case 'updated': return t.updated_at || '';
+      default: return '';
+    }
+  };
 
   const submitNew = async () => {
     if (!org || !draft.subject.trim() || busy) return;
@@ -117,41 +172,24 @@ export default function SupportPage() {
         <StatCard label="Total" value={String(kpis.total)} icon="ti-ticket" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input className="input h-9 w-56" placeholder="Search tickets…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') }))]} /></div>
-      </div>
-
-      <div className="card overflow-hidden">
-        {tickets === null ? <div className="p-8"><Spinner /></div> : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-ticket" text="No tickets found." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm list-card">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Subject</th>
-                  <th className="px-4 py-3">Requester</th>
-                  <th className="px-4 py-3">Priority</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((t) => (
-                  <tr key={t.id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => setDetail(t)}>
-                    <td className="px-4 py-3 font-medium text-content">{t.subject}</td>
-                    <td className="px-4 py-3 text-muted">{name(t.requester_id)}</td>
-                    <td className="px-4 py-3"><span className={`pill ${PRIORITY_PILL[t.priority] || 'pill-gray'}`}>{t.priority}</span></td>
-                    <td className="px-4 py-3"><span className={`pill ${STATUS_PILL[t.status] || 'pill-gray'}`}>{t.status.replace('_', ' ')}</span></td>
-                    <td className="px-4 py-3 text-2xs text-muted">{fmtDate(t.updated_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ListView
+        rows={tickets === null ? null : shown}
+        rowKey={(t) => t.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={TICKET_FILTERS}
+        searchPlaceholder="Search tickets…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(t) => t.status}
+        groups={GROUPS}
+        onRowClick={(t) => setDetail(t)}
+        exportName="support"
+        exportValue={exportValue}
+        emptyIcon="ti-ticket"
+        emptyText="No tickets found."
+      />
 
       {/* New ticket modal */}
       {newOpen && (
