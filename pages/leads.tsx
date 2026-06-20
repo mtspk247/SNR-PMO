@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
-import { PersonTag, PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PersonTag, PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -13,8 +13,9 @@ import {
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection, BulkBar } from '@/components/RowSelection';
-import { DataList, GroupMeta } from '@/components/DataList';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 import StatusManager from '@/components/StatusManager';
 
 const STATUS_PILL: Record<string, string> = {
@@ -54,7 +55,6 @@ const LEAD_FILTERS: FilterDef[] = [
 type Draft = Partial<Lead>;
 const emptyDraft = (): Draft => ({ name: '', contact_name: '', email: '', phone: '', source: '', status: 'new', value: 0, currency: 'USD', notes: '' });
 
-type GroupBy = 'status' | 'none';
 
 export default function LeadsPage() {
   const org = useActiveOrg();
@@ -73,7 +73,6 @@ export default function LeadsPage() {
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [groupBy, setGroupBy] = useState<GroupBy>('status');
 
   const load = () => {
     if (!org) return;
@@ -116,19 +115,16 @@ export default function LeadsPage() {
     }
   };
 
+  const exportValue = (id: string, l: Lead) =>
+    id === 'name' ? l.name : id === 'contact' ? (l.contact_name || '') : id === 'email' ? (l.email || '')
+    : id === 'source' ? (l.source || '') : id === 'value' ? String(l.value ?? '') : id === 'owner' ? nameOf(l.owner_id)
+    : id === 'status' ? l.status : '';
+
   const bulkDelete = async () => {
     if (!rs.count || !confirm(`Delete ${rs.count} lead${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
     setBusy(true); setErr('');
     try { for (const r of rs.selected) await deleteLead(r.id); rs.clear(); load(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
-
-  const exportSelected = () => {
-    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
-    const heads = ['Name', 'Contact', 'Email', 'Source', 'Value', 'Currency', 'Owner', 'Status'];
-    const rows = rs.selected.map((l) => [l.name, l.contact_name, l.email, l.source, l.value, l.currency, nameOf(l.owner_id), l.status]);
-    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'leads-selected.csv'; a.click(); URL.revokeObjectURL(url);
   };
 
   const kpis = useMemo(() => {
@@ -212,52 +208,28 @@ export default function LeadsPage() {
         <StatCard label="Pipeline value" value={fmtMoney(kpis.pipeline)} hint="Excl. converted & unqualified" icon="ti-currency-dollar" />
       </div>
 
-      {/* Toolbar + Group-by control */}
-      <div className="flex items-end gap-2 flex-wrap mb-4">
-        <div className="flex-1 min-w-0">
-          <ListToolbar prefs={prefs} cols={COLS} filters={LEAD_FILTERS} placeholder="Search leads…" />
-        </div>
-        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
-          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
-          <button
-            onClick={() => setGroupBy('status')}
-            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
-          >
-            Status
-          </button>
-          <button
-            onClick={() => setGroupBy('none')}
-            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
-          >
-            None
-          </button>
-        </div>
-      </div>
-
-      <BulkBar count={rs.count} onClear={rs.clear}>
-        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
-        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
-      </BulkBar>
-
-      {leads === null ? (
-        <div className="card p-8 border border-line/40"><Spinner /></div>
-      ) : shown.length === 0 ? (
-        <div className="card p-8 border border-line/40"><EmptyState icon="ti-user-search" text="No leads match your filters." /></div>
-      ) : (
-        <DataList
-          rows={shown}
-          rowKey={(l) => l.id}
-          cols={COLS}
-          prefs={prefs}
-          cell={cell}
-          onRowClick={(l) => setEditor({ mode: 'edit', draft: l })}
-          onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as Lead['status'] } })}
-          selection={rs}
-          groupBy={groupBy}
-          groupOf={(l) => l.status}
-          groups={GROUPS}
-        />
-      )}
+      <ListView
+        rows={leads === null ? null : shown}
+        rowKey={(l) => l.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={LEAD_FILTERS}
+        searchPlaceholder="Search leads…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(l) => l.status}
+        groups={GROUPS}
+        onRowClick={(l) => setEditor({ mode: 'edit', draft: l })}
+        onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as Lead['status'] } })}
+        exportName="leads"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        emptyIcon="ti-user-search"
+        emptyText="No leads match your filters."
+        orderKey="snrpmo.leads.roworder"
+      />
 
       {editor && (
         <Modal
