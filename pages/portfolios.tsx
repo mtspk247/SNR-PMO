@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Select from '@/components/Select';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
+import { PageHeader, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { ViewControls, useViewPrefs } from '@/components/ViewControls';
@@ -15,6 +14,16 @@ import {
 import { Portfolio, OrgCompany, OrgUser, PortfolioMember, MemberRole } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
+
+const COLS: ColDef[] = [
+  { id: 'name', label: 'Portfolio', locked: true },
+  { id: 'company', label: 'Company' },
+  { id: 'description', label: 'Description' },
+];
 
 export default function PortfoliosPage() {
   const router = useRouter();
@@ -60,8 +69,6 @@ export default function PortfoliosPage() {
   }, [org?.id, userId]);
 
   const companyName = (cid: string) => companies.find((c) => c.id === cid)?.name || '—';
-  // Companies the user may create portfolios under (RLS pf_write = org owner/admin
-  // OR company manager). Admin → all; otherwise the companies they manage.
   const createableCompanies = useMemo(
     () => (admin ? companies : companies.filter((c) => mgrIds.has(c.id))),
     [admin, companies, mgrIds]
@@ -126,29 +133,104 @@ export default function PortfoliosPage() {
   const vp = useViewPrefs('snrpmo.portfolios.view', { view: 'cards' });
   const VIEWS = [{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }];
 
+  const prefs = useListPrefs('snrpmo.portfolios.cols', COLS);
+  const q = prefs.query;
+  const shown = useMemo(() =>
+    portfolios.filter((pf) =>
+      !q.trim() || `${pf.name} ${pf.description || ''}`.toLowerCase().includes(q.toLowerCase())
+    ),
+    [portfolios, q]
+  );
+  const rs = useRowSelection(shown);
+
+  const cell = (id: string, pf: Portfolio) => {
+    switch (id) {
+      case 'name': return (
+        <span className="inline-flex items-center gap-2 font-medium text-content">
+          <Icon name="ti-stack-2" className="text-muted" />{pf.name}
+        </span>
+      );
+      case 'company': return (
+        <span className="inline-flex items-center gap-1 text-muted">
+          <Icon name="ti-building" />{companyName(pf.company_id)}
+        </span>
+      );
+      case 'description': return pf.description || '—';
+      default: return '—';
+    }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    name: { type: 'text' },
+    description: { type: 'text' },
+  };
+  const rawValue = (id: string, pf: Portfolio) =>
+    id === 'name' ? pf.name : id === 'description' ? (pf.description || '') : '';
+  const onInlineEdit = async (pf: Portfolio, id: string, value: string) => {
+    try {
+      const list = await updatePortfolio(pf.id, { [id]: value || null } as any);
+      setPortfolios(list);
+    } catch (e: any) { setErr(e.message); }
+  };
+
+  const exportValue = (id: string, pf: Portfolio) =>
+    id === 'name' ? pf.name : id === 'company' ? companyName(pf.company_id) : id === 'description' ? (pf.description || '') : '';
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} portfolio${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try {
+      for (const pf of rs.selected) await deletePortfolio(pf.id);
+      rs.clear();
+      const list = await getPortfolios();
+      setPortfolios(list);
+    } catch (e: any) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
   return (
     <Layout flat title="Portfolios">
       <PageHeader help="hierarchy" title="Portfolios" subtitle={`${portfolios.length} portfolios`}
-        action={<div className="flex items-center gap-2"><ViewControls prefs={vp} views={VIEWS} />{canCreate && <button onClick={() => { setErr(''); setNp({ name: '', company_id: createableCompanies[0]?.id || '', description: '' }); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New portfolio</button>}</div>} />
-      {loading ? <Spinner /> : portfolios.length === 0 ? (
+        action={
+          <div className="flex items-center gap-2">
+            <ViewControls prefs={vp} views={VIEWS} />
+            {canCreate && (
+              <button onClick={() => { setErr(''); setNp({ name: '', company_id: createableCompanies[0]?.id || '', description: '' }); setShowNew(true); }} className="btn btn-primary">
+                <Icon name="ti-plus" />New portfolio
+              </button>
+            )}
+          </div>
+        }
+      />
+      {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+
+      {vp.view === 'list' ? (
+        <ListView
+          rows={loading ? null : shown}
+          rowKey={(pf) => pf.id}
+          cols={COLS}
+          prefs={prefs}
+          cell={cell}
+          selection={rs}
+          searchPlaceholder="Search portfolios…"
+          editable={editable}
+          rawValue={rawValue}
+          onEdit={onInlineEdit}
+          onRowClick={(pf) => router.push(`/portfolios/${pf.id}`)}
+          exportName="portfolios"
+          exportValue={exportValue}
+          onDelete={() => bulkDelete()}
+          canDelete={admin}
+          busy={busy}
+          emptyIcon="ti-stack-2"
+          emptyText="No portfolios found."
+        />
+      ) : loading ? (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {[...Array(6)].map((_, i) => <div key={i} className="card p-4 animate-pulse h-24" />)}
+        </div>
+      ) : portfolios.length === 0 ? (
         <EmptyState icon="ti-stack-2" text={canCreate ? 'No portfolios yet — create your first one' : 'No portfolios you can access yet'} />
-      ) : vp.view === 'list' ? (
-        <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr><th className="px-4 py-3">Portfolio</th><th className="px-4 py-3">Company</th><th className="px-4 py-3"></th></tr></thead>
-          <tbody>
-            {portfolios.map((pf) => (
-              <tr key={pf.id} onClick={() => router.push(`/portfolios/${pf.id}`)} className="border-t border-line hover:bg-surface2/50 cursor-pointer">
-                <td className="px-4 py-3"><span className="inline-flex items-center gap-2 font-medium text-content"><Icon name="ti-stack-2" className="text-muted" />{pf.name}</span>{pf.description && <span className="block text-2xs text-muted truncate max-w-md">{pf.description}</span>}</td>
-                <td className="px-4 py-3 text-muted"><span className="inline-flex items-center gap-1"><Icon name="ti-building" />{companyName(pf.company_id)}</span></td>
-                <td className="px-4 py-3 text-right whitespace-nowrap">
-                  {canManage(pf) && <button onClick={(e) => { e.stopPropagation(); openMembers(pf); }} className="btn-ghost text-2xs" title="Members"><Icon name="ti-users" /></button>}
-                  {canManage(pf) && <button onClick={(e) => { e.stopPropagation(); openEdit(pf); }} className="btn-ghost text-2xs" title="Rename"><Icon name="ti-pencil" /></button>}
-                  {canManage(pf) && <ConfirmDelete entityType="portfolio" id={pf.id} name={pf.name} iconOnly className="btn-ghost text-2xs text-rose-600 inline-flex" onDeleted={() => setPortfolios((prev) => prev.filter((x) => x.id !== pf.id))} />}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div></div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {portfolios.map((pf) => (
@@ -210,7 +292,7 @@ export default function PortfoliosPage() {
         open={!!editPf}
         onClose={() => setEditPf(null)}
         title="Edit portfolio"
-        subtitle="Update the portfolio’s name and description."
+        subtitle="Update the portfolio's name and description."
         icon="ti-edit"
         onSubmit={() => { if (!editBusy && ep.name.trim()) submitEdit(); }}
         footer={
@@ -232,12 +314,12 @@ export default function PortfoliosPage() {
         open={!!memPf}
         onClose={() => setMemPf(null)}
         title="Manage members"
-        subtitle={memPf ? `${memPf.name} · managers can edit; members get read access to the portfolio’s projects` : undefined}
+        subtitle={memPf ? `${memPf.name} · managers can edit; members get read access to the portfolio's projects` : undefined}
         icon="ti-users"
         size="lg"
         footer={<button onClick={() => setMemPf(null)} className="btn">Close</button>}
       >
-        {memLoading ? <Spinner /> : (
+        {memLoading ? <div className="py-6 text-center text-muted text-sm">Loading…</div> : (
           <div className="space-y-2 max-h-72 overflow-auto">
             {members.length === 0 && <p className="text-sm text-neutral-400">No members yet.</p>}
             {members.map((m) => (

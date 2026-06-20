@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Attachments from '@/components/Attachments';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -12,6 +12,10 @@ import {
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const STAGE_PILL: Record<string, string> = {
   applied: 'pill-gray',
@@ -22,8 +26,36 @@ const STAGE_PILL: Record<string, string> = {
   rejected: 'pill-red',
 };
 const STAGES = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'] as const;
+type AppStage = typeof STAGES[number];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const ACTIVE_STAGES = new Set(['applied', 'screening', 'interview', 'offer']);
+
+const STAGE_ORDER: AppStage[] = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
+const GROUPS: GroupMeta[] = STAGE_ORDER.map((st) => ({
+  value: st,
+  label: cap(st),
+  pill: STAGE_PILL[st] || 'pill-gray',
+}));
+
+const COLS: ColDef[] = [
+  { id: 'candidate', label: 'Candidate', locked: true },
+  { id: 'job', label: 'Job' },
+  { id: 'email', label: 'Email' },
+  { id: 'stage', label: 'Stage' },
+  { id: 'rating', label: 'Rating' },
+  { id: 'owner', label: 'Owner' },
+];
+
+const APP_FILTERS: FilterDef[] = [
+  {
+    id: 'stage',
+    label: 'Stage',
+    options: [
+      { value: 'all', label: 'All stages' },
+      ...STAGES.map((s) => ({ value: s, label: cap(s) })),
+    ],
+  },
+];
 
 type Draft = Partial<Application>;
 const emptyDraft = (): Draft => ({
@@ -40,8 +72,9 @@ export default function ApplicationsPage() {
   const [apps, setApps] = useState<Application[] | null>(null);
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [stageF, setStageF] = useState('all');
+  const prefs = useListPrefs('snrpmo.applications.cols', COLS);
+  const q = prefs.query;
+  const stageF = prefs.filters.stage || 'all';
   const [editor, setEditor] = useState<{ draft: Draft } | null>(null);
   const [detail, setDetail] = useState<Application | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,6 +100,8 @@ export default function ApplicationsPage() {
     (stageF === 'all' || a.stage === stageF) &&
     (!q.trim() || `${a.candidate_name} ${a.email || ''}`.toLowerCase().includes(q.toLowerCase()))
   ), [apps, q, stageF]);
+
+  const rs = useRowSelection(shown);
 
   const kpis = useMemo(() => {
     const all = apps || [];
@@ -102,6 +137,59 @@ export default function ApplicationsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} application${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try {
+      for (const a of rs.selected) await deleteApplication(a.id);
+      rs.clear(); load();
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  const cell = (id: string, a: Application) => {
+    switch (id) {
+      case 'candidate': return <span className="font-medium text-content">{a.candidate_name}</span>;
+      case 'job': return jobName(a.job_id);
+      case 'email': return a.email || '—';
+      case 'stage': return <span className={`pill capitalize ${STAGE_PILL[a.stage] || 'pill-gray'}`}>{a.stage}</span>;
+      case 'rating': return a.rating != null ? `${a.rating}/5` : '—';
+      case 'owner': return userName(a.owner_id);
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, a: Application) => {
+    switch (id) {
+      case 'candidate': return a.candidate_name;
+      case 'job': return jobName(a.job_id);
+      case 'email': return a.email || '';
+      case 'stage': return a.stage;
+      case 'rating': return a.rating != null ? String(a.rating) : '';
+      case 'owner': return userName(a.owner_id);
+      default: return '';
+    }
+  };
+
+  // Stage is editable inline — updateApplication is a plain data update with no
+  // separate approval gate; canEdit is enforced via isAdmin guard on onEdit.
+  const editable: Record<string, EditSpec> = isAdmin ? {
+    candidate: { type: 'text' },
+    stage: { type: 'select', options: STAGES.map((s) => ({ value: s, label: cap(s) })) },
+  } : {};
+
+  const rawValue = (id: string, a: Application) => {
+    switch (id) {
+      case 'candidate': return a.candidate_name;
+      case 'stage': return a.stage;
+      default: return '';
+    }
+  };
+
+  const onInlineEdit = async (a: Application, id: string, value: string) => {
+    const field = id === 'candidate' ? 'candidate_name' : id;
+    try { await updateApplication(a.id, { [field]: value || null } as any); load(); } catch (e: any) { setErr(e.message); }
+  };
+
   if (!enabled) return (
     <Layout flat title="Applications">
       <EmptyState icon="ti-files-off" title="HR not in your plan" text="Upgrade to track candidate applications." />
@@ -122,7 +210,6 @@ export default function ApplicationsPage() {
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatCard label="Total" value={String(kpis.total)} icon="ti-users" />
         <StatCard label="Active" value={String(kpis.active)} icon="ti-progress" hint="applied · screening · interview · offer" />
@@ -130,62 +217,32 @@ export default function ApplicationsPage() {
         <StatCard label="Rejected" value={String(kpis.rejected)} icon="ti-circle-x" />
       </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search candidates…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-40"><Select value={stageF} onChange={setStageF} options={[{ value: 'all', label: 'All stages' }, ...STAGES.map((s) => ({ value: s, label: cap(s) }))]} /></div>
-      </div>
+      <ListView
+        rows={apps === null ? null : shown}
+        rowKey={(a) => a.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={APP_FILTERS}
+        searchPlaceholder="Search candidates…"
+        groupField={{ value: 'stage', label: 'Stage' }}
+        groupOf={(a) => a.stage}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(a) => setDetail(a)}
+        exportName="applications"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-users"
+        emptyText="No applications found."
+      />
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        {apps === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-users" text="No applications found." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm list-card">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Candidate</th>
-                  <th className="px-4 py-3">Job</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Stage</th>
-                  <th className="px-4 py-3">Rating</th>
-                  <th className="px-4 py-3">Owner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                    onClick={() => setDetail(a)}
-                  >
-                    <td className="px-4 py-3 font-medium text-content">{a.candidate_name}</td>
-                    <td className="px-4 py-3 text-muted">{jobName(a.job_id)}</td>
-                    <td className="px-4 py-3 text-muted">{a.email || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`pill capitalize ${STAGE_PILL[a.stage] || 'pill-gray'}`}>{a.stage}</span>
-                    </td>
-                    <td className="px-4 py-3 text-muted tabular-nums">
-                      {a.rating != null ? `${a.rating}/5` : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-2xs text-muted">{userName(a.owner_id)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Add editor modal (no attachments — entity not yet created) */}
+      {/* Add modal */}
       {editor && (
         <Modal
           open

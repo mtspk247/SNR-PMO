@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Select from '@/components/Select';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon } from '@/components/ui';
+import { PageHeader, EmptyState, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { ViewControls, useViewPrefs } from '@/components/ViewControls';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 import {
   getOrgCompanies, createOrgCompany, updateOrgCompany, deleteOrgCompany, getProjects, getOrgUsers,
   getMyCompanyManagerships, listCompanyMembers, addCompanyMember,
@@ -15,6 +18,12 @@ import {
 import { OrgCompany, Project, OrgUser, CompanyMember, MemberRole } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
+
+const COLS: ColDef[] = [
+  { id: 'name', label: 'Name', locked: true },
+  { id: 'description', label: 'Description' },
+  { id: 'projects', label: 'Projects' },
+];
 
 export default function CompaniesPage() {
   const router = useRouter();
@@ -112,37 +121,93 @@ export default function CompaniesPage() {
     finally { setMemBusy(false); }
   };
 
-
   const memberIds = new Set(members.map((m) => m.user_id));
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
   const vp = useViewPrefs('snrpmo.companies.view', { view: 'cards' });
   const VIEWS = [{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }];
 
+  const prefs = useListPrefs('snrpmo.companies.cols', COLS);
+  const q = prefs.query;
+
+  const shown = useMemo(() =>
+    companies.filter((c) =>
+      !q.trim() || `${c.name} ${c.description || ''}`.toLowerCase().includes(q.toLowerCase())
+    ),
+    [companies, q]
+  );
+
+  const rs = useRowSelection(shown);
+
+  const cell = (id: string, c: OrgCompany) => {
+    switch (id) {
+      case 'name': return <span className="inline-flex items-center gap-2 font-medium text-content"><Icon name="ti-building" className="text-muted" />{c.name}</span>;
+      case 'description': return c.description || '—';
+      case 'projects': return String(projectCount(c.id));
+      default: return '—';
+    }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    name: { type: 'text' },
+    description: { type: 'text' },
+  };
+  const rawValue = (id: string, c: OrgCompany) =>
+    id === 'name' ? c.name : id === 'description' ? (c.description || '') : '';
+  const onInlineEdit = async (c: OrgCompany, id: string, value: string) => {
+    try {
+      const updated = await updateOrgCompany(c.id, { [id]: value.trim() || null } as any);
+      setCompanies((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+    } catch (e: any) { setErr(e.message); }
+  };
+
+  const exportValue = (id: string, c: OrgCompany) =>
+    id === 'name' ? c.name : id === 'description' ? (c.description || '') : id === 'projects' ? String(projectCount(c.id)) : '';
+
+  const bulkDelete = async () => {
+    const deletable = rs.selected.filter((c) => projectCount(c.id) === 0);
+    const blocked = rs.selected.length - deletable.length;
+    if (!deletable.length) { alert('All selected companies have projects — reassign or remove them first.'); return; }
+    const msg = blocked > 0
+      ? `Delete ${deletable.length} company (${blocked} skipped — have projects)? This can't be undone.`
+      : `Delete ${deletable.length} company${deletable.length > 1 ? 'ies' : ''}? This can't be undone.`;
+    if (!confirm(msg)) return;
+    setBusy(true); setErr('');
+    try {
+      for (const c of deletable) await deleteOrgCompany(c.id);
+      rs.clear();
+      setCompanies((prev) => prev.filter((x) => !deletable.find((d) => d.id === x.id)));
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
   return (
     <Layout flat title="Companies">
       <PageHeader help="hierarchy" title="Companies" subtitle={`${companies.length} companies`}
         action={<div className="flex items-center gap-2"><ViewControls prefs={vp} views={VIEWS} />{admin && <button onClick={() => { setErr(''); setShowNew(true); }} className="btn btn-primary"><Icon name="ti-plus" />New company</button>}</div>} />
-      {loading ? <Spinner /> : companies.length === 0 ? (
+      {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+
+      {vp.view === 'list' ? (
+        <ListView
+          rows={loading ? null : shown}
+          rowKey={(c) => c.id}
+          cols={COLS}
+          prefs={prefs}
+          cell={cell}
+          selection={rs}
+          searchPlaceholder="Search companies…"
+          editable={editable}
+          rawValue={rawValue}
+          onEdit={onInlineEdit}
+          onRowClick={(c) => router.push(`/companies/${c.id}`)}
+          exportName="companies"
+          exportValue={exportValue}
+          onDelete={() => bulkDelete()}
+          canDelete={admin}
+          busy={busy}
+          emptyIcon="ti-building"
+          emptyText="No companies found."
+        />
+      ) : companies.length === 0 && !loading ? (
         <EmptyState icon="ti-building" text={admin ? 'No companies yet — create your first one' : 'No companies you can access yet'} />
-      ) : vp.view === 'list' ? (
-        <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr><th className="px-4 py-3">Company</th><th className="px-4 py-3">Projects</th><th className="px-4 py-3"></th></tr></thead>
-          <tbody>
-            {companies.map((c) => (
-              <tr key={c.id} onClick={() => router.push(`/companies/${c.id}`)} className="border-t border-line hover:bg-surface2/50 cursor-pointer">
-                <td className="px-4 py-3"><span className="inline-flex items-center gap-2 font-medium text-content"><Icon name="ti-building" className="text-muted" />{c.name}</span>{c.description && <span className="block text-2xs text-muted truncate max-w-md">{c.description}</span>}</td>
-                <td className="px-4 py-3 text-muted tabular-nums">{projectCount(c.id)}</td>
-                <td className="px-4 py-3 text-right whitespace-nowrap">
-                  {canManage(c) && <button onClick={(e) => { e.stopPropagation(); openMembers(c); }} className="btn-ghost text-2xs" title="Members"><Icon name="ti-users" /></button>}
-                  {admin && <button onClick={(e) => { e.stopPropagation(); openEdit(c); }} className="btn-ghost text-2xs" title="Rename"><Icon name="ti-pencil" /></button>}
-                  {admin && (projectCount(c.id) > 0
-                    ? <button onClick={(e) => { e.stopPropagation(); alert('Reassign or remove this company\u2019s projects first.'); }} className="btn-ghost text-2xs text-rose-600" title="Delete"><Icon name="ti-trash" /></button>
-                    : <ConfirmDelete entityType="company" id={c.id} name={c.name} iconOnly className="btn-ghost text-2xs text-rose-600 inline-flex" onDeleted={() => setCompanies((p) => p.filter((x) => x.id !== c.id))} />)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div></div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {companies.map((c) => (
@@ -164,7 +229,7 @@ export default function CompaniesPage() {
                   </button>
                 )}
                 {admin && (projectCount(c.id) > 0 ? (
-                  <button onClick={(e) => { e.stopPropagation(); alert('Reassign or remove this company\u2019s projects first.'); }} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete company">
+                  <button onClick={(e) => { e.stopPropagation(); alert('Reassign or remove this company’s projects first.'); }} className="text-neutral-300 hover:text-rose-600 shrink-0" title="Delete company">
                     <Icon name="ti-trash" />
                   </button>
                 ) : (
@@ -205,7 +270,7 @@ export default function CompaniesPage() {
         open={!!editCo}
         onClose={() => setEditCo(null)}
         title="Edit company"
-        subtitle="Update the company’s name and description."
+        subtitle="Update the company's name and description."
         icon="ti-edit"
         onSubmit={() => { if (!editBusy && ec.name.trim()) submitEdit(); }}
         footer={
@@ -227,12 +292,12 @@ export default function CompaniesPage() {
         open={!!memCo}
         onClose={() => setMemCo(null)}
         title="Manage members"
-        subtitle={memCo ? `${memCo.name} · managers can edit; members get read access to the company’s projects` : undefined}
+        subtitle={memCo ? `${memCo.name} · managers can edit; members get read access to the company's projects` : undefined}
         icon="ti-users"
         size="lg"
         footer={<button onClick={() => setMemCo(null)} className="btn">Close</button>}
       >
-        {memLoading ? <Spinner /> : (
+        {memLoading ? <div className="py-4 text-center text-muted text-sm">Loading…</div> : (
           <div className="space-y-2 max-h-72 overflow-auto">
             {members.length === 0 && <p className="text-sm text-neutral-400">No members yet.</p>}
             {members.map((m) => (

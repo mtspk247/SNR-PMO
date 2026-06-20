@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -12,6 +12,10 @@ import {
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const STATUS_PILL: Record<string, string> = {
   scheduled: 'pill-blue',
@@ -21,6 +25,37 @@ const STATUS_PILL: Record<string, string> = {
 };
 const STATUSES = ['scheduled', 'completed', 'cancelled', 'no_show'] as const;
 const MODES = ['onsite', 'phone', 'video'] as const;
+
+const STATUS_ORDER = ['scheduled', 'completed', 'cancelled', 'no_show'] as const;
+const GROUPS: GroupMeta[] = STATUS_ORDER.map((s) => ({
+  value: s,
+  label: s === 'no_show' ? 'No-show' : titleCase(s),
+  pill: STATUS_PILL[s] || 'pill-gray',
+}));
+
+const COLS: ColDef[] = [
+  { id: 'candidate', label: 'Candidate', locked: true },
+  { id: 'when', label: 'When' },
+  { id: 'mode', label: 'Mode' },
+  { id: 'stage', label: 'Stage' },
+  { id: 'interviewer', label: 'Interviewer' },
+  { id: 'rating', label: 'Rating' },
+  { id: 'status', label: 'Status' },
+];
+
+const INTERVIEW_FILTERS: FilterDef[] = [
+  {
+    id: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all', label: 'All statuses' },
+      { value: 'scheduled', label: 'Scheduled' },
+      { value: 'completed', label: 'Completed' },
+      { value: 'cancelled', label: 'Cancelled' },
+      { value: 'no_show', label: 'No-show' },
+    ],
+  },
+];
 
 type Draft = {
   application_id: string;
@@ -65,11 +100,13 @@ export default function InterviewsPage() {
   const [interviews, setInterviews] = useState<Interview[] | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft; id?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  const prefs = useListPrefs('snrpmo.interviews.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
 
   const load = () => {
     if (!org) return;
@@ -102,6 +139,8 @@ export default function InterviewsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviews, applications, q, statusF]);
 
+  const rs = useRowSelection(shown);
+
   const kpis = useMemo(() => {
     const list = interviews || [];
     const now = Date.now();
@@ -112,6 +151,60 @@ export default function InterviewsPage() {
       total: list.length,
     };
   }, [interviews]);
+
+  const cell = (id: string, iv: Interview) => {
+    switch (id) {
+      case 'candidate': return <span className="font-medium text-content">{candidateName(iv.application_id)}</span>;
+      case 'when': {
+        if (!iv.scheduled_at) return <span className="text-muted2">—</span>;
+        const soon = isUpcomingSoon(iv);
+        return (
+          <span className={soon ? 'text-amber-600 font-medium text-2xs' : 'text-muted text-2xs'}>
+            {new Date(iv.scheduled_at).toLocaleString()}{soon && ' · Soon'}
+          </span>
+        );
+      }
+      case 'mode': return <span className="pill pill-gray capitalize">{iv.mode}</span>;
+      case 'stage': return <span className="text-muted">{iv.stage_label || '—'}</span>;
+      case 'interviewer': return <span className="text-2xs text-muted">{userName(iv.interviewer_id)}</span>;
+      case 'rating': return iv.rating != null ? String(iv.rating) : '—';
+      case 'status': return (
+        <span className={`pill ${STATUS_PILL[iv.status] || 'pill-gray'}`}>
+          {iv.status === 'no_show' ? 'No-show' : iv.status}
+        </span>
+      );
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, iv: Interview) => {
+    switch (id) {
+      case 'candidate': return candidateName(iv.application_id);
+      case 'when': return iv.scheduled_at ? new Date(iv.scheduled_at).toLocaleString() : '';
+      case 'mode': return iv.mode;
+      case 'stage': return iv.stage_label || '';
+      case 'interviewer': return userName(iv.interviewer_id);
+      case 'rating': return iv.rating != null ? String(iv.rating) : '';
+      case 'status': return iv.status === 'no_show' ? 'No-show' : iv.status;
+      default: return '';
+    }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    status: { type: 'select', options: STATUSES.map((s) => ({ value: s, label: s === 'no_show' ? 'No-show' : titleCase(s) })) },
+  };
+  const rawValue = (id: string, iv: Interview) => id === 'status' ? iv.status : '';
+  const onInlineEdit = async (iv: Interview, id: string, value: string) => {
+    if (id !== 'status') return;
+    try { await updateInterview(iv.id, { status: value as Interview['status'] }); load(); } catch (e: any) { setErr(e.message); }
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} interview${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const iv of rs.selected) await deleteInterview(iv.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const setD = (patch: Partial<Draft>) => setEditor((e) => e && { ...e, draft: { ...e.draft, ...patch } });
 
@@ -203,72 +296,30 @@ export default function InterviewsPage() {
         <StatCard label="Total" value={String(kpis.total)} icon="ti-list" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search candidate / stage…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
-      </div>
-
-      <div className="card overflow-hidden">
-        {interviews === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-calendar-event" text="No interviews found." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm list-card">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Candidate</th>
-                  <th className="px-4 py-3">When</th>
-                  <th className="px-4 py-3">Mode</th>
-                  <th className="px-4 py-3">Stage</th>
-                  <th className="px-4 py-3">Interviewer</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((iv) => {
-                  const soon = isUpcomingSoon(iv);
-                  return (
-                    <tr
-                      key={iv.id}
-                      className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                      onClick={() => openEdit(iv)}
-                    >
-                      <td className="px-4 py-3 font-medium text-content">{candidateName(iv.application_id)}</td>
-                      <td className="px-4 py-3 text-2xs">
-                        {iv.scheduled_at ? (
-                          <span className={soon ? 'text-amber-600 font-medium' : 'text-muted'}>
-                            {new Date(iv.scheduled_at).toLocaleString()}
-                            {soon && ' · Soon'}
-                          </span>
-                        ) : (
-                          <span className="text-muted2">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="pill pill-gray capitalize">{iv.mode}</span>
-                      </td>
-                      <td className="px-4 py-3 text-muted">{iv.stage_label || '—'}</td>
-                      <td className="px-4 py-3 text-2xs text-muted">{userName(iv.interviewer_id)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`pill ${STATUS_PILL[iv.status] || 'pill-gray'}`}>
-                          {iv.status === 'no_show' ? 'No-show' : iv.status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ListView
+        rows={interviews === null ? null : shown}
+        rowKey={(iv) => iv.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={INTERVIEW_FILTERS}
+        searchPlaceholder="Search candidate / stage…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(iv) => iv.status}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(iv) => openEdit(iv)}
+        exportName="interviews"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-calendar-event"
+        emptyText="No interviews found."
+      />
 
       {editor && (
         <Modal
@@ -319,7 +370,7 @@ export default function InterviewsPage() {
               />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status} onChange={(v) => setD({ status: v })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) === 'no_show' ? 'No-show' : s }))]} />
+              <Select value={editor.draft.status} onChange={(v) => setD({ status: v })} options={[...STATUSES.map((s) => ({ value: s, label: s === 'no_show' ? 'No-show' : titleCase(s) }))]} />
             </Field>
             <Field label="Rating (1–5)">
               <input

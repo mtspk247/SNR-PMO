@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import Attachments from '@/components/Attachments';
@@ -12,6 +12,10 @@ import {
   listOfferLetters, createOfferLetter, updateOfferLetter, deleteOfferLetter, listApplications,
   OfferLetter, Application,
 } from '@/lib/db';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const STATUS_PILL: Record<string, string> = {
   draft: 'pill-gray',
@@ -28,6 +32,33 @@ const fmtMoney = (n: number, c = 'USD') =>
 
 const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
 const isPast = (d: string | null) => !!d && new Date(d).getTime() < Date.now();
+
+const GROUP_ORDER: OfferStatus[] = ['sent', 'draft', 'accepted', 'declined', 'expired'];
+const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({
+  value: st,
+  label: titleCase(st),
+  pill: STATUS_PILL[st] || 'pill-gray',
+}));
+
+const COLS: ColDef[] = [
+  { id: 'candidate', label: 'Candidate', locked: true },
+  { id: 'job_title', label: 'Job title' },
+  { id: 'salary', label: 'Salary' },
+  { id: 'start_date', label: 'Start date' },
+  { id: 'expires_on', label: 'Expires' },
+  { id: 'status', label: 'Status' },
+];
+
+const OFFER_FILTERS: FilterDef[] = [
+  {
+    id: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all', label: 'All statuses' },
+      ...STATUSES.map((s) => ({ value: s, label: titleCase(s) })),
+    ],
+  },
+];
 
 type Draft = Partial<OfferLetter>;
 const emptyDraft = (): Draft => ({
@@ -50,12 +81,14 @@ export default function OffersPage() {
 
   const [offers, setOffers] = useState<OfferLetter[] | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
   const [editor, setEditor] = useState<{ draft: Draft } | null>(null);
   const [detail, setDetail] = useState<OfferLetter | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  const prefs = useListPrefs('snrpmo.offers.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
 
   const load = () => {
     if (!org) return;
@@ -72,9 +105,6 @@ export default function OffersPage() {
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
-  const appName = (id: string | null) =>
-    applications.find((a) => a.id === id)?.candidate_name || null;
-
   const shown = useMemo(
     () =>
       (offers || []).filter(
@@ -85,6 +115,8 @@ export default function OffersPage() {
       ),
     [offers, q, statusF],
   );
+
+  const rs = useRowSelection(shown);
 
   const kpis = useMemo(() => {
     const all = offers || [];
@@ -143,6 +175,57 @@ export default function OffersPage() {
     }
   };
 
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} offer${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const o of rs.selected) await deleteOfferLetter(o.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  const cell = (id: string, o: OfferLetter) => {
+    switch (id) {
+      case 'candidate': return <span className="font-medium text-content">{o.candidate_name}</span>;
+      case 'job_title': return o.job_title || '—';
+      case 'salary': return <span className="tabular-nums">{fmtMoney(o.salary, o.currency)}</span>;
+      case 'start_date': return <span className="text-muted">{fmtDate(o.start_date)}</span>;
+      case 'expires_on': {
+        const expired = isPast(o.expires_on) && o.status === 'sent';
+        return o.expires_on ? (
+          <span className={expired ? 'text-rose-600 font-medium' : 'text-muted'}>
+            {fmtDate(o.expires_on)}{expired ? ' · overdue' : ''}
+          </span>
+        ) : <span className="text-muted2">—</span>;
+      }
+      case 'status': return <span className={`pill ${STATUS_PILL[o.status] || 'pill-gray'}`}>{o.status}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, o: OfferLetter) => {
+    switch (id) {
+      case 'candidate': return o.candidate_name;
+      case 'job_title': return o.job_title || '';
+      case 'salary': return String(Number(o.salary || 0));
+      case 'start_date': return o.start_date || '';
+      case 'expires_on': return o.expires_on || '';
+      case 'status': return o.status;
+      default: return '';
+    }
+  };
+
+  // Status inline-edit excluded: accept/decline flow through the detail modal
+  // (saveDetail) which enforces business logic via the RBAC'd updateOfferLetter fn.
+  const editable: Record<string, EditSpec> = {
+    candidate: { type: 'text' },
+    job_title: { type: 'text' },
+  };
+  const rawValue = (id: string, o: OfferLetter) =>
+    id === 'candidate' ? o.candidate_name : id === 'job_title' ? (o.job_title || '') : '';
+  const onInlineEdit = async (o: OfferLetter, id: string, value: string) => {
+    const field = id === 'candidate' ? 'candidate_name' : 'job_title';
+    try { await updateOfferLetter(o.id, { [field]: value || null } as any); load(); }
+    catch (e: any) { setErr(e.message); }
+  };
 
   if (!enabled)
     return (
@@ -174,69 +257,31 @@ export default function OffersPage() {
         <StatCard label="Total salary (sent/accepted)" value={fmtMoney(kpis.salaryTotal)} icon="ti-cash" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search candidate or title…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
-      </div>
+      <ListView
+        rows={offers === null ? null : shown}
+        rowKey={(o) => o.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={OFFER_FILTERS}
+        searchPlaceholder="Search candidate or title…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(o) => o.status}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(o) => setDetail(o)}
+        exportName="offers"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-mail"
+        emptyText="No offer letters found."
+      />
 
-      <div className="card overflow-hidden">
-        {offers === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-mail" text="No offer letters yet." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm list-card">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Candidate</th>
-                  <th className="px-4 py-3">Job title</th>
-                  <th className="px-4 py-3 text-right">Salary</th>
-                  <th className="px-4 py-3">Start date</th>
-                  <th className="px-4 py-3">Expires</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((o) => {
-                  const expired = isPast(o.expires_on) && o.status === 'sent';
-                  return (
-                    <tr
-                      key={o.id}
-                      className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                      onClick={() => setDetail(o)}
-                    >
-                      <td className="px-4 py-3 font-medium text-content">{o.candidate_name}</td>
-                      <td className="px-4 py-3 text-muted">{o.job_title || '—'}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(o.salary, o.currency)}</td>
-                      <td className="px-4 py-3 text-2xs text-muted">{fmtDate(o.start_date)}</td>
-                      <td className="px-4 py-3 text-2xs">
-                        {o.expires_on ? (
-                          <span className={expired ? 'text-rose-600 font-medium' : 'text-muted'}>
-                            {fmtDate(o.expires_on)}{expired ? ' · overdue' : ''}
-                          </span>
-                        ) : (
-                          <span className="text-muted2">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`pill ${STATUS_PILL[o.status] || 'pill-gray'}`}>{o.status}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* New offer editor modal */}
       {editor && (
         <Modal
           open
