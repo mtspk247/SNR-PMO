@@ -12,6 +12,9 @@ import {
   listInvoiceLines, addInvoiceLine, deleteInvoiceLine, listPayments, addPayment, deletePayment,
   Invoice, InvoiceLine, Payment, products, Product, listBankAccounts, BankAccount, getProjects,
 } from '@/lib/db';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { DataList, GroupMeta } from '@/components/DataList';
 
 const STATUS_PILL: Record<string, string> = { draft: 'pill-gray', sent: 'pill-blue', partial: 'pill-amber', paid: 'pill-green', overdue: 'pill-red', void: 'pill-gray' };
 const STATUSES = ['draft', 'sent', 'partial', 'paid', 'overdue', 'void'];
@@ -19,19 +22,85 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtMoney = (n: number, c = 'USD') => `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const isOverdue = (i: Invoice) => i.due_date && new Date(i.due_date) < new Date() && !['paid', 'void'].includes(i.status);
 
+const GROUP_ORDER = ['draft', 'sent', 'partial', 'overdue', 'paid', 'void'] as const;
+const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({ value: st, label: cap(st), pill: STATUS_PILL[st] || 'pill-gray' }));
+
+const COLS: ColDef[] = [
+  { id: 'invoice_number', label: 'Invoice', locked: true },
+  { id: 'client', label: 'Client' },
+  { id: 'issued', label: 'Issued' },
+  { id: 'due', label: 'Due' },
+  { id: 'total', label: 'Total' },
+  { id: 'balance', label: 'Balance' },
+  { id: 'status', label: 'Status' },
+];
+
+const INVOICE_FILTERS: FilterDef[] = [
+  { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: cap(s) }))] },
+];
+
+type GroupBy = 'status' | 'none';
+
 export default function InvoicingPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'financial');
-  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
-  const [q, setQ] = useState(''); const [statusF, setStatusF] = useState('all');
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
 
-  const load = () => { if (!org) return; listInvoices(org.id).then(setInvoices).catch((e) => { setErr(e.message); setInvoices([]); }); };
+  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [groupBy, setGroupBy] = useState<GroupBy>('status');
+
+  const prefs = useListPrefs('snrpmo.invoicing.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
+
+  const load = () => {
+    if (!org) return;
+    listInvoices(org.id).then(setInvoices).catch((e) => { setErr(e.message); setInvoices([]); });
+  };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
-  const shown = useMemo(() => (invoices || []).filter((i) => (statusF === 'all' || i.status === statusF) && (!q.trim() || `${i.invoice_number} ${i.client_name || ''}`.toLowerCase().includes(q.toLowerCase()))), [invoices, q, statusF]);
+  const shown = useMemo(() =>
+    (invoices || []).filter((i) =>
+      (statusF === 'all' || i.status === statusF) &&
+      (!q.trim() || `${i.invoice_number} ${i.client_name || ''}`.toLowerCase().includes(q.toLowerCase()))
+    ),
+    [invoices, q, statusF]
+  );
+
+  const rs = useRowSelection(shown);
+
+  const cell = (id: string, i: Invoice) => {
+    switch (id) {
+      case 'invoice_number': return <span className="font-medium text-content">{i.invoice_number}</span>;
+      case 'client': return i.client_name || '—';
+      case 'issued': return <span className="text-2xs text-muted">{i.issue_date || '—'}</span>;
+      case 'due': return <span className={`text-2xs ${isOverdue(i) ? 'text-rose-600' : 'text-muted'}`}>{i.due_date || '—'}</span>;
+      case 'total': return <span className="tabular-nums">{fmtMoney(i.total, i.currency)}</span>;
+      case 'balance': return <span className="tabular-nums">{fmtMoney(Number(i.total) - Number(i.amount_paid), i.currency)}</span>;
+      case 'status': return <span className={`pill ${STATUS_PILL[isOverdue(i) ? 'overdue' : i.status] || 'pill-gray'}`}>{isOverdue(i) ? 'overdue' : i.status}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Invoice', 'Client', 'Issued', 'Due', 'Total', 'Balance', 'Status'];
+    const rows = rs.selected.map((i) => [i.invoice_number, i.client_name, i.issue_date, i.due_date, fmtMoney(i.total, i.currency), fmtMoney(Number(i.total) - Number(i.amount_paid), i.currency), isOverdue(i) ? 'overdue' : i.status]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'invoices-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} invoice${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const inv of rs.selected) await deleteInvoice(inv.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
   const kpis = useMemo(() => {
     const v = invoices || [];
     return {
@@ -56,40 +125,60 @@ export default function InvoicingPage() {
       <PageHeader help="tracking" title="Invoicing" subtitle="Create invoices, track payments and balances" icon="ti-file-invoice"
         action={<button className="btn btn-primary" disabled={busy} onClick={newInvoice}><Icon name="ti-plus" />New invoice</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatCard label="Outstanding" value={fmtMoney(kpis.outstanding)} icon="ti-cash" hintTone={kpis.outstanding > 0 ? 'down' : 'muted'} />
         <StatCard label="Collected" value={fmtMoney(kpis.paid)} icon="ti-check" hintTone="up" />
         <StatCard label="Overdue" value={String(kpis.overdue)} icon="ti-alert-triangle" hintTone={kpis.overdue ? 'down' : 'muted'} />
         <StatCard label="Drafts" value={String(kpis.draft)} icon="ti-file-pencil" />
       </div>
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input className="input h-9 w-56" placeholder="Search invoices…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="w-40"><Select value={statusF} onChange={setStatusF} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: cap(s) }))]} /></div>
+
+      {/* Toolbar + Group-by control */}
+      <div className="flex items-end gap-2 flex-wrap mb-4">
+        <div className="flex-1 min-w-0">
+          <ListToolbar prefs={prefs} cols={COLS} filters={INVOICE_FILTERS} placeholder="Search invoices…" />
+        </div>
+        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+          <button
+            onClick={() => setGroupBy('status')}
+            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+          >
+            Status
+          </button>
+          <button
+            onClick={() => setGroupBy('none')}
+            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+          >
+            None
+          </button>
+        </div>
       </div>
-      <div className="card overflow-hidden">
-        {invoices === null ? <div className="p-8"><Spinner /></div> : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-file-invoice" text="No invoices yet." /></div>
-        ) : (
-          <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-              <tr><th className="px-4 py-3">Invoice</th><th className="px-4 py-3">Client</th><th className="px-4 py-3">Issued</th><th className="px-4 py-3">Due</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-right">Balance</th><th className="px-4 py-3">Status</th></tr>
-            </thead>
-            <tbody>
-              {shown.map((i) => (
-                <tr key={i.id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => setDetailId(i.id)}>
-                  <td className="px-4 py-3 font-medium text-content">{i.invoice_number}</td>
-                  <td className="px-4 py-3 text-muted">{i.client_name || '—'}</td>
-                  <td className="px-4 py-3 text-2xs text-muted">{i.issue_date || '—'}</td>
-                  <td className="px-4 py-3 text-2xs"><span className={isOverdue(i) ? 'text-rose-600' : 'text-muted'}>{i.due_date || '—'}</span></td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(i.total, i.currency)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(Number(i.total) - Number(i.amount_paid), i.currency)}</td>
-                  <td className="px-4 py-3"><span className={`pill ${STATUS_PILL[isOverdue(i) ? 'overdue' : i.status] || 'pill-gray'}`}>{isOverdue(i) ? 'overdue' : i.status}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
-        )}
-      </div>
+
+      <BulkBar count={rs.count} onClear={rs.clear}>
+        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+      </BulkBar>
+
+      {invoices === null ? (
+        <div className="card p-8 border border-line/40"><Spinner /></div>
+      ) : shown.length === 0 ? (
+        <div className="card p-8 border border-line/40"><EmptyState icon="ti-file-invoice" text="No invoices found." /></div>
+      ) : (
+        <DataList
+          rows={shown}
+          rowKey={(i) => i.id}
+          cols={COLS}
+          prefs={prefs}
+          cell={cell}
+          onRowClick={(i) => setDetailId(i.id)}
+          selection={rs}
+          groupBy={groupBy}
+          groupOf={(i) => isOverdue(i) ? 'overdue' : i.status}
+          groups={GROUPS}
+        />
+      )}
+
       {detailId && <InvoiceDetail id={detailId} orgId={org?.id} me={me?.id} onClose={() => { setDetailId(null); load(); }} onDeleted={() => { setDetailId(null); load(); }} />}
     </Layout>
   );
