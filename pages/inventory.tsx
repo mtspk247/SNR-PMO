@@ -53,10 +53,12 @@ export default function InventoryPage() {
   const q = prefs.query;
 
   const shown = useMemo(() =>
-    (rows || []).filter((r) =>
-      !q.trim() ||
-      `${r.name} ${r.sku || ''}`.toLowerCase().includes(q.toLowerCase())
-    ),
+    (rows || [])
+      .filter((r) =>
+        !q.trim() ||
+        `${r.name} ${r.sku || ''}`.toLowerCase().includes(q.toLowerCase())
+      )
+      .map((r) => ({ ...r, id: r.product_id })),   // ListView/selection need an `id`
     [rows, q]
   );
 
@@ -136,7 +138,7 @@ export default function InventoryPage() {
 
       <ListView
         rows={rows === null ? null : shown}
-        rowKey={(r) => r.product_id}
+        rowKey={(r) => r.id}
         cols={COLS}
         prefs={prefs}
         cell={cell}
