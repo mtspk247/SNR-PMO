@@ -7,25 +7,23 @@ import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
-import { listClients, createClient, updateClient, deleteClient, Client } from '@/lib/db';
+import { listClients, createClient, updateClient, deleteClient, getTaskStatuses, TaskStatus, Client } from '@/lib/db';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkAssign } from '@/components/RowSelection';
 import { GroupMeta, EditSpec } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
+import StatusManager from '@/components/StatusManager';
 
 const STATUS_PILL: Record<string, string> = {
   prospect: 'pill-amber',
   active: 'pill-green',
   inactive: 'pill-gray',
 };
-const STATUSES = ['prospect', 'active', 'inactive'] as const;
-type ClientStatus = typeof STATUSES[number];
+const DEFAULT_STATUSES = ['prospect', 'active', 'inactive'];
+type ClientStatus = string;
 
-// Group ordering: active first, then prospect, then inactive
-const GROUP_ORDER: ClientStatus[] = ['active', 'prospect', 'inactive'];
-const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({ value: st, label: titleCase(st), pill: STATUS_PILL[st] || 'pill-gray' }));
 
 const COLS: ColDef[] = [
   { id: 'name', label: 'Name', locked: true },
@@ -61,6 +59,8 @@ export default function ClientsPage() {
 
   const [clients, setClients] = useState<Client[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
+  const [statusDefs, setStatusDefs] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
   const prefs = useListPrefs('snrpmo.clients.cols', COLS, { entity: 'clients', orgId: org?.id, canManage: isAdmin });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
@@ -78,11 +78,17 @@ export default function ClientsPage() {
     if (org?.id && enabled) {
       load();
       getOrgUsers(org.id).then(setUsers).catch(() => {});
+      getTaskStatuses(org.id, 'clients').then(setStatusDefs).catch(() => {});
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
   const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
+  const reloadStatusDefs = () => { if (org?.id) getTaskStatuses(org.id, 'clients').then(setStatusDefs).catch(() => {}); };
+  const STATUSES = statusDefs.length ? statusDefs.map((s) => s.name) : DEFAULT_STATUSES;
+  const catPill: Record<string, string> = { todo: 'pill-amber', active: 'pill-green', done: 'pill-gray', blocked: 'pill-rose' };
+  const statusPill = (name: string) => { const d = statusDefs.find((s) => s.name === name); return d ? (catPill[d.category] || 'pill-gray') : (STATUS_PILL[name] || 'pill-gray'); };
+  const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: titleCase(s), pill: statusPill(s) }));
 
   const shown = useMemo(() =>
     (clients || []).filter((c) =>
@@ -102,7 +108,7 @@ export default function ClientsPage() {
       case 'phone': return c.phone || '—';
       case 'since': return c.since || '—';
       case 'owner': return <PersonTag name={nameOf(c.owner_id)} />;
-      case 'status': return <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'}`}>{c.status}</span>;
+      case 'status': return <span className={`pill ${statusPill(c.status)}`}>{c.status}</span>;
       default: return '—';
     }
   };
@@ -186,9 +192,12 @@ export default function ClientsPage() {
         subtitle="Manage your client accounts and relationships"
         icon="ti-users"
         action={
-          <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
-            <Icon name="ti-plus" />Add client
-          </button>
+          <div className="flex items-center gap-2">
+            {isAdmin && <button className="btn" onClick={() => setStatusMgr(true)}><Icon name="ti-flag-3" className="text-sm" />Statuses</button>}
+            <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
+              <Icon name="ti-plus" />Add client
+            </button>
+          </div>
         }
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
@@ -312,6 +321,7 @@ export default function ClientsPage() {
           </div>
         </Modal>
       )}
+      {org?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="clients" statuses={statusDefs} onChanged={reloadStatusDefs} />}
     </Layout>
   );
 }
