@@ -100,37 +100,26 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
 
   return (
     <>
-      <div className="flex items-end gap-2 flex-wrap mb-4">
+      <div className="flex items-center gap-2 flex-wrap mb-4">
         <div className="flex-1 min-w-0">
           <ListToolbar prefs={prefs} cols={cols} filters={p.filters} placeholder={p.searchPlaceholder || 'Search…'}>
             {p.toolbarExtra}
           </ListToolbar>
         </div>
         {canGroup && (
-          <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
-            <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
-            <button onClick={() => setGrouped(true)}
-              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${grouped ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}>
-              {p.groupField!.label}
-            </button>
-            <button onClick={() => setGrouped(false)}
-              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${!grouped ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}>
-              None
-            </button>
-          </div>
+          <Dropdown value={grouped ? 'group' : 'none'} onChange={(v) => setGrouped(v === 'group')} width={190}
+            items={[{ value: 'none', label: 'No grouping' }, { value: 'group', label: `Group: ${p.groupField!.label}` }]}
+            trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{grouped ? `Group: ${p.groupField!.label}` : 'No grouping'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
         )}
-        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
-          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Sort</span>
-          <Dropdown value={sortBy} onChange={setSortBy} width={180}
-            items={[{ value: '', label: 'No sort' }, ...prefs.ordered.map((id) => ({ value: id, label: cols.find((c) => c.id === id)?.label || id }))]}
-            trigger={<span className="inline-flex items-center justify-between gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-line bg-surface text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{sortBy ? (cols.find((c) => c.id === sortBy)?.label || sortBy) : 'No sort'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
-          {sortBy && <button onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} title={sortDir === 'asc' ? 'Ascending' : 'Descending'} className="h-8 px-2 rounded-md text-muted hover:text-content hover:bg-surface2"><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>}
-        </div>
+        <Dropdown value={sortBy} onChange={setSortBy} width={190}
+          items={[{ value: '', label: 'No sort' }, ...prefs.ordered.map((id) => ({ value: id, label: `Sort: ${cols.find((c) => c.id === id)?.label || id}` }))]}
+          trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{sortBy ? `Sort: ${cols.find((c) => c.id === sortBy)?.label || sortBy}` : 'No sort'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+        {sortBy && <button onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} title={sortDir === 'asc' ? 'Ascending' : 'Descending'} className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-line bg-surface text-muted hover:text-content hover:border-borderstrong shrink-0"><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>}
         {canGroup && (
-          <div className="flex items-center rounded-lg border border-line overflow-hidden h-8 shrink-0">
+          <div className="flex items-center rounded-md border border-line overflow-hidden h-9 shrink-0">
             {(['list', 'board'] as const).map((vw) => (
               <button key={vw} onClick={() => setView(vw)}
-                className={`h-full px-2.5 text-xs capitalize inline-flex items-center gap-1 transition ${view === vw ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
+                className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === vw ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
                 <Icon name={vw === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{vw}
               </button>
             ))}
