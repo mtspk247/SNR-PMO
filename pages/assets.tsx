@@ -1,22 +1,49 @@
 import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listAssets, createAsset, updateAsset, deleteAsset, getOrgUsers, Asset } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const ASSET_TYPES = ['digital', 'physical', 'saas', 'domain', 'other'] as const;
 const lbl = (t: string) => (t === 'saas' ? 'SaaS' : t.charAt(0).toUpperCase() + t.slice(1));
 const STATUSES = ['active', 'retired', 'sold'] as const;
+type AssetStatus = typeof STATUSES[number];
 const STATUS_PILL: Record<string, string> = { active: 'pill-green', retired: 'pill-gray', sold: 'pill-blue' };
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'PKR'];
 
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+const GROUPS: GroupMeta[] = STATUSES.map((st) => ({ value: st, label: lbl(st), pill: STATUS_PILL[st] || 'pill-gray' }));
+
+const COLS: ColDef[] = [
+  { id: 'name',     label: 'Name',     locked: true },
+  { id: 'type',     label: 'Type' },
+  { id: 'category', label: 'Category' },
+  { id: 'value',    label: 'Value' },
+  { id: 'revenue',  label: 'Revenue' },
+  { id: 'owner',    label: 'Owner' },
+  { id: 'status',   label: 'Status' },
+];
+
+const ASSET_FILTERS: FilterDef[] = [
+  {
+    id: 'type', label: 'Type',
+    options: [
+      { value: 'all', label: 'All types' },
+      ...ASSET_TYPES.map((t) => ({ value: t, label: lbl(t) })),
+    ],
+  },
+];
 
 type Draft = Partial<Asset>;
 const emptyDraft = (): Draft => ({
@@ -32,16 +59,19 @@ export default function AssetsPage() {
 
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [typeF, setTypeF] = useState('all');
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  const prefs = useListPrefs('snrpmo.assets.cols', COLS);
+  const typeF = prefs.filters.type || 'all';
+  const q = prefs.query;
 
   const load = () => {
     if (!org) return;
     listAssets(org.id).then(setAssets).catch((e) => { setErr(e.message); setAssets([]); });
   };
+
   useEffect(() => {
     if (org?.id && enabled) {
       load();
@@ -58,6 +88,8 @@ export default function AssetsPage() {
       (!q.trim() || `${a.name} ${a.category || ''}`.toLowerCase().includes(q.toLowerCase()))
     ), [assets, q, typeF]);
 
+  const rs = useRowSelection(shown);
+
   const kpis = useMemo(() => {
     const all = assets || [];
     return {
@@ -67,6 +99,61 @@ export default function AssetsPage() {
       active: all.filter((a) => a.status === 'active').length,
     };
   }, [assets]);
+
+  const cell = (id: string, a: Asset) => {
+    switch (id) {
+      case 'name':     return <span className="font-medium text-content">{a.name}</span>;
+      case 'type':     return <span className="pill pill-gray capitalize">{lbl(a.asset_type)}</span>;
+      case 'category': return a.category || '—';
+      case 'value':    return <span className="tabular-nums">{fmtMoney(a.value, a.currency)}</span>;
+      case 'revenue':  return Number(a.revenue) > 0
+        ? <span className="text-emerald-600 font-medium tabular-nums">{fmtMoney(a.revenue, a.currency)}</span>
+        : <span className="text-muted2">—</span>;
+      case 'owner':    return nameOf(a.owner_id);
+      case 'status':   return <span className={`pill capitalize ${STATUS_PILL[a.status] || 'pill-gray'}`}>{a.status}</span>;
+      default:         return '—';
+    }
+  };
+
+  const exportValue = (id: string, a: Asset) => {
+    switch (id) {
+      case 'name':     return a.name;
+      case 'type':     return lbl(a.asset_type);
+      case 'category': return a.category || '';
+      case 'value':    return fmtMoney(a.value, a.currency);
+      case 'revenue':  return Number(a.revenue) > 0 ? fmtMoney(a.revenue, a.currency) : '';
+      case 'owner':    return nameOf(a.owner_id);
+      case 'status':   return a.status;
+      default:         return '';
+    }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    name:     { type: 'text' },
+    category: { type: 'text' },
+    status:   { type: 'select', options: STATUSES.map((st) => ({ value: st, label: lbl(st) })) },
+  };
+
+  const rawValue = (id: string, a: Asset) => {
+    switch (id) {
+      case 'name':     return a.name;
+      case 'category': return a.category || '';
+      case 'status':   return a.status;
+      default:         return '';
+    }
+  };
+
+  const onInlineEdit = async (a: Asset, id: string, value: string) => {
+    try { await updateAsset(a.id, { [id]: value || null } as any); load(); }
+    catch (e: any) { setErr(e.message); }
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} asset${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const a of rs.selected) await deleteAsset(a.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const setD = (patch: Draft) => setEditor((e) => e && { ...e, draft: { ...e.draft, ...patch } });
 
@@ -97,13 +184,6 @@ export default function AssetsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const remove = async (a: Asset) => {
-    if (!confirm(`Delete "${a.name}"?`)) return;
-    setBusy(true);
-    try { await deleteAsset(a.id); setEditor(null); load(); }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
-
   if (!enabled) return (
     <Layout flat title="Assets">
       <EmptyState icon="ti-box-off" title="Assets not in your plan" text="Upgrade to track your digital, physical and SaaS assets." />
@@ -125,64 +205,36 @@ export default function AssetsPage() {
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <StatCard label="Total assets" value={String(kpis.total)} icon="ti-box" />
-        <StatCard label="Total value" value={fmtMoney(kpis.totalValue)} icon="ti-chart-bar" />
-        <StatCard label="Total revenue" value={fmtMoney(kpis.totalRevenue)} icon="ti-trending-up" hintTone="up" />
-        <StatCard label="Active" value={String(kpis.active)} icon="ti-circle-check" />
+        <StatCard label="Total assets"   value={String(kpis.total)}                icon="ti-box" />
+        <StatCard label="Total value"    value={fmtMoney(kpis.totalValue)}          icon="ti-chart-bar" />
+        <StatCard label="Total revenue"  value={fmtMoney(kpis.totalRevenue)}        icon="ti-trending-up" hintTone="up" />
+        <StatCard label="Active"         value={String(kpis.active)}                icon="ti-circle-check" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search assets…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-40"><Select value={typeF} onChange={setTypeF} options={[{ value: 'all', label: 'All types' }, ...ASSET_TYPES.map((t) => ({ value: t, label: lbl(t) }))]} /></div>
-      </div>
-
-      <div className="card overflow-hidden">
-        {assets === null ? <div className="p-8"><Spinner /></div> : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-box" text="No assets yet." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3 text-right">Value</th>
-                  <th className="px-4 py-3 text-right">Revenue</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                    onClick={() => setEditor({ mode: 'edit', draft: { ...a } })}
-                  >
-                    <td className="px-4 py-3 font-medium text-content">{a.name}</td>
-                    <td className="px-4 py-3"><span className="pill pill-gray capitalize">{a.asset_type}</span></td>
-                    <td className="px-4 py-3 text-muted">{a.category || '—'}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(a.value, a.currency)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {Number(a.revenue) > 0
-                        ? <span className="text-emerald-600 font-medium">{fmtMoney(a.revenue, a.currency)}</span>
-                        : <span className="text-muted2">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-2xs text-muted">{nameOf(a.owner_id)}</td>
-                    <td className="px-4 py-3"><span className={`pill capitalize ${STATUS_PILL[a.status] || 'pill-gray'}`}>{a.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ListView
+        rows={assets === null ? null : shown}
+        rowKey={(a) => a.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={ASSET_FILTERS}
+        searchPlaceholder="Search assets…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(a) => a.status}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(a) => setEditor({ mode: 'edit', draft: { ...a } })}
+        exportName="assets"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-box"
+        emptyText="No assets found."
+      />
 
       {editor && (
         <Modal
@@ -195,7 +247,12 @@ export default function AssetsPage() {
           footer={
             <>
               {editor.mode === 'edit' && editor.draft.id && (
-                <button className="btn btn-danger mr-auto" disabled={busy} onClick={() => remove(editor.draft as Asset)}>
+                <button className="btn btn-danger mr-auto" disabled={busy} onClick={async () => {
+                  if (!confirm(`Delete "${editor.draft.name}"?`)) return;
+                  setBusy(true);
+                  try { await deleteAsset(editor.draft.id!); setEditor(null); load(); }
+                  catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+                }}>
                   <Icon name="ti-trash" />Delete
                 </button>
               )}

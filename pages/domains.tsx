@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listDomains, createDomain, updateDomain, deleteDomain, getOrgUsers, Domain } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const STATUS_PILL: Record<string, string> = {
   active: 'pill-green',
@@ -23,6 +27,37 @@ const fmtMoney = (n: number, c = 'USD') =>
 
 const daysTo = (d: string | null) =>
   d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null;
+
+const COLS: ColDef[] = [
+  { id: 'domain', label: 'Domain', locked: true },
+  { id: 'registrar', label: 'Registrar' },
+  { id: 'expires', label: 'Expires' },
+  { id: 'cost', label: 'Cost /yr' },
+  { id: 'auto_renew', label: 'Auto-renew' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'status', label: 'Status' },
+];
+
+const DOMAIN_FILTERS: FilterDef[] = [
+  {
+    id: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all', label: 'All statuses' },
+      { value: 'active', label: 'Active' },
+      { value: 'expired', label: 'Expired' },
+      { value: 'transferred', label: 'Transferred' },
+      { value: 'for_sale', label: 'For sale' },
+    ],
+  },
+];
+
+const GROUP_ORDER: Domain['status'][] = ['active', 'expired', 'for_sale', 'transferred'];
+const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({
+  value: st,
+  label: st.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+  pill: STATUS_PILL[st] || 'pill-gray',
+}));
 
 type Draft = Partial<Domain>;
 const emptyDraft = (): Draft => ({
@@ -47,8 +82,9 @@ export default function DomainsPage() {
 
   const [domains, setDomains] = useState<Domain[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.domains.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -68,7 +104,7 @@ export default function DomainsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org?.id, enabled]);
 
-  const name = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
+  const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
 
   const shown = useMemo(
     () =>
@@ -80,6 +116,49 @@ export default function DomainsPage() {
       ),
     [domains, q, statusF],
   );
+
+  const rs = useRowSelection(shown);
+
+  const cell = (id: string, d: Domain) => {
+    switch (id) {
+      case 'domain': return <span className="font-medium text-content">{d.domain}</span>;
+      case 'registrar': return d.registrar || '—';
+      case 'expires': {
+        if (!d.expires_on) return <span className="text-muted2">—</span>;
+        const days = daysTo(d.expires_on);
+        const expClass =
+          days != null && days < 0
+            ? 'text-rose-600'
+            : days != null && days <= 30
+            ? 'text-amber-600'
+            : 'text-muted';
+        return (
+          <span className={expClass}>
+            {d.expires_on}
+            {days != null && days >= 0 && days <= 30 ? ` · ${days}d` : days != null && days < 0 ? ' · overdue' : ''}
+          </span>
+        );
+      }
+      case 'cost': return fmtMoney(d.cost, d.currency);
+      case 'auto_renew': return d.auto_renew ? <Icon name="ti-check" className="text-emerald-600" /> : <span className="text-muted2">—</span>;
+      case 'owner': return nameOf(d.owner_id);
+      case 'status': return <span className={`pill ${STATUS_PILL[d.status] || 'pill-gray'}`}>{d.status.replace('_', ' ')}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, d: Domain) => {
+    switch (id) {
+      case 'domain': return d.domain;
+      case 'registrar': return d.registrar || '';
+      case 'expires': return d.expires_on || '';
+      case 'cost': return fmtMoney(d.cost, d.currency);
+      case 'auto_renew': return d.auto_renew ? 'Yes' : 'No';
+      case 'owner': return nameOf(d.owner_id);
+      case 'status': return d.status.replace('_', ' ');
+      default: return '';
+    }
+  };
 
   const kpis = useMemo(() => {
     const all = domains || [];
@@ -133,18 +212,31 @@ export default function DomainsPage() {
     }
   };
 
-  const remove = async (d: Domain) => {
-    if (!confirm(`Delete domain "${d.domain}"?`)) return;
-    setBusy(true);
-    try {
-      await deleteDomain(d.id);
-      setEditor(null);
-      load();
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} domain${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const d of rs.selected) await deleteDomain(d.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    domain: { type: 'text' },
+    registrar: { type: 'text' },
+    status: { type: 'select', options: STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') })) },
+  };
+
+  const rawValue = (id: string, d: Domain) => {
+    switch (id) {
+      case 'domain': return d.domain;
+      case 'registrar': return d.registrar || '';
+      case 'status': return d.status;
+      default: return '';
     }
+  };
+
+  const onInlineEdit = async (d: Domain, id: string, value: string) => {
+    try { await updateDomain(d.id, { [id]: value || null } as any); load(); }
+    catch (e: any) { setErr(e.message); }
   };
 
   if (!enabled)
@@ -184,90 +276,30 @@ export default function DomainsPage() {
         <StatCard label="Total spend" value={fmtMoney(kpis.totalSpend)} icon="ti-receipt" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search domains…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') }))]} /></div>
-      </div>
-
-      <div className="card overflow-hidden">
-        {domains === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-world" text="No domains yet." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Domain</th>
-                  <th className="px-4 py-3">Registrar</th>
-                  <th className="px-4 py-3">Expires</th>
-                  <th className="px-4 py-3 text-right">Cost /yr</th>
-                  <th className="px-4 py-3">Auto-renew</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((d) => {
-                  const days = daysTo(d.expires_on);
-                  const expClass =
-                    days != null && days < 0
-                      ? 'text-rose-600'
-                      : days != null && days <= 30
-                      ? 'text-amber-600'
-                      : 'text-muted';
-                  return (
-                    <tr
-                      key={d.id}
-                      className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                      onClick={() => setEditor({ mode: 'edit', draft: { ...d } })}
-                    >
-                      <td className="px-4 py-3 font-medium text-content">{d.domain}</td>
-                      <td className="px-4 py-3 text-muted">{d.registrar || '—'}</td>
-                      <td className="px-4 py-3 text-2xs">
-                        {d.expires_on ? (
-                          <span className={expClass}>
-                            {d.expires_on}
-                            {days != null && days >= 0 && days <= 30
-                              ? ` · ${days}d`
-                              : days != null && days < 0
-                              ? ' · overdue'
-                              : ''}
-                          </span>
-                        ) : (
-                          <span className="text-muted2">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {fmtMoney(d.cost, d.currency)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {d.auto_renew ? (
-                          <Icon name="ti-check" className="text-emerald-600" />
-                        ) : (
-                          <span className="text-muted2">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-2xs text-muted">{name(d.owner_id)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`pill ${STATUS_PILL[d.status] || 'pill-gray'}`}>
-                          {d.status.replace('_', ' ')}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ListView
+        rows={domains === null ? null : shown}
+        rowKey={(d) => d.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={DOMAIN_FILTERS}
+        searchPlaceholder="Search domains…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(d) => d.status}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(d) => setEditor({ mode: 'edit', draft: { ...d } })}
+        exportName="domains"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-world"
+        emptyText="No domains found."
+      />
 
       {editor && (
         <Modal

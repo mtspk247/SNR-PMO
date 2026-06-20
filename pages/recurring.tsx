@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -11,21 +11,55 @@ import {
   getOrgUsers, RecurringExpense,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const STATUS_PILL: Record<string, string> = { active: 'pill-green', paused: 'pill-amber', ended: 'pill-gray' };
 const STATUSES = ['active', 'paused', 'ended'];
 const CYCLES = ['weekly', 'monthly', 'quarterly', 'annual'];
 const CYCLE_SUFFIX: Record<string, string> = { weekly: 'wk', monthly: 'mo', quarterly: 'qtr', annual: 'yr' };
 
+const GROUP_ORDER = ['active', 'paused', 'ended'] as const;
+const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({
+  value: st,
+  label: titleCase(st),
+  pill: STATUS_PILL[st] || 'pill-gray',
+}));
+
+const COLS: ColDef[] = [
+  { id: 'name',     label: 'Name',     locked: true },
+  { id: 'category', label: 'Category' },
+  { id: 'amount',   label: 'Amount' },
+  { id: 'next_due', label: 'Next due' },
+  { id: 'vendor',   label: 'Vendor' },
+  { id: 'owner',    label: 'Owner' },
+  { id: 'status',   label: 'Status' },
+];
+
+const RECURRING_FILTERS: FilterDef[] = [
+  {
+    id: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all',    label: 'All statuses' },
+      { value: 'active', label: 'Active' },
+      { value: 'paused', label: 'Paused' },
+      { value: 'ended',  label: 'Ended' },
+    ],
+  },
+];
+
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 const toMonthly = (r: RecurringExpense) => {
   const a = r.amount || 0;
-  if (r.cycle === 'weekly') return a * 4.33;
-  if (r.cycle === 'monthly') return a;
+  if (r.cycle === 'weekly')    return a * 4.33;
+  if (r.cycle === 'monthly')   return a;
   if (r.cycle === 'quarterly') return a / 3;
-  if (r.cycle === 'annual') return a / 12;
+  if (r.cycle === 'annual')    return a / 12;
   return 0;
 };
 
@@ -47,8 +81,9 @@ export default function RecurringPage() {
 
   const [items, setItems] = useState<RecurringExpense[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.recurring.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -66,7 +101,7 @@ export default function RecurringPage() {
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
-  const name = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
+  const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
 
   const shown = useMemo(() =>
     (items || []).filter((r) =>
@@ -76,10 +111,11 @@ export default function RecurringPage() {
     [items, q, statusF]
   );
 
+  const rs = useRowSelection(shown);
+
   const kpis = useMemo(() => {
     const active = (items || []).filter((r) => r.status === 'active');
     const monthlyCost = active.reduce((t, r) => t + toMonthly(r), 0);
-    const today = Date.now();
     const soon = active.filter((r) => {
       const d = daysTo(r.next_due);
       return d != null && d >= 0 && d <= 14;
@@ -87,6 +123,80 @@ export default function RecurringPage() {
     const byStatus = (s: string) => (items || []).filter((r) => r.status === s).length;
     return { active: active.length, monthlyCost, soon, paused: byStatus('paused') };
   }, [items]);
+
+  const cell = (id: string, r: RecurringExpense) => {
+    switch (id) {
+      case 'name':     return <span className="font-medium text-content">{r.name}</span>;
+      case 'category': return r.category || '—';
+      case 'amount': {
+        return (
+          <span className="tabular-nums">
+            {fmtMoney(r.amount, r.currency)}
+            <span className="text-2xs text-muted2">/{CYCLE_SUFFIX[r.cycle] || r.cycle}</span>
+          </span>
+        );
+      }
+      case 'next_due': {
+        const d = daysTo(r.next_due);
+        const dueCls = d != null && d < 0 ? 'text-rose-600' : d != null && d <= 14 ? 'text-amber-600' : 'text-muted';
+        return r.next_due ? (
+          <span className={`text-2xs ${dueCls}`}>
+            {r.next_due}
+            {d != null && d < 0 ? ' · overdue' : d != null && d <= 14 ? ` · ${d}d` : ''}
+          </span>
+        ) : <span className="text-muted2">—</span>;
+      }
+      case 'vendor':  return r.vendor || '—';
+      case 'owner':   return <span className="text-2xs text-muted">{nameOf(r.owner_id)}</span>;
+      case 'status':  return <span className={`pill ${STATUS_PILL[r.status] || 'pill-gray'}`}>{r.status}</span>;
+      default:        return '—';
+    }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    name:     { type: 'text' },
+    category: { type: 'text' },
+    amount:   { type: 'number' },
+    vendor:   { type: 'text' },
+    status:   { type: 'select', options: STATUSES.map((s) => ({ value: s, label: titleCase(s) })) },
+  };
+
+  const rawValue = (id: string, r: RecurringExpense) => {
+    switch (id) {
+      case 'name':     return r.name;
+      case 'category': return r.category || '';
+      case 'amount':   return String(r.amount ?? 0);
+      case 'vendor':   return r.vendor || '';
+      case 'status':   return r.status;
+      default:         return '';
+    }
+  };
+
+  const onInlineEdit = async (r: RecurringExpense, id: string, value: string) => {
+    const patch: Partial<RecurringExpense> =
+      id === 'amount' ? { amount: Number(value) || 0 } : { [id]: value || null } as any;
+    try { await updateRecurringExpense(r.id, patch); load(); } catch (e: any) { setErr(e.message); }
+  };
+
+  const exportValue = (id: string, r: RecurringExpense) => {
+    switch (id) {
+      case 'name':     return r.name;
+      case 'category': return r.category || '';
+      case 'amount':   return `${fmtMoney(r.amount, r.currency)}/${CYCLE_SUFFIX[r.cycle] || r.cycle}`;
+      case 'next_due': return r.next_due || '';
+      case 'vendor':   return r.vendor || '';
+      case 'owner':    return nameOf(r.owner_id);
+      case 'status':   return r.status;
+      default:         return '';
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} expense${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const r of rs.selected) await deleteRecurringExpense(r.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const setD = (patch: Draft) => setEditor((e) => e && { ...e, draft: { ...e.draft, ...patch } });
 
@@ -156,78 +266,30 @@ export default function RecurringPage() {
         <StatCard label="Paused" value={String(kpis.paused)} icon="ti-player-pause" hintTone="muted" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search expenses…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
-      </div>
-
-      <div className="card overflow-hidden">
-        {items === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-repeat" text="No recurring expenses yet." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3">Next due</th>
-                  <th className="px-4 py-3">Vendor</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((r) => {
-                  const d = daysTo(r.next_due);
-                  const dueCls = d != null && d < 0
-                    ? 'text-rose-600'
-                    : d != null && d <= 14
-                    ? 'text-amber-600'
-                    : 'text-muted';
-                  return (
-                    <tr
-                      key={r.id}
-                      className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                      onClick={() => setEditor({ mode: 'edit', draft: { ...r } })}
-                    >
-                      <td className="px-4 py-3 font-medium text-content">{r.name}</td>
-                      <td className="px-4 py-3 text-muted">{r.category || '—'}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {fmtMoney(r.amount, r.currency)}
-                        <span className="text-2xs text-muted2">/{CYCLE_SUFFIX[r.cycle] || r.cycle}</span>
-                      </td>
-                      <td className="px-4 py-3 text-2xs">
-                        {r.next_due ? (
-                          <span className={dueCls}>
-                            {r.next_due}
-                            {d != null && d < 0 ? ' · overdue' : d != null && d <= 14 ? ` · ${d}d` : ''}
-                          </span>
-                        ) : (
-                          <span className="text-muted2">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted">{r.vendor || '—'}</td>
-                      <td className="px-4 py-3 text-2xs text-muted">{r.owner_id ? name(r.owner_id) : '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className={`pill ${STATUS_PILL[r.status] || 'pill-gray'}`}>{r.status}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ListView
+        rows={items === null ? null : shown}
+        rowKey={(r) => r.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={RECURRING_FILTERS}
+        searchPlaceholder="Search expenses…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(r) => r.status}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(r) => setEditor({ mode: 'edit', draft: { ...r } })}
+        exportName="recurring"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-repeat"
+        emptyText="No recurring expenses yet."
+      />
 
       {editor && (
         <Modal

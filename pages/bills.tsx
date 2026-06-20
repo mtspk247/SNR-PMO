@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -10,6 +10,10 @@ import {
   listBillLines, addBillLine, deleteBillLine, listBillPayments, addBillPayment, deleteBillPayment,
   Bill, BillLine, BillPayment, products, Product, listBankAccounts, BankAccount, getProjects,
 } from '@/lib/db';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const STATUS_PILL: Record<string, string> = { draft: 'pill-gray', open: 'pill-blue', partial: 'pill-amber', paid: 'pill-green', overdue: 'pill-red', void: 'pill-gray' };
 const STATUSES = ['draft', 'open', 'partial', 'paid', 'void'];
@@ -17,19 +21,51 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtMoney = (n: number, c = 'USD') => `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const isOverdue = (b: Bill) => b.due_date && new Date(b.due_date) < new Date() && !['paid', 'void'].includes(b.status);
 
+const GROUP_ORDER = ['overdue', 'open', 'partial', 'draft', 'paid', 'void'];
+const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({ value: st, label: cap(st), pill: STATUS_PILL[st] || 'pill-gray' }));
+
+const COLS: ColDef[] = [
+  { id: 'bill_number', label: 'Bill', locked: true },
+  { id: 'vendor', label: 'Vendor' },
+  { id: 'bill_date', label: 'Date' },
+  { id: 'due_date', label: 'Due' },
+  { id: 'total', label: 'Total' },
+  { id: 'balance', label: 'Balance' },
+  { id: 'status', label: 'Status' },
+];
+
+const BILL_FILTERS: FilterDef[] = [
+  { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: cap(s) })), { value: 'overdue', label: 'Overdue' }] },
+];
+
 export default function BillsPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'financial');
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
   const [bills, setBills] = useState<Bill[] | null>(null);
-  const [q, setQ] = useState(''); const [statusF, setStatusF] = useState('all');
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const prefs = useListPrefs('snrpmo.bills.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
 
   const load = () => { if (!org) return; listBills(org.id).then(setBills).catch((e) => { setErr(e.message); setBills([]); }); };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
-  const shown = useMemo(() => (bills || []).filter((b) => (statusF === 'all' || b.status === statusF) && (!q.trim() || `${b.bill_number || ''} ${b.vendor_name || ''}`.toLowerCase().includes(q.toLowerCase()))), [bills, q, statusF]);
+  const shown = useMemo(() =>
+    (bills || []).filter((b) => {
+      const eff = isOverdue(b) ? 'overdue' : b.status;
+      return (statusF === 'all' || eff === statusF || b.status === statusF) &&
+        (!q.trim() || `${b.bill_number || ''} ${b.vendor_name || ''}`.toLowerCase().includes(q.toLowerCase()));
+    }),
+    [bills, q, statusF]
+  );
+
+  const rs = useRowSelection(shown);
+
   const kpis = useMemo(() => {
     const v = bills || [];
     return {
@@ -39,6 +75,39 @@ export default function BillsPage() {
       draft: v.filter((b) => b.status === 'draft').length,
     };
   }, [bills]);
+
+  const cell = (id: string, b: Bill) => {
+    switch (id) {
+      case 'bill_number': return <span className="font-medium text-content">{b.bill_number}</span>;
+      case 'vendor': return b.vendor_name || '—';
+      case 'bill_date': return b.bill_date || '—';
+      case 'due_date': return <span className={isOverdue(b) ? 'text-rose-600' : 'text-muted'}>{b.due_date || '—'}</span>;
+      case 'total': return <span className="tabular-nums">{fmtMoney(b.total, b.currency)}</span>;
+      case 'balance': return <span className="tabular-nums">{fmtMoney(Number(b.total) - Number(b.amount_paid), b.currency)}</span>;
+      case 'status': { const eff = isOverdue(b) ? 'overdue' : b.status; return <span className={`pill ${STATUS_PILL[eff] || 'pill-gray'}`}>{eff}</span>; }
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, b: Bill) => {
+    switch (id) {
+      case 'bill_number': return b.bill_number || '';
+      case 'vendor': return b.vendor_name || '';
+      case 'bill_date': return b.bill_date || '';
+      case 'due_date': return b.due_date || '';
+      case 'total': return fmtMoney(b.total, b.currency);
+      case 'balance': return fmtMoney(Number(b.total) - Number(b.amount_paid), b.currency);
+      case 'status': return isOverdue(b) ? 'overdue' : b.status;
+      default: return '';
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} bill${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const b of rs.selected) await deleteBill(b.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const newBill = async () => {
     if (!org || !me || busy) return; setBusy(true); setErr('');
@@ -60,32 +129,29 @@ export default function BillsPage() {
         <StatCard label="Overdue" value={String(kpis.overdue)} icon="ti-alert-triangle" hintTone={kpis.overdue ? 'down' : 'muted'} />
         <StatCard label="Drafts" value={String(kpis.draft)} icon="ti-file-pencil" />
       </div>
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input className="input h-9 w-56" placeholder="Search bills…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="w-40"><Select value={statusF} onChange={setStatusF} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: cap(s) }))]} /></div>
-      </div>
-      <div className="card overflow-hidden">
-        {bills === null ? <div className="p-8"><Spinner /></div> : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-file-dollar" text="No bills yet." /></div>
-        ) : (
-          <table className="w-full text-sm list-card">
-            <thead><tr><th className="px-4 py-3 text-left">Bill</th><th className="px-4 py-3 text-left">Vendor</th><th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">Due</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-right">Balance</th><th className="px-4 py-3 text-left">Status</th></tr></thead>
-            <tbody>
-              {shown.map((b) => (
-                <tr key={b.id} className="cursor-pointer" onClick={() => setDetailId(b.id)}>
-                  <td className="px-4 py-3 font-medium text-content">{b.bill_number}</td>
-                  <td className="px-4 py-3 text-muted">{b.vendor_name || '—'}</td>
-                  <td className="px-4 py-3 text-2xs text-muted">{b.bill_date || '—'}</td>
-                  <td className="px-4 py-3 text-2xs"><span className={isOverdue(b) ? 'text-rose-600' : 'text-muted'}>{b.due_date || '—'}</span></td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(b.total, b.currency)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(Number(b.total) - Number(b.amount_paid), b.currency)}</td>
-                  <td className="px-4 py-3"><span className={`pill ${STATUS_PILL[isOverdue(b) ? 'overdue' : b.status] || 'pill-gray'}`}>{isOverdue(b) ? 'overdue' : b.status}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+
+      <ListView
+        rows={bills === null ? null : shown}
+        rowKey={(b) => b.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={BILL_FILTERS}
+        searchPlaceholder="Search bills…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(b) => isOverdue(b) ? 'overdue' : b.status}
+        groups={GROUPS}
+        onRowClick={(b) => setDetailId(b.id)}
+        exportName="bills"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-file-dollar"
+        emptyText="No bills yet."
+      />
+
       {detailId && <BillDetail id={detailId} orgId={org?.id} me={me?.id} onClose={() => { setDetailId(null); load(); }} onDeleted={() => { setDetailId(null); load(); }} />}
     </Layout>
   );
@@ -119,7 +185,7 @@ function BillDetail({ id, orgId, me, onClose, onDeleted }: { id: string; orgId?:
   return (
     <Modal open onClose={onClose} size="lg" icon="ti-file-dollar" title={bill?.bill_number || 'Bill'} subtitle={bill ? `${fmtMoney(bill.total, cur)} · ${bill.status}` : undefined}
       footer={<><button className="btn btn-danger mr-auto" onClick={removeBill}><Icon name="ti-trash" />Delete</button><button className="btn btn-primary" onClick={saveHdr} disabled={busy}>Save</button></>}>
-      {!bill ? <Spinner /> : <>
+      {!bill ? null : <>
         {err && <p className="text-sm text-rose-600 mb-2">{err}</p>}
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label="Vendor"><input className="input" value={hdr.vendor_name || ''} onChange={(e) => setHdr({ ...hdr, vendor_name: e.target.value })} /></Field>
