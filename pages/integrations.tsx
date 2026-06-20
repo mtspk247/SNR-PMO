@@ -100,10 +100,18 @@ export default function IntegrationsPage() {
   const liveCount = CATALOG.filter((i) => i.kind !== 'soon').length;
 
   const categories = useMemo(() => Array.from(new Set(CATALOG.map((i) => i.category))), []);
+
+  const catCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: CATALOG.length };
+    categories.forEach((c) => { counts[c] = CATALOG.filter((i) => i.category === c).length; });
+    return counts;
+  }, [categories]);
+
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return CATALOG.filter((i) => (cat === 'All' || i.category === cat) && (!needle || (i.name + ' ' + i.blurb).toLowerCase().includes(needle)));
   }, [q, cat]);
+
   const groups = useMemo(() => {
     const g: Record<string, Item[]> = {};
     visible.forEach((i) => { (g[i.category] = g[i.category] || []).push(i); });
@@ -121,82 +129,249 @@ export default function IntegrationsPage() {
       setModal(null); load();
     } catch (e: any) { setErr(e.message || 'Could not connect.'); } finally { setBusy(''); }
   };
+
   const disconnect = async (it: Item) => {
     if (!org || !confirm(`Disconnect ${it.name}?`)) return;
     setBusy(it.key);
     try { await sb.from('webhook_endpoints').delete().eq('org_id', org.id).eq('label', it.name); load(); } finally { setBusy(''); }
   };
 
+  const allCats = ['All', ...categories];
+
   return (
     <Layout flat title="Integrations">
       <PageHeader title="Integrations" subtitle="Connect SNR-PMO to the tools your team already uses." help="connections" />
 
-      <div className="flex items-start gap-3 rounded-lg bg-accent/10 border border-accent/20 px-4 py-3 mb-5">
-        <Icon name="ti-plug-connected" className="text-base text-accentstrong mt-0.5 shrink-0" />
-        <p className="text-sm text-content leading-relaxed">Slack, Discord and custom webhooks work today and fire on real activity (a deal is won, an invoice is paid…). One-click sign-in for the rest is rolling out — they&apos;re shown honestly as <span className="font-medium">Coming soon</span>, never a fake &ldquo;Connected.&rdquo;</p>
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-        <div className="relative flex-1 max-w-sm">
-          <Icon name="ti-search" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 text-base" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search integrations…" className="input w-full pl-9" />
+      {/* Stats bar */}
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20">
+          <Icon name="ti-plug-connected" className="text-sm text-accentstrong" />
+          <span className="text-xs font-medium text-accentstrong">{liveCount} live</span>
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-          {['All', ...categories].map((c) => (
-            <button key={c} onClick={() => setCat(c)} className={`px-3 h-8 rounded-full text-xs font-medium whitespace-nowrap transition ${cat === c ? 'bg-accent text-accentfg' : 'bg-surface2 text-muted hover:text-content'}`}>{c}</button>
-          ))}
-        </div>
-        <span className="text-2xs text-muted sm:ml-auto shrink-0">{liveCount} live · {connectedCount} connected · {CATALOG.length} in catalog</span>
-      </div>
-
-      {loading ? <Spinner /> : groups.map(([c, list]) => (
-        <div key={c} className="mb-7">
-          <p className="text-2xs uppercase tracking-wide text-muted font-medium mb-3">{c} <span className="text-muted2">· {list.length}</span></p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {list.map((it) => {
-              const on = it.kind === 'webhook' && isConnected(it);
-              return (
-                <div key={it.key} className={`card p-4 flex flex-col ${on ? 'ring-1 ring-accent/30' : ''}`}>
-                  <div className="flex items-start gap-3">
-                    <span className={`w-10 h-10 rounded-lg grid place-items-center shrink-0 ${on ? 'bg-accent/15 text-accentstrong' : 'bg-surface2 text-muted'}`}><Icon name={it.icon} className="text-lg" /></span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate text-content">{it.name}</p>
-                      {it.kind === 'webhook' && <span className={`pill ${on ? 'pill-green' : 'pill-gray'} mt-1`}>{on ? 'Connected' : 'Available'}</span>}
-                      {it.kind === 'link' && <span className="pill pill-sky mt-1">Available</span>}
-                      {it.kind === 'soon' && <span className="pill pill-gray mt-1">Coming soon</span>}
-                    </div>
-                  </div>
-                  <p className="text-2xs text-muted mt-2.5 line-clamp-2 min-h-[2rem]">{it.blurb}</p>
-                  {it.kind === 'webhook' && (on ? (
-                    <button onClick={() => disconnect(it)} disabled={!admin || busy === it.key} className="btn mt-3 w-full justify-center">{busy === it.key ? <Icon name="ti-loader-2" className="animate-spin" /> : 'Disconnect'}</button>
-                  ) : (
-                    <button onClick={() => { setErr(''); setUrl(''); setModal(it); }} disabled={!admin} className={`btn btn-primary mt-3 w-full justify-center ${!admin ? 'opacity-50 cursor-not-allowed' : ''}`}>Connect</button>
-                  ))}
-                  {it.kind === 'link' && <Link href={it.href || '#'} className="btn btn-primary mt-3 w-full justify-center">{it.cta || 'Open'}</Link>}
-                  {it.kind === 'soon' && <button disabled className="btn mt-3 w-full justify-center opacity-50 cursor-not-allowed">Coming soon</button>}
-                </div>
-              );
-            })}
+        {connectedCount > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface2 border border-line">
+            <Icon name="ti-circle-check" className="text-sm text-emerald-600" />
+            <span className="text-xs font-medium text-content">{connectedCount} connected</span>
           </div>
-        </div>
-      ))}
+        )}
+        <p className="text-xs text-muted ml-auto hidden sm:block">
+          Slack, Discord &amp; custom webhooks work today. The rest are coming soon — shown honestly, never faked.
+        </p>
+      </div>
 
-      {modal && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setModal(null)}>
-          <div className="card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2.5 mb-3">
-              <span className="w-9 h-9 rounded-lg grid place-items-center bg-accent/15 text-accentstrong"><Icon name={modal.icon} className="text-lg" /></span>
-              <p className="text-sm font-semibold text-content">Connect {modal.name}</p>
+      {/* Two-column layout: left rail + right grid */}
+      <div className="flex gap-6 items-start">
+
+        {/* ── Left category rail (lg+); collapses to select on mobile ── */}
+        <aside className="hidden lg:flex flex-col gap-0.5 w-44 shrink-0 sticky top-20">
+          <p className="text-2xs uppercase tracking-wide text-muted font-medium px-2 mb-2">Categories</p>
+          {allCats.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              className={[
+                'flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-sm transition',
+                cat === c
+                  ? 'bg-accent/10 text-accentstrong font-medium'
+                  : 'text-muted hover:text-content hover:bg-surface2',
+              ].join(' ')}
+            >
+              <span className="truncate">{c}</span>
+              <span className={[
+                'text-2xs font-medium tabular-nums shrink-0',
+                cat === c ? 'text-accentstrong' : 'text-muted2',
+              ].join(' ')}>
+                {catCounts[c]}
+              </span>
+            </button>
+          ))}
+        </aside>
+
+        {/* ── Right: search + mobile category selector + grid ── */}
+        <div className="flex-1 min-w-0">
+
+          {/* Toolbar */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Icon name="ti-search" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 text-sm pointer-events-none" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search integrations…"
+                className="input w-full pl-9"
+              />
             </div>
-            {modal.help && <p className="text-2xs text-muted mb-3 leading-relaxed">{modal.help}</p>}
+
+            {/* Mobile category selector — flex-wrap, NO overflow-x */}
+            <div className="flex flex-wrap gap-1.5 lg:hidden">
+              {allCats.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCat(c)}
+                  className={[
+                    'px-3 h-7 rounded-full text-xs font-medium whitespace-nowrap transition',
+                    cat === c ? 'bg-accent text-accentfg' : 'bg-surface2 text-muted hover:text-content',
+                  ].join(' ')}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Grid content */}
+          {loading ? (
+            <div className="flex items-center justify-center py-16"><Spinner /></div>
+          ) : groups.length === 0 ? (
+            <div className="card flex flex-col items-center justify-center py-16 text-center gap-3">
+              <span className="w-12 h-12 rounded-xl bg-surface2 grid place-items-center text-muted2">
+                <Icon name="ti-plug-x" className="text-xl" />
+              </span>
+              <p className="text-sm font-medium text-content">No integrations match your search</p>
+              <p className="text-xs text-muted">Try a different keyword or select a different category.</p>
+              <button
+                onClick={() => { setQ(''); setCat('All'); }}
+                className="btn mt-1"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            groups.map(([c, list]) => (
+              <div key={c} className="mb-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <p className="text-xs uppercase tracking-wide text-muted font-semibold">{c}</p>
+                  <span className="pill pill-gray">{list.length}</span>
+                </div>
+                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {list.map((it) => {
+                    const on = it.kind === 'webhook' && isConnected(it);
+                    return (
+                      <div
+                        key={it.key}
+                        className={[
+                          'card p-4 flex flex-col gap-3 transition',
+                          on ? 'ring-1 ring-accent/30' : '',
+                        ].join(' ')}
+                      >
+                        {/* Card header */}
+                        <div className="flex items-start gap-3">
+                          <span className={[
+                            'w-10 h-10 rounded-xl grid place-items-center shrink-0',
+                            on ? 'bg-accent/15 text-accentstrong' : 'bg-surface2 text-muted',
+                          ].join(' ')}>
+                            <Icon name={it.icon} className="text-lg" />
+                          </span>
+                          <div className="min-w-0 flex-1 pt-0.5">
+                            <p className="text-sm font-semibold text-content truncate leading-tight">{it.name}</p>
+                            <div className="mt-1.5">
+                              {it.kind === 'webhook' && (
+                                <span className={`pill ${on ? 'pill-green' : 'pill-gray'}`}>
+                                  {on ? 'Connected' : 'Available'}
+                                </span>
+                              )}
+                              {it.kind === 'link' && <span className="pill pill-sky">Available</span>}
+                              {it.kind === 'soon' && <span className="pill pill-gray">Coming soon</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Blurb */}
+                        <p className="text-xs text-muted leading-relaxed line-clamp-2 flex-1">{it.blurb}</p>
+
+                        {/* Action */}
+                        <div>
+                          {it.kind === 'webhook' && (on ? (
+                            <button
+                              onClick={() => disconnect(it)}
+                              disabled={!admin || busy === it.key}
+                              className="btn w-full justify-center text-xs"
+                            >
+                              {busy === it.key ? <Icon name="ti-loader-2" className="animate-spin" /> : 'Disconnect'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => { setErr(''); setUrl(''); setModal(it); }}
+                              disabled={!admin}
+                              className={`btn btn-primary w-full justify-center text-xs ${!admin ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              Connect
+                            </button>
+                          ))}
+                          {it.kind === 'link' && (
+                            <Link href={it.href || '#'} className="btn btn-primary w-full justify-center text-xs">
+                              {it.cta || 'Open'}
+                            </Link>
+                          )}
+                          {it.kind === 'soon' && (
+                            <button disabled className="btn w-full justify-center text-xs opacity-50 cursor-not-allowed">
+                              Coming soon
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Connect modal */}
+      {modal && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+          onClick={() => setModal(null)}
+        >
+          <div className="card p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="w-10 h-10 rounded-xl grid place-items-center bg-accent/15 text-accentstrong shrink-0">
+                <Icon name={modal.icon} className="text-lg" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-content">Connect {modal.name}</p>
+                <p className="text-xs text-muted mt-0.5">Paste your incoming webhook URL below.</p>
+              </div>
+            </div>
+
+            {/* Help instructions */}
+            {modal.help && (
+              <div className="rounded-lg bg-surface2 border border-line px-3 py-2.5 mb-4">
+                <p className="text-xs text-muted leading-relaxed">{modal.help}</p>
+              </div>
+            )}
+
+            {/* Input */}
             <label className="label mb-1 block">Webhook URL</label>
-            <input className="input w-full" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
-            <p className="text-2xs text-muted mt-1.5">We&apos;ll post here on workspace events. Fine-tune which events under Developer ▸ Webhooks.</p>
-            {err && <p className="text-sm text-rose-600 mt-2">{err}</p>}
-            <div className="flex justify-end gap-2 mt-4">
+            <input
+              className="input w-full"
+              autoFocus
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://…"
+            />
+            <p className="text-xs text-muted mt-1.5 leading-relaxed">
+              We&apos;ll post here on workspace events. Fine-tune which events under Developer ▸ Webhooks.
+            </p>
+
+            {err && (
+              <div className="flex items-start gap-2 mt-3 p-2.5 rounded-lg bg-rose-50 border border-rose-200">
+                <Icon name="ti-alert-circle" className="text-sm text-rose-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-rose-700">{err}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-5">
               <button className="btn" onClick={() => setModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={save} disabled={busy === 'save'}>{busy === 'save' ? 'Connecting…' : 'Connect'}</button>
+              <button className="btn btn-primary" onClick={save} disabled={busy === 'save'}>
+                {busy === 'save' ? (
+                  <span className="flex items-center gap-1.5"><Icon name="ti-loader-2" className="animate-spin text-sm" />Connecting…</span>
+                ) : 'Connect'}
+              </button>
             </div>
           </div>
         </div>
