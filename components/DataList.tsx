@@ -1,5 +1,6 @@
 import { useState, ReactNode } from 'react';
 import { Icon } from '@/components/ui';
+import Select from '@/components/Select';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
 
@@ -40,6 +41,14 @@ export type DataListProps<T> = {
 
 function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value: string; display: ReactNode; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
+  // Status / select columns render as the same always-interactive styled Select the Tasks list uses.
+  if (spec.type === 'select') {
+    return (
+      <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-[12rem]">
+        <Select value={value} onChange={(v) => { if (v !== value) onSave(v); }} options={spec.options || []} className="h-7 py-0 text-xs" />
+      </span>
+    );
+  }
   if (!editing) {
     return (
       <span onClick={(e) => { e.stopPropagation(); setEditing(true); }}
@@ -50,15 +59,6 @@ function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value:
     );
   }
   const commit = (v: string) => { setEditing(false); if (v !== value) onSave(v); };
-  if (spec.type === 'select') {
-    return (
-      <select autoFocus defaultValue={value} onClick={(e) => e.stopPropagation()}
-        onChange={(e) => commit(e.target.value)} onBlur={() => setEditing(false)}
-        className="input h-7 text-xs py-0">
-        {(spec.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    );
-  }
   return (
     <input autoFocus type={spec.type === 'date' ? 'date' : spec.type === 'number' ? 'number' : 'text'}
       defaultValue={value} onClick={(e) => e.stopPropagation()}
