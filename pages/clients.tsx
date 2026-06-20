@@ -10,7 +10,7 @@ import { hasFeature } from '@/lib/entitlements';
 import { listClients, createClient, updateClient, deleteClient, Client } from '@/lib/db';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
-import { DataList, GroupMeta } from '@/components/DataList';
+import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
 
@@ -166,6 +166,18 @@ export default function ClientsPage() {
     </Layout>
   );
 
+  const editable: Record<string, EditSpec> = {
+    name: { type: 'text' }, contact: { type: 'text' }, email: { type: 'text' }, phone: { type: 'text' },
+    status: { type: 'select', options: STATUSES.map((st) => ({ value: st, label: titleCase(st) })) },
+  };
+  const rawValue = (id: string, c: Client) =>
+    id === 'name' ? c.name : id === 'contact' ? (c.contact_name || '') : id === 'email' ? (c.email || '')
+    : id === 'phone' ? (c.phone || '') : id === 'status' ? c.status : '';
+  const onInlineEdit = async (c: Client, id: string, value: string) => {
+    const field = id === 'contact' ? 'contact_name' : id;
+    try { await updateClient(c.id, { [field]: value || null } as any); load(); } catch (e: any) { setErr(e.message); }
+  };
+
   return (
     <Layout flat title="Clients">
       <PageHeader help="crm"
@@ -231,6 +243,9 @@ export default function ClientsPage() {
           groupBy={groupBy}
           groupOf={(c) => c.status}
           groups={GROUPS}
+          editable={editable}
+          rawValue={rawValue}
+          onEdit={onInlineEdit}
         />
       )}
 

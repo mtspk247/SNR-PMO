@@ -9,6 +9,7 @@ import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
 // and behaves identically and fixes land everywhere at once.
 
 export type GroupMeta = { value: string; label: string; pill?: string };
+export type EditSpec = { type: 'text' | 'number' | 'date' | 'select'; options?: { value: string; label: string }[] };
 
 type Selection = {
   isSelected: (id: string) => boolean;
@@ -30,9 +31,43 @@ export type DataListProps<T> = {
   groupBy?: string;
   groupOf?: (r: T) => string;
   groups?: GroupMeta[];
+  /** Inline-edit: per-column edit spec + current-value getter + save handler.
+   *  Saving goes through the page's normal update fn, so RLS/RBAC stays enforced. */
+  editable?: Record<string, EditSpec>;
+  rawValue?: (colId: string, r: T) => string;
+  onEdit?: (r: T, colId: string, value: string) => void;
 };
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups }: DataListProps<T>) {
+function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value: string; display: ReactNode; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) {
+    return (
+      <span onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        className="inline-flex items-center gap-1 -mx-1 px-1 py-0.5 rounded cursor-text hover:bg-surface2 transition-colors">
+        {display}
+        <Icon name="ti-pencil" className="text-2xs text-muted2 opacity-0 group-hover:opacity-50" />
+      </span>
+    );
+  }
+  const commit = (v: string) => { setEditing(false); if (v !== value) onSave(v); };
+  if (spec.type === 'select') {
+    return (
+      <select autoFocus defaultValue={value} onClick={(e) => e.stopPropagation()}
+        onChange={(e) => commit(e.target.value)} onBlur={() => setEditing(false)}
+        className="input h-7 text-xs py-0">
+        {(spec.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    );
+  }
+  return (
+    <input autoFocus type={spec.type === 'date' ? 'date' : spec.type === 'number' ? 'number' : 'text'}
+      defaultValue={value} onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditing(false); }}
+      onBlur={(e) => commit(e.target.value)} className="input h-7 text-xs py-0 w-full max-w-[16rem]" />
+  );
+}
+
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const labelOf = (id: string) => cols.find((c) => c.id === id)?.label;
@@ -58,7 +93,16 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
         className={`group transition-colors hover:bg-surface2/40 ${onRowClick ? 'cursor-pointer' : ''} ${sel ? 'bg-accent/5' : ''}`}
         onClick={onRowClick ? () => onRowClick(r) : undefined}>
         {selCol && <td className="px-4 py-2.5 w-10" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={sel} onChange={() => selection!.toggle(id)} /></td>}
-        {prefs.ordered.map((cid) => <td key={cid} className="px-4 py-2.5 text-sm text-muted">{cell(cid, r)}</td>)}
+        {prefs.ordered.map((cid) => {
+          const ed = editable?.[cid];
+          return (
+            <td key={cid} className="px-4 py-2.5 text-sm text-muted">
+              {ed && onEdit && rawValue
+                ? <EditableCell spec={ed} value={rawValue(cid, r)} display={cell(cid, r)} onSave={(v) => onEdit(r, cid, v)} />
+                : cell(cid, r)}
+            </td>
+          );
+        })}
       </tr>
     );
   };
