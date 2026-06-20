@@ -4,6 +4,7 @@ import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
+import AddColumnForm from '@/components/AddColumnForm';
 
 // One reusable, ClickUp-style list: PLAIN borderless rows that highlight on hover,
 // a left 6-dot grip handle that drags rows with a floating chip that STICKS TO THE
@@ -77,8 +78,6 @@ function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value:
 
 function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   const [open, setOpen] = useState(false);
-  const [nm, setNm] = useState('');
-  const [ty, setTy] = useState('text');
   if (!prefs.cf?.canManage) return null;
   return (
     <div className="relative inline-block">
@@ -86,13 +85,8 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
         className="inline-flex items-center justify-center h-6 w-6 rounded text-muted2 hover:text-content hover:bg-surface2"><Icon name="ti-plus" className="text-sm" /></button>
       {open && <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpen(false); }} aria-hidden />}
       {open && (
-        <div className="absolute right-0 top-8 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-          <p className="text-2xs font-semibold text-muted2 uppercase tracking-wider px-0.5">New column</p>
-          <input autoFocus value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Column name" className="input h-8 text-sm w-full" />
-          <select value={ty} onChange={(e) => setTy(e.target.value)} className="input h-8 text-sm w-full">
-            <option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="checkbox">Checkbox</option>
-          </select>
-          <button onClick={async () => { const n = nm.trim(); if (!n) return; await prefs.cf!.addColumn(n, ty); setNm(''); setTy('text'); setOpen(false); }} className="btn btn-primary h-8 text-xs w-full">Add column</button>
+        <div className="absolute right-0 top-8 z-20 w-60 bg-surface border border-line rounded-lg shadow-lg p-2">
+          <AddColumnForm cf={prefs.cf!} onDone={() => setOpen(false)} />
         </div>
       )}
     </div>

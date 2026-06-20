@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
 import { useCustomColumns } from '@/components/useCustomColumns';
+import AddColumnForm from '@/components/AddColumnForm';
 import type { CustomColumnsApi } from '@/components/useCustomColumns';
 
 // Shared, config-driven list controls: search + Filter popover + Columns
@@ -86,8 +87,6 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
   const [fOpen, setFOpen] = useState(false);
   const [cOpen, setCOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [nm, setNm] = useState('');
-  const [ty, setTy] = useState('text');
   const [dragId, setDragId] = useState<string | null>(null);
   const byId = (id: string) => prefs.allCols.find((c) => c.id === id) || cols.find((c) => c.id === id);
   const onDrop = (dropId: string) => {
@@ -148,16 +147,7 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
                 {!addOpen ? (
                   <button onClick={() => setAddOpen(true)} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm text-accentstrong hover:bg-surface2"><Icon name="ti-plus" className="text-sm" />Add column</button>
                 ) : (
-                  <div className="p-2 space-y-2">
-                    <input autoFocus value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Column name" className="input h-8 text-sm w-full" />
-                    <select value={ty} onChange={(e) => setTy(e.target.value)} className="input h-8 text-sm w-full">
-                      <option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="checkbox">Checkbox</option>
-                    </select>
-                    <div className="flex gap-2">
-                      <button onClick={async () => { const n = nm.trim(); if (!n) return; await prefs.cf!.addColumn(n, ty); setNm(''); setTy('text'); setAddOpen(false); }} className="btn btn-primary h-8 text-xs flex-1">Add</button>
-                      <button onClick={() => { setAddOpen(false); setNm(''); }} className="btn h-8 text-xs">Cancel</button>
-                    </div>
-                  </div>
+                  <div className="p-2"><AddColumnForm cf={prefs.cf!} onDone={() => setAddOpen(false)} /></div>
                 )}
               </div>
             )}
