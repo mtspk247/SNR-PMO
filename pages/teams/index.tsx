@@ -108,7 +108,7 @@ export default function TeamsHub() {
       case 'overdue': return <span className={`tabular-nums ${st.overdue > 0 ? 'text-rose-500' : ''}`}>{st.overdue}</span>;
       case 'hours': return <span className="tabular-nums text-muted">{st.hours}</span>;
       case 'actions': return <div className="whitespace-nowrap"><Link href={`/teams/${tm.id}`} className="btn h-8 py-0" onClick={(e) => e.stopPropagation()}><Icon name="ti-layout-dashboard" className="text-sm" />Overview</Link>{manage && <button onClick={(e) => { e.stopPropagation(); openEdit(tm); }} className="btn h-8 py-0 ml-1"><Icon name="ti-pencil" className="text-sm" /></button>}</div>;
-      default: return '\u2014';
+      default: return '—';
     }
   };
   const exportValue = (id: string, tm: Team) => {
