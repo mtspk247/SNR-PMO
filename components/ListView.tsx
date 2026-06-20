@@ -4,6 +4,7 @@ import { useRowSelection, BulkBar } from '@/components/RowSelection';
 import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
 import { Spinner, EmptyState, Icon } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
+import { Board } from '@/components/Board';
 
 /**
  * ListView — the single, centralized shell for EVERY module list in the app.
@@ -67,6 +68,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
   const groupBy = canGroup && grouped ? p.groupField!.value : 'none';
   const [sortBy, setSortBy] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [view, setView] = useState<'list' | 'board'>('list');
   const sorted = useMemo<T[] | null>(() => {
     if (rows === null) return null;
     if (!sortBy) return rows;
@@ -124,6 +126,16 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
             trigger={<span className="inline-flex items-center justify-between gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-line bg-surface text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{sortBy ? (cols.find((c) => c.id === sortBy)?.label || sortBy) : 'No sort'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
           {sortBy && <button onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} title={sortDir === 'asc' ? 'Ascending' : 'Descending'} className="h-8 px-2 rounded-md text-muted hover:text-content hover:bg-surface2"><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>}
         </div>
+        {canGroup && (
+          <div className="flex items-center rounded-lg border border-line overflow-hidden h-8 shrink-0">
+            {(['list', 'board'] as const).map((vw) => (
+              <button key={vw} onClick={() => setView(vw)}
+                className={`h-full px-2.5 text-xs capitalize inline-flex items-center gap-1 transition ${view === vw ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
+                <Icon name={vw === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{vw}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {hasBulk && (
@@ -136,6 +148,20 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
 
       {rows === null ? (
         <div className="card p-8 border border-line/40"><Spinner /></div>
+      ) : (view === 'board' && canGroup) ? (
+        <Board
+          rows={sorted as T[]}
+          rowKey={p.rowKey}
+          cols={cols}
+          prefs={prefs}
+          cell={p.cell}
+          groups={p.groups!}
+          groupOf={p.groupOf!}
+          statusCol={p.groupField!.value}
+          onRowClick={p.onRowClick}
+          onMove={p.editable && p.editable[p.groupField!.value] && p.onEdit ? (r, target) => p.onEdit!(r, p.groupField!.value, target) : undefined}
+          onAddInGroup={p.onAddInGroup}
+        />
       ) : rows.length === 0 ? (
         <div className="card p-8 border border-line/40"><EmptyState icon={p.emptyIcon || 'ti-list'} text={p.emptyText || 'Nothing here yet.'} /></div>
       ) : (
