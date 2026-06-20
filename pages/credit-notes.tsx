@@ -2,18 +2,38 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listCreditNotes, createCreditNote, updateCreditNote, deleteCreditNote, CreditNote } from '@/lib/db';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const STATUS_PILL: Record<string, string> = { open: 'pill-amber', applied: 'pill-green', void: 'pill-gray' };
 const STATUSES = ['open', 'applied', 'void'] as const;
+type CNStatus = typeof STATUSES[number];
+
+const GROUPS: GroupMeta[] = STATUSES.map((st) => ({ value: st, label: titleCase(st), pill: STATUS_PILL[st] || 'pill-gray' }));
 
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+const COLS: ColDef[] = [
+  { id: 'credit_number', label: 'Credit #', locked: true },
+  { id: 'client_name', label: 'Client' },
+  { id: 'amount', label: 'Amount' },
+  { id: 'issue_date', label: 'Issue date' },
+  { id: 'reason', label: 'Reason' },
+  { id: 'status', label: 'Status' },
+];
+
+const CN_FILTERS: FilterDef[] = [
+  { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))] },
+];
 
 type Draft = Partial<CreditNote>;
 const emptyDraft = (nextNum: string): Draft => ({
@@ -30,10 +50,12 @@ export default function CreditNotesPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'financial');
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
 
   const [list, setList] = useState<CreditNote[] | null>(null);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.credit_notes.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -51,6 +73,8 @@ export default function CreditNotesPage() {
     ),
     [list, q, statusF]
   );
+
+  const rs = useRowSelection(shown);
 
   const kpis = useMemo(() => {
     const all = list || [];
@@ -90,6 +114,36 @@ export default function CreditNotesPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
+  const cell = (id: string, cn: CreditNote) => {
+    switch (id) {
+      case 'credit_number': return <span className="font-medium text-content">{cn.credit_number}</span>;
+      case 'client_name': return cn.client_name || '—';
+      case 'amount': return fmtMoney(cn.amount);
+      case 'issue_date': return cn.issue_date || '—';
+      case 'reason': return cn.reason || '—';
+      case 'status': return <span className={`pill ${STATUS_PILL[cn.status] || 'pill-gray'}`}>{cn.status}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, cn: CreditNote) => {
+    switch (id) {
+      case 'credit_number': return cn.credit_number;
+      case 'client_name': return cn.client_name || '';
+      case 'amount': return String(cn.amount);
+      case 'issue_date': return cn.issue_date || '';
+      case 'reason': return cn.reason || '';
+      case 'status': return cn.status;
+      default: return '';
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} credit note${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const cn of rs.selected) await deleteCreditNote(cn.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   if (!enabled) return (
     <Layout flat title="Credit Notes">
@@ -118,56 +172,27 @@ export default function CreditNotesPage() {
         <StatCard label="Applied value" value={fmtMoney(kpis.appliedValue)} icon="ti-circle-check" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search credit #, client…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
-      </div>
-
-      <div className="card overflow-hidden">
-        {list === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-receipt-refund" text="No credit notes found." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Credit #</th>
-                  <th className="px-4 py-3">Client</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3">Issue date</th>
-                  <th className="px-4 py-3">Reason</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((cn) => (
-                  <tr
-                    key={cn.id}
-                    className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                    onClick={() => setEditor({ mode: 'edit', draft: { ...cn } })}
-                  >
-                    <td className="px-4 py-3 font-medium text-content">{cn.credit_number}</td>
-                    <td className="px-4 py-3 text-muted">{cn.client_name || '—'}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(cn.amount)}</td>
-                    <td className="px-4 py-3 text-muted">{cn.issue_date || '—'}</td>
-                    <td className="px-4 py-3 text-muted max-w-[180px] truncate">{cn.reason || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`pill ${STATUS_PILL[cn.status] || 'pill-gray'}`}>{cn.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ListView
+        rows={list === null ? null : shown}
+        rowKey={(cn) => cn.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={CN_FILTERS}
+        searchPlaceholder="Search credit #, client…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(cn) => cn.status}
+        groups={GROUPS}
+        onRowClick={(cn) => setEditor({ mode: 'edit', draft: { ...cn } })}
+        exportName="credit-notes"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-receipt-refund"
+        emptyText="No credit notes found."
+      />
 
       {editor && (
         <Modal
@@ -229,7 +254,7 @@ export default function CreditNotesPage() {
               />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status || 'open'} onChange={(v) => setD({ status: v as CreditNote['status'] })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
+              <Select value={editor.draft.status || 'open'} onChange={(v) => setD({ status: v as CNStatus })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
             </Field>
             <Field label="Reason">
               <input

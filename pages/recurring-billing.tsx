@@ -1,83 +1,222 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
 import { useActiveOrg } from '@/lib/store';
 import { subscriptionSchedules, subscriptionSave, subscriptionDelete, subscriptionGenerateDue, subscriptionRuns, products, SubscriptionSchedule, SubscriptionRun, Product } from '@/lib/db';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const CYCLES = [{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }, { value: 'quarterly', label: 'Quarterly' }, { value: 'annual', label: 'Annual' }];
 const DIRS = [{ value: 'expense', label: 'Expense — we pay (→ Bill)' }, { value: 'revenue', label: 'Revenue — we charge (→ Invoice)' }];
 const STATUSES = [{ value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }, { value: 'ended', label: 'Ended' }];
+const STATUS_VALUES = ['active', 'paused', 'ended'] as const;
+const STATUS_PILL: Record<string, string> = { active: 'pill-green', paused: 'pill-amber', ended: 'pill-gray' };
+const DIR_PILL: Record<string, string> = { revenue: 'pill-green', expense: 'pill-blue' };
+
 const money = (n: number) => (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().slice(0, 10);
+
 type Draft = { id?: string; name: string; direction: string; counterparty: string; product_id: string; amount: string; currency: string; tax_rate: string; cycle: string; start_date: string; next_run: string; end_date: string; status: string; notes: string };
+
+const GROUPS: GroupMeta[] = STATUS_VALUES.map((st) => ({ value: st, label: st.charAt(0).toUpperCase() + st.slice(1), pill: STATUS_PILL[st] || 'pill-gray' }));
+
+const COLS: ColDef[] = [
+  { id: 'name', label: 'Name', locked: true },
+  { id: 'direction', label: 'Type' },
+  { id: 'counterparty', label: 'Counterparty' },
+  { id: 'amount', label: 'Amount' },
+  { id: 'cycle', label: 'Cycle' },
+  { id: 'next_run', label: 'Next run' },
+  { id: 'status', label: 'Status' },
+];
+
+const RB_FILTERS: FilterDef[] = [
+  { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...STATUSES] },
+  { id: 'direction', label: 'Type', options: [{ value: 'all', label: 'All types' }, { value: 'revenue', label: 'Revenue' }, { value: 'expense', label: 'Expense' }] },
+];
 
 export default function RecurringBillingPage() {
   const org = useActiveOrg();
   const orgId = org?.id;
-  const [rows, setRows] = useState<SubscriptionSchedule[]>([]);
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+
+  const [rows, setRows] = useState<SubscriptionSchedule[] | null>(null);
   const [runs, setRuns] = useState<SubscriptionRun[]>([]);
   const [prods, setProds] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState(''); const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  const load = () => { if (!orgId) return; subscriptionSchedules(orgId).then(setRows).catch((e) => setErr(e.message)); subscriptionRuns(orgId).then(setRuns).catch(() => {}); };
-  useEffect(() => { if (!orgId) return; setLoading(true); Promise.all([subscriptionSchedules(orgId).then(setRows), subscriptionRuns(orgId).then(setRuns).catch(() => {}), products(orgId).then(setProds).catch(() => {})]).catch((e) => setErr(e.message)).finally(() => setLoading(false)); }, [orgId]);
+  const prefs = useListPrefs('snrpmo.recurring_billing.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
+  const directionF = prefs.filters.direction || 'all';
 
-  const dueCount = useMemo(() => rows.filter((r) => r.status === 'active' && r.next_run && r.next_run <= today()).length, [rows]);
-  const mrr = useMemo(() => rows.filter((r) => r.status === 'active').reduce((s, r) => { const m = r.cycle === 'weekly' ? 4.33 : r.cycle === 'monthly' ? 1 : r.cycle === 'quarterly' ? 1 / 3 : 1 / 12; return s + (r.direction === 'revenue' ? 1 : -1) * Number(r.amount) * m; }, 0), [rows]);
+  const load = () => {
+    if (!orgId) return;
+    subscriptionSchedules(orgId).then(setRows).catch((e) => { setErr(e.message); setRows([]); });
+    subscriptionRuns(orgId).then(setRuns).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!orgId) return;
+    Promise.all([
+      subscriptionSchedules(orgId).then(setRows),
+      subscriptionRuns(orgId).then(setRuns).catch(() => {}),
+      products(orgId).then(setProds).catch(() => {}),
+    ]).catch((e) => { setErr(e.message); setRows([]); });
+  }, [orgId]);
+
+  const dueCount = useMemo(() => (rows || []).filter((r) => r.status === 'active' && r.next_run && r.next_run <= today()).length, [rows]);
+  const mrr = useMemo(() => (rows || []).filter((r) => r.status === 'active').reduce((s, r) => {
+    const m = r.cycle === 'weekly' ? 4.33 : r.cycle === 'monthly' ? 1 : r.cycle === 'quarterly' ? 1 / 3 : 1 / 12;
+    return s + (r.direction === 'revenue' ? 1 : -1) * Number(r.amount) * m;
+  }, 0), [rows]);
+
+  const shown = useMemo(() =>
+    (rows || []).filter((r) =>
+      (statusF === 'all' || r.status === statusF) &&
+      (directionF === 'all' || r.direction === directionF) &&
+      (!q.trim() || `${r.name} ${r.counterparty || ''}`.toLowerCase().includes(q.toLowerCase()))
+    ),
+    [rows, q, statusF, directionF]
+  );
+
+  const rs = useRowSelection(shown);
+
+  const cell = (id: string, r: SubscriptionSchedule) => {
+    const due = r.status === 'active' && r.next_run && r.next_run <= today();
+    switch (id) {
+      case 'name': return <span className="font-medium text-content">{r.name}</span>;
+      case 'direction': return <span className={`pill ${DIR_PILL[r.direction] || 'pill-gray'}`}>{r.direction === 'revenue' ? 'Revenue' : 'Expense'}</span>;
+      case 'counterparty': return r.counterparty || '—';
+      case 'amount': return <span className="tabular-nums">{money(Number(r.amount))}</span>;
+      case 'cycle': return <span className="capitalize">{r.cycle}</span>;
+      case 'next_run': return <span className={due ? 'text-rose-600 font-medium' : 'text-muted2'}>{r.next_run || '—'}</span>;
+      case 'status': return <span className={`pill ${STATUS_PILL[r.status] || 'pill-gray'}`}>{r.status}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, r: SubscriptionSchedule) => {
+    switch (id) {
+      case 'name': return r.name;
+      case 'direction': return r.direction;
+      case 'counterparty': return r.counterparty || '';
+      case 'amount': return money(Number(r.amount));
+      case 'cycle': return r.cycle;
+      case 'next_run': return r.next_run || '';
+      case 'status': return r.status;
+      default: return '';
+    }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    name: { type: 'text' },
+    counterparty: { type: 'text' },
+    amount: { type: 'number' },
+    cycle: { type: 'select', options: CYCLES },
+  };
+
+  const rawValue = (id: string, r: SubscriptionSchedule) => {
+    switch (id) {
+      case 'name': return r.name;
+      case 'counterparty': return r.counterparty || '';
+      case 'amount': return String(r.amount);
+      case 'cycle': return r.cycle;
+      default: return '';
+    }
+  };
+
+  const onInlineEdit = async (r: SubscriptionSchedule, id: string, value: string) => {
+    const patch: Record<string, string | number | null> = id === 'amount' ? { amount: parseFloat(value) || 0 } : { [id]: value || null };
+    try { await subscriptionSave(orgId!, { ...r, ...patch }); load(); } catch (e: any) { setErr(e.message); }
+  };
 
   const openNew = () => setDraft({ name: '', direction: 'expense', counterparty: '', product_id: '', amount: '', currency: 'USD', tax_rate: '', cycle: 'monthly', start_date: today(), next_run: today(), end_date: '', status: 'active', notes: '' });
   const openEdit = (r: SubscriptionSchedule) => setDraft({ id: r.id, name: r.name, direction: r.direction, counterparty: r.counterparty || '', product_id: r.product_id || '', amount: String(r.amount), currency: r.currency, tax_rate: r.tax_rate ? String(r.tax_rate) : '', cycle: r.cycle, start_date: r.start_date, next_run: r.next_run || '', end_date: r.end_date || '', status: r.status, notes: r.notes || '' });
+
   const save = async () => {
-    if (!orgId || !draft || busy) return; setBusy(true); setErr('');
-    try { await subscriptionSave(orgId, { id: draft.id, name: draft.name, direction: draft.direction, counterparty: draft.counterparty || null, product_id: draft.product_id || null, amount: parseFloat(draft.amount) || 0, currency: draft.currency, tax_rate: parseFloat(draft.tax_rate) || 0, cycle: draft.cycle, start_date: draft.start_date || null, next_run: draft.next_run || null, end_date: draft.end_date || null, status: draft.status, notes: draft.notes || null }); setDraft(null); load(); }
+    if (!orgId || !draft || busy) return;
+    setBusy(true); setErr('');
+    try {
+      await subscriptionSave(orgId, { id: draft.id, name: draft.name, direction: draft.direction, counterparty: draft.counterparty || null, product_id: draft.product_id || null, amount: parseFloat(draft.amount) || 0, currency: draft.currency, tax_rate: parseFloat(draft.tax_rate) || 0, cycle: draft.cycle, start_date: draft.start_date || null, next_run: draft.next_run || null, end_date: draft.end_date || null, status: draft.status, notes: draft.notes || null });
+      setDraft(null); load();
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  const bulkDelete = async () => {
+    if (!orgId || !rs.count || !confirm(`Delete ${rs.count} subscription${rs.count > 1 ? 's' : ''}? Already-generated invoices/bills are kept.`)) return;
+    setBusy(true); setErr('');
+    try { for (const r of rs.selected) await subscriptionDelete(orgId, r.id); rs.clear(); load(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
-  const del = async (r: SubscriptionSchedule) => { if (!orgId || !confirm(`Delete subscription "${r.name}"? Already-generated invoices/bills are kept.`)) return; try { await subscriptionDelete(orgId, r.id); load(); } catch (e: any) { setErr(e.message); } };
-  const generate = async () => { if (!orgId || busy) return; setBusy(true); setErr(''); setMsg(''); try { const r = await subscriptionGenerateDue(orgId); setMsg(`Generated ${r.generated} invoice/bill${r.generated === 1 ? '' : 's'} from due subscriptions.`); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
-  if (!org) return <Layout flat title="Recurring Billing"><Spinner /></Layout>;
+  const generate = async () => {
+    if (!orgId || busy) return;
+    setBusy(true); setErr(''); setMsg('');
+    try { const r = await subscriptionGenerateDue(orgId); setMsg(`Generated ${r.generated} invoice/bill${r.generated === 1 ? '' : 's'} from due subscriptions.`); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   return (
     <Layout flat title="Recurring Billing">
-      <PageHeader title="Recurring Billing" subtitle="Subscriptions & recurring charges — auto-generate invoices (revenue) or bills (expense) that post to the ledger" icon="ti-refresh"
-        action={<div className="flex items-center gap-2"><button onClick={generate} disabled={busy} className="btn"><Icon name="ti-player-play" />Generate due{dueCount ? ` (${dueCount})` : ''}</button><button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New subscription</button></div>} />
+      <PageHeader
+        title="Recurring Billing"
+        subtitle="Subscriptions & recurring charges — auto-generate invoices (revenue) or bills (expense) that post to the ledger"
+        icon="ti-refresh"
+        action={
+          <div className="flex items-center gap-2">
+            <button onClick={generate} disabled={busy} className="btn">
+              <Icon name="ti-player-play" />Generate due{dueCount ? ` (${dueCount})` : ''}
+            </button>
+            <button onClick={openNew} className="btn btn-primary">
+              <Icon name="ti-plus" />New subscription
+            </button>
+          </div>
+        }
+      />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {msg && <p className="text-sm text-emerald-600 mb-3">{msg}</p>}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-        <StatCard label="Active subscriptions" value={String(rows.filter((r) => r.status === 'active').length)} icon="ti-refresh" />
+        <StatCard label="Active subscriptions" value={String((rows || []).filter((r) => r.status === 'active').length)} icon="ti-refresh" />
         <StatCard label="Due now" value={String(dueCount)} icon="ti-clock" hintTone={dueCount ? 'down' : 'muted'} />
         <StatCard label="Net monthly" value={money(mrr)} icon="ti-cash" hintTone={mrr >= 0 ? 'up' : 'down'} />
       </div>
-      {loading ? <Spinner /> : rows.length === 0 ? (
-        <EmptyState icon="ti-refresh" text="No subscriptions yet." />
-      ) : (
-        <div className="card overflow-hidden mb-5">
-          <table className="w-full text-sm list-card">
-            <thead><tr><th className="px-4 py-2 text-left">Name</th><th className="px-4 py-2 text-left">Type</th><th className="px-4 py-2 text-left">Counterparty</th><th className="px-4 py-2 text-right">Amount</th><th className="px-4 py-2 text-left">Cycle</th><th className="px-4 py-2 text-left">Next run</th><th className="px-4 py-2 text-left">Status</th><th className="px-4 py-2"></th></tr></thead>
-            <tbody>
-              {rows.map((r) => { const due = r.status === 'active' && r.next_run && r.next_run <= today(); return (
-                <tr key={r.id}>
-                  <td className="px-4 py-2 text-content font-medium">{r.name}</td>
-                  <td className="px-4 py-2"><span className={`pill ${r.direction === 'revenue' ? 'pill-green' : 'pill-blue'}`}>{r.direction === 'revenue' ? 'Revenue' : 'Expense'}</span></td>
-                  <td className="px-4 py-2 text-muted">{r.counterparty || '—'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{money(Number(r.amount))}</td>
-                  <td className="px-4 py-2 capitalize">{r.cycle}</td>
-                  <td className="px-4 py-2 text-2xs"><span className={due ? 'text-rose-600 font-medium' : 'text-muted2'}>{r.next_run || '—'}</span></td>
-                  <td className="px-4 py-2"><span className={`pill ${r.status === 'active' ? 'pill-green' : r.status === 'paused' ? 'pill-amber' : 'pill-gray'}`}>{r.status}</span></td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap"><button className="btn-ghost text-2xs" onClick={() => openEdit(r)}><Icon name="ti-pencil" /></button><button className="btn-ghost text-2xs text-rose-600 ml-1" onClick={() => del(r)}><Icon name="ti-trash" /></button></td>
-                </tr>
-              ); })}
-            </tbody>
-          </table>
-        </div>
-      )}
+
+      <ListView
+        rows={rows === null ? null : shown}
+        rowKey={(r) => r.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={RB_FILTERS}
+        searchPlaceholder="Search subscriptions…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(r) => r.status}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(r) => openEdit(r)}
+        exportName="recurring-billing"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-refresh"
+        emptyText="No subscriptions yet."
+      />
 
       {runs.length > 0 && (
-        <div className="card overflow-hidden">
+        <div className="card overflow-hidden mt-5">
           <div className="px-4 py-2.5 border-b border-line"><span className="text-sm font-semibold text-content">Recently generated</span></div>
           <table className="w-full text-sm list-card">
             <thead><tr><th className="px-4 py-2 text-left">Generated</th><th className="px-4 py-2 text-left">Period</th><th className="px-4 py-2 text-left">Document</th><th className="px-4 py-2 text-right">Amount</th></tr></thead>

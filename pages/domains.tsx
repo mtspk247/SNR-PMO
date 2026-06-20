@@ -315,7 +315,7 @@ export default function DomainsPage() {
                 <button
                   className="btn btn-danger mr-auto"
                   disabled={busy}
-                  onClick={() => editor.draft.id && remove(editor.draft as Domain)}
+                  onClick={async () => { if (editor.draft.id && confirm('Delete this domain?')) { await deleteDomain(editor.draft.id); setEditor(null); load(); } }}
                 >
                   <Icon name="ti-trash" />Delete
                 </button>

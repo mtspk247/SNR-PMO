@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
+import { PageHeader, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
-import { useActiveOrg } from '@/lib/store';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { liabilities, liabilitySave, liabilityDelete, glAccounts, Liability, CoaAccount } from '@/lib/db';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta, EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const TYPES = [
   { value: 'loan', label: 'Loan' },
@@ -17,27 +21,137 @@ const STATUSES = [{ value: 'active', label: 'Active' }, { value: 'paid', label: 
 const money = (n: number) => (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const typeLabel = (t: string) => TYPES.find((x) => x.value === t)?.label || t;
 
+const STATUS_PILL: Record<string, string> = {
+  active: 'pill-amber',
+  paid: 'pill-green',
+  closed: 'pill-gray',
+};
+
+const GROUPS: GroupMeta[] = [
+  { value: 'active', label: 'Active', pill: 'pill-amber' },
+  { value: 'paid', label: 'Paid', pill: 'pill-green' },
+  { value: 'closed', label: 'Closed', pill: 'pill-gray' },
+];
+
+const COLS: ColDef[] = [
+  { id: 'name', label: 'Name', locked: true },
+  { id: 'type', label: 'Type' },
+  { id: 'lender', label: 'Lender' },
+  { id: 'balance', label: 'Balance' },
+  { id: 'rate', label: 'Rate' },
+  { id: 'due_date', label: 'Due' },
+  { id: 'status', label: 'Status' },
+];
+
+const LIAB_FILTERS: FilterDef[] = [
+  { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'paid', label: 'Paid' }, { value: 'closed', label: 'Closed' }] },
+  { id: 'type', label: 'Type', options: [{ value: 'all', label: 'All types' }, ...TYPES] },
+];
+
 type Draft = { id?: string; name: string; type: string; lender: string; principal: string; balance: string; interest_rate: string; start_date: string; due_date: string; account_id: string; status: string; notes: string; post_opening: boolean };
 
 export default function LiabilitiesPage() {
   const org = useActiveOrg();
+  const me = useAuthStore((s) => s.user);
   const orgId = org?.id;
-  const [rows, setRows] = useState<Liability[]>([]);
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [rows, setRows] = useState<Liability[] | null>(null);
   const [accts, setAccts] = useState<CoaAccount[]>([]);
-  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  const load = () => orgId ? liabilities(orgId).then(setRows).catch((e) => setErr(e.message)) : Promise.resolve();
+  const prefs = useListPrefs('snrpmo.liabilities.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
+  const typeF = prefs.filters.type || 'all';
+
+  const load = () => {
+    if (!orgId) return;
+    liabilities(orgId).then(setRows).catch((e) => { setErr(e.message); setRows([]); });
+  };
+
   useEffect(() => {
     if (!orgId) return;
-    setLoading(true);
-    Promise.all([liabilities(orgId).then(setRows), glAccounts(orgId).then(setAccts).catch(() => {})]).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+    Promise.all([
+      liabilities(orgId).then(setRows).catch((e) => { setErr(e.message); setRows([]); }),
+      glAccounts(orgId).then(setAccts).catch(() => {}),
+    ]);
   }, [orgId]);
 
   const liabilityAccts = useMemo(() => accts.filter((a) => a.type === 'liability' && a.is_active).map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` })), [accts]);
-  const totalBalance = useMemo(() => rows.filter((r) => r.status === 'active').reduce((s, r) => s + Number(r.balance), 0), [rows]);
+  const totalBalance = useMemo(() => (rows || []).filter((r) => r.status === 'active').reduce((s, r) => s + Number(r.balance), 0), [rows]);
+
+  const shown = useMemo(() =>
+    (rows || []).filter((r) =>
+      (statusF === 'all' || r.status === statusF) &&
+      (typeF === 'all' || r.type === typeF) &&
+      (!q.trim() || `${r.name} ${r.lender || ''}`.toLowerCase().includes(q.toLowerCase()))
+    ),
+    [rows, q, statusF, typeF]
+  );
+
+  const rs = useRowSelection(shown);
+
+  const cell = (id: string, r: Liability) => {
+    switch (id) {
+      case 'name': return <span className="font-medium text-content">{r.name}</span>;
+      case 'type': return <span className="pill pill-gray">{typeLabel(r.type)}</span>;
+      case 'lender': return r.lender || '—';
+      case 'balance': return <span className="tabular-nums">{money(Number(r.balance))}</span>;
+      case 'rate': return r.interest_rate != null ? <span className="tabular-nums text-muted">{(r.interest_rate * 100).toFixed(2)}%</span> : '—';
+      case 'due_date': return r.due_date || '—';
+      case 'status': return <span className={`pill ${STATUS_PILL[r.status] || 'pill-gray'}`}>{r.status}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportValue = (id: string, r: Liability) => {
+    switch (id) {
+      case 'name': return r.name;
+      case 'type': return typeLabel(r.type);
+      case 'lender': return r.lender || '';
+      case 'balance': return money(Number(r.balance));
+      case 'rate': return r.interest_rate != null ? `${(r.interest_rate * 100).toFixed(2)}%` : '';
+      case 'due_date': return r.due_date || '';
+      case 'status': return r.status;
+      default: return '';
+    }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    name: { type: 'text' },
+    lender: { type: 'text' },
+    balance: { type: 'number' },
+    status: { type: 'select', options: STATUSES },
+  };
+
+  const rawValue = (id: string, r: Liability) => {
+    switch (id) {
+      case 'name': return r.name;
+      case 'lender': return r.lender || '';
+      case 'balance': return String(r.balance);
+      case 'status': return r.status;
+      default: return '';
+    }
+  };
+
+  const onInlineEdit = async (r: Liability, id: string, value: string) => {
+    try {
+      await liabilitySave(orgId!, {
+        id: r.id, name: r.name, type: r.type, lender: r.lender || null,
+        principal: Number(r.principal), balance: id === 'balance' ? (parseFloat(value) || 0) : Number(r.balance),
+        interest_rate: r.interest_rate,
+        start_date: r.start_date || null, due_date: r.due_date || null,
+        account_id: r.account_id || null,
+        status: id === 'status' ? value : r.status,
+        notes: r.notes || null, post_opening: false,
+        ...(id === 'name' ? { name: value } : {}),
+        ...(id === 'lender' ? { lender: value || null } : {}),
+      });
+      load();
+    } catch (e: any) { setErr(e.message); }
+  };
 
   const openNew = () => setDraft({ name: '', type: 'loan', lender: '', principal: '', balance: '', interest_rate: '', start_date: new Date().toISOString().slice(0, 10), due_date: '', account_id: liabilityAccts[0]?.value || '', status: 'active', notes: '', post_opening: false });
   const openEdit = (r: Liability) => setDraft({ id: r.id, name: r.name, type: r.type, lender: r.lender || '', principal: String(r.principal), balance: String(r.balance), interest_rate: r.interest_rate != null ? String(r.interest_rate * 100) : '', start_date: r.start_date || '', due_date: r.due_date || '', account_id: r.account_id || '', status: r.status, notes: r.notes || '', post_opening: false });
@@ -53,12 +167,16 @@ export default function LiabilitiesPage() {
         start_date: draft.start_date || null, due_date: draft.due_date || null,
         account_id: draft.account_id || null, status: draft.status, notes: draft.notes || null, post_opening: draft.post_opening,
       });
-      setDraft(null); await load();
+      setDraft(null); load();
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
-  const del = async (r: Liability) => { if (!orgId || !confirm(`Delete liability "${r.name}"?`)) return; try { await liabilityDelete(orgId, r.id); await load(); } catch (e: any) { setErr(e.message); } };
 
-  if (!org) return <Layout flat title="Liabilities"><Spinner /></Layout>;
+  const bulkDelete = async () => {
+    if (!orgId || !rs.count || !confirm(`Delete ${rs.count} liabilit${rs.count > 1 ? 'ies' : 'y'}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const r of rs.selected) await liabilityDelete(orgId, r.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   return (
     <Layout flat title="Liabilities">
@@ -66,32 +184,34 @@ export default function LiabilitiesPage() {
         action={<button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New liability</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-        <StatCard label="Active liabilities" value={String(rows.filter((r) => r.status === 'active').length)} icon="ti-businessplan" />
+        <StatCard label="Active liabilities" value={String((rows || []).filter((r) => r.status === 'active').length)} icon="ti-businessplan" />
         <StatCard label="Outstanding balance" value={money(totalBalance)} icon="ti-cash" />
       </div>
-      {loading ? <Spinner /> : rows.length === 0 ? (
-        <EmptyState icon="ti-businessplan" text="No liabilities recorded yet." />
-      ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm list-card">
-            <thead><tr><th className="px-4 py-2 text-left">Name</th><th className="px-4 py-2 text-left">Type</th><th className="px-4 py-2 text-left">Lender</th><th className="px-4 py-2 text-right">Balance</th><th className="px-4 py-2 text-right">Rate</th><th className="px-4 py-2 text-left">Due</th><th className="px-4 py-2 text-left">Status</th><th className="px-4 py-2"></th></tr></thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td className="px-4 py-2 text-content font-medium">{r.name}</td>
-                  <td className="px-4 py-2"><span className="pill pill-gray">{typeLabel(r.type)}</span></td>
-                  <td className="px-4 py-2 text-muted">{r.lender || '—'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{money(Number(r.balance))}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-muted">{r.interest_rate != null ? `${(r.interest_rate * 100).toFixed(2)}%` : '—'}</td>
-                  <td className="px-4 py-2 text-2xs text-muted2">{r.due_date || '—'}</td>
-                  <td className="px-4 py-2"><span className={`pill ${r.status === 'active' ? 'pill-amber' : r.status === 'paid' ? 'pill-green' : 'pill-gray'}`}>{r.status}</span></td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap"><button className="btn-ghost text-2xs" onClick={() => openEdit(r)}><Icon name="ti-pencil" /></button><button className="btn-ghost text-2xs text-rose-600 ml-1" onClick={() => del(r)}><Icon name="ti-trash" /></button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+
+      <ListView
+        rows={rows === null ? null : shown}
+        rowKey={(r) => r.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        filters={LIAB_FILTERS}
+        searchPlaceholder="Search liabilities…"
+        groupField={{ value: 'status', label: 'Status' }}
+        groupOf={(r) => r.status}
+        groups={GROUPS}
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRowClick={(r) => openEdit(r)}
+        exportName="liabilities"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={isAdmin}
+        busy={busy}
+        emptyIcon="ti-businessplan"
+        emptyText="No liabilities recorded yet."
+      />
 
       <Modal open={!!draft} onClose={() => setDraft(null)} size="md" icon="ti-businessplan" title={draft?.id ? 'Edit liability' : 'New liability'}
         footer={<><button className="btn" onClick={() => setDraft(null)}>Cancel</button><button className="btn btn-primary" disabled={busy || !draft?.name.trim()} onClick={save}>{busy ? 'Saving…' : 'Save liability'}</button></>}>
