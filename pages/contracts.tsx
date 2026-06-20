@@ -11,6 +11,8 @@ import { hasFeature } from '@/lib/entitlements';
 import { listContracts, createContract, updateContract, deleteContract, Contract } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, HeadCheckbox, RowCheckbox, BulkBar } from '@/components/RowSelection';
 
 const STATUS_PILL: Record<string, string> = {
   draft: 'pill-gray',
@@ -27,6 +29,18 @@ const fmtMoney = (n: number, c = 'USD') =>
 const daysTo = (d: string | null) =>
   d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null;
 
+const COLS: ColDef[] = [
+  { id: 'title', label: 'Title', locked: true },
+  { id: 'client', label: 'Client' },
+  { id: 'value', label: 'Value' },
+  { id: 'end_date', label: 'End date' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'status', label: 'Status' },
+];
+const CONTRACT_FILTERS: FilterDef[] = [
+  { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'draft', label: 'Draft' }, { value: 'active', label: 'Active' }, { value: 'signed', label: 'Signed' }, { value: 'expired', label: 'Expired' }, { value: 'terminated', label: 'Terminated' }] },
+];
+
 type Draft = Partial<Contract>;
 const emptyDraft = (): Draft => ({
   title: '', client_name: '', value: 0, currency: 'USD',
@@ -41,8 +55,9 @@ export default function ContractsPage() {
 
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.contracts.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ draft: Draft } | null>(null);
   const [detail, setDetail] = useState<Contract | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,6 +82,41 @@ export default function ContractsPage() {
       (statusF === 'all' || c.status === statusF) &&
       (!q.trim() || `${c.title} ${c.client_name || ''}`.toLowerCase().includes(q.toLowerCase()))
     ), [contracts, q, statusF]);
+
+  const rs = useRowSelection(shown);
+  const cell = (id: string, c: Contract) => {
+    const d = daysTo(c.end_date);
+    const isPast = d != null && d < 0 && (c.status === 'active' || c.status === 'signed');
+    const isSoon = d != null && d >= 0 && d <= 30 && (c.status === 'active' || c.status === 'signed');
+    switch (id) {
+      case 'title': return <span className="font-medium text-content">{c.title}</span>;
+      case 'client': return c.client_name || '—';
+      case 'value': return <span className="tabular-nums">{fmtMoney(c.value, c.currency)}</span>;
+      case 'end_date': return c.end_date
+        ? <span className={isPast ? 'text-rose-600' : isSoon ? 'text-amber-600' : 'text-muted'}>
+            {c.end_date}{isSoon ? ` · ${d}d` : isPast ? ' · overdue' : ''}
+          </span>
+        : <span className="text-muted2">—</span>;
+      case 'owner': return name(c.owner_id);
+      case 'status': return <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'}`}>{c.status}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Title', 'Client', 'Value', 'Currency', 'Status', 'Start date', 'End date', 'Owner'];
+    const rows = rs.selected.map((c) => [c.title, c.client_name, c.value, c.currency, c.status, c.start_date, c.end_date, name(c.owner_id)]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'contracts-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} contract${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const r of rs.selected) await deleteContract(r.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const kpis = useMemo(() => {
     const all = contracts || [];
@@ -129,10 +179,12 @@ export default function ContractsPage() {
           hintTone={kpis.expiring ? 'down' : 'muted'} />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input className="input h-9 w-56" placeholder="Search contracts…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="w-44"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
-      </div>
+      <ListToolbar prefs={prefs} cols={COLS} filters={CONTRACT_FILTERS} placeholder="Search contracts…" />
+
+      <BulkBar count={rs.count} onClear={rs.clear}>
+        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+      </BulkBar>
 
       <div className="card overflow-hidden">
         {contracts === null ? <div className="p-8"><Spinner /></div> : shown.length === 0 ? (
@@ -142,45 +194,26 @@ export default function ContractsPage() {
             <table className="w-full text-sm list-card">
               <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
                 <tr>
-                  <th className="px-4 py-3">Title</th>
-                  <th className="px-4 py-3">Client</th>
-                  <th className="px-4 py-3 text-right">Value</th>
-                  <th className="px-4 py-3">End date</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 w-10"><HeadCheckbox checked={rs.allSelected} indeterminate={rs.someSelected} onChange={rs.toggleAll} /></th>
+                  {prefs.ordered.map((id) => <th key={id} className="px-4 py-3">{COLS.find((c) => c.id === id)?.label}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {shown.map((c) => {
-                  const d = daysTo(c.end_date);
-                  const isPast = d != null && d < 0 && (c.status === 'active' || c.status === 'signed');
-                  const isSoon = d != null && d >= 0 && d <= 30 && (c.status === 'active' || c.status === 'signed');
-                  return (
-                    <tr key={c.id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => setDetail(c)}>
-                      <td className="px-4 py-3 font-medium text-content">{c.title}</td>
-                      <td className="px-4 py-3 text-muted">{c.client_name || '—'}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(c.value, c.currency)}</td>
-                      <td className="px-4 py-3 text-2xs">
-                        {c.end_date
-                          ? <span className={isPast ? 'text-rose-600' : isSoon ? 'text-amber-600' : 'text-muted'}>
-                              {c.end_date}{isSoon ? ` · ${d}d` : isPast ? ' · overdue' : ''}
-                            </span>
-                          : <span className="text-muted2">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-2xs text-muted">{name(c.owner_id)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'}`}>{c.status}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {shown.map((c) => (
+                  <tr key={c.id}
+                    className={`group border-t border-line hover:bg-surface2/50 cursor-pointer ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
+                    onClick={() => setDetail(c)}>
+                    <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={rs.isSelected(c.id)} onChange={() => rs.toggle(c.id)} /></td>
+                    {prefs.ordered.map((id) => <td key={id} className="px-4 py-3 text-muted">{cell(id, c)}</td>)}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Add editor modal */}
+      {/* Add/Edit modal */}
       {editor && (
         <Modal open onClose={() => setEditor(null)} size="lg" icon="ti-file-certificate"
           title={editor.draft.id ? 'Edit contract' : 'Add contract'}

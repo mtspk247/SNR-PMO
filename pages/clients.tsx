@@ -200,7 +200,7 @@ export default function ClientsPage() {
               <tbody>
                 {shown.map((c) => (
                   <tr key={c.id}
-                    className={`border-t border-line hover:bg-surface2/50 cursor-pointer ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
+                    className={`group border-t border-line hover:bg-surface2/50 cursor-pointer ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
                     onClick={() => setEditor({ mode: 'edit', draft: c })}>
                     <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={rs.isSelected(c.id)} onChange={() => rs.toggle(c.id)} /></td>
                     {prefs.ordered.map((id) => <td key={id} className="px-4 py-3 text-muted">{cell(id, c)}</td>)}

@@ -32,13 +32,14 @@ export function HeadCheckbox({ checked, indeterminate, onChange }: { checked: bo
 }
 
 export function RowCheckbox({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  // Hover-reveal: hidden until the row (a `group`) is hovered, or the box is checked/focused.
   return (
     <input
       type="checkbox"
       checked={checked}
       onChange={onChange}
       onClick={(e) => e.stopPropagation()}
-      className="accent-accentstrong w-4 h-4 align-middle cursor-pointer"
+      className={`accent-accentstrong w-4 h-4 align-middle cursor-pointer transition-opacity ${checked ? '' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
       aria-label="Select row"
     />
   );

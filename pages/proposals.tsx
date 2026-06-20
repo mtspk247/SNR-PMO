@@ -11,6 +11,8 @@ import { hasFeature } from '@/lib/entitlements';
 import { listProposals, createProposal, updateProposal, deleteProposal, Proposal } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, HeadCheckbox, RowCheckbox, BulkBar } from '@/components/RowSelection';
 
 const STATUS_PILL: Record<string, string> = {
   draft: 'pill-gray',
@@ -23,6 +25,18 @@ const STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'] as const;
 
 const fmtMoney = (n: number, c = 'USD') =>
   `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+const COLS: ColDef[] = [
+  { id: 'title', label: 'Title', locked: true },
+  { id: 'client', label: 'Client' },
+  { id: 'amount', label: 'Amount' },
+  { id: 'valid_until', label: 'Valid until' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'status', label: 'Status' },
+];
+const PROPOSAL_FILTERS: FilterDef[] = [
+  { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'draft', label: 'Draft' }, { value: 'sent', label: 'Sent' }, { value: 'accepted', label: 'Accepted' }, { value: 'rejected', label: 'Rejected' }, { value: 'expired', label: 'Expired' }] },
+];
 
 type Draft = Partial<Proposal>;
 const emptyDraft = (): Draft => ({
@@ -38,8 +52,9 @@ export default function ProposalsPage() {
 
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.proposals.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ draft: Draft } | null>(null);
   const [detail, setDetail] = useState<Proposal | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,13 +72,48 @@ export default function ProposalsPage() {
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
-  const name = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
+  const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
 
   const shown = useMemo(() =>
     (proposals || []).filter((p) =>
       (statusF === 'all' || p.status === statusF) &&
       (!q.trim() || `${p.title} ${p.client_name || ''}`.toLowerCase().includes(q.toLowerCase()))
     ), [proposals, q, statusF]);
+
+  const rs = useRowSelection(shown);
+
+  const isPast = (d: string | null) => d ? new Date(d).getTime() < Date.now() : false;
+
+  const cell = (id: string, p: Proposal) => {
+    switch (id) {
+      case 'title': return <span className="font-medium text-content">{p.title}</span>;
+      case 'client': return p.client_name || '—';
+      case 'amount': return <span className="tabular-nums">{fmtMoney(p.amount, p.currency)}</span>;
+      case 'valid_until': return p.valid_until ? (
+        <span className={isPast(p.valid_until) && p.status !== 'accepted' ? 'text-rose-600' : 'text-muted'}>
+          {p.valid_until}
+        </span>
+      ) : <span className="text-muted2">—</span>;
+      case 'owner': return nameOf(p.owner_id);
+      case 'status': return <span className={`pill ${STATUS_PILL[p.status] || 'pill-gray'}`}>{p.status}</span>;
+      default: return '—';
+    }
+  };
+
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Title', 'Client', 'Amount', 'Currency', 'Valid until', 'Owner', 'Status'];
+    const rows = rs.selected.map((p) => [p.title, p.client_name, fmtMoney(p.amount, p.currency), p.currency, p.valid_until, nameOf(p.owner_id), p.status]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'proposals-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} proposal${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const r of rs.selected) await deleteProposal(r.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const kpis = useMemo(() => {
     const all = proposals || [];
@@ -97,9 +147,6 @@ export default function ProposalsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-
-  const isPast = (d: string | null) => d ? new Date(d).getTime() < Date.now() : false;
-
   if (!enabled) return (
     <Layout flat title="Proposals">
       <EmptyState icon="ti-file-description" title="Proposals not in your plan" text="Upgrade to manage client proposals." />
@@ -129,15 +176,12 @@ export default function ProposalsPage() {
         <StatCard label="Total value" value={fmtMoney(kpis.value)} icon="ti-currency-dollar" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search proposals…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
-      </div>
+      <ListToolbar prefs={prefs} cols={COLS} filters={PROPOSAL_FILTERS} placeholder="Search proposals…" />
+
+      <BulkBar count={rs.count} onClear={rs.clear}>
+        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+      </BulkBar>
 
       <div className="card overflow-hidden">
         {proposals === null ? (
@@ -149,35 +193,17 @@ export default function ProposalsPage() {
             <table className="w-full text-sm list-card">
               <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
                 <tr>
-                  <th className="px-4 py-3">Title</th>
-                  <th className="px-4 py-3">Client</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3">Valid until</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 w-10"><HeadCheckbox checked={rs.allSelected} indeterminate={rs.someSelected} onChange={rs.toggleAll} /></th>
+                  {prefs.ordered.map((id) => <th key={id} className="px-4 py-3">{COLS.find((c) => c.id === id)?.label}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {shown.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                    onClick={() => setDetail(p)}
-                  >
-                    <td className="px-4 py-3 font-medium text-content">{p.title}</td>
-                    <td className="px-4 py-3 text-muted">{p.client_name || '—'}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(p.amount, p.currency)}</td>
-                    <td className="px-4 py-3 text-2xs">
-                      {p.valid_until ? (
-                        <span className={isPast(p.valid_until) && p.status !== 'accepted' ? 'text-rose-600' : 'text-muted'}>
-                          {p.valid_until}
-                        </span>
-                      ) : <span className="text-muted2">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-2xs text-muted">{name(p.owner_id)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`pill ${STATUS_PILL[p.status] || 'pill-gray'}`}>{p.status}</span>
-                    </td>
+                  <tr key={p.id}
+                    className={`group border-t border-line hover:bg-surface2/50 cursor-pointer ${rs.isSelected(p.id) ? 'bg-accent/5' : ''}`}
+                    onClick={() => setDetail(p)}>
+                    <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={rs.isSelected(p.id)} onChange={() => rs.toggle(p.id)} /></td>
+                    {prefs.ordered.map((id) => <td key={id} className="px-4 py-3 text-muted">{cell(id, p)}</td>)}
                   </tr>
                 ))}
               </tbody>
@@ -186,7 +212,6 @@ export default function ProposalsPage() {
         )}
       </div>
 
-      {/* Add editor modal (no attachments — no id yet) */}
       {editor && !editor.draft.id && (
         <Modal
           open
@@ -208,7 +233,6 @@ export default function ProposalsPage() {
         </Modal>
       )}
 
-      {/* Detail / edit modal (with attachments) */}
       {detail && (
         <DetailModal
           proposal={detail}
@@ -218,7 +242,7 @@ export default function ProposalsPage() {
           orgId={org?.id}
           onClose={() => setDetail(null)}
           onDelete={() => { setDetail(null); load(); }}
-          nameOf={name}
+          nameOf={nameOf}
           busy={busy}
           onSave={async (patch) => {
             setBusy(true); setErr('');
