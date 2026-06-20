@@ -47,6 +47,7 @@ export type ListViewProps<T extends { id: string }> = {
   // ── interactions ────────────────────────────────────────
   onRowClick?: (r: T) => void;
   onAddInGroup?: (groupValue: string) => void;
+  orderKey?: string;                      // enables persisted drag-to-reorder of rows
   // ── bulk actions ────────────────────────────────────────
   exportName?: string;                    // set → shows "Export" (CSV of selected, visible cols)
   exportValue?: (id: string, r: T) => string;
@@ -150,6 +151,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           onRowClick={p.onRowClick}
           onMove={p.editable && p.editable[p.groupField!.value] && p.onEdit ? (r, target) => p.onEdit!(r, p.groupField!.value, target) : undefined}
           onAddInGroup={p.onAddInGroup}
+          orderKey={p.orderKey}
         />
       ) : rows.length === 0 ? (
         <div className="card p-8 border border-line/40"><EmptyState icon={p.emptyIcon || 'ti-list'} text={p.emptyText || 'Nothing here yet.'} /></div>
@@ -169,6 +171,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           rawValue={p.rawValue}
           onEdit={p.onEdit}
           onAddInGroup={p.onAddInGroup}
+          orderKey={p.orderKey}
         />
       )}
     </>

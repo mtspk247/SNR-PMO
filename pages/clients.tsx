@@ -212,6 +212,7 @@ export default function ClientsPage() {
       <ListView
         rows={clients === null ? null : shown}
         rowKey={(c) => c.id}
+        orderKey="snrpmo.clients.roworder"
         cols={COLS}
         prefs={prefs}
         cell={cell}
