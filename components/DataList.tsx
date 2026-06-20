@@ -1,14 +1,15 @@
 import { useState, useEffect, ReactNode } from 'react';
+import type { PointerEvent as RPointerEvent } from 'react';
 import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
 
 // One reusable, ClickUp-style list: PLAIN borderless rows that highlight on hover,
-// a left 6-dot grip handle to drag rows up/down (reorder) and across status groups,
-// draggable column headers (reorder left to right) + "+ add column", dynamic columns
-// (driven by ListToolbar `prefs`), optional multi-row selection, and collapsible
-// grouping. Single source of truth so every module looks and behaves identically.
+// a left 6-dot grip handle that drags rows with a floating chip that STICKS TO THE
+// CURSOR (pointer-based, realtime) to reorder up/down and move across status groups,
+// draggable column headers (reorder) + "+ add column", dynamic columns, multi-select,
+// and collapsible grouping. Single source of truth so every module behaves identically.
 
 const CF_PREFIX = 'cf:';
 const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
@@ -43,14 +44,12 @@ export type DataListProps<T> = {
   onEdit?: (r: T, colId: string, value: string) => void;
   /** B3.2: per-group "+ Add" — create a record straight into that status group. */
   onAddInGroup?: (groupValue: string) => void;
-  /** When set, the left grip handle reorders rows up/down and persists the manual
-   *  order per-user under this key (e.g. 'snrpmo.clients.roworder'). */
+  /** When set, the grip handle reorders rows and persists the manual order per-user. */
   orderKey?: string;
 };
 
 function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value: string; display: ReactNode; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
-  // Status / select columns render as the same always-interactive styled Select the Tasks list uses.
   if (spec.type === 'select') {
     return (
       <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-[12rem]">
@@ -76,7 +75,6 @@ function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value:
   );
 }
 
-// "+" add-column control that lives at the end of the header row (admin only).
 function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   const [open, setOpen] = useState(false);
   const [nm, setNm] = useState('');
@@ -103,13 +101,13 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
 
 export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [dragId, setDragId] = useState<string | null>(null);
+  const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dropGroup, setDropGroup] = useState<string | null>(null);
   const [colDrag, setColDrag] = useState<string | null>(null);
   const [manualOrder, setManualOrder] = useState<string[]>([]);
+  const dragId = drag?.id || null;
 
-  // Load any saved manual row order for this list.
   useEffect(() => {
     if (!orderKey) return;
     try { const raw = localStorage.getItem(orderKey); if (raw) setManualOrder(JSON.parse(raw)); } catch { /* ignore */ }
@@ -117,34 +115,58 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const persistOrder = (ids: string[]) => { setManualOrder(ids); if (orderKey) { try { localStorage.setItem(orderKey, JSON.stringify(ids)); } catch { /* ignore */ } } };
 
   const canGroupChange = !!(groupBy && groupBy !== 'none' && groupOf && groups && editable && editable[groupBy] && onEdit);
-  const rowDnD = !!orderKey || canGroupChange; // grip handle shown when rows can be reordered and/or moved across groups
+  const rowDnD = !!orderKey || canGroupChange;
 
-  // Apply the saved manual order (unknown rows keep their natural order, appended).
   const orderedRows = (() => {
     if (!orderKey || manualOrder.length === 0) return rows;
     const idx = new Map(manualOrder.map((id, i) => [id, i] as [string, number]));
     return [...rows].sort((a, b) => (idx.has(rowKey(a)) ? idx.get(rowKey(a))! : 1e9) - (idx.has(rowKey(b)) ? idx.get(rowKey(b))! : 1e9));
   })();
 
-  const handleRowDrop = (targetId: string) => {
-    const src = dragId; setOverId(null); setDragId(null);
-    if (!src || src === targetId) return;
+  const commitDrag = (src: string, tgtId: string | null, grp: string | null) => {
+    if (!src) return;
     const srcRow = rows.find((x) => rowKey(x) === src);
-    const tgtRow = rows.find((x) => rowKey(x) === targetId);
-    // Dropped onto a row in another status group -> change status (RLS/RBAC via onEdit).
-    if (canGroupChange && srcRow && tgtRow && groupOf!(srcRow) !== groupOf!(tgtRow)) onEdit!(srcRow, groupBy, groupOf!(tgtRow));
-    // Reorder within the manual order (only persisted when orderKey is set).
-    if (orderKey) {
+    let targetGroup = grp;
+    if (tgtId) { const tr = rows.find((x) => rowKey(x) === tgtId); if (tr && groupOf) targetGroup = groupOf(tr); }
+    if (canGroupChange && srcRow && targetGroup && groupOf!(srcRow) !== targetGroup) onEdit!(srcRow, groupBy, targetGroup);
+    if (orderKey && tgtId && tgtId !== src) {
       const ids = orderedRows.map(rowKey);
-      const from = ids.indexOf(src); const to = ids.indexOf(targetId);
+      const from = ids.indexOf(src); const to = ids.indexOf(tgtId);
       if (from >= 0 && to >= 0) { ids.splice(from, 1); ids.splice(to, 0, src); persistOrder(ids); }
     }
   };
-  const handleDropToGroup = (target: string) => {
-    setDropGroup(null);
-    const r = rows.find((x) => rowKey(x) === dragId);
-    setDragId(null);
-    if (r && canGroupChange && groupOf!(r) !== target) onEdit!(r, groupBy, target);
+
+  // Pointer-based drag: a floating chip follows the cursor; the row under the cursor
+  // highlights as the drop target. Commits on pointer-up.
+  useEffect(() => {
+    if (!drag) return;
+    const hit = (x: number, y: number) => {
+      const el = document.elementFromPoint(x, y);
+      const row = el ? el.closest('[data-rowid]') : null;
+      const grp = el ? el.closest('[data-group]') : null;
+      return { rowId: row ? row.getAttribute('data-rowid') : null, group: grp ? grp.getAttribute('data-group') : null };
+    };
+    const move = (e: PointerEvent) => {
+      setDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY } : d));
+      const h = hit(e.clientX, e.clientY);
+      setOverId(h.rowId); setDropGroup(h.group);
+    };
+    const up = (e: PointerEvent) => {
+      const h = hit(e.clientX, e.clientY);
+      commitDrag(drag.id, h.rowId, h.group);
+      setDrag(null); setOverId(null); setDropGroup(null);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up, { once: true });
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag?.id]);
+
+  const beginDrag = (e: RPointerEvent, id: string) => {
+    e.preventDefault(); e.stopPropagation();
+    const tr = (e.currentTarget as HTMLElement).closest('tr') as HTMLElement | null;
+    const label = ((tr && tr.innerText) || '').trim().split('\n')[0].slice(0, 60) || 'Item';
+    setDrag({ id, label, x: e.clientX, y: e.clientY });
   };
 
   const reorderCols = (from: string, to: string) => {
@@ -188,17 +210,14 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     const sel = selection?.isSelected(id) || false;
     const dropHi = overId === id && !!dragId && dragId !== id;
     return (
-      <tr key={id}
-        onDragOver={rowDnD ? (e) => { e.preventDefault(); if (overId !== id) setOverId(id); } : undefined}
-        onDrop={rowDnD ? (e) => { e.preventDefault(); e.stopPropagation(); handleRowDrop(id); } : undefined}
-        className={`group relative transition border-b border-line/50 last:border-0 ${onRowClick ? 'cursor-pointer' : ''} ${dragId === id ? 'opacity-40' : ''} ${dropHi ? 'bg-accent/10' : sel ? 'bg-accent/5' : 'hover:bg-surface2'}`}
+      <tr key={id} data-rowid={id}
+        className={`group relative transition border-b border-line/50 last:border-0 ${onRowClick ? 'cursor-pointer' : ''} ${dragId === id ? 'opacity-50' : ''} ${dropHi ? 'bg-accent/10' : sel ? 'bg-accent/5' : 'hover:bg-surface2'}`}
         onClick={onRowClick ? () => onRowClick(r) : undefined}>
         {rowDnD && (
           <td className="w-7 pl-1.5 pr-0 align-middle" onClick={(e) => e.stopPropagation()}>
-            <span draggable
-              onDragStart={(e) => { e.stopPropagation(); setDragId(id); }}
-              onDragEnd={() => { setDragId(null); setOverId(null); }}
-              title="Drag to reorder" className="inline-flex cursor-grab text-muted2 opacity-0 group-hover:opacity-100 transition"><Icon name="ti-grip-vertical" className="text-sm" /></span>
+            <span onPointerDown={(e) => beginDrag(e, id)} title="Drag to reorder"
+              style={{ touchAction: 'none' }}
+              className="inline-flex cursor-grab active:cursor-grabbing text-muted2 opacity-0 group-hover:opacity-100 transition"><Icon name="ti-grip-vertical" className="text-sm" /></span>
           </td>
         )}
         {selCol && <td className="px-3 py-2.5 w-9 align-middle" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={sel} onChange={() => selection!.toggle(id)} /></td>}
@@ -221,7 +240,6 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     );
   };
 
-  // Plain, borderless table (no card box) — rows separated by a hairline, highlight on hover.
   const tableCard = (rs: T[]) => (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -231,8 +249,17 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     </div>
   );
 
+  // Floating chip that sticks to the cursor while dragging (rendered fixed to viewport).
+  const floatingChip = drag ? (
+    <div style={{ position: 'fixed', left: drag.x + 14, top: drag.y + 6, zIndex: 9999, pointerEvents: 'none' }}
+      className="flex items-center gap-2 max-w-xs px-2.5 py-1.5 rounded-md bg-surface border border-borderstrong shadow-xl text-sm text-content">
+      <Icon name="ti-grip-vertical" className="text-muted2 text-sm shrink-0" />
+      <span className="truncate">{drag.label}</span>
+    </div>
+  ) : null;
+
   const grouped = groupBy !== 'none' && !!groupOf && !!groups;
-  if (!grouped) return tableCard(orderedRows);
+  if (!grouped) return <>{tableCard(orderedRows)}{floatingChip}</>;
 
   return (
     <div>
@@ -241,11 +268,8 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
         if (gr.length === 0) return null;
         const isC = collapsed.has(g.value);
         return (
-          <div key={g.value}
-            className={`mt-5 first:mt-1 rounded-lg transition ${canGroupChange && dropGroup === g.value && dragId ? 'ring-2 ring-accent/40' : ''}`}
-            onDragOver={canGroupChange ? (e) => { e.preventDefault(); if (dropGroup !== g.value) setDropGroup(g.value); } : undefined}
-            onDrop={canGroupChange ? () => handleDropToGroup(g.value) : undefined}>
-            {/* Group title (collapse chevron + colored status pill + count + per-group add) */}
+          <div key={g.value} data-group={g.value}
+            className={`mt-5 first:mt-1 rounded-lg transition ${canGroupChange && dropGroup === g.value && dragId ? 'ring-2 ring-accent/40' : ''}`}>
             <div className="px-1 py-2 mb-1 flex items-center gap-2.5">
               <button onClick={() => toggle(g.value)} className="shrink-0 text-muted2 hover:text-content transition" aria-expanded={!isC} title={isC ? 'Expand' : 'Collapse'}>
                 <Icon name={isC ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" />
@@ -260,6 +284,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
           </div>
         );
       })}
+      {floatingChip}
     </div>
   );
 }
