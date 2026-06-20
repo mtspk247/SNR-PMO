@@ -82,7 +82,7 @@ export default function DomainsPage() {
 
   const [domains, setDomains] = useState<Domain[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.domains.cols', COLS);
+  const prefs = useListPrefs('snrpmo.domains.cols', COLS, { entity: 'domains', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);

@@ -61,7 +61,7 @@ export default function LiabilitiesPage() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  const prefs = useListPrefs('snrpmo.liabilities.cols', COLS);
+  const prefs = useListPrefs('snrpmo.liabilities.cols', COLS, { entity: 'liabilities', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const typeF = prefs.filters.type || 'all';

@@ -291,7 +291,7 @@ export default function RoadmapPage() {
   const [busy, setBusy] = useState(false);
 
   // ── Unscheduled list prefs + selection
-  const prefs = useListPrefs('snrpmo.roadmap.cols', COLS);
+  const prefs = useListPrefs('snrpmo.roadmap.cols', COLS, { entity: 'roadmap', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const { scheduled, unscheduled } = useMemo(() => {
     const sched: Project[] = [];
     const unsched: Project[] = [];

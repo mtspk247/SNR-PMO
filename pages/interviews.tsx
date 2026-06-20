@@ -104,7 +104,7 @@ export default function InterviewsPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  const prefs = useListPrefs('snrpmo.interviews.cols', COLS);
+  const prefs = useListPrefs('snrpmo.interviews.cols', COLS, { entity: 'interviews', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
 

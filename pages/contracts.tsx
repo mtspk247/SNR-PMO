@@ -58,7 +58,7 @@ export default function ContractsPage() {
 
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.contracts.cols', COLS);
+  const prefs = useListPrefs('snrpmo.contracts.cols', COLS, { entity: 'contracts', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ draft: Draft } | null>(null);

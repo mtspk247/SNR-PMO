@@ -98,7 +98,7 @@ export default function RiskAnalysis() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const prefs = useListPrefs('snrpmo.risk.cols', COLS);
+  const prefs = useListPrefs('snrpmo.risk.cols', COLS, { entity: 'risk', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const severityF = prefs.filters.severity || 'all';

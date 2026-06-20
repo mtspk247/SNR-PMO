@@ -9,6 +9,9 @@ import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
 // and optional collapsible grouping. Single source of truth so every module looks
 // and behaves identically and fixes land everywhere at once.
 
+const CF_PREFIX = 'cf:';
+const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
+
 export type GroupMeta = { value: string; label: string; pill?: string };
 export type EditSpec = { type: 'text' | 'number' | 'date' | 'select'; options?: { value: string; label: string }[] };
 
@@ -80,7 +83,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     if (r && onEdit && groupOf && groupOf(r) !== target) onEdit(r, groupBy, target);
   };
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
-  const labelOf = (id: string) => cols.find((c) => c.id === id)?.label;
+  const labelOf = (id: string) => (prefs.allCols || cols).find((c) => c.id === id)?.label;
   const selCol = !!selection;
 
   const headerRow = (selectAll: boolean) => (
@@ -106,12 +109,16 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
         onClick={onRowClick ? () => onRowClick(r) : undefined}>
         {selCol && <td className="px-4 py-2.5 w-10 align-middle" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={sel} onChange={() => selection!.toggle(id)} /></td>}
         {prefs.ordered.map((cid) => {
-          const ed = editable?.[cid];
+          const isCf = isCustomCol(cid) && !!prefs.cf;
+          const ed = isCf ? prefs.cf!.editable[cid] : editable?.[cid];
+          const disp = isCf ? prefs.cf!.cell(cid, id) : cell(cid, r);
+          const rv = isCf ? prefs.cf!.rawValue(cid, id) : (rawValue ? rawValue(cid, r) : undefined);
+          const save = isCf ? (v: string) => prefs.cf!.onEdit(cid, id, v) : (onEdit ? (v: string) => onEdit(r, cid, v) : undefined);
           return (
             <td key={cid} className="px-4 py-2.5 text-sm text-muted align-middle">
-              {ed && onEdit && rawValue
-                ? <EditableCell spec={ed} value={rawValue(cid, r)} display={cell(cid, r)} onSave={(v) => onEdit(r, cid, v)} />
-                : cell(cid, r)}
+              {ed && save && rv !== undefined
+                ? <EditableCell spec={ed} value={rv} display={disp} onSave={save} />
+                : disp}
             </td>
           );
         })}

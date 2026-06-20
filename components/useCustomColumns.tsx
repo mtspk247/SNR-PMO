@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, ReactNode } from 'react';
-import { ColDef } from '@/components/ListToolbar';
-import { EditSpec } from '@/components/DataList';
+import type { ColDef } from '@/components/ListToolbar';
+import type { EditSpec } from '@/components/DataList';
 import {
   getCustomFieldDefs, createCustomFieldDef, deleteCustomFieldDef,
   getCustomFieldValuesByType, upsertCustomFieldValue,
@@ -73,3 +73,5 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
 
   return { cols, editable, rawValue, cell, onEdit, addColumn, removeColumn, customColIds, canManage, exportValue, defs, reload };
 }
+
+export type CustomColumnsApi = ReturnType<typeof useCustomColumns>;

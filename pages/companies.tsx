@@ -126,7 +126,7 @@ export default function CompaniesPage() {
   const vp = useViewPrefs('snrpmo.companies.view', { view: 'cards' });
   const VIEWS = [{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }];
 
-  const prefs = useListPrefs('snrpmo.companies.cols', COLS);
+  const prefs = useListPrefs('snrpmo.companies.cols', COLS, { entity: 'companies', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
 
   const shown = useMemo(() =>

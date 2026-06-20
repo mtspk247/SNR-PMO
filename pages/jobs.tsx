@@ -46,7 +46,7 @@ export default function JobsPage() {
 
   const [jobs, setJobs] = useState<JobPosting[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.jobs.cols', COLS);
+  const prefs = useListPrefs('snrpmo.jobs.cols', COLS, { entity: 'jobs', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);

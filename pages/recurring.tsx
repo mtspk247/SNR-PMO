@@ -81,7 +81,7 @@ export default function RecurringPage() {
 
   const [items, setItems] = useState<RecurringExpense[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.recurring.cols', COLS);
+  const prefs = useListPrefs('snrpmo.recurring.cols', COLS, { entity: 'recurring', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);

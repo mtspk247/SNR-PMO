@@ -45,7 +45,7 @@ export default function TeamsHub() {
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const vp = useViewPrefs('snr-teams-vp', { view: 'cards' });
-  const prefs = useListPrefs('snrpmo.teams.cols', COLS);
+  const prefs = useListPrefs('snrpmo.teams.cols', COLS, { entity: 'teams', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
 
   useEffect(() => {
     if (!org?.id) return;

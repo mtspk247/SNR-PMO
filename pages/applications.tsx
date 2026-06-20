@@ -72,7 +72,7 @@ export default function ApplicationsPage() {
   const [apps, setApps] = useState<Application[] | null>(null);
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.applications.cols', COLS);
+  const prefs = useListPrefs('snrpmo.applications.cols', COLS, { entity: 'applications', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const stageF = prefs.filters.stage || 'all';
   const [editor, setEditor] = useState<{ draft: Draft } | null>(null);

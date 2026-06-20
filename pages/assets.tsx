@@ -63,7 +63,7 @@ export default function AssetsPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  const prefs = useListPrefs('snrpmo.assets.cols', COLS);
+  const prefs = useListPrefs('snrpmo.assets.cols', COLS, { entity: 'assets', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const typeF = prefs.filters.type || 'all';
   const q = prefs.query;
 

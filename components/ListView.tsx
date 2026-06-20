@@ -33,12 +33,7 @@ export type ListViewProps<T extends { id: string }> = {
   // ── toolbar ─────────────────────────────────────────────
   filters?: FilterDef[];
   searchPlaceholder?: string;
-  toolbarExtra?: ReactNode;
-  // ── custom columns (B2.1): "+ Add column" + per-column delete, RBAC-gated ──
-  onAddColumn?: (name: string, type: string) => void | Promise<void>;
-  customCols?: Set<string>;
-  onRemoveColumn?: (id: string) => void;
-  canManageColumns?: boolean;               // page-specific buttons rendered inside the toolbar row
+  toolbarExtra?: ReactNode;               // page-specific buttons rendered inside the toolbar row
   // ── grouping (optional) ─────────────────────────────────
   groupField?: { value: string; label: string };  // presence enables the Group-by control
   groupOf?: (r: T) => string;
@@ -90,7 +85,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
     if (!p.exportName) return;
     const ids = prefs.ordered;
     const label = (id: string) => cols.find((c) => c.id === id)?.label || id;
-    const val = p.exportValue || (() => '');
+    const val = (id: string, r: T) => (id.startsWith('cf:') && prefs.cf ? prefs.cf.exportValue(id, p.rowKey(r)) : (p.exportValue ? p.exportValue(id, r) : ''));
     const heads = ids.map(label);
     const body = rs.selected.map((r) => ids.map((id) => val(id, r)));
     const csv = heads.map(csvEsc).join(',') + '\n' + body.map((row) => row.map(csvEsc).join(',')).join('\n') + '\n';
@@ -104,8 +99,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
     <>
       <div className="flex items-end gap-2 flex-wrap mb-4">
         <div className="flex-1 min-w-0">
-          <ListToolbar prefs={prefs} cols={cols} filters={p.filters} placeholder={p.searchPlaceholder || 'Search…'}
-            onAddColumn={p.onAddColumn} customCols={p.customCols} onRemoveColumn={p.onRemoveColumn} canManageColumns={p.canManageColumns}>
+          <ListToolbar prefs={prefs} cols={cols} filters={p.filters} placeholder={p.searchPlaceholder || 'Search…'}>
             {p.toolbarExtra}
           </ListToolbar>
         </div>

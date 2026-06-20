@@ -80,7 +80,7 @@ export default function BankAccountsPage() {
   const [reconAcct, setReconAcct] = useState<BankAccount | null>(null);
   const [reconLines, setReconLines] = useState<BankReconLine[]>([]);
 
-  const prefs = useListPrefs('snrpmo.bank_accounts.cols', COLS);
+  const prefs = useListPrefs('snrpmo.bank_accounts.cols', COLS, { entity: 'bank_accounts', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const typeF = prefs.filters.account_type || 'all';
 

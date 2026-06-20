@@ -44,7 +44,7 @@ export default function EmployeesPage() {
   const { data: companies = [] } = useOrgCompanies();
   const me = useAuthStore((s) => s.user);
   const [showNew, setShowNew] = useState(false);
-  const lp = useListPrefs('snrpmo.employees.cols', COLS);
+  const lp = useListPrefs('snrpmo.employees.cols', COLS, { entity: 'employees', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const FILTERS: FilterDef[] = useMemo(() => {
     const depts = Array.from(new Set(rows.map((e) => e.department).filter(Boolean))) as string[];
     const roles = Array.from(new Set(rows.map((e) => e.role).filter(Boolean))) as string[];

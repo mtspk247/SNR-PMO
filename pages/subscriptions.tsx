@@ -47,7 +47,7 @@ export default function SubscriptionsPage() {
 
   const [subs, setSubs] = useState<VendorSubscription[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.subscriptions.cols', COLS);
+  const prefs = useListPrefs('snrpmo.subscriptions.cols', COLS, { entity: 'subscriptions', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit' | 'request'; draft: Draft } | null>(null);

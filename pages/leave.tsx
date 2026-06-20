@@ -56,7 +56,7 @@ export default function LeavePage() {
   const queue = useMemo(() => rows.filter((r) => r.status === 'Pending' && r.user_id !== me?.id), [rows, me?.id]);
   const days = f.start_date && f.end_date ? daysBetween(f.start_date, f.end_date) : 0;
 
-  const prefs = useListPrefs('snrpmo.leave.cols', COLS);
+  const prefs = useListPrefs('snrpmo.leave.cols', COLS, { entity: 'leave', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const FILTERS: FilterDef[] = [
     { id: 'type', label: 'Type', options: [{ value: 'all', label: 'All types' }, ...TYPES.map((t) => ({ value: t, label: titleCase(t) }))] },
     { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...STATUS_ORDER.map((x) => ({ value: x, label: titleCase(x) }))] },

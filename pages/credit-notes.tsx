@@ -53,7 +53,7 @@ export default function CreditNotesPage() {
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
 
   const [list, setList] = useState<CreditNote[] | null>(null);
-  const prefs = useListPrefs('snrpmo.credit_notes.cols', COLS);
+  const prefs = useListPrefs('snrpmo.credit_notes.cols', COLS, { entity: 'credit_notes', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);

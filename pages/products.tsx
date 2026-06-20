@@ -48,7 +48,7 @@ export default function ProductsPage() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  const prefs = useListPrefs('snrpmo.products.cols', COLS);
+  const prefs = useListPrefs('snrpmo.products.cols', COLS, { entity: 'products', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const typeF = prefs.filters.type || 'all';
   const statusF = prefs.filters.status || 'all';

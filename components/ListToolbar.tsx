@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
+import { useCustomColumns } from '@/components/useCustomColumns';
+import type { CustomColumnsApi } from '@/components/useCustomColumns';
 
 // Shared, config-driven list controls: search + Filter popover + Columns
 // (show/hide + reorder), with per-user view persisted to localStorage.
@@ -15,9 +17,13 @@ export type ListPrefs = {
   visible: Set<string>; toggle: (id: string) => void;
   order: string[]; move: (id: string, dir: -1 | 1) => void; setOrderArr: (ids: string[]) => void;
   ordered: string[]; // visible columns, in display order
+  allCols: ColDef[]; // base + custom columns merged
+  cf?: CustomColumnsApi; // custom-column api when a customEntity is supplied
 };
 
-export function useListPrefs(storageKey: string, cols: ColDef[]): ListPrefs {
+export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { entity?: string; orgId?: string; canManage?: boolean }): ListPrefs {
+  const cf = useCustomColumns(cfOpts?.orgId, cfOpts?.entity || '', !!cfOpts?.canManage);
+  const cols = cfOpts?.entity ? [...baseCols, ...cf.cols] : baseCols;
   const ids = cols.map((c) => c.id);
   const idsKey = ids.join('|');
   const [query, setQuery] = useState('');
@@ -72,19 +78,18 @@ export function useListPrefs(storageKey: string, cols: ColDef[]): ListPrefs {
   const move = (id: string, dir: -1 | 1) => setOrder((pr) => { const i = pr.indexOf(id); const j = i + dir; if (i < 0 || j < 0 || j >= pr.length) return pr; const n = [...pr]; [n[i], n[j]] = [n[j], n[i]]; return n; });
   const setOrderArr = (idsArr: string[]) => setOrder(idsArr);
   const ordered = order.filter((id) => visible.has(id) && ids.includes(id));
-  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered };
+  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: cfOpts?.entity ? cf : undefined };
 }
 
-export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children, onAddColumn, customCols, onRemoveColumn, canManageColumns }:
-  { prefs: ListPrefs; cols: ColDef[]; filters?: FilterDef[]; placeholder?: string; children?: React.ReactNode;
-    onAddColumn?: (name: string, type: string) => void | Promise<void>; customCols?: Set<string>; onRemoveColumn?: (id: string) => void; canManageColumns?: boolean }) {
+export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children }:
+  { prefs: ListPrefs; cols: ColDef[]; filters?: FilterDef[]; placeholder?: string; children?: React.ReactNode }) {
   const [fOpen, setFOpen] = useState(false);
   const [cOpen, setCOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [nm, setNm] = useState('');
   const [ty, setTy] = useState('text');
   const [dragId, setDragId] = useState<string | null>(null);
-  const byId = (id: string) => cols.find((c) => c.id === id);
+  const byId = (id: string) => prefs.allCols.find((c) => c.id === id) || cols.find((c) => c.id === id);
   const onDrop = (dropId: string) => {
     if (!dragId || dragId === dropId) { setDragId(null); return; }
     const arr = [...prefs.order]; const from = arr.indexOf(dragId); const to = arr.indexOf(dropId);
@@ -135,10 +140,10 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
                 </label>
                 <button onClick={() => prefs.move(id, -1)} disabled={idx === 0} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-chevron-up" className="text-sm" /></button>
                 <button onClick={() => prefs.move(id, 1)} disabled={idx === prefs.order.length - 1} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-chevron-down" className="text-sm" /></button>
-                {customCols?.has(id) && onRemoveColumn && <button onClick={() => onRemoveColumn(id)} title="Delete column" className="text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>}
+                {prefs.cf?.customColIds.has(id) && <button onClick={() => prefs.cf!.removeColumn(id)} title="Delete column" className="text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>}
               </div>
             ); })}
-            {canManageColumns && onAddColumn && (
+            {prefs.cf?.canManage && (
               <div className="border-t border-line/60 mt-1 pt-1">
                 {!addOpen ? (
                   <button onClick={() => setAddOpen(true)} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm text-accentstrong hover:bg-surface2"><Icon name="ti-plus" className="text-sm" />Add column</button>
@@ -149,7 +154,7 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
                       <option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="checkbox">Checkbox</option>
                     </select>
                     <div className="flex gap-2">
-                      <button onClick={async () => { const n = nm.trim(); if (!n) return; await onAddColumn(n, ty); setNm(''); setTy('text'); setAddOpen(false); }} className="btn btn-primary h-8 text-xs flex-1">Add</button>
+                      <button onClick={async () => { const n = nm.trim(); if (!n) return; await prefs.cf!.addColumn(n, ty); setNm(''); setTy('text'); setAddOpen(false); }} className="btn btn-primary h-8 text-xs flex-1">Add</button>
                       <button onClick={() => { setAddOpen(false); setNm(''); }} className="btn h-8 text-xs">Cancel</button>
                     </div>
                   </div>

@@ -63,7 +63,7 @@ export default function RevenueRecognitionPage() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  const prefs = useListPrefs('snrpmo.revenue_recognition.cols', COLS);
+  const prefs = useListPrefs('snrpmo.revenue_recognition.cols', COLS, { entity: 'revenue_recognition', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const kindF = prefs.filters.kind || 'all';

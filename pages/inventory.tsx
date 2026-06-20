@@ -49,7 +49,7 @@ export default function InventoryPage() {
   const totalValue = useMemo(() => (rows || []).reduce((s, r) => s + Number(r.value), 0), [rows]);
   const lowStock   = useMemo(() => (rows || []).filter((r) => Number(r.stock_qty) <= 0).length, [rows]);
 
-  const prefs = useListPrefs('snrpmo.inventory.cols', COLS);
+  const prefs = useListPrefs('snrpmo.inventory.cols', COLS, { entity: 'inventory', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
 
   const shown = useMemo(() =>

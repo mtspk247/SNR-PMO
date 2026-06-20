@@ -86,7 +86,7 @@ export default function OffersPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  const prefs = useListPrefs('snrpmo.offers.cols', COLS);
+  const prefs = useListPrefs('snrpmo.offers.cols', COLS, { entity: 'offers', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
 

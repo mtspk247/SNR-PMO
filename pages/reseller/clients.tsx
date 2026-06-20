@@ -70,7 +70,7 @@ export default function ResellerClientsPage() {
   const [copied, setCopied] = useState(false);
   const [viewMsg, setViewMsg] = useState('');
 
-  const prefs = useListPrefs('snrpmo.reseller_clients.cols', COLS);
+  const prefs = useListPrefs('snrpmo.reseller_clients.cols', COLS, { entity: 'reseller_clients', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
 

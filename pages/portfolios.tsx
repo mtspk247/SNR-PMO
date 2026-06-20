@@ -133,7 +133,7 @@ export default function PortfoliosPage() {
   const vp = useViewPrefs('snrpmo.portfolios.view', { view: 'cards' });
   const VIEWS = [{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }];
 
-  const prefs = useListPrefs('snrpmo.portfolios.cols', COLS);
+  const prefs = useListPrefs('snrpmo.portfolios.cols', COLS, { entity: 'portfolios', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const shown = useMemo(() =>
     portfolios.filter((pf) =>

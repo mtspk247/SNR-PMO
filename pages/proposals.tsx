@@ -57,7 +57,7 @@ export default function ProposalsPage() {
 
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.proposals.cols', COLS);
+  const prefs = useListPrefs('snrpmo.proposals.cols', COLS, { entity: 'proposals', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ draft: Draft } | null>(null);

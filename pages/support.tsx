@@ -62,7 +62,7 @@ export default function SupportPage() {
 
   const [tickets, setTickets] = useState<SupportTicket[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.support.cols', COLS);
+  const prefs = useListPrefs('snrpmo.support.cols', COLS, { entity: 'support', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [newOpen, setNewOpen] = useState(false);

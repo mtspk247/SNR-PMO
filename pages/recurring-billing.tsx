@@ -52,7 +52,7 @@ export default function RecurringBillingPage() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  const prefs = useListPrefs('snrpmo.recurring_billing.cols', COLS);
+  const prefs = useListPrefs('snrpmo.recurring_billing.cols', COLS, { entity: 'recurring_billing', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const directionF = prefs.filters.direction || 'all';

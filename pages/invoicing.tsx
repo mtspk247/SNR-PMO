@@ -53,7 +53,7 @@ export default function InvoicingPage() {
   const [err, setErr] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
 
-  const prefs = useListPrefs('snrpmo.invoicing.cols', COLS);
+  const prefs = useListPrefs('snrpmo.invoicing.cols', COLS, { entity: 'invoicing', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
 

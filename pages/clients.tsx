@@ -9,7 +9,6 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listClients, createClient, updateClient, deleteClient, Client } from '@/lib/db';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useCustomColumns, isCustomCol } from '@/components/useCustomColumns';
 import { useRowSelection } from '@/components/RowSelection';
 import { GroupMeta, EditSpec } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
@@ -59,12 +58,10 @@ export default function ClientsPage() {
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'crm');
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
-  const cf = useCustomColumns(org?.id, 'clients', isAdmin);
-  const ALLCOLS = useMemo(() => [...COLS, ...cf.cols], [cf.cols]);
 
   const [clients, setClients] = useState<Client[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const prefs = useListPrefs('snrpmo.clients.cols', ALLCOLS);
+  const prefs = useListPrefs('snrpmo.clients.cols', COLS, { entity: 'clients', orgId: org?.id, canManage: isAdmin });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
@@ -98,7 +95,6 @@ export default function ClientsPage() {
   const rs = useRowSelection(shown);
 
   const cell = (id: string, c: Client) => {
-    if (isCustomCol(id)) return cf.cell(id, c.id);
     switch (id) {
       case 'name': return <span className="font-medium text-content">{c.name}</span>;
       case 'contact': return c.contact_name || '—';
@@ -119,7 +115,6 @@ export default function ClientsPage() {
   };
 
   const exportValue = (id: string, c: Client) =>
-    isCustomCol(id) ? cf.exportValue(id, c.id) :
     id === 'name' ? c.name : id === 'contact' ? (c.contact_name || '') : id === 'email' ? (c.email || '')
     : id === 'phone' ? (c.phone || '') : id === 'since' ? (c.since || '') : id === 'owner' ? nameOf(c.owner_id)
     : id === 'status' ? c.status : '';
@@ -170,14 +165,11 @@ export default function ClientsPage() {
   const editable: Record<string, EditSpec> = {
     name: { type: 'text' }, contact: { type: 'text' }, email: { type: 'text' }, phone: { type: 'text' },
     status: { type: 'select', options: STATUSES.map((st) => ({ value: st, label: titleCase(st) })) },
-    ...cf.editable,
   };
   const rawValue = (id: string, c: Client) =>
-    isCustomCol(id) ? cf.rawValue(id, c.id) :
     id === 'name' ? c.name : id === 'contact' ? (c.contact_name || '') : id === 'email' ? (c.email || '')
     : id === 'phone' ? (c.phone || '') : id === 'status' ? c.status : '';
   const onInlineEdit = async (c: Client, id: string, value: string) => {
-    if (isCustomCol(id)) { cf.onEdit(id, c.id, value); return; }
     const field = id === 'contact' ? 'contact_name' : id;
     try { await updateClient(c.id, { [field]: value || null } as any); load(); } catch (e: any) { setErr(e.message); }
   };
@@ -206,7 +198,7 @@ export default function ClientsPage() {
       <ListView
         rows={clients === null ? null : shown}
         rowKey={(c) => c.id}
-        cols={ALLCOLS}
+        cols={COLS}
         prefs={prefs}
         cell={cell}
         selection={rs}
@@ -226,10 +218,6 @@ export default function ClientsPage() {
         busy={busy}
         emptyIcon="ti-users"
         emptyText="No clients found."
-        onAddColumn={cf.addColumn}
-        customCols={cf.customColIds}
-        onRemoveColumn={cf.removeColumn}
-        canManageColumns={isAdmin}
       />
 
       {editor && (
