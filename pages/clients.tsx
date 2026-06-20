@@ -9,7 +9,8 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listClients, createClient, updateClient, deleteClient, Client } from '@/lib/db';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection, HeadCheckbox, RowCheckbox, BulkBar } from '@/components/RowSelection';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { DataList, GroupMeta } from '@/components/DataList';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
 
@@ -23,6 +24,7 @@ type ClientStatus = typeof STATUSES[number];
 
 // Group ordering: active first, then prospect, then inactive
 const GROUP_ORDER: ClientStatus[] = ['active', 'prospect', 'inactive'];
+const GROUPS: GroupMeta[] = GROUP_ORDER.map((st) => ({ value: st, label: titleCase(st), pill: STATUS_PILL[st] || 'pill-gray' }));
 
 const COLS: ColDef[] = [
   { id: 'name', label: 'Name', locked: true },
@@ -67,7 +69,6 @@ export default function ClientsPage() {
   const [err, setErr] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   // Set of collapsed group keys
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const load = () => {
     if (!org) return;
@@ -159,9 +160,6 @@ export default function ClientsPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const toggleGroup = (key: string) =>
-    setCollapsed((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
-
   if (!enabled) return (
     <Layout flat title="Clients">
       <EmptyState icon="ti-users" title="CRM not in your plan" text="Upgrade to manage clients." />
@@ -217,104 +215,24 @@ export default function ClientsPage() {
       </BulkBar>
 
       {/* Main list card — borderless ClickUp style */}
-      <div className="card overflow-hidden border border-line/40">
-        {clients === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-users" text="No clients found." /></div>
-        ) : groupBy === 'none' ? (
-          /* ── Flat list (no grouping) ── */
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line/40">
-                  <th className="px-4 py-2.5 w-10">
-                    <HeadCheckbox checked={rs.allSelected} indeterminate={rs.someSelected} onChange={rs.toggleAll} />
-                  </th>
-                  {prefs.ordered.map((id) => (
-                    <th key={id} className="px-4 py-2.5 text-left text-2xs font-medium uppercase tracking-wider text-muted2">
-                      {COLS.find((c) => c.id === id)?.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((c) => (
-                  <tr key={c.id}
-                    className={`group cursor-pointer transition-colors hover:bg-surface2/40 ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
-                    onClick={() => setEditor({ mode: 'edit', draft: c })}>
-                    <td className="px-4 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
-                      <RowCheckbox checked={rs.isSelected(c.id)} onChange={() => rs.toggle(c.id)} />
-                    </td>
-                    {prefs.ordered.map((id) => (
-                      <td key={id} className="px-4 py-2.5 text-sm text-muted">{cell(id, c)}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          /* ── Grouped by status ── */
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              {GROUP_ORDER.map((status) => {
-                const rows = shown.filter((c) => c.status === status);
-                if (rows.length === 0) return null;
-                const isCollapsed = collapsed.has(status);
-                return (
-                  <tbody key={status}>
-                    {/* Group header row */}
-                    <tr className="border-t border-line/30 first:border-t-0 bg-surface2/60">
-                      <td colSpan={prefs.ordered.length + 1} className="px-3 py-2">
-                        <button
-                          className="flex items-center gap-2 w-full text-left hover:opacity-80 transition-opacity"
-                          onClick={() => toggleGroup(status)}
-                          aria-expanded={!isCollapsed}
-                        >
-                          <Icon
-                            name={isCollapsed ? 'ti-chevron-right' : 'ti-chevron-down'}
-                            className="text-xs text-muted2 shrink-0"
-                          />
-                          <span className={`pill ${STATUS_PILL[status] || 'pill-gray'} text-2xs`}>
-                            {titleCase(status)}
-                          </span>
-                          <span className="text-xs font-medium text-content">{titleCase(status)}</span>
-                          <span className="text-2xs text-muted2 ml-1">{rows.length}</span>
-                        </button>
-                      </td>
-                    </tr>
-                    {/* Column sub-header row — shown when group is expanded */}
-                    {!isCollapsed && (
-                      <tr className="border-b border-line/30">
-                        <th className="px-4 py-1.5 w-10" />
-                        {prefs.ordered.map((id) => (
-                          <th key={id} className="px-4 py-1.5 text-left text-2xs font-medium uppercase tracking-wider text-muted2">
-                            {COLS.find((c) => c.id === id)?.label}
-                          </th>
-                        ))}
-                      </tr>
-                    )}
-                    {/* Data rows */}
-                    {!isCollapsed && rows.map((c) => (
-                      <tr key={c.id}
-                        className={`group cursor-pointer transition-colors hover:bg-surface2/40 ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
-                        onClick={() => setEditor({ mode: 'edit', draft: c })}>
-                        <td className="px-4 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
-                          <RowCheckbox checked={rs.isSelected(c.id)} onChange={() => rs.toggle(c.id)} />
-                        </td>
-                        {prefs.ordered.map((id) => (
-                          <td key={id} className="px-4 py-2.5 text-sm text-muted">{cell(id, c)}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                );
-              })}
-            </table>
-          </div>
-        )}
-      </div>
+      {clients === null ? (
+        <div className="card p-8 border border-line/40"><Spinner /></div>
+      ) : shown.length === 0 ? (
+        <div className="card p-8 border border-line/40"><EmptyState icon="ti-users" text="No clients found." /></div>
+      ) : (
+        <DataList
+          rows={shown}
+          rowKey={(c) => c.id}
+          cols={COLS}
+          prefs={prefs}
+          cell={cell}
+          onRowClick={(c) => setEditor({ mode: 'edit', draft: c })}
+          selection={rs}
+          groupBy={groupBy}
+          groupOf={(c) => c.status}
+          groups={GROUPS}
+        />
+      )}
 
       {editor && (
         <Modal
