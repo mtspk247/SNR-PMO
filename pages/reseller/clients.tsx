@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
+import { PageHeader, EmptyState, Icon, Tabs } from '@/components/ui';
 import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import ResellerOverview from '@/components/ResellerOverview';
@@ -13,14 +13,45 @@ import {
   adminImpersonateLink, snapshotList,
   ResellerOrg, ResellerInvite, WorkspaceSnapshot, ResellerBilling, ResellerPlanPrice,
 } from '@/lib/db';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
 
 const PLANS = [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }, { value: 'enterprise', label: 'Enterprise' }];
+
+type OrgRow = ResellerOrg & { id: string };
+
+const GROUPS: GroupMeta[] = [
+  { value: 'active', label: 'Active', pill: 'pill-green' },
+  { value: 'other', label: 'Other', pill: 'pill-gray' },
+];
+
+const COLS: ColDef[] = [
+  { id: 'workspace', label: 'Workspace', locked: true },
+  { id: 'plan', label: 'Plan' },
+  { id: 'members', label: 'Members' },
+  { id: 'seats', label: 'Seats' },
+  { id: 'status', label: 'Status' },
+  { id: 'actions', label: '' },
+];
+
+const CLIENT_FILTERS: FilterDef[] = [
+  {
+    id: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all', label: 'All statuses' },
+      { value: 'active', label: 'Active' },
+      { value: 'other', label: 'Other' },
+    ],
+  },
+];
 
 export default function ResellerClientsPage() {
   const org = useActiveOrg();
   const router = useRouter();
 
-  // Data
   const [orgs, setOrgs] = useState<ResellerOrg[] | null>(null);
   const [tab, setTab] = useState<'overview' | 'clients'>('overview');
   const [billing, setBilling] = useState<ResellerBilling | null>(null);
@@ -29,7 +60,6 @@ export default function ResellerClientsPage() {
   const [snaps, setSnaps] = useState<WorkspaceSnapshot[]>([]);
   const [err, setErr] = useState('');
 
-  // Invite modal
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -38,14 +68,11 @@ export default function ResellerClientsPage() {
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-
-  // View-as
   const [viewMsg, setViewMsg] = useState('');
 
-  // Filter bar
-  const [q, setQ] = useState('');
-  const [fPlan, setFPlan] = useState('all');
-  const [fStatus, setFStatus] = useState('all');
+  const prefs = useListPrefs('snrpmo.reseller_clients.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
 
   const load = () => {
     if (!org) return;
@@ -57,25 +84,66 @@ export default function ResellerClientsPage() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
 
-  // All hooks before any early return
-  const filteredOrgs = useMemo(() => {
-    const all = orgs || [];
+  const rows: OrgRow[] | null = useMemo(
+    () => orgs === null ? null : orgs.map((o) => ({ ...o, id: o.org_id })),
+    [orgs]
+  );
+
+  const shown: OrgRow[] = useMemo(() => {
+    if (!rows) return [];
     const term = q.trim().toLowerCase();
-    return all.filter((o) => {
+    return rows.filter((o) => {
       if (term && !(`${o.org_name || ''}`.toLowerCase().includes(term) || `${o.slug || ''}`.toLowerCase().includes(term))) return false;
-      if (fPlan !== 'all' && (o.plan_key || o.plan_name) !== fPlan) return false;
-      if (fStatus === 'active' && o.sub_status !== 'active') return false;
-      if (fStatus === 'other' && o.sub_status === 'active') return false;
+      if (statusF === 'active' && o.sub_status !== 'active') return false;
+      if (statusF === 'other' && o.sub_status === 'active') return false;
       return true;
     });
-  }, [orgs, q, fPlan, fStatus]);
+  }, [rows, q, statusF]);
 
-  const filtersOn = q.trim() !== '' || fPlan !== 'all' || fStatus !== 'all';
+  const rs = useRowSelection(shown);
 
-  const planOptions = useMemo(() => {
-    const keys = new Set((orgs || []).map((o) => o.plan_key || o.plan_name || 'free').filter(Boolean));
-    return [{ value: 'all', label: 'All plans' }, ...[...keys].map((k) => ({ value: k, label: k }))];
-  }, [orgs]);
+  const cell = (id: string, o: OrgRow) => {
+    switch (id) {
+      case 'workspace':
+        return (
+          <span>
+            <span className="font-medium text-content">{o.org_name}</span>
+            <span className="block text-2xs text-muted2">{o.slug}</span>
+          </span>
+        );
+      case 'plan':
+        return <span className="capitalize text-muted">{o.plan_name || o.plan_key || 'free'}</span>;
+      case 'members':
+        return <span className="tabular-nums text-muted">{o.member_count}</span>;
+      case 'seats':
+        return <span className="tabular-nums text-muted">{o.seats}{o.seat_limit ? ` / ${o.seat_limit}` : ''}</span>;
+      case 'status':
+        return <span className={`pill ${o.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{o.sub_status || 'free'}</span>;
+      case 'actions':
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); viewAsSub(o.org_id, o.org_name); }}
+            className="btn-ghost text-2xs"
+            title="View this sub-tenant's workspace (private window)"
+          >
+            <Icon name="ti-login-2" />View as
+          </button>
+        );
+      default:
+        return '---';
+    }
+  };
+
+  const exportValue = (id: string, o: OrgRow) => {
+    switch (id) {
+      case 'workspace': return o.org_name || '';
+      case 'plan': return o.plan_name || o.plan_key || 'free';
+      case 'members': return String(o.member_count ?? '');
+      case 'seats': return o.seat_limit ? `${o.seats} / ${o.seat_limit}` : String(o.seats ?? '');
+      case 'status': return o.sub_status || 'free';
+      default: return '';
+    }
+  };
 
   if (!org?.is_reseller || !can.manageMembers(org)) {
     return (
@@ -90,11 +158,11 @@ export default function ResellerClientsPage() {
   }
 
   const viewAsSub = async (subId: string, nm: string) => {
-    setViewMsg('Generating sign-in link…');
+    setViewMsg('Generating sign-in link...');
     try {
       const r = await adminImpersonateLink({ sub: subId });
       try { await navigator.clipboard?.writeText(r.link); } catch { /* */ }
-      setViewMsg(`Sign-in link for ${nm} copied — open it in a private window to view that workspace.`);
+      setViewMsg(`Sign-in link for ${nm} copied - open it in a private window to view that workspace.`);
       setTimeout(() => setViewMsg(''), 8000);
     } catch (e: any) { setViewMsg(e.message || 'Not permitted'); }
   };
@@ -116,7 +184,7 @@ export default function ResellerClientsPage() {
     <Layout flat title="Clients">
       <PageHeader
         title="Clients"
-        subtitle="Manage your sub-tenants — each has its own workspace under your brand"
+        subtitle="Manage your sub-tenants - each has its own workspace under your brand"
         icon="ti-buildings"
         action={
           <button className="btn btn-primary" onClick={() => { setOpen(true); setLink(null); setErr(''); }}>
@@ -138,142 +206,74 @@ export default function ResellerClientsPage() {
       ]} />
 
       {tab === 'overview' && (
-        orgs === null ? <div className="card p-8"><Spinner /></div>
-        : orgs.length === 0 ? <div className="card p-8"><EmptyState icon="ti-buildings" text="No clients yet — invite one to get started." /></div>
+        orgs === null ? <div className="card p-8"><EmptyState icon="ti-buildings" text="Loading..." /></div>
+        : orgs.length === 0 ? <div className="card p-8"><EmptyState icon="ti-buildings" text="No clients yet - invite one to get started." /></div>
         : <ResellerOverview orgs={orgs} billing={billing} prices={prices} agencyPlan={org.plan} />
       )}
 
       {tab === 'clients' && (
         <>
-      {/* Filter bar */}
-      {orgs && orgs.length > 0 && (
-        <div className="card p-3 mb-4 flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[180px]">
-            <Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2 text-sm pointer-events-none" />
-            <input
-              className="input pl-8 w-full"
-              placeholder="Search by name or slug…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
-          <div className="w-36">
-            <Select value={fPlan} onChange={setFPlan} options={planOptions} />
-          </div>
-          <div className="w-36">
-            <Select
-              value={fStatus}
-              onChange={setFStatus}
-              options={[{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'other', label: 'Other' }]}
-            />
-          </div>
-        </div>
-      )}
+          <ListView
+            rows={rows === null ? null : shown}
+            rowKey={(o) => o.id}
+            cols={COLS}
+            prefs={prefs}
+            cell={cell}
+            selection={rs}
+            filters={CLIENT_FILTERS}
+            searchPlaceholder="Search by name or slug..."
+            groupField={{ value: 'status', label: 'Status' }}
+            groupOf={(o) => (o.sub_status === 'active' ? 'active' : 'other')}
+            groups={GROUPS}
+            onRowClick={(o) => router.push(`/reseller/clients/${o.org_id}`)}
+            exportName="reseller-clients"
+            exportValue={exportValue}
+            emptyIcon="ti-buildings"
+            emptyText="No sub-tenants found."
+          />
 
-      {/* Sub-tenants table */}
-      <div className="card overflow-hidden mb-6">
-        {orgs === null ? (
-          <div className="p-8"><Spinner /></div>
-        ) : orgs.length === 0 ? (
-          <div className="p-6"><EmptyState icon="ti-buildings" text="No sub-tenants yet — invite one to get started." /></div>
-        ) : filteredOrgs.length === 0 ? (
-          <div className="p-8">
-            <EmptyState
-              icon="ti-search"
-              title="No matches"
-              text="No sub-tenants match the current filters."
-              action={filtersOn
-                ? <button className="btn" onClick={() => { setQ(''); setFPlan('all'); setFStatus('all'); }}>Clear filters</button>
-                : undefined}
-            />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface2/60 text-muted text-left text-2xs uppercase tracking-wider font-semibold sticky top-0 z-10">
-                <tr>
-                  <th className="px-4 py-2.5 text-muted2">Workspace</th>
-                  <th className="px-4 py-2.5 text-muted2">Plan</th>
-                  <th className="px-4 py-2.5 text-muted2">Members</th>
-                  <th className="px-4 py-2.5 text-muted2">Seats</th>
-                  <th className="px-4 py-2.5 text-muted2">Status</th>
-                  <th className="px-4 py-2.5 text-muted2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrgs.map((o) => (
-                  <tr key={o.org_id} className="border-t border-line hover:bg-surface2/60 transition-colors cursor-pointer" onClick={() => router.push(`/reseller/clients/${o.org_id}`)}>
-                    <td className="px-4 py-3">
-                      <span className="font-medium text-content">{o.org_name}</span>
-                      <span className="block text-2xs text-muted2">{o.slug}</span>
-                    </td>
-                    <td className="px-4 py-3 capitalize text-muted">{o.plan_name || o.plan_key || 'free'}</td>
-                    <td className="px-4 py-3 tabular-nums text-muted">{o.member_count}</td>
-                    <td className="px-4 py-3 tabular-nums text-muted">{o.seats}{o.seat_limit ? ` / ${o.seat_limit}` : ''}</td>
-                    <td className="px-4 py-3">
-                      <span className={`pill ${o.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{o.sub_status || 'free'}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); viewAsSub(o.org_id, o.org_name); }}
-                        className="btn-ghost text-2xs"
-                        title="View this sub-tenant's workspace (private window)"
-                      >
-                        <Icon name="ti-login-2" />View as
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Pending invitations */}
-      {invites.length > 0 && (
-        <div className="card overflow-hidden">
-          <div className="px-4 py-3 border-b border-line">
-            <h3 className="text-sm font-semibold">Invitations</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Workspace</th>
-                  <th className="px-4 py-3">Plan</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {invites.map((i) => (
-                  <tr key={i.id} className="border-t border-line hover:bg-surface2/60 transition-colors">
-                    <td className="px-4 py-3 text-content">{i.email}</td>
-                    <td className="px-4 py-3 text-muted">{i.org_name || '—'}</td>
-                    <td className="px-4 py-3 capitalize text-muted">{i.plan_key}</td>
-                    <td className="px-4 py-3">
-                      <span className={`pill ${i.status === 'pending' ? 'pill-amber' : i.status === 'accepted' ? 'pill-green' : 'pill-gray'}`}>{i.status}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {i.status === 'pending' && (
-                        <button onClick={() => copy(`https://snr-pmo.vercel.app/signup?token=${i.token}`)} className="btn-ghost text-2xs">
-                          <Icon name="ti-copy" />Copy link
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+          {invites.length > 0 && (
+            <div className="card overflow-hidden mt-6">
+              <div className="px-4 py-3 border-b border-line">
+                <h3 className="text-sm font-semibold">Invitations</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
+                    <tr>
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Workspace</th>
+                      <th className="px-4 py-3">Plan</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invites.map((i) => (
+                      <tr key={i.id} className="border-t border-line hover:bg-surface2/60 transition-colors">
+                        <td className="px-4 py-3 text-content">{i.email}</td>
+                        <td className="px-4 py-3 text-muted">{i.org_name || '---'}</td>
+                        <td className="px-4 py-3 capitalize text-muted">{i.plan_key}</td>
+                        <td className="px-4 py-3">
+                          <span className={`pill ${i.status === 'pending' ? 'pill-amber' : i.status === 'accepted' ? 'pill-green' : 'pill-gray'}`}>{i.status}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {i.status === 'pending' && (
+                            <button onClick={() => copy(`https://snr-pmo.vercel.app/signup?token=${i.token}`)} className="btn-ghost text-2xs">
+                              <Icon name="ti-copy" />Copy link
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* Invite sub-tenant modal */}
       <Modal
         open={open}
         onClose={() => setOpen(false)}
@@ -285,7 +285,7 @@ export default function ResellerClientsPage() {
           <>
             <button className="btn" onClick={() => setOpen(false)}>Close</button>
             <button className="btn btn-primary" disabled={busy || !email.trim() || !name.trim()} onClick={submit}>
-              {busy ? 'Creating…' : 'Create invite'}
+              {busy ? 'Creating...' : 'Create invite'}
             </button>
           </>
         }
@@ -299,7 +299,7 @@ export default function ResellerClientsPage() {
           </Field>
           {link && (
             <div className="rounded-lg border border-emerald-400/40 bg-emerald-500/5 p-3">
-              <p className="text-2xs text-muted mb-1.5">Invite link — share it with the sub-tenant owner:</p>
+              <p className="text-2xs text-muted mb-1.5">Invite link - share it with the sub-tenant owner:</p>
               <div className="flex items-center gap-2">
                 <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="input text-2xs flex-1" />
                 <button onClick={() => copy(link)} className="btn-ghost text-2xs"><Icon name="ti-copy" />{copied ? 'Copied' : 'Copy'}</button>

@@ -13,11 +13,19 @@ import { Deal, Contact, Company, CrmActivity } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useDeals, useContacts, useCrmCompanies } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
-import { usePagination, Pagination } from '@/components/Pagination';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { ListView } from '@/components/ListView';
+import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
 
 const STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 const CONTACT_COLS: ColDef[] = [{ id: 'name', label: 'Name', locked: true }, { id: 'title', label: 'Title' }, { id: 'company', label: 'Company' }, { id: 'status', label: 'Status' }, { id: 'email', label: 'Email' }];
+const CONTACT_GROUPS: GroupMeta[] = [
+  { value: 'Lead', label: 'Lead', pill: 'pill-amber' },
+  { value: 'Active', label: 'Active', pill: 'pill-green' },
+  { value: 'Customer', label: 'Customer', pill: 'pill-blue' },
+  { value: 'Inactive', label: 'Inactive', pill: 'pill-gray' },
+];
 const STAGE_RANK: Record<string, number> = { Lead: 1, Qualified: 2, Proposal: 3, Negotiation: 4, Won: 5, Lost: 0 };
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 const ACT_KINDS = [
@@ -39,6 +47,8 @@ export default function CRM() {
   const { data: contacts = [], isLoading: contactsLoading } = useContacts();
   const { data: companies = [], isLoading: companiesLoading } = useCrmCompanies();
   const loading = dealsLoading || contactsLoading || companiesLoading;
+
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
 
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Set<string>>(new Set());
@@ -158,7 +168,35 @@ export default function CRM() {
       return true;
     });
   }, [contacts, clp.query, clp.filters]);
-  const cpg = usePagination(contactsFiltered, 25);
+  const crs = useRowSelection(contactsFiltered);
+
+  const contactCell = (id: string, c: Contact) => {
+    switch (id) {
+      case 'name': return <button onClick={(e) => { e.stopPropagation(); router.push(`/crm/contact/${c.id}`); }} className="flex items-center gap-2.5 text-left hover:text-accentstrong"><Avatar name={c.full_name} size={28} /><span className="font-medium">{c.full_name}</span></button>;
+      case 'title': return <span className="text-2xs text-muted">{c.title || '—'}</span>;
+      case 'company': return <span className="text-sm">{c.crm_companies?.name || '—'}</span>;
+      case 'status': return c.status ? <Pill label={c.status} /> : null;
+      case 'email': return <span className="text-2xs text-sky-600">{c.email || '—'}</span>;
+      default: return null;
+    }
+  };
+
+  const contactExportValue = (id: string, c: Contact) => {
+    switch (id) {
+      case 'name': return c.full_name;
+      case 'title': return c.title || '';
+      case 'company': return c.crm_companies?.name || '';
+      case 'status': return c.status || '';
+      case 'email': return c.email || '';
+      default: return '';
+    }
+  };
+
+  const handleDeleteContacts = async (sel: typeof crs) => {
+    for (const c of sel.selected) {
+      await removeContact(c);
+    }
+  };
 
   // ----- shared detail panel: sidebar on xl+, overlay drawer below -----
   const moveDealStage = (id: string, stage: string) => {
@@ -369,49 +407,27 @@ export default function CRM() {
           )}
         </div>
       ) : (
-        contacts.length === 0 ? <EmptyState text="No contacts yet" icon="ti-user" /> : (
-          <>
-            <ListToolbar prefs={clp} cols={CONTACT_COLS} filters={CONTACT_FILTERS} placeholder="Search contacts…" />
-            {contactsFiltered.length === 0 ? <EmptyState text="No contacts match" icon="ti-user" /> : (
-            <div className="bg-surface overflow-hidden">
-              <div className="overflow-x-auto">
-              <table className="w-full list-card">
-                <thead><tr>
-                  {clp.ordered.map((id) => <th key={id} className="th">{CONTACT_COLS.find((c) => c.id === id)?.label}</th>)}
-                  <th className="th w-10"></th>
-                </tr></thead>
-                <tbody>
-                  {cpg.pageItems.map((c) => {
-                    const cell = (id: string) => {
-                      switch (id) {
-                        case 'name': return <button onClick={() => router.push(`/crm/contact/${c.id}`)} className="flex items-center gap-2.5 text-left hover:text-accentstrong"><Avatar name={c.full_name} size={28} /><span className="font-medium">{c.full_name}</span></button>;
-                        case 'title': return <span className="text-2xs text-muted">{c.title || '—'}</span>;
-                        case 'company': return <span className="text-sm">{c.crm_companies?.name || '—'}</span>;
-                        case 'status': return c.status ? <Pill label={c.status} /> : null;
-                        case 'email': return <span className="text-2xs text-sky-600">{c.email || '—'}</span>;
-                        default: return null;
-                      }
-                    };
-                    return (
-                      <tr key={c.id} className="row group">
-                        {clp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
-                        <td className="td text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => router.push(`/crm/contact/${c.id}`)} className="text-muted2 hover:text-accentstrong" title="Open contact"><Icon name="ti-arrow-up-right" /></button>
-                            <button onClick={() => removeContact(c)} disabled={busy} className="text-muted2 hover:text-rose-500" title="Delete contact"><Icon name="ti-trash" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              </div>
-              <Pagination page={cpg.page} pageCount={cpg.pageCount} total={cpg.total} start={cpg.start} end={cpg.end} onPage={cpg.setPage} />
-            </div>
-            )}
-          </>
-        )
+        <ListView
+          rows={contactsLoading ? null : contactsFiltered}
+          rowKey={(c) => c.id}
+          cols={CONTACT_COLS}
+          prefs={clp}
+          filters={CONTACT_FILTERS}
+          searchPlaceholder="Search contacts…"
+          selection={crs}
+          cell={contactCell}
+          exportName="crm-contacts"
+          exportValue={contactExportValue}
+          groupField={{ value: 'status', label: 'Status' }}
+          groupOf={(c) => c.status || ''}
+          groups={CONTACT_GROUPS}
+          emptyIcon="ti-user"
+          emptyText="No contacts yet"
+          onRowClick={(c) => router.push(`/crm/contact/${c.id}`)}
+          onDelete={isAdmin ? handleDeleteContacts : undefined}
+          canDelete={isAdmin}
+          busy={busy}
+        />
       )}
 
       {showDetail && selected && view === 'pipeline' && (
