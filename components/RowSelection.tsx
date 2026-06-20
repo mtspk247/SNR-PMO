@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/components/ui';
+import Select from '@/components/Select';
 
 // Reusable multi-row selection for any list/table of items with an `id`.
 // Pair with the list's *visible* rows so "select all" matches what's on screen.
@@ -55,5 +56,14 @@ export function BulkBar({ count, onClear, children }: { count: number; onClear: 
       <div className="flex items-center gap-2 ml-auto">{children}</div>
       <button onClick={onClear} className="text-muted hover:text-content" title="Clear selection"><Icon name="ti-x" className="text-base" /></button>
     </div>
+  );
+}
+
+// Bulk "assign to person" control for the multi-select bar. Pages pass their users
+// list + an onAssign that updates the selected rows' owner/assignee via the existing fn.
+export function BulkAssign({ users, onAssign, label = 'Assign to…' }: { users: { id: string; full_name: string }[]; onAssign: (userId: string | null) => void; label?: string }) {
+  return (
+    <Select value="" onChange={(v) => { if (v) onAssign(v === '__un' ? null : v); }} width={190} className="h-8 py-0 text-xs"
+      options={[{ value: '', label }, { value: '__un', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
   );
 }

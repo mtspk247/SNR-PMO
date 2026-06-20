@@ -9,7 +9,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listClients, createClient, updateClient, deleteClient, Client } from '@/lib/db';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
-import { useRowSelection } from '@/components/RowSelection';
+import { useRowSelection, BulkAssign } from '@/components/RowSelection';
 import { GroupMeta, EditSpec } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import { OrgUser } from '@/lib/supabase';
@@ -113,6 +113,11 @@ export default function ClientsPage() {
     try { for (const c of rs.selected) await deleteClient(c.id); rs.clear(); load(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
+  const bulkAssign = async (uid: string | null) => {
+    if (!rs.count) return; setBusy(true); setErr('');
+    try { for (const c of rs.selected) await updateClient(c.id, { owner_id: uid } as any); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const exportValue = (id: string, c: Client) =>
     id === 'name' ? c.name : id === 'contact' ? (c.contact_name || '') : id === 'email' ? (c.email || '')
@@ -214,6 +219,7 @@ export default function ClientsPage() {
         onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as ClientStatus } })}
         exportName="clients"
         exportValue={exportValue}
+        bulkActions={() => <BulkAssign users={users} onAssign={bulkAssign} />}
         onDelete={() => bulkDelete()}
         canDelete={isAdmin}
         busy={busy}
