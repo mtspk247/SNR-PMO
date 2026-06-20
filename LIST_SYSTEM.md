@@ -29,3 +29,26 @@ Later: L.1 subtask/row nesting · L.2 per-module custom Statuses manager
 
 ## Status log
 - 2026-06-20 — Global system LIVE (96c6766); Tasks-match restyle LIVE (17c3ae6); deployment verified READY. Batch 1 next.
+
+## ClickUp parity — full capture (2026-06-20, after Tariq's row/column feedback)
+Reference = ClickUp List view (what.NGO screenshot). Honest status of EVERY element:
+
+**DONE (shared DataList `4807969`) — lands on every ListView page:**
+- [x] Plain **borderless** rows (no boxed card, no heavy row borders, no shadow-lift) — highlight on hover only
+- [x] Left **6-dot grip handle** → drag rows up/down to reorder (persisted per-user via `orderKey`) AND across status groups (changes status via the normal update fn)
+- [x] **Draggable column headers** → reorder left↔right (in-table, not just the menu)
+- [x] **"+ add column"** from the header row (admin/RBAC)
+- [x] Per-group repeated column header; collapsible groups; per-group "+ Add"; hover-reveal select checkbox; inline status/priority/avatar/text/date/number cells; colored status pill group header (when the page supplies pill colors)
+
+**STILL MISSING / NOT YET GLOBAL (the real backlog):**
+- [ ] **CONSISTENCY — migrate the divergent pages onto the shared system.** Ideas, Teams, CRM pipeline, Leads, Workload each still render their OWN toolbar/rows (ViewControls / bespoke) → they don't match. This is the #1 fix. (one owner per page, supervisor-verified)
+- [ ] **Subtasks / row nesting** — the expand chevron + "Create subtask" (L.1). Needs a parent_id per entity + indent UI.
+- [ ] **`orderKey` on every page** (persisted reorder) — currently only Clients; thread it through each ListView page.
+- [ ] **Colored pill group headers everywhere** — ensure every grouped page passes `pill` colors (some pass plain labels → grey text).
+- [ ] **Per-group "…" menu** — collapse-all / rename status / manage from the group header.
+- [ ] **Saved named views** (per-user) — ClickUp "Save view"; we persist columns but not named view presets.
+- [ ] **View tabs** (List / Board / Calendar / Activity) as ClickUp-style tabs; today only List/Board toggle.
+- [ ] **Richer generic cells** — progress-bar (Completion Rate), time-tracked widget — as reusable cell renderers.
+- [ ] **Row-hover quick actions** (tag / link / comment) on the right.
+
+**Next slice:** make it TRULY global — migrate Ideas, Teams, CRM, Leads, Workload onto ListView/DataList so toolbar + rows are identical, then roll `orderKey` + pill colors to all.
