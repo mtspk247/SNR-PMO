@@ -27,11 +27,11 @@ const COLS: ColDef[] = [
   { id: 'owner', label: 'Owner' },
   { id: 'status', label: 'Status' },
 ];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const SUB_FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...['requested', ...STATUSES, 'rejected'].map((s) => ({ value: s, label: cap(s) }))] }];
 const SUB_GROUP_ORDER = ['active', 'trial', 'paused', 'requested', 'cancelled', 'expired', 'rejected'];
 const GROUPS: GroupMeta[] = SUB_GROUP_ORDER.map((st) => ({ value: st, label: cap(st), pill: STATUS_PILL[st] || 'pill-gray' }));
 const PLAN_TYPES = ['monthly', 'annual', 'one-time', 'usage'];
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtMoney = (n: number, c = 'USD') => `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const monthly = (s: VendorSubscription) => s.plan_type === 'annual' ? (s.cost || 0) / 12 : s.plan_type === 'one-time' ? 0 : (s.cost || 0);
 const daysTo = (d: string | null) => d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null;

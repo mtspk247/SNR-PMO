@@ -13,6 +13,7 @@ import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListT
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
 
+const fmtType = (t: string) => t.replace(/_/g, ' ');
 const STATUS_PILL: Record<string, string> = {
   draft: 'pill-gray',
   open: 'pill-green',
@@ -33,7 +34,6 @@ const JOB_FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ v
 const JOB_GROUP_ORDER = ['open', 'on_hold', 'draft', 'closed'];
 const GROUPS: GroupMeta[] = JOB_GROUP_ORDER.map((st) => ({ value: st, label: fmtType(st), pill: STATUS_PILL[st] || 'pill-gray' }));
 const EMP_TYPES = ['full_time', 'part_time', 'contract', 'intern', 'temporary'];
-const fmtType = (t: string) => t.replace(/_/g, ' ');
 
 type Draft = Partial<JobPosting>;
 const emptyDraft = (): Draft => ({ title: '', department: '', location: '', employment_type: 'full_time', openings: 1, status: 'draft', description: '', owner_id: undefined });
