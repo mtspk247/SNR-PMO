@@ -16,7 +16,7 @@ import { can } from '@/lib/authz';
 type Kind = 'webhook' | 'link' | 'import' | 'api';
 type Item = {
   key: string; name: string; icon: string; category: string; kind: Kind;
-  format?: 'slack' | 'discord' | 'json'; href?: string; cta?: string; blurb: string; help?: string;
+  format?: 'slack' | 'discord' | 'teams' | 'json'; href?: string; cta?: string; blurb: string; help?: string;
 };
 
 const CATALOG: Item[] = [
