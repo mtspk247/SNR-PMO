@@ -9,11 +9,13 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import {
   listLeads, createLead, updateLead, deleteLead, convertLeadToClient, leadToDeal, getOrgUsers, Lead,
+  getTaskStatuses, TaskStatus,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
+import StatusManager from '@/components/StatusManager';
 
 const STATUS_PILL: Record<string, string> = {
   new: 'pill-blue', contacted: 'pill-amber', qualified: 'pill-green',
