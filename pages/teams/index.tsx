@@ -12,12 +12,23 @@ import { qk } from '@/lib/queryKeys';
 import { createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, getOrgUsers, getTimeEntriesRange } from '@/lib/db';
 import { Team, Task, OrgUser, TimeEntry } from '@/lib/supabase';
 import { ViewControls, useViewPrefs } from '@/components/ViewControls';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { ListView } from '@/components/ListView';
 
 const SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 const DAY = 86400000;
 const isOpen = (t: Task) => t.status !== 'Done' && t.status !== 'Cancelled';
 const isOverdue = (t: Task) => !!t.due_date && t.status !== 'Done' && t.status !== 'Cancelled' && new Date(t.due_date) < new Date(new Date().toDateString());
 const minsToH = (m: number) => Math.round((m / 60) * 10) / 10;
+const COLS: ColDef[] = [
+  { id: 'team', label: 'Team', locked: true },
+  { id: 'members', label: 'Members' },
+  { id: 'open', label: 'Open' },
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'hours', label: 'Hours' },
+  { id: 'actions', label: '' },
+];
 
 type Draft = { name: string; description: string; color: string };
 
@@ -34,6 +45,7 @@ export default function TeamsHub() {
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const vp = useViewPrefs('snr-teams-vp', { view: 'cards' });
+  const prefs = useListPrefs('snrpmo.teams.cols', COLS);
 
   useEffect(() => {
     if (!org?.id) return;
@@ -81,25 +93,41 @@ export default function TeamsHub() {
     try { await removeTeamMember(teamId, userId); refresh(); } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 
-  const TeamList = () => (
-    <div className="card overflow-hidden">
-      <div className="overflow-x-auto"><table className="w-full text-sm">
-        <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide"><tr>
-          <th className="px-4 py-3 font-medium">Team</th><th className="px-4 py-3 font-medium">Members</th><th className="px-4 py-3 font-medium text-right">Open</th><th className="px-4 py-3 font-medium text-right">Overdue</th><th className="px-4 py-3 font-medium text-right">Hours</th><th className="px-4 py-3 font-medium text-right">Actions</th>
-        </tr></thead>
-        <tbody>{teams.map((tm) => { const st = stats.get(tm.id) || { open: 0, overdue: 0, hours: 0 }; const members = tm.members || []; return (
-          <tr key={tm.id} className="border-t border-line hover:bg-surface2/50">
-            <td className="px-4 py-3"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: tm.color || '#64748b' }} /><Link href={`/teams/${tm.id}`} className="font-medium text-content hover:text-accent">{tm.name}</Link></div></td>
-            <td className="px-4 py-3"><div className="flex items-center gap-1"><div className="flex -space-x-1.5">{members.slice(0, 4).map((m) => <Avatar key={m.user_id} name={m.users?.full_name || '?'} size={20} />)}</div><span className="text-2xs text-muted ml-1">{members.length}</span></div></td>
-            <td className="px-4 py-3 text-right tabular-nums">{st.open}</td>
-            <td className={`px-4 py-3 text-right tabular-nums ${st.overdue > 0 ? 'text-rose-500' : ''}`}>{st.overdue}</td>
-            <td className="px-4 py-3 text-right tabular-nums text-muted">{st.hours}</td>
-            <td className="px-4 py-3 text-right whitespace-nowrap"><Link href={`/teams/${tm.id}`} className="btn h-8 py-0"><Icon name="ti-layout-dashboard" className="text-sm" />Overview</Link>{manage && <button onClick={() => openEdit(tm)} className="btn h-8 py-0 ml-1"><Icon name="ti-pencil" className="text-sm" /></button>}</td>
-          </tr>
-        ); })}</tbody>
-      </table></div>
-    </div>
+  const shown = useMemo(
+    () => teams.filter((tm) => !prefs.query.trim() || tm.name.toLowerCase().includes(prefs.query.toLowerCase())),
+    [teams, prefs.query]
   );
+  const rs = useRowSelection(shown);
+  const cell = (id: string, tm: Team) => {
+    const st = stats.get(tm.id) || { open: 0, overdue: 0, hours: 0 };
+    const members = tm.members || [];
+    switch (id) {
+      case 'team': return <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: tm.color || '#64748b' }} /><Link href={`/teams/${tm.id}`} className="font-medium text-content hover:text-accent" onClick={(e) => e.stopPropagation()}>{tm.name}</Link></div>;
+      case 'members': return <div className="flex items-center gap-1"><div className="flex -space-x-1.5">{members.slice(0, 4).map((m) => <Avatar key={m.user_id} name={m.users?.full_name || '?'} size={20} />)}</div><span className="text-2xs text-muted ml-1">{members.length}</span></div>;
+      case 'open': return <span className="tabular-nums">{st.open}</span>;
+      case 'overdue': return <span className={`tabular-nums ${st.overdue > 0 ? 'text-rose-500' : ''}`}>{st.overdue}</span>;
+      case 'hours': return <span className="tabular-nums text-muted">{st.hours}</span>;
+      case 'actions': return <div className="whitespace-nowrap"><Link href={`/teams/${tm.id}`} className="btn h-8 py-0" onClick={(e) => e.stopPropagation()}><Icon name="ti-layout-dashboard" className="text-sm" />Overview</Link>{manage && <button onClick={(e) => { e.stopPropagation(); openEdit(tm); }} className="btn h-8 py-0 ml-1"><Icon name="ti-pencil" className="text-sm" /></button>}</div>;
+      default: return '\u2014';
+    }
+  };
+  const exportValue = (id: string, tm: Team) => {
+    const st = stats.get(tm.id) || { open: 0, overdue: 0, hours: 0 };
+    switch (id) {
+      case 'team': return tm.name;
+      case 'members': return String((tm.members || []).length);
+      case 'open': return String(st.open);
+      case 'overdue': return String(st.overdue);
+      case 'hours': return String(st.hours);
+      default: return '';
+    }
+  };
+  const bulkDelete = async (sel: typeof rs) => {
+    if (!sel.count || !confirm(`Delete ${sel.count} team${sel.count > 1 ? 's' : ''}? Members keep their accounts.`)) return;
+    setBusy(true);
+    try { for (const tm of sel.selected) await deleteTeam(tm.id); sel.clear(); refresh(); }
+    catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
   return (
     <Layout flat title="Teams">
       <PageHeader title="Teams" subtitle="Groups of people — see what each team is working on" icon="ti-users-group"
@@ -112,7 +140,24 @@ export default function TeamsHub() {
           <div className="flex items-center justify-end mb-3">
             <ViewControls prefs={vp} views={[{ id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }]} />
           </div>
-          {vp.view === 'list' ? <TeamList /> : (
+          {vp.view === 'list' ? (
+            <ListView
+              rows={shown}
+              rowKey={(tm) => tm.id}
+              cols={COLS}
+              prefs={prefs}
+              cell={cell}
+              selection={rs}
+              searchPlaceholder="Search teams…"
+              exportName="teams"
+              exportValue={exportValue}
+              onDelete={(sel) => bulkDelete(sel)}
+              canDelete={manage}
+              busy={busy}
+              emptyIcon="ti-users-group"
+              emptyText="No teams found."
+            />
+          ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {teams.map((tm) => {
             const st = stats.get(tm.id) || { open: 0, overdue: 0, hours: 0 };
