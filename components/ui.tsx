@@ -29,6 +29,19 @@ export const Pill = ({ label }: { label: string }) => (
 );
 
 const AVATAR_COLORS = ['#6366F1', '#0EA5A4', '#EC8C36', '#E1568E', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4', '#7C3AED', '#0891B2'];
+export const PriorityBars = ({ priority }: { priority?: string }) => {
+  const p = (priority || '').toLowerCase();
+  const level = /urgent|critical/.test(p) ? 4 : /high/.test(p) ? 3 : /medium|normal/.test(p) ? 2 : 1;
+  return (
+    <span className="inline-flex items-end gap-0.5 h-3.5 shrink-0 align-middle" aria-hidden="true">
+      {[1, 2, 3, 4].map((i) => (
+        <span key={i} style={{ height: `${i * 25}%` }}
+          className={`w-1 rounded-sm ${i <= level ? (level >= 4 ? 'bg-rose-500' : level === 3 ? 'bg-amber-500' : level === 2 ? 'bg-sky-500' : 'bg-emerald-500') : 'bg-surface2'}`} />
+      ))}
+    </span>
+  );
+};
+
 export const Avatar = ({ name, size = 28, src }: { name: string; size?: number; src?: string | null }) => {
   if (src && src.startsWith('preset:')) {
     const emoji = src.slice(7);

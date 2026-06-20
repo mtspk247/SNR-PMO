@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
+import { PriorityBars, PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -110,7 +110,7 @@ export default function SupportPage() {
     switch (id) {
       case 'subject': return <span className="font-medium text-content">{t.subject}</span>;
       case 'requester': return name(t.requester_id);
-      case 'priority': return <span className={`pill ${PRIORITY_PILL[t.priority] || 'pill-gray'}`}>{t.priority}</span>;
+      case 'priority': return <span className="inline-flex items-center gap-2"><PriorityBars priority={t.priority} /><span className={`pill ${PRIORITY_PILL[t.priority] || 'pill-gray'}`}>{t.priority}</span></span>;
       case 'status': return <span className={`pill ${STATUS_PILL[t.status] || 'pill-gray'}`}>{t.status.replace('_', ' ')}</span>;
       case 'updated': return fmtDate(t.updated_at);
       default: return '—';

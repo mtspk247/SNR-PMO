@@ -4,7 +4,7 @@ import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
-import { Pill, Spinner, EmptyState, PageHeader, Icon, StatusBadge } from '@/components/ui';
+import { PriorityBars, Pill, Spinner, EmptyState, PageHeader, Icon, StatusBadge } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
@@ -123,7 +123,7 @@ export default function Projects() {
       case 'name': return (<div><p className="font-medium">{p.name}</p>{portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}{p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}</div>);
       case 'status': return <StatusBadge status={p.status} color={pColor(p.status)} />;
       case 'company': return <span className="text-2xs text-muted">{companyName(p.company_id) || '\u2014'}</span>;
-      case 'priority': return <Pill label={p.priority} />;
+      case 'priority': return <span className="inline-flex items-center gap-2"><PriorityBars priority={p.priority} /><Pill label={p.priority} /></span>;
       case 'timeline': return <span className="text-2xs text-neutral-500">{p.start_date || '\u2014'} \u2192 {p.end_date || '\u2014'}</span>;
       case 'progress': return (<div className="flex items-center gap-2"><div className="flex-1 h-1.5 rounded bg-neutral-100"><div className="h-1.5 rounded bg-ink" style={{ width: `${p.progress || 0}%` }} /></div><span className="text-2xs text-neutral-500 w-8 text-right">{p.progress || 0}%</span></div>);
       case 'actions': return (<div className="flex items-center gap-1 justify-end">{canCreate && <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit project" className="text-muted2 hover:text-content p-1"><Icon name="ti-pencil" className="text-sm" /></button>}<Link href={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-muted2 hover:text-content inline-flex p-1" title="Open project"><Icon name="ti-arrow-right" /></Link></div>);

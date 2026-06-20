@@ -4,7 +4,7 @@ import Select from '@/components/Select';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
-import { PageHeader, Pill, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
+import { PriorityBars, PageHeader, Pill, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
 import { useProjects, usePortfolios } from '@/lib/queries';
 import { updateProject, deleteProject } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
@@ -405,7 +405,7 @@ export default function RoadmapPage() {
           </Link>
         );
       case 'status':   return <Pill label={p.status} />;
-      case 'priority': return <Pill label={p.priority} />;
+      case 'priority': return <span className="inline-flex items-center gap-2"><PriorityBars priority={p.priority} /><Pill label={p.priority} /></span>;
       case 'progress':
         return (
           <div className="flex items-center gap-2">
