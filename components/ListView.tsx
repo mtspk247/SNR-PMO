@@ -151,7 +151,6 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           onRowClick={p.onRowClick}
           onMove={p.editable && p.editable[p.groupField!.value] && p.onEdit ? (r, target) => p.onEdit!(r, p.groupField!.value, target) : undefined}
           onAddInGroup={p.onAddInGroup}
-          orderKey={p.orderKey}
         />
       ) : rows.length === 0 ? (
         <div className="card p-8 border border-line/40"><EmptyState icon={p.emptyIcon || 'ti-list'} text={p.emptyText || 'Nothing here yet.'} /></div>
