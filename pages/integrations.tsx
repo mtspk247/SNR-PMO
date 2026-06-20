@@ -1,153 +1,176 @@
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Layout from '@/components/Layout';
-import { PageHeader, StatCard, Spinner, EmptyState, Icon } from '@/components/ui';
-import { getIntegrations, setIntegrationStatus } from '@/lib/db';
-import { Integration } from '@/lib/supabase';
-import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { PageHeader, StatCard, Spinner, Icon } from '@/components/ui';
+import { sb } from '@/lib/supabase';
+import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import Dropdown from '@/components/Dropdown';
+
+// Honest integrations catalog. Three kinds:
+//  - webhook : genuinely works now — registers a webhook_endpoint that the events
+//              bus delivers to (Slack/Discord get their native payload shape).
+//  - link    : a real capability that lives elsewhere in the app (deep-link).
+//  - planned : not built yet — shown honestly, never a fake "Connected".
+type Kind = 'webhook' | 'link' | 'planned';
+type Item = {
+  key: string; name: string; icon: string; category: string; kind: Kind;
+  format?: 'slack' | 'discord' | 'json'; href?: string; cta?: string;
+  blurb: string; help?: string;
+};
+
+const CATALOG: Item[] = [
+  { key: 'slack', name: 'Slack', icon: 'ti-brand-slack', category: 'Communication', kind: 'webhook', format: 'slack',
+    blurb: 'Post a message to a Slack channel when deals, invoices, projects or clients change.',
+    help: 'In Slack: Apps → Incoming Webhooks → add to a channel → copy the webhook URL (https://hooks.slack.com/services/…).' },
+  { key: 'discord', name: 'Discord', icon: 'ti-brand-discord', category: 'Communication', kind: 'webhook', format: 'discord',
+    blurb: 'Send event notifications to a Discord channel.',
+    help: 'In Discord: Channel → Edit → Integrations → Webhooks → New Webhook → copy the URL.' },
+  { key: 'webhook', name: 'Custom webhook', icon: 'ti-webhook', category: 'Developer', kind: 'webhook', format: 'json',
+    blurb: 'POST the full signed event JSON to any endpoint and wire up your own service.',
+    help: 'We POST signed JSON (verify the X-SNRPMO-Signature HMAC). See Developer for the payload shape.' },
+  { key: 'zapier', name: 'Zapier', icon: 'ti-bolt', category: 'Automation', kind: 'link', href: '/developer', cta: 'Get API key + webhooks',
+    blurb: 'Connect to thousands of apps using your API key and webhooks.' },
+  { key: 'stripe', name: 'Stripe', icon: 'ti-credit-card', category: 'Payments', kind: 'link', href: '/billing', cta: 'Open billing',
+    blurb: 'Subscription billing and secure checkout — configured under Billing.' },
+  { key: 'email', name: 'Gmail / SMTP', icon: 'ti-mail', category: 'Email', kind: 'link', href: '/users', cta: 'Open Users ▸ Email',
+    blurb: 'Send reports and automations from your own mailbox (open your user, then the Email tab).' },
+  { key: 'gcal', name: 'Google Calendar', icon: 'ti-calendar', category: 'Calendar', kind: 'planned', blurb: 'Two-way calendar sync for tasks and events.' },
+  { key: 'quickbooks', name: 'QuickBooks', icon: 'ti-calculator', category: 'Accounting', kind: 'planned', blurb: 'Push invoices and payments to QuickBooks.' },
+  { key: 'hubspot', name: 'HubSpot', icon: 'ti-affiliate', category: 'CRM', kind: 'planned', blurb: 'Sync contacts and deals with HubSpot.' },
+  { key: 'github', name: 'GitHub', icon: 'ti-brand-github', category: 'Development', kind: 'planned', blurb: 'Link issues and pull requests to tasks.' },
+];
+
+type Endpoint = { id: string; url: string; label: string | null; format: string | null; events: string[]; active: boolean };
 
 export default function IntegrationsPage() {
   const org = useActiveOrg();
-  const me = useAuthStore((s) => s.user);
-  const [items, setItems] = useState<Integration[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState('');
-  const [q, setQ] = useState('');
-  const [cat, setCat] = useState('All');
-  const [view, setView] = useState<'cards' | 'list'>('cards');
-  const [group, setGroup] = useState('category');
-
-  useEffect(() => { getIntegrations().then(setItems).finally(() => setLoading(false)); }, [org?.id]);
   const admin = can.manageIntegrations(org);
+  const [eps, setEps] = useState<Endpoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState<Item | null>(null);
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
 
-  const toggle = async (it: Integration) => {
-    if (!me) return; setBusy(it.id);
-    try { const next = it.status === 'connected' ? 'disconnected' : 'connected'; const r = await setIntegrationStatus(it.id, next, me.id); setItems((p) => p.map((x) => (x.id === r.id ? r : x))); }
-    catch (e: any) { alert(e.message); } finally { setBusy(''); }
+  const load = () => {
+    if (!org?.id) return;
+    setLoading(true);
+    sb.from('webhook_endpoints').select('id, url, label, format, events, active').eq('org_id', org.id)
+      .then(({ data }) => { setEps((data as Endpoint[]) || []); setLoading(false); });
+  };
+  useEffect(load, [org?.id]);
+
+  // A catalog item is "connected" if it owns at least one labelled endpoint.
+  const connFor = (it: Item) => eps.filter((e) => e.label === it.name);
+  const isConnected = (it: Item) => connFor(it).length > 0;
+  const connectedCount = CATALOG.filter((it) => it.kind === 'webhook' && isConnected(it)).length;
+
+  const openConnect = (it: Item) => { setErr(''); setUrl(''); setModal(it); };
+
+  const save = async () => {
+    if (!modal || !org) return;
+    const u = url.trim();
+    if (!/^https:\/\/.+/i.test(u)) { setErr('Enter a valid https:// webhook URL.'); return; }
+    setBusy('save'); setErr('');
+    try {
+      const { error } = await sb.from('webhook_endpoints').insert({
+        org_id: org.id, url: u, label: modal.name, format: modal.format || 'json', events: ['*'], active: true,
+      } as any);
+      if (error) throw error;
+      setModal(null); load();
+    } catch (e: any) { setErr(e.message || 'Could not connect.'); } finally { setBusy(''); }
   };
 
-  const cats = useMemo(() => Array.from(new Set(items.map((i) => i.category || 'Other'))).sort(), [items]);
-  const connected = items.filter((i) => i.status === 'connected').length;
+  const disconnect = async (it: Item) => {
+    if (!org || !confirm(`Disconnect ${it.name}? This removes its webhook${connFor(it).length > 1 ? 's' : ''}.`)) return;
+    setBusy(it.key);
+    try { await sb.from('webhook_endpoints').delete().eq('org_id', org.id).eq('label', it.name); load(); }
+    finally { setBusy(''); }
+  };
 
-  const visible = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return items.filter((i) => {
-      if (cat !== 'All' && (i.category || 'Other') !== cat) return false;
-      if (!needle) return true;
-      return (i.name + ' ' + (i.description || '')).toLowerCase().includes(needle);
-    });
-  }, [items, q, cat]);
-
-  const groupOptions = [
-    { value: 'category', label: 'Group by category' },
-    { value: 'status', label: 'Group by status' },
-    { value: 'none', label: 'No grouping' },
-  ];
-  const gkey = (i: Integration) => group === 'status' ? (i.status === 'connected' ? 'Connected' : 'Not connected') : group === 'none' ? 'All' : (i.category || 'Other');
   const groups = useMemo(() => {
-    const g: Record<string, Integration[]> = {};
-    visible.forEach((i) => { const c = gkey(i); (g[c] = g[c] || []).push(i); });
+    const g: Record<string, Item[]> = {};
+    CATALOG.forEach((i) => { (g[i.category] = g[i.category] || []).push(i); });
     return Object.entries(g).sort((a, b) => a[0].localeCompare(b[0]));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, group]);
+  }, []);
+
+  const live = CATALOG.filter((i) => i.kind !== 'planned').length;
 
   return (
     <Layout flat title="Integrations">
-      {loading ? <Spinner /> : (
-        <>
-          <PageHeader title="Integrations" subtitle={admin ? 'Connect the tools your team already uses.' : 'Admins can connect tools for the workspace.'} />
+      <PageHeader title="Integrations" subtitle="Connect SNR-PMO to the tools your team already uses." help="connections" />
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Available" value={items.length} hint={`${cats.length} categories`} icon="ti-plug" />
-            <StatCard label="Connected" value={connected} hint={connected ? 'Active now' : 'None yet'} hintTone={connected ? 'up' : 'muted'} icon="ti-plug-connected" />
-            <StatCard label="Not connected" value={items.length - connected} hint="Ready to add" icon="ti-plug-off" />
-            <StatCard label="Categories" value={cats.length} hint="Across catalog" icon="ti-category" />
-          </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Available now" value={live} hint="Real, working connections" icon="ti-plug-connected" />
+        <StatCard label="Connected" value={connectedCount} hint={connectedCount ? 'Active' : 'None yet'} hintTone={connectedCount ? 'up' : 'muted'} icon="ti-bolt" />
+        <StatCard label="Powered by" value="Events + Webhooks" hint="Fires on real activity" icon="ti-webhook" />
+        <StatCard label="On the roadmap" value={CATALOG.filter((i) => i.kind === 'planned').length} hint="Native apps coming" icon="ti-map-pin" />
+      </div>
 
-          {/* Toolbar: search + category filter */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-            <div className="relative flex-1 max-w-sm">
-              <Icon name="ti-search" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 text-base" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search integrations…"
-                className="w-full h-9 pl-9 pr-3 rounded-lg bg-surface border border-line text-sm text-content placeholder:text-muted2 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-              />
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-              {['All', ...cats].map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setCat(c)}
-                  className={`px-3 h-8 rounded-full text-xs font-medium whitespace-nowrap transition ${cat === c ? 'bg-accent text-accentfg' : 'bg-surface2 text-muted hover:text-content'}`}
-                >{c}</button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5 sm:ml-auto shrink-0">
-              <div className="inline-flex items-center rounded-md border border-line bg-surface p-0.5 h-8">
-                {(['cards', 'list'] as const).map((vv) => (
-                  <button key={vv} onClick={() => setView(vv)} title={vv === 'list' ? 'List' : 'Cards'} className={`h-7 px-2 rounded inline-flex items-center text-xs transition ${view === vv ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content'}`}><Icon name={vv === 'list' ? 'ti-list' : 'ti-layout-grid'} /></button>
-                ))}
-              </div>
-              <Dropdown value={group} onChange={setGroup} width={190} items={groupOptions} trigger={<span className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-line bg-surface text-xs text-content cursor-pointer hover:border-borderstrong"><Icon name="ti-layout-rows" />{groupOptions.find((o) => o.value === group)?.label || 'Group'}<Icon name="ti-chevron-down" className="text-muted2" /></span>} />
-            </div>
-          </div>
-
-          {visible.length === 0 ? (
-            <EmptyState icon="ti-plug" text={items.length === 0 ? 'No integrations available' : 'No integrations match your search'} />
-          ) : groups.map(([c, list]) => (
-            <div key={c} className="mb-7">
-              <div className="flex items-center gap-2 mb-3">
-                <p className="text-2xs uppercase tracking-wide text-muted font-medium">{c}</p>
-                <span className="text-2xs text-muted">· {list.length}</span>
-              </div>
-              {view === 'cards' ? (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {list.map((it) => {
-                  const on = it.status === 'connected';
-                  return (
-                    <div key={it.id} className={`card p-4 flex flex-col transition hover:shadow-sm ${on ? 'ring-1 ring-accent/30' : ''}`}>
-                      <div className="flex items-start gap-3">
-                        <span className={`w-10 h-10 rounded-lg grid place-items-center shrink-0 ${on ? 'bg-accent/15 text-accentstrong' : 'bg-surface2 text-muted'}`}>
-                          <Icon name={it.icon || 'ti-plug'} className="text-lg" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate text-content">{it.name}</p>
-                          <span className={`pill ${on ? 'pill-green' : 'pill-gray'} mt-1`}>{on ? 'Connected' : 'Not connected'}</span>
-                        </div>
-                      </div>
-                      <p className="text-2xs text-muted mt-2.5 line-clamp-2 min-h-[2rem]">{it.description || 'No description provided.'}</p>
-                      <button
-                        onClick={() => toggle(it)}
-                        disabled={!admin || busy === it.id}
-                        className={`btn mt-3 w-full justify-center ${on ? '' : 'btn-primary'} ${!admin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        {busy === it.id ? <Icon name="ti-loader-2" className="animate-spin" /> : on ? 'Disconnect' : 'Connect'}
-                      </button>
+      {loading ? <Spinner /> : groups.map(([cat, list]) => (
+        <div key={cat} className="mb-7">
+          <p className="text-2xs uppercase tracking-wide text-muted font-medium mb-3">{cat}</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {list.map((it) => {
+              const on = it.kind === 'webhook' && isConnected(it);
+              return (
+                <div key={it.key} className={`card p-4 flex flex-col ${on ? 'ring-1 ring-accent/30' : ''}`}>
+                  <div className="flex items-start gap-3">
+                    <span className={`w-10 h-10 rounded-lg grid place-items-center shrink-0 ${on ? 'bg-accent/15 text-accentstrong' : 'bg-surface2 text-muted'}`}>
+                      <Icon name={it.icon} className="text-lg" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate text-content">{it.name}</p>
+                      {it.kind === 'webhook' && <span className={`pill ${on ? 'pill-green' : 'pill-gray'} mt-1`}>{on ? 'Connected' : 'Not connected'}</span>}
+                      {it.kind === 'link' && <span className="pill pill-sky mt-1">Available</span>}
+                      {it.kind === 'planned' && <span className="pill pill-gray mt-1">Planned</span>}
                     </div>
-                  );
-                })}
-              </div>
-              ) : (
-                <div className="card divide-y divide-line">
-                  {list.map((it) => {
-                    const on = it.status === 'connected';
-                    return (
-                      <div key={it.id} className="flex items-center gap-3 px-4 py-2.5">
-                        <span className={`w-8 h-8 rounded-lg grid place-items-center shrink-0 ${on ? 'bg-accent/15 text-accentstrong' : 'bg-surface2 text-muted'}`}><Icon name={it.icon || 'ti-plug'} className="text-base" /></span>
-                        <div className="min-w-0 flex-1"><p className="text-sm font-medium truncate text-content">{it.name}</p>{it.description && <p className="text-2xs text-muted truncate">{it.description}</p>}</div>
-                        <span className={`pill ${on ? 'pill-green' : 'pill-gray'} shrink-0`}>{on ? 'Connected' : 'Not connected'}</span>
-                        <button onClick={() => toggle(it)} disabled={!admin || busy === it.id} className={`btn h-7 py-0 shrink-0 ${on ? '' : 'btn-primary'} ${!admin ? 'opacity-50 cursor-not-allowed' : ''}`}>{busy === it.id ? <Icon name="ti-loader-2" className="animate-spin" /> : on ? 'Disconnect' : 'Connect'}</button>
-                      </div>
-                    );
-                  })}
+                  </div>
+                  <p className="text-2xs text-muted mt-2.5 line-clamp-2 min-h-[2rem]">{it.blurb}</p>
+
+                  {it.kind === 'webhook' && (
+                    on ? (
+                      <button onClick={() => disconnect(it)} disabled={!admin || busy === it.key} className="btn mt-3 w-full justify-center">
+                        {busy === it.key ? <Icon name="ti-loader-2" className="animate-spin" /> : 'Disconnect'}
+                      </button>
+                    ) : (
+                      <button onClick={() => openConnect(it)} disabled={!admin} className={`btn btn-primary mt-3 w-full justify-center ${!admin ? 'opacity-50 cursor-not-allowed' : ''}`}>Connect</button>
+                    )
+                  )}
+                  {it.kind === 'link' && (
+                    <Link href={it.href || '#'} className="btn btn-primary mt-3 w-full justify-center">{it.cta || 'Open'}</Link>
+                  )}
+                  {it.kind === 'planned' && (
+                    <button disabled className="btn mt-3 w-full justify-center opacity-50 cursor-not-allowed">On the roadmap</button>
+                  )}
                 </div>
-              )}
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {!admin && <p className="text-2xs text-muted mt-2">Only admins can connect integrations for the workspace.</p>}
+
+      {/* Connect modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setModal(null)}>
+          <div className="card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 mb-3">
+              <span className="w-9 h-9 rounded-lg grid place-items-center bg-accent/15 text-accentstrong"><Icon name={modal.icon} className="text-lg" /></span>
+              <p className="text-sm font-semibold text-content">Connect {modal.name}</p>
             </div>
-          ))}
-        </>
+            {modal.help && <p className="text-2xs text-muted mb-3 leading-relaxed">{modal.help}</p>}
+            <label className="label mb-1 block">Webhook URL</label>
+            <input className="input w-full" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+            <p className="text-2xs text-muted mt-1.5">We&apos;ll post here on every workspace event. You can fine-tune which events under Developer ▸ Webhooks.</p>
+            {err && <p className="text-sm text-rose-600 mt-2">{err}</p>}
+            <div className="flex justify-end gap-2 mt-4">
+              <button className="btn" onClick={() => setModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={save} disabled={busy === 'save'}>{busy === 'save' ? 'Connecting…' : 'Connect'}</button>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );
