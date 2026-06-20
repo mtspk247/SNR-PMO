@@ -13,7 +13,7 @@ export type ListPrefs = {
   query: string; setQuery: (v: string) => void;
   filters: Record<string, string>; setFilter: (id: string, v: string) => void; clearFilters: () => void; activeCount: number;
   visible: Set<string>; toggle: (id: string) => void;
-  order: string[]; move: (id: string, dir: -1 | 1) => void;
+  order: string[]; move: (id: string, dir: -1 | 1) => void; setOrderArr: (ids: string[]) => void;
   ordered: string[]; // visible columns, in display order
 };
 
@@ -52,15 +52,23 @@ export function useListPrefs(storageKey: string, cols: ColDef[]): ListPrefs {
   const activeCount = Object.values(filters).filter((v) => v && v !== 'all' && v !== '').length;
   const toggle = (id: string) => setVisible((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); if (n.size === 0) n.add(id); return n; });
   const move = (id: string, dir: -1 | 1) => setOrder((p) => { const i = p.indexOf(id); const j = i + dir; if (i < 0 || j < 0 || j >= p.length) return p; const n = [...p]; [n[i], n[j]] = [n[j], n[i]]; return n; });
+  const setOrderArr = (ids: string[]) => setOrder(ids);
   const ordered = order.filter((id) => visible.has(id));
-  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, ordered };
+  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered };
 }
 
 export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children }:
   { prefs: ListPrefs; cols: ColDef[]; filters?: FilterDef[]; placeholder?: string; children?: React.ReactNode }) {
   const [fOpen, setFOpen] = useState(false);
   const [cOpen, setCOpen] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
   const byId = (id: string) => cols.find((c) => c.id === id);
+  const onDrop = (dropId: string) => {
+    if (!dragId || dragId === dropId) { setDragId(null); return; }
+    const arr = [...prefs.order]; const from = arr.indexOf(dragId); const to = arr.indexOf(dropId);
+    if (from < 0 || to < 0) { setDragId(null); return; }
+    arr.splice(from, 1); arr.splice(to, 0, dragId); prefs.setOrderArr(arr); setDragId(null);
+  };
   return (
     <div className="flex items-center gap-2 mb-4 flex-wrap">
       <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-line bg-surface w-full sm:w-72">
@@ -94,9 +102,12 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
         {cOpen && <div className="fixed inset-0 z-10" onClick={() => setCOpen(false)} aria-hidden />}
         {cOpen && (
           <div className="absolute right-0 top-10 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-1">
-            <p className="px-2 py-1 text-2xs text-muted2">Show &amp; reorder columns</p>
+            <p className="px-2 py-1 text-2xs text-muted2">Drag to reorder · tick to show/hide</p>
             {prefs.order.map((id, idx) => { const c = byId(id); if (!c) return null; return (
-              <div key={id} className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface2">
+              <div key={id} draggable onDragStart={() => setDragId(id)} onDragEnd={() => setDragId(null)}
+                onDragOver={(e) => e.preventDefault()} onDrop={() => onDrop(id)}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface2 ${dragId === id ? 'opacity-40' : ''}`}>
+                <Icon name="ti-grip-vertical" className="text-sm text-muted2 cursor-grab shrink-0" title="Drag to reorder" />
                 <label className="flex items-center gap-2 text-sm flex-1 cursor-pointer">
                   <input type="checkbox" checked={prefs.visible.has(id)} disabled={c.locked} onChange={() => prefs.toggle(id)} className="accent-accentstrong" />{c.label}
                 </label>

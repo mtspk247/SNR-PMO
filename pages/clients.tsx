@@ -8,6 +8,8 @@ import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listClients, createClient, updateClient, deleteClient, Client } from '@/lib/db';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, HeadCheckbox, RowCheckbox, BulkBar } from '@/components/RowSelection';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
 
@@ -18,6 +20,19 @@ const STATUS_PILL: Record<string, string> = {
 };
 const STATUSES = ['prospect', 'active', 'inactive'] as const;
 type ClientStatus = typeof STATUSES[number];
+
+const COLS: ColDef[] = [
+  { id: 'name', label: 'Name', locked: true },
+  { id: 'contact', label: 'Contact' },
+  { id: 'email', label: 'Email' },
+  { id: 'phone', label: 'Phone' },
+  { id: 'since', label: 'Since' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'status', label: 'Status' },
+];
+const CLIENT_FILTERS: FilterDef[] = [
+  { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, { value: 'prospect', label: 'Prospect' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }] },
+];
 
 type Draft = Partial<Client>;
 const emptyDraft = (): Draft => ({
@@ -39,8 +54,9 @@ export default function ClientsPage() {
 
   const [clients, setClients] = useState<Client[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.clients.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -67,6 +83,33 @@ export default function ClientsPage() {
     ),
     [clients, q, statusF]
   );
+
+  const rs = useRowSelection(shown);
+  const cell = (id: string, c: Client) => {
+    switch (id) {
+      case 'name': return <span className="font-medium text-content">{c.name}</span>;
+      case 'contact': return c.contact_name || '—';
+      case 'email': return c.email || '—';
+      case 'phone': return c.phone || '—';
+      case 'since': return c.since || '—';
+      case 'owner': return nameOf(c.owner_id);
+      case 'status': return <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'}`}>{c.status}</span>;
+      default: return '—';
+    }
+  };
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} client${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const c of rs.selected) await deleteClient(c.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Name', 'Contact', 'Email', 'Phone', 'Since', 'Owner', 'Status'];
+    const rows = rs.selected.map((c) => [c.name, c.contact_name, c.email, c.phone, c.since, nameOf(c.owner_id), c.status]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'clients-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
 
   const kpis = useMemo(() => {
     const all = clients || [];
@@ -133,15 +176,12 @@ export default function ClientsPage() {
         <StatCard label="Inactive" value={String(kpis.inactive)} icon="ti-user-off" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input
-          className="input h-9 w-56"
-          placeholder="Search clients…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} /></div>
-      </div>
+      <ListToolbar prefs={prefs} cols={COLS} filters={CLIENT_FILTERS} placeholder="Search clients…" />
+
+      <BulkBar count={rs.count} onClear={rs.clear}>
+        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+      </BulkBar>
 
       <div className="card overflow-hidden">
         {clients === null ? (
@@ -153,31 +193,17 @@ export default function ClientsPage() {
             <table className="w-full text-sm list-card">
               <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
                 <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Contact</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Phone</th>
-                  <th className="px-4 py-3">Since</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 w-10"><HeadCheckbox checked={rs.allSelected} indeterminate={rs.someSelected} onChange={rs.toggleAll} /></th>
+                  {prefs.ordered.map((id) => <th key={id} className="px-4 py-3">{COLS.find((c) => c.id === id)?.label}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {shown.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-t border-line hover:bg-surface2/50 cursor-pointer"
-                    onClick={() => setEditor({ mode: 'edit', draft: c })}
-                  >
-                    <td className="px-4 py-3 font-medium text-content">{c.name}</td>
-                    <td className="px-4 py-3 text-muted">{c.contact_name || '—'}</td>
-                    <td className="px-4 py-3 text-muted">{c.email || '—'}</td>
-                    <td className="px-4 py-3 text-muted">{c.phone || '—'}</td>
-                    <td className="px-4 py-3 text-2xs text-muted">{c.since || '—'}</td>
-                    <td className="px-4 py-3 text-2xs text-muted">{nameOf(c.owner_id)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'}`}>{c.status}</span>
-                    </td>
+                  <tr key={c.id}
+                    className={`border-t border-line hover:bg-surface2/50 cursor-pointer ${rs.isSelected(c.id) ? 'bg-accent/5' : ''}`}
+                    onClick={() => setEditor({ mode: 'edit', draft: c })}>
+                    <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={rs.isSelected(c.id)} onChange={() => rs.toggle(c.id)} /></td>
+                    {prefs.ordered.map((id) => <td key={id} className="px-4 py-3 text-muted">{cell(id, c)}</td>)}
                   </tr>
                 ))}
               </tbody>
