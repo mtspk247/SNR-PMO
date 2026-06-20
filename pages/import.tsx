@@ -97,6 +97,13 @@ function parseCSV(text: string): string[][] {
   return out.filter((r) => r.some((x) => x.trim() !== ''));
 }
 
+// Stable dedupe key per row: clients by email (else name), deals by title, else name.
+function rowKey(entKey: string, o: any): string {
+  if (entKey === 'clients') { const e = String(o.email || '').trim().toLowerCase(); return e ? 'e:' + e : 'n:' + String(o.name || '').trim().toLowerCase(); }
+  if (entKey === 'deals') return 't:' + String(o.title || '').trim().toLowerCase();
+  return 'n:' + String(o.name || '').trim().toLowerCase();
+}
+
 export default function ImportPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
@@ -107,8 +114,10 @@ export default function ImportPage() {
   const [rows, setRows] = useState<string[][]>([]);
   const [fileName, setFileName] = useState('');
   const [map, setMap] = useState<Record<string, number>>({});
+  const [dedupe, setDedupe] = useState(true);
+  const [existing, setExisting] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ imported: number; skipped: number; failed: number } | null>(null);
+  const [result, setResult] = useState<{ imported: number; dup: number; req: number; failed: number } | null>(null);
   const [err, setErr] = useState('');
 
   const entity = ENTITIES.find((e) => e.key === entKey) || null;
@@ -116,6 +125,21 @@ export default function ImportPage() {
   useEffect(() => {
     if (org?.id) sb.from('projects').select('id, name').eq('org_id', org.id).order('name').then(({ data }) => setProjects((data as any) || []));
   }, [org?.id]);
+
+  // Load existing keys for duplicate detection (re-imports stay clean).
+  useEffect(() => {
+    if (!org?.id || !entity) { setExisting(new Set()); return; }
+    let alive = true;
+    (async () => {
+      const s = new Set<string>();
+      if (entity.key === 'clients') { const { data } = await sb.from('clients').select('name, email').eq('org_id', org.id); (data || []).forEach((r: any) => s.add(rowKey('clients', r))); }
+      else if (entity.key === 'deals') { const { data } = await sb.from('crm_deals').select('title').eq('org_id', org.id); (data || []).forEach((r: any) => s.add(rowKey('deals', r))); }
+      else if (entity.key === 'projects') { const { data } = await sb.from('projects').select('name').eq('org_id', org.id); (data || []).forEach((r: any) => s.add(rowKey('projects', r))); }
+      else if (entity.key === 'tasks' && projectId) { const { data } = await sb.from('tasks').select('name').eq('org_id', org.id).eq('project_id', projectId); (data || []).forEach((r: any) => s.add(rowKey('tasks', r))); }
+      if (alive) setExisting(s);
+    })();
+    return () => { alive = false; };
+  }, [org?.id, entKey, projectId]);
 
   const onFile = async (file: File) => {
     setErr(''); setResult(null);
@@ -128,33 +152,47 @@ export default function ImportPage() {
   };
 
   const reqField = entity?.fields.find((f) => f.required);
-  const buildRows = useMemo(() => {
-    if (!entity || !org || rows.length === 0) return [];
-    return rows.map((r) => {
+
+  const prepared = useMemo(() => {
+    if (!entity || !org || rows.length === 0) return { rows: [] as any[], req: 0, dup: 0 };
+    let req = 0, dup = 0; const seen = new Set<string>(); const out: any[] = [];
+    for (const r of rows) {
       const o: any = { org_id: org.id };
       entity.fields.forEach((f) => { const ci = map[f.key]; o[f.key] = coerce(f, ci != null && ci >= 0 ? r[ci] : ''); });
       if (entity.withCreatedBy && me) o.created_by = me.id;
       if (entity.needsProject) o.project_id = projectId;
-      return o;
-    }).filter((o) => reqField && o[reqField.key] && String(o[reqField.key]).trim());
-  }, [entity, org, rows, map, projectId, me, reqField]);
+      if (!reqField || !o[reqField.key] || !String(o[reqField.key]).trim()) { req++; continue; }
+      if (dedupe) { const k = rowKey(entity.key, o); if (existing.has(k) || seen.has(k)) { dup++; continue; } seen.add(k); }
+      out.push(o);
+    }
+    return { rows: out, req, dup };
+  }, [entity, org, rows, map, projectId, me, reqField, dedupe, existing]);
 
-  const canImport = entity && buildRows.length > 0 && (!entity.needsProject || projectId) && (map[reqField?.key || ''] ?? -1) >= 0;
+  const canImport = !!entity && prepared.rows.length > 0 && (!entity.needsProject || !!projectId) && (map[reqField?.key || ''] ?? -1) >= 0;
 
   const runImport = async () => {
     if (!entity || !canImport) return;
     setBusy(true); setErr(''); setResult(null);
-    let imported = 0, failed = 0;
-    const skipped = rows.length - buildRows.length;
+    const list = prepared.rows; let imported = 0, failed = 0;
     try {
-      for (let i = 0; i < buildRows.length; i += 100) {
-        const chunk = buildRows.slice(i, i + 100);
+      for (let i = 0; i < list.length; i += 100) {
+        const chunk = list.slice(i, i + 100);
         const { error } = await sb.from(entity.table).insert(chunk);
         if (!error) imported += chunk.length;
         else { for (const row of chunk) { const { error: e2 } = await sb.from(entity.table).insert(row); if (e2) failed++; else imported++; } }
       }
-      setResult({ imported, skipped, failed });
+      setResult({ imported, dup: prepared.dup, req: prepared.req, failed });
     } catch (e: any) { setErr(e.message || 'Import failed.'); } finally { setBusy(false); }
+  };
+
+  const downloadTemplate = () => {
+    if (!entity) return;
+    const hs = entity.fields.map((f) => f.label);
+    const ex = entity.fields.map((f) => f.enumv ? (f.def || f.enumv[0]) : f.type === 'date' ? '2026-07-01' : f.type === 'number' ? '1000' : `Example ${f.label.toLowerCase()}`);
+    const esc = (v: string) => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    const csv = hs.join(',') + '\n' + ex.map(esc).join(',') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const a = document.createElement('a'); a.href = url; a.download = `${entity.key}-template.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
   const reset = () => { setHeaders([]); setRows([]); setFileName(''); setMap({}); setResult(null); setErr(''); };
@@ -180,14 +218,18 @@ export default function ImportPage() {
             );
           })}
         </div>
-        {entity?.needsProject && (
-          <div className="mt-4 max-w-sm">
-            <label className="label mb-1 block">Import tasks into project</label>
-            <select className="input w-full" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              <option value="">Select a project…</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            {projects.length === 0 && <p className="text-2xs text-muted mt-1">No projects yet — create one first, or import Projects above.</p>}
+        {entity && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <button onClick={downloadTemplate} className="text-2xs text-accentstrong font-medium inline-flex items-center gap-1"><Icon name="ti-download" className="text-xs" />Download a sample {entity.label} CSV</button>
+            {entity.needsProject && (
+              <div className="flex items-center gap-2">
+                <label className="label">Into project</label>
+                <select className="input h-8" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                  <option value="">Select a project…</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -231,13 +273,17 @@ export default function ImportPage() {
       {entity && headers.length > 0 && (
         <div className="card p-5 mb-4">
           <p className="text-sm font-semibold text-content mb-3"><span className="text-accentstrong">4.</span> Preview &amp; import</p>
-          {buildRows.length === 0 ? (
-            <p className="text-sm text-muted">No importable rows — make sure the required field ({reqField?.label}) is mapped.</p>
+          <label className="flex items-center gap-2 text-sm text-content cursor-pointer mb-3 w-fit">
+            <input type="checkbox" checked={dedupe} onChange={(e) => setDedupe(e.target.checked)} className="accent-accent w-4 h-4" />
+            Skip duplicates already in this workspace{prepared.dup > 0 ? ` (${prepared.dup} found)` : ''}
+          </label>
+          {prepared.rows.length === 0 ? (
+            <p className="text-sm text-muted">Nothing to import — map the required field ({reqField?.label}){dedupe ? ', or everything matched an existing record' : ''}.</p>
           ) : (
             <>
-              <p className="text-2xs text-muted mb-3">{buildRows.length} rows ready{rows.length - buildRows.length > 0 ? ` · ${rows.length - buildRows.length} skipped (missing ${reqField?.label})` : ''}. First few:</p>
+              <p className="text-2xs text-muted mb-3">{prepared.rows.length} ready{prepared.dup ? ` · ${prepared.dup} duplicate${prepared.dup > 1 ? 's' : ''} skipped` : ''}{prepared.req ? ` · ${prepared.req} missing ${reqField?.label}` : ''}. First few:</p>
               <div className="space-y-2 mb-4">
-                {buildRows.slice(0, 4).map((r, i) => (
+                {prepared.rows.slice(0, 4).map((r, i) => (
                   <div key={i} className="rounded-lg bg-surface2 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
                     {entity.fields.filter((f) => (map[f.key] ?? -1) >= 0).map((f) => (
                       <span key={f.key} className="text-2xs text-muted"><span className="text-muted2">{f.label}:</span> <span className="text-content">{String(r[f.key] ?? '—') || '—'}</span></span>
@@ -250,13 +296,13 @@ export default function ImportPage() {
                 <div className="rounded-lg bg-accent/10 border border-accent/20 px-4 py-3 flex items-center gap-3">
                   <Icon name="ti-circle-check" className="text-lg text-accentstrong" />
                   <div className="text-sm text-content">
-                    Imported <b>{result.imported}</b> {entity.label.toLowerCase()}{result.skipped ? ` · ${result.skipped} skipped` : ''}{result.failed ? ` · ${result.failed} failed` : ''}.
+                    Imported <b>{result.imported}</b> {entity.label.toLowerCase()}{result.dup ? ` · ${result.dup} duplicates skipped` : ''}{result.req ? ` · ${result.req} incomplete` : ''}{result.failed ? ` · ${result.failed} failed` : ''}.
                     <Link href={destHref[entity.key] || '/'} className="text-accentstrong font-medium ml-1.5">View →</Link>
                   </div>
                 </div>
               ) : (
                 <button onClick={runImport} disabled={!canImport || busy} className={`btn btn-primary ${!canImport ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                  {busy ? <><Icon name="ti-loader-2" className="animate-spin" />Importing…</> : <>Import {buildRows.length} {entity.label.toLowerCase()}</>}
+                  {busy ? <><Icon name="ti-loader-2" className="animate-spin" />Importing…</> : <>Import {prepared.rows.length} {entity.label.toLowerCase()}</>}
                 </button>
               )}
             </>
