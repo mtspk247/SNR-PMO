@@ -12,9 +12,24 @@ import {
   VendorSubscription, VendorSubReconciliation,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { DataList, GroupMeta } from '@/components/DataList';
 
 const STATUS_PILL: Record<string, string> = { requested: 'pill-violet', active: 'pill-green', trial: 'pill-blue', paused: 'pill-amber', cancelled: 'pill-gray', expired: 'pill-red', rejected: 'pill-red' };
 const STATUSES = ['active', 'trial', 'paused', 'cancelled', 'expired'];
+const COLS: ColDef[] = [
+  { id: 'service', label: 'Service', locked: true },
+  { id: 'category', label: 'Category' },
+  { id: 'plan', label: 'Plan' },
+  { id: 'cost', label: 'Cost' },
+  { id: 'renews', label: 'Renews' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'status', label: 'Status' },
+];
+const SUB_FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...['requested', ...STATUSES, 'rejected'].map((s) => ({ value: s, label: cap(s) }))] }];
+const SUB_GROUP_ORDER = ['active', 'trial', 'paused', 'requested', 'cancelled', 'expired', 'rejected'];
+const GROUPS: GroupMeta[] = SUB_GROUP_ORDER.map((st) => ({ value: st, label: cap(st), pill: STATUS_PILL[st] || 'pill-gray' }));
 const PLAN_TYPES = ['monthly', 'annual', 'one-time', 'usage'];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtMoney = (n: number, c = 'USD') => `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -32,16 +47,46 @@ export default function SubscriptionsPage() {
 
   const [subs, setSubs] = useState<VendorSubscription[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState(''); const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.subscriptions.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit' | 'request'; draft: Draft } | null>(null);
   const [detail, setDetail] = useState<VendorSubscription | null>(null);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const [groupBy, setGroupBy] = useState<'status' | 'none'>('status');
 
   const load = () => { if (!org) return; listVendorSubscriptions(org.id).then(setSubs).catch((e) => { setErr(e.message); setSubs([]); }); };
   useEffect(() => { if (org?.id && enabled) { load(); getOrgUsers(org.id).then(setUsers).catch(() => {}); } /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
   const name = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
   const shown = useMemo(() => (subs || []).filter((s) => (statusF === 'all' || s.status === statusF) && (!q.trim() || `${s.service} ${s.category || ''} ${s.plan_name || ''}`.toLowerCase().includes(q.toLowerCase()))), [subs, q, statusF]);
+
+  const rs = useRowSelection(shown);
+  const cell = (id: string, s: VendorSubscription) => {
+    switch (id) {
+      case 'service': return <span className="font-medium text-content">{s.service}</span>;
+      case 'category': return s.category || '—';
+      case 'plan': return [s.plan_name, s.plan_type].filter(Boolean).join(' · ') || '—';
+      case 'cost': return <span className="tabular-nums">{fmtMoney(s.cost, s.currency)}{s.plan_type ? <span className="text-2xs text-muted2">{`/${s.plan_type === 'annual' ? 'yr' : s.plan_type === 'monthly' ? 'mo' : ''}`}</span> : ''}</span>;
+      case 'renews': { const d = daysTo(s.next_renewal); return s.next_renewal ? <span className={d != null && d < 0 ? 'text-rose-600' : d != null && d <= 30 ? 'text-amber-600' : 'text-muted'}>{s.next_renewal}{d != null && d >= 0 && d <= 30 ? ` · ${d}d` : d != null && d < 0 ? ' · overdue' : ''}</span> : <span className="text-muted2">—</span>; }
+      case 'owner': return s.owner_id ? name(s.owner_id) : '—';
+      case 'status': return <span className={`pill ${STATUS_PILL[s.status] || 'pill-gray'}`}>{s.status}</span>;
+      default: return '—';
+    }
+  };
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Service', 'Category', 'Plan', 'Cost', 'Currency', 'Renews', 'Owner', 'Status'];
+    const rows = rs.selected.map((s) => [s.service, s.category, [s.plan_name, s.plan_type].filter(Boolean).join(' '), s.cost, s.currency, s.next_renewal, s.owner_id ? name(s.owner_id) : '', s.status]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'subscriptions-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} subscription${rs.count > 1 ? 's' : ''}?`)) return;
+    setBusy(true); setErr('');
+    try { for (const s of rs.selected) await deleteVendorSubscription(s.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const kpis = useMemo(() => {
     const a = (subs || []).filter((s) => s.status === 'active');
@@ -81,35 +126,27 @@ export default function SubscriptionsPage() {
         <StatCard label="Total spent" value={fmtMoney(kpis.total)} icon="ti-receipt" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input className="input h-9 w-56" placeholder="Search subscriptions…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="w-40"><Select value={statusF} onChange={setStatusF} options={[{ value: 'all', label: 'All statuses' }, ...['requested', ...STATUSES, 'rejected'].map((s) => ({ value: s, label: cap(s) }))]} /></div>
+      <div className="flex items-end gap-2 flex-wrap mb-4">
+        <div className="flex-1 min-w-0"><ListToolbar prefs={prefs} cols={COLS} filters={SUB_FILTERS} placeholder="Search subscriptions…" /></div>
+        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+          <button onClick={() => setGroupBy('status')} className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}>Status</button>
+          <button onClick={() => setGroupBy('none')} className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}>None</button>
+        </div>
       </div>
 
-      <div className="card overflow-hidden">
-        {subs === null ? <div className="p-8"><Spinner /></div> : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-credit-card" text="No subscriptions yet." /></div>
-        ) : (
-          <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-              <tr><th className="px-4 py-3">Service</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Plan</th><th className="px-4 py-3 text-right">Cost</th><th className="px-4 py-3">Renews</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Status</th></tr>
-            </thead>
-            <tbody>
-              {shown.map((s) => { const d = daysTo(s.next_renewal); return (
-                <tr key={s.id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => setDetail(s)}>
-                  <td className="px-4 py-3 font-medium text-content">{s.service}</td>
-                  <td className="px-4 py-3 text-muted">{s.category || '—'}</td>
-                  <td className="px-4 py-3 text-muted">{[s.plan_name, s.plan_type].filter(Boolean).join(' · ') || '—'}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(s.cost, s.currency)}<span className="text-2xs text-muted2">{s.plan_type ? `/${s.plan_type === 'annual' ? 'yr' : s.plan_type === 'monthly' ? 'mo' : ''}` : ''}</span></td>
-                  <td className="px-4 py-3 text-2xs">{s.next_renewal ? <span className={d != null && d < 0 ? 'text-rose-600' : d != null && d <= 30 ? 'text-amber-600' : 'text-muted'}>{s.next_renewal}{d != null && d >= 0 && d <= 30 ? ` · ${d}d` : d != null && d < 0 ? ' · overdue' : ''}</span> : <span className="text-muted2">—</span>}</td>
-                  <td className="px-4 py-3 text-2xs text-muted">{s.owner_id ? name(s.owner_id) : '—'}</td>
-                  <td className="px-4 py-3"><span className={`pill ${STATUS_PILL[s.status] || 'pill-gray'}`}>{s.status}</span></td>
-                </tr>
-              ); })}
-            </tbody>
-          </table></div>
-        )}
-      </div>
+      <BulkBar count={rs.count} onClear={rs.clear}>
+        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+      </BulkBar>
+
+      {subs === null ? (
+        <div className="card p-8 border border-line/40"><Spinner /></div>
+      ) : shown.length === 0 ? (
+        <div className="card p-8 border border-line/40"><EmptyState icon="ti-credit-card" text="No subscriptions yet." /></div>
+      ) : (
+        <DataList rows={shown} rowKey={(s) => s.id} cols={COLS} prefs={prefs} cell={cell} onRowClick={(s) => setDetail(s)} selection={rs} groupBy={groupBy} groupOf={(s) => s.status} groups={GROUPS} />
+      )}
 
       {/* Add / Edit / Request editor */}
       {editor && (

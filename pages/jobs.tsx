@@ -9,6 +9,9 @@ import { hasFeature } from '@/lib/entitlements';
 import { listJobs, createJob, updateJob, deleteJob, JobPosting } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers } from '@/lib/db';
+import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { DataList, GroupMeta } from '@/components/DataList';
 
 const STATUS_PILL: Record<string, string> = {
   draft: 'pill-gray',
@@ -17,6 +20,18 @@ const STATUS_PILL: Record<string, string> = {
   closed: 'pill-red',
 };
 const STATUSES = ['draft', 'open', 'on_hold', 'closed'];
+const COLS: ColDef[] = [
+  { id: 'title', label: 'Title', locked: true },
+  { id: 'department', label: 'Department' },
+  { id: 'location', label: 'Location' },
+  { id: 'type', label: 'Type' },
+  { id: 'openings', label: 'Openings' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'status', label: 'Status' },
+];
+const JOB_FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: fmtType(s) }))] }];
+const JOB_GROUP_ORDER = ['open', 'on_hold', 'draft', 'closed'];
+const GROUPS: GroupMeta[] = JOB_GROUP_ORDER.map((st) => ({ value: st, label: fmtType(st), pill: STATUS_PILL[st] || 'pill-gray' }));
 const EMP_TYPES = ['full_time', 'part_time', 'contract', 'intern', 'temporary'];
 const fmtType = (t: string) => t.replace(/_/g, ' ');
 
@@ -31,11 +46,13 @@ export default function JobsPage() {
 
   const [jobs, setJobs] = useState<JobPosting[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [q, setQ] = useState('');
-  const [statusF, setStatusF] = useState('all');
+  const prefs = useListPrefs('snrpmo.jobs.cols', COLS);
+  const q = prefs.query;
+  const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [groupBy, setGroupBy] = useState<'status' | 'none'>('status');
 
   const load = () => {
     if (!org) return;
@@ -55,6 +72,33 @@ export default function JobsPage() {
     (statusF === 'all' || j.status === statusF) &&
     (!q.trim() || `${j.title} ${j.department || ''} ${j.location || ''}`.toLowerCase().includes(q.toLowerCase()))
   ), [jobs, q, statusF]);
+
+  const rs = useRowSelection(shown);
+  const cell = (id: string, j: JobPosting) => {
+    switch (id) {
+      case 'title': return <span className="font-medium text-content">{j.title}</span>;
+      case 'department': return j.department || '—';
+      case 'location': return j.location || '—';
+      case 'type': return <span className="pill pill-gray">{fmtType(j.employment_type || '')}</span>;
+      case 'openings': return j.openings ?? '—';
+      case 'owner': return name(j.owner_id);
+      case 'status': return <span className={`pill ${STATUS_PILL[j.status] || 'pill-gray'}`}>{fmtType(j.status)}</span>;
+      default: return '—';
+    }
+  };
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Title', 'Department', 'Location', 'Type', 'Openings', 'Owner', 'Status'];
+    const rows = rs.selected.map((j) => [j.title, j.department, j.location, fmtType(j.employment_type || ''), j.openings, name(j.owner_id), fmtType(j.status)]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'jobs-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} job${rs.count > 1 ? 's' : ''}?`)) return;
+    setBusy(true); setErr('');
+    try { for (const j of rs.selected) await deleteJob(j.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
 
   const kpis = useMemo(() => {
     const all = jobs || [];
@@ -119,45 +163,27 @@ export default function JobsPage() {
         <StatCard label="Closed" value={String(kpis.closed)} icon="ti-circle-x" />
       </div>
 
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <input className="input h-9 w-56" placeholder="Search jobs…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="w-40"><Select value={statusF} onChange={(v) => setStatusF(v)} options={[{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: fmtType(s) }))]} /></div>
+      <div className="flex items-end gap-2 flex-wrap mb-4">
+        <div className="flex-1 min-w-0"><ListToolbar prefs={prefs} cols={COLS} filters={JOB_FILTERS} placeholder="Search jobs…" /></div>
+        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+          <button onClick={() => setGroupBy('status')} className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}>Status</button>
+          <button onClick={() => setGroupBy('none')} className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}>None</button>
+        </div>
       </div>
 
-      <div className="card overflow-hidden">
-        {jobs === null ? <div className="p-8"><Spinner /></div> : shown.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-briefcase" text="No job postings yet." /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm list-card">
-              <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Title</th>
-                  <th className="px-4 py-3">Department</th>
-                  <th className="px-4 py-3">Location</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3 text-right">Openings</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((j) => (
-                  <tr key={j.id} className="border-t border-line hover:bg-surface2/50 cursor-pointer" onClick={() => setEditor({ mode: 'edit', draft: j })}>
-                    <td className="px-4 py-3 font-medium text-content">{j.title}</td>
-                    <td className="px-4 py-3 text-muted">{j.department || '—'}</td>
-                    <td className="px-4 py-3 text-muted">{j.location || '—'}</td>
-                    <td className="px-4 py-3"><span className="pill pill-gray">{fmtType(j.employment_type || '')}</span></td>
-                    <td className="px-4 py-3 text-right tabular-nums">{j.openings ?? '—'}</td>
-                    <td className="px-4 py-3 text-2xs text-muted">{name(j.owner_id)}</td>
-                    <td className="px-4 py-3"><span className={`pill ${STATUS_PILL[j.status] || 'pill-gray'}`}>{fmtType(j.status)}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <BulkBar count={rs.count} onClear={rs.clear}>
+        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+      </BulkBar>
+
+      {jobs === null ? (
+        <div className="card p-8 border border-line/40"><Spinner /></div>
+      ) : shown.length === 0 ? (
+        <div className="card p-8 border border-line/40"><EmptyState icon="ti-briefcase" text="No job postings yet." /></div>
+      ) : (
+        <DataList rows={shown} rowKey={(j) => j.id} cols={COLS} prefs={prefs} cell={cell} onRowClick={(j) => setEditor({ mode: 'edit', draft: j })} selection={rs} groupBy={groupBy} groupOf={(j) => j.status} groups={GROUPS} />
+      )}
 
       {editor && (
         <Modal open onClose={() => setEditor(null)} size="lg" icon="ti-briefcase"
