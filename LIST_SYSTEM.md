@@ -57,3 +57,12 @@ Reference = ClickUp List view (what.NGO screenshot). Honest status of EVERY elem
 - 2026-06-20 — **ClickUp row/column model LIVE** (`44aaa5c`, READY): plain borderless rows + hover highlight, left 6-dot grip → drag rows up/down (persisted via `orderKey`, Clients wired) + across status groups, draggable column headers (reorder), "+ add column" in header. Shared DataList → every ListView page. Also: toolbar unified (`b1b521b`), Ideas double-group removed (`01acfa8`).
 - OPS GOTCHAS this batch: (1) `[id,i]` in `new Map(...)` infers `(string|number)[]` not a tuple → annotate `as [string,number]` (esbuild parse can't catch; tsc fails the Vercel build). (2) A no-count `str.replace` of `onAddInGroup={p.onAddInGroup}\n />` hit BOTH the Board AND DataList call sites → added `orderKey` to Board (no such prop) → build fail at ListView:154. ALWAYS check for a second identical call site when injecting a prop. (3) Vercel build logs > token cap → saved to file; `grep "Type error"` it.
 - STILL DIVERGENT (next slice): Ideas, Teams, CRM, Leads, Workload don't use ListView → migrate them so toolbar+rows match everywhere.
+
+## Divergent-page migration (2026-06-20)
+- [x] **Leads → ListView** (`69aa607`, READY): now identical to Clients (unified toolbar + ClickUp rows/grip/column-drag/persisted reorder). Removed bespoke ListToolbar + manual Status/None toggle.
+- [x] **Teams (List view)** — ALREADY on ListView (has a Cards/List toggle; List = ListView). No change needed.
+- [x] **CRM → Contacts tab** — ALREADY on ListView. No change needed.
+- [ ] **Ideas** — List view uses the rebuilt DataList (rows already match) but keeps a ViewControls **Cards** view + multi-dimension group (status/project/author). Full ListView = lose Cards + project/author grouping.
+- [ ] **CRM → Pipeline tab (deals)** — bespoke kanban + per-stage $ value sums in group headers. Full ListView = lose the $ rollups.
+- [ ] **Workload** — analytics AGGREGATION table (progress bars, Person/Team/Project rollups), not a record list. Not a natural ListView fit.
+DECISION NEEDED (don't silently delete features): force Ideas/Pipeline/Workload onto the standard list (losing Cards / $ stage-sums / analytics layout), OR keep their special views as-is. The standard record lists are now uniform.
