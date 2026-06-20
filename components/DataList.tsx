@@ -40,6 +40,8 @@ export type DataListProps<T> = {
   editable?: Record<string, EditSpec>;
   rawValue?: (colId: string, r: T) => string;
   onEdit?: (r: T, colId: string, value: string) => void;
+  /** B3.2: per-group "+ Add" — create a record straight into that status group. */
+  onAddInGroup?: (groupValue: string) => void;
 };
 
 function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value: string; display: ReactNode; onSave: (v: string) => void }) {
@@ -70,7 +72,7 @@ function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value:
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropGroup, setDropGroup] = useState<string | null>(null);
@@ -161,6 +163,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
                 ? <span className={`pill ${g.pill}`}>{g.label}</span>
                 : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{g.label}</span>}
               <span className="text-2xs font-medium text-muted2 tnum">{gr.length}</span>
+              {onAddInGroup && <button onClick={(e) => { e.stopPropagation(); onAddInGroup(g.value); }} className="ml-auto inline-flex items-center gap-1 text-2xs text-muted2 hover:text-content transition"><Icon name="ti-plus" className="text-sm" />Add</button>}
             </div>
             {!isC && tableCard(gr)}
           </div>

@@ -211,6 +211,7 @@ export default function ClientsPage() {
         rawValue={rawValue}
         onEdit={onInlineEdit}
         onRowClick={(c) => setEditor({ mode: 'edit', draft: c })}
+        onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as ClientStatus } })}
         exportName="clients"
         exportValue={exportValue}
         onDelete={() => bulkDelete()}

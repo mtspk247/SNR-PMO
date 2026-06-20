@@ -45,6 +45,7 @@ export type ListViewProps<T extends { id: string }> = {
   onEdit?: (r: T, id: string, value: string) => void;
   // ── interactions ────────────────────────────────────────
   onRowClick?: (r: T) => void;
+  onAddInGroup?: (groupValue: string) => void;
   // ── bulk actions ────────────────────────────────────────
   exportName?: string;                    // set → shows "Export" (CSV of selected, visible cols)
   exportValue?: (id: string, r: T) => string;
@@ -152,6 +153,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           editable={p.editable}
           rawValue={p.rawValue}
           onEdit={p.onEdit}
+          onAddInGroup={p.onAddInGroup}
         />
       )}
     </>
