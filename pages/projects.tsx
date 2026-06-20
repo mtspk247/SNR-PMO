@@ -8,6 +8,8 @@ import { Pill, Spinner, EmptyState, PageHeader, Icon, StatusBadge } from '@/comp
 import { Modal, Field } from '@/components/Modal';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
 import { ViewControls, useViewPrefs, buildGroups } from '@/components/ViewControls';
 import { useProjects, useOrgCompanies, usePortfolios, useCreateProject, useUpdateProject, useDeleteProject } from '@/lib/queries';
 import { Project } from '@/lib/supabase';
@@ -19,7 +21,7 @@ import { can } from '@/lib/authz';
 const STATUSES = ['Planning', 'Active', 'On Hold', 'Completed', 'Cancelled'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const EMPTY = { name: '', description: '', status: 'Planning', priority: 'Medium', start_date: '', end_date: '', company_id: '', portfolio_id: '' };
-const PROJECT_COLS: ColDef[] = [{ id: 'name', label: 'Name', locked: true }, { id: 'status', label: 'Status' }, { id: 'company', label: 'Company' }, { id: 'priority', label: 'Priority' }, { id: 'timeline', label: 'Timeline' }, { id: 'progress', label: 'Progress' }];
+const PROJECT_COLS: ColDef[] = [{ id: 'name', label: 'Name', locked: true }, { id: 'status', label: 'Status' }, { id: 'company', label: 'Company' }, { id: 'priority', label: 'Priority' }, { id: 'timeline', label: 'Timeline' }, { id: 'progress', label: 'Progress' }, { id: 'actions', label: '' }];
 
 export default function Projects() {
   const activeOrg = useActiveOrg();
@@ -63,6 +65,7 @@ export default function Projects() {
     });
   }, [projects, lp.query, lp.filters]);
   const pg = usePagination(filtered, 25);
+  const rs = useRowSelection(filtered);
 
   const portfolioName = (id?: string | null) => (id ? portfolios.find((pf) => pf.id === id)?.name : undefined);
   const companyName = (id?: string | null) => (id ? companies.find((c) => c.id === id)?.name : undefined);
@@ -115,30 +118,41 @@ export default function Projects() {
     } catch (e: any) { setErr(e.message || 'Could not delete — remove its tasks, risks and financials first.'); }
   };
 
-  const ProjectRow = (p: Project) => {
-    const cell = (id: string) => { switch (id) {
-      case 'name': return (<><p className="font-medium">{p.name}</p>{portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}{p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}</>);
+  const cell = (id: string, p: Project) => {
+    switch (id) {
+      case 'name': return (<div><p className="font-medium">{p.name}</p>{portfolioName(p.portfolio_id) && <p className="text-2xs text-neutral-400 inline-flex items-center gap-1"><Icon name="ti-stack-2" />{portfolioName(p.portfolio_id)}</p>}{p.description && <p className="text-2xs text-neutral-500 truncate max-w-xs">{p.description}</p>}</div>);
       case 'status': return <StatusBadge status={p.status} color={pColor(p.status)} />;
-      case 'company': return <span className="text-2xs text-muted">{companyName(p.company_id) || '—'}</span>;
+      case 'company': return <span className="text-2xs text-muted">{companyName(p.company_id) || '\u2014'}</span>;
       case 'priority': return <Pill label={p.priority} />;
-      case 'timeline': return <span className="text-2xs text-neutral-500">{p.start_date || '—'} → {p.end_date || '—'}</span>;
+      case 'timeline': return <span className="text-2xs text-neutral-500">{p.start_date || '\u2014'} \u2192 {p.end_date || '\u2014'}</span>;
       case 'progress': return (<div className="flex items-center gap-2"><div className="flex-1 h-1.5 rounded bg-neutral-100"><div className="h-1.5 rounded bg-ink" style={{ width: `${p.progress || 0}%` }} /></div><span className="text-2xs text-neutral-500 w-8 text-right">{p.progress || 0}%</span></div>);
-      default: return null; } };
-    return (
-      <tr key={p.id} onClick={() => router.push(`/projects/${p.id}`)} className="row cursor-pointer">
-        {lp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
-        <td className="td"><div className="flex items-center gap-1 justify-end">{canCreate && <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit project" className="text-muted2 hover:text-content p-1"><Icon name="ti-pencil" className="text-sm" /></button>}<Link href={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-muted2 hover:text-content inline-flex p-1" title="Open project"><Icon name="ti-arrow-right" /></Link></div></td>
-      </tr>
-    );
+      case 'actions': return (<div className="flex items-center gap-1 justify-end">{canCreate && <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit project" className="text-muted2 hover:text-content p-1"><Icon name="ti-pencil" className="text-sm" /></button>}<Link href={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-muted2 hover:text-content inline-flex p-1" title="Open project"><Icon name="ti-arrow-right" /></Link></div>);
+      default: return '\u2014';
+    }
   };
-  const ProjectTable = ({ items }: { items: Project[] }) => (
-    <div className="bg-surface overflow-hidden rounded-lg border border-line">
-      <div className="overflow-x-auto"><table className="w-full">
-        <thead><tr>{lp.ordered.map((id) => <th key={id} className={`th ${id === 'progress' ? 'w-44' : ''}`}>{PROJECT_COLS.find((c) => c.id === id)?.label}</th>)}<th className="th w-10"></th></tr></thead>
-        <tbody>{items.map(ProjectRow)}</tbody>
-      </table></div>
-    </div>
-  );
+  const editable: Record<string, EditSpec> = canCreate ? {
+    status: { type: 'select', options: pNames.map((x) => ({ value: x, label: titleCase(x) })) },
+    priority: { type: 'select', options: PRIORITIES.map((x) => ({ value: x, label: titleCase(x) })) },
+  } : {};
+  const rawValue = (id: string, p: Project) => id === 'status' ? p.status : id === 'priority' ? p.priority : '';
+  const onInlineEdit = async (p: Project, id: string, value: string) => {
+    const patch = id === 'status' ? { status: value } : { priority: value };
+    try { await updateM.mutateAsync({ id: p.id, patch }); } catch (e: any) { setErr(e.message); }
+  };
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const cols = lp.ordered.filter((id) => id !== 'actions');
+    const lbl = (id: string) => PROJECT_COLS.find((c) => c.id === id)?.label || id;
+    const val = (id: string, p: Project) => id === 'name' ? p.name : id === 'status' ? p.status : id === 'company' ? (companyName(p.company_id) || '') : id === 'priority' ? p.priority : id === 'timeline' ? `${p.start_date || ''} - ${p.end_date || ''}` : id === 'progress' ? `${p.progress || 0}%` : '';
+    const csv = cols.map(lbl).map(esc).join(',') + '\n' + rs.selected.map((p) => cols.map((id) => val(id, p)).map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'projects-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} project${rs.count > 1 ? 's' : ''}? This cannot be undone.`)) return;
+    try { for (const p of rs.selected) await deleteM.mutateAsync(p.id); rs.clear(); } catch (e: any) { setErr(e.message); }
+  };
+  const dlGroups: GroupMeta[] = vp.groupBy === 'none' ? [] : buildGroups(filtered, gKey, gLabel).map((g) => ({ value: g.key, label: g.label }));
+
   const ProjectCards = ({ items }: { items: Project[] }) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {items.map((p) => (
@@ -168,16 +182,24 @@ export default function Projects() {
           <ListToolbar prefs={lp} cols={PROJECT_COLS} filters={FILTERS} placeholder="Search projects…">
             <ViewControls prefs={vp} views={[{ id: 'table', icon: 'ti-list', label: 'List' }, { id: 'cards', icon: 'ti-layout-grid', label: 'Cards' }]} groupOptions={groupOptions} />
           </ListToolbar>
-          {filtered.length === 0 ? <EmptyState text="No projects match your filters" /> : (
+          {filtered.length === 0 ? <EmptyState text="No projects match your filters" /> : vp.view === 'cards' ? (
             <div className="space-y-6">
               {groups.map((g) => (
                 <div key={g.key}>
                   {g.label && <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-content">{g.label}</h3><span className="text-2xs text-muted2 bg-surface2 rounded-full px-2 py-0.5">{g.items.length}</span></div>}
-                  {vp.view === 'cards' ? <ProjectCards items={g.items} /> : <ProjectTable items={g.items} />}
+                  <ProjectCards items={g.items} />
                 </div>
               ))}
               {vp.groupBy === 'none' && <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />}
             </div>
+          ) : (
+            <>
+              <BulkBar count={rs.count} onClear={rs.clear}>
+                <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+                {canCreate && <button onClick={bulkDelete} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+              </BulkBar>
+              <DataList rows={filtered} rowKey={(p) => p.id} cols={PROJECT_COLS} prefs={lp} cell={cell} onRowClick={(p) => router.push(`/projects/${p.id}`)} selection={rs} groupBy={vp.groupBy === 'none' ? 'none' : vp.groupBy} groupOf={gKey} groups={dlGroups} editable={editable} rawValue={rawValue} onEdit={onInlineEdit} />
+            </>
           )}
         </>
       )}
