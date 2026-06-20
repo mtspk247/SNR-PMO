@@ -379,7 +379,7 @@ export default function RoadmapPage() {
 
   // ── Unscheduled: inline status/priority edit via updateProject
   const handleEdit = async (p: Project, colId: string, value: string) => {
-    const patch: Partial<Project> = colId === 'status' ? { status: value } : { priority: value };
+    const patch = colId === 'status' ? { status: value } : { priority: value };
     const list = await updateProject(p.id, patch);
     qc.setQueryData(qk.projects(org?.id), list);
   };
