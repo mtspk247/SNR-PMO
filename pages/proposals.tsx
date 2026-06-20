@@ -300,7 +300,7 @@ function EditorFields({ draft, setD, users }: { draft: Draft; setD: (p: Draft) =
         <input className="input" value={draft.currency || 'USD'} onChange={(e) => setD({ currency: e.target.value })} />
       </Field>
       <Field label="Status">
-        <Select value={draft.status || 'draft'} onChange={(v) => setD({ status: v as Proposal['status'] })} options={STATUSES.map((s) => ({ value: s, label: titleCase(s) }))} />
+        <Select value={draft.status || 'draft'} onChange={(v) => setD({ status: v as Proposal['status'] })} options={DEFAULT_STATUSES.map((s) => ({ value: s, label: titleCase(s) }))} />
       </Field>
       <Field label="Valid until">
         <input className="input" type="date" value={draft.valid_until || ''} onChange={(e) => setD({ valid_until: e.target.value || null })} />

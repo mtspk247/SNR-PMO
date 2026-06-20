@@ -262,7 +262,7 @@ export default function ContractsPage() {
               <input className="input" value={editor.draft.currency || 'USD'} onChange={(e) => setD({ currency: e.target.value })} />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as any })} options={[...STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
+              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as any })} options={[...DEFAULT_STATUSES.map((s) => ({ value: s, label: titleCase(s) }))]} />
             </Field>
             <Field label="Owner">
               <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} options={[{ value: '', label: 'None' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />

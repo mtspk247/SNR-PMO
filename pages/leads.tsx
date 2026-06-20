@@ -360,7 +360,7 @@ export default function LeadsPage() {
               <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} search placeholder="Unassigned" options={[{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status || 'new'} onChange={(v) => setD({ status: v as Lead['status'] })} options={STATUSES.map((s) => ({ value: s, label: cap(s) }))} />
+              <Select value={editor.draft.status || 'new'} onChange={(v) => setD({ status: v as Lead['status'] })} options={DEFAULT_STATUSES.map((s) => ({ value: s, label: cap(s) }))} />
             </Field>
             <Field label="Notes" className="sm:col-span-2">
               <textarea
