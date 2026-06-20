@@ -32,7 +32,12 @@ export type ListViewProps<T extends { id: string }> = {
   // ── toolbar ─────────────────────────────────────────────
   filters?: FilterDef[];
   searchPlaceholder?: string;
-  toolbarExtra?: ReactNode;               // page-specific buttons rendered inside the toolbar row
+  toolbarExtra?: ReactNode;
+  // ── custom columns (B2.1): "+ Add column" + per-column delete, RBAC-gated ──
+  onAddColumn?: (name: string, type: string) => void | Promise<void>;
+  customCols?: Set<string>;
+  onRemoveColumn?: (id: string) => void;
+  canManageColumns?: boolean;               // page-specific buttons rendered inside the toolbar row
   // ── grouping (optional) ─────────────────────────────────
   groupField?: { value: string; label: string };  // presence enables the Group-by control
   groupOf?: (r: T) => string;
@@ -82,7 +87,8 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
     <>
       <div className="flex items-end gap-2 flex-wrap mb-4">
         <div className="flex-1 min-w-0">
-          <ListToolbar prefs={prefs} cols={cols} filters={p.filters} placeholder={p.searchPlaceholder || 'Search…'}>
+          <ListToolbar prefs={prefs} cols={cols} filters={p.filters} placeholder={p.searchPlaceholder || 'Search…'}
+            onAddColumn={p.onAddColumn} customCols={p.customCols} onRemoveColumn={p.onRemoveColumn} canManageColumns={p.canManageColumns}>
             {p.toolbarExtra}
           </ListToolbar>
         </div>

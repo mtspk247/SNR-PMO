@@ -1714,6 +1714,13 @@ export async function getCustomFieldValues(entityType: CustomEntityType, entityI
   return (data as CustomFieldValue[]) || [];
 }
 
+export async function getCustomFieldValuesByType(orgId: string, entityType: CustomEntityType): Promise<CustomFieldValue[]> {
+  const { data, error } = await sb.from('custom_field_values').select('*')
+    .eq('org_id', orgId).eq('entity_type', entityType);
+  if (error) throw new Error(error.message);
+  return (data as CustomFieldValue[]) || [];
+}
+
 export async function upsertCustomFieldValue(v: {
   org_id: string; entity_type: CustomEntityType; entity_id: string; field_id: string; value: string | null;
 }): Promise<void> {

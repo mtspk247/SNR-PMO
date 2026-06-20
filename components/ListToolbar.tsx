@@ -19,10 +19,12 @@ export type ListPrefs = {
 
 export function useListPrefs(storageKey: string, cols: ColDef[]): ListPrefs {
   const ids = cols.map((c) => c.id);
+  const idsKey = ids.join('|');
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [visible, setVisible] = useState<Set<string>>(new Set(ids));
   const [order, setOrder] = useState<string[]>(ids);
+  const [known, setKnown] = useState<Set<string>>(new Set(ids));
   const loaded = useRef(false);
 
   useEffect(() => {
@@ -31,36 +33,56 @@ export function useListPrefs(storageKey: string, cols: ColDef[]): ListPrefs {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
         const v = JSON.parse(raw);
+        const kn: string[] = Array.isArray(v.known) ? v.known : ids;
+        setKnown(new Set(kn));
         if (Array.isArray(v.order)) { const valid = v.order.filter((x: string) => ids.includes(x)); setOrder([...valid, ...ids.filter((x) => !valid.includes(x))]); }
         else setOrder(ids);
-        if (Array.isArray(v.visible)) setVisible(new Set(v.visible.filter((x: string) => ids.includes(x))));
-        else setVisible(new Set(ids));
+        if (Array.isArray(v.visible)) {
+          const vis = new Set<string>(v.visible.filter((x: string) => ids.includes(x)));
+          ids.forEach((x) => { if (!kn.includes(x)) vis.add(x); });
+          setVisible(vis);
+        } else setVisible(new Set(ids));
         setFilters(v.filters && typeof v.filters === 'object' ? v.filters : {});
-      } else { setOrder(ids); setVisible(new Set(ids)); setFilters({}); }
+      } else { setOrder(ids); setVisible(new Set(ids)); setKnown(new Set(ids)); setFilters({}); }
     } catch { /* ignore */ }
     loaded.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
+  // Auto-include dynamically-added columns (e.g. custom fields) without re-showing user-hidden ones.
   useEffect(() => {
     if (!loaded.current) return;
-    try { localStorage.setItem(storageKey, JSON.stringify({ order, visible: [...visible], filters })); } catch { /* ignore */ }
-  }, [storageKey, order, visible, filters]);
+    const newIds = ids.filter((i) => !known.has(i));
+    if (newIds.length === 0) return;
+    setOrder((pr) => [...pr, ...newIds.filter((i) => !pr.includes(i))]);
+    setVisible((pr) => { const n = new Set(pr); newIds.forEach((i) => n.add(i)); return n; });
+    setKnown((pr) => { const n = new Set(pr); ids.forEach((i) => n.add(i)); return n; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
 
-  const setFilter = (id: string, v: string) => setFilters((p) => ({ ...p, [id]: v }));
+  useEffect(() => {
+    if (!loaded.current) return;
+    try { localStorage.setItem(storageKey, JSON.stringify({ order, visible: [...visible], filters, known: [...known] })); } catch { /* ignore */ }
+  }, [storageKey, order, visible, filters, known]);
+
+  const setFilter = (id: string, v: string) => setFilters((pr) => ({ ...pr, [id]: v }));
   const clearFilters = () => setFilters({});
   const activeCount = Object.values(filters).filter((v) => v && v !== 'all' && v !== '').length;
-  const toggle = (id: string) => setVisible((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); if (n.size === 0) n.add(id); return n; });
-  const move = (id: string, dir: -1 | 1) => setOrder((p) => { const i = p.indexOf(id); const j = i + dir; if (i < 0 || j < 0 || j >= p.length) return p; const n = [...p]; [n[i], n[j]] = [n[j], n[i]]; return n; });
-  const setOrderArr = (ids: string[]) => setOrder(ids);
-  const ordered = order.filter((id) => visible.has(id));
+  const toggle = (id: string) => setVisible((pr) => { const n = new Set(pr); n.has(id) ? n.delete(id) : n.add(id); if (n.size === 0) n.add(id); return n; });
+  const move = (id: string, dir: -1 | 1) => setOrder((pr) => { const i = pr.indexOf(id); const j = i + dir; if (i < 0 || j < 0 || j >= pr.length) return pr; const n = [...pr]; [n[i], n[j]] = [n[j], n[i]]; return n; });
+  const setOrderArr = (idsArr: string[]) => setOrder(idsArr);
+  const ordered = order.filter((id) => visible.has(id) && ids.includes(id));
   return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered };
 }
 
-export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children }:
-  { prefs: ListPrefs; cols: ColDef[]; filters?: FilterDef[]; placeholder?: string; children?: React.ReactNode }) {
+export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children, onAddColumn, customCols, onRemoveColumn, canManageColumns }:
+  { prefs: ListPrefs; cols: ColDef[]; filters?: FilterDef[]; placeholder?: string; children?: React.ReactNode;
+    onAddColumn?: (name: string, type: string) => void | Promise<void>; customCols?: Set<string>; onRemoveColumn?: (id: string) => void; canManageColumns?: boolean }) {
   const [fOpen, setFOpen] = useState(false);
   const [cOpen, setCOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [nm, setNm] = useState('');
+  const [ty, setTy] = useState('text');
   const [dragId, setDragId] = useState<string | null>(null);
   const byId = (id: string) => cols.find((c) => c.id === id);
   const onDrop = (dropId: string) => {
@@ -113,8 +135,27 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
                 </label>
                 <button onClick={() => prefs.move(id, -1)} disabled={idx === 0} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-chevron-up" className="text-sm" /></button>
                 <button onClick={() => prefs.move(id, 1)} disabled={idx === prefs.order.length - 1} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-chevron-down" className="text-sm" /></button>
+                {customCols?.has(id) && onRemoveColumn && <button onClick={() => onRemoveColumn(id)} title="Delete column" className="text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>}
               </div>
             ); })}
+            {canManageColumns && onAddColumn && (
+              <div className="border-t border-line/60 mt-1 pt-1">
+                {!addOpen ? (
+                  <button onClick={() => setAddOpen(true)} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm text-accentstrong hover:bg-surface2"><Icon name="ti-plus" className="text-sm" />Add column</button>
+                ) : (
+                  <div className="p-2 space-y-2">
+                    <input autoFocus value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Column name" className="input h-8 text-sm w-full" />
+                    <select value={ty} onChange={(e) => setTy(e.target.value)} className="input h-8 text-sm w-full">
+                      <option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="checkbox">Checkbox</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <button onClick={async () => { const n = nm.trim(); if (!n) return; await onAddColumn(n, ty); setNm(''); setTy('text'); setAddOpen(false); }} className="btn btn-primary h-8 text-xs flex-1">Add</button>
+                      <button onClick={() => { setAddOpen(false); setNm(''); }} className="btn h-8 text-xs">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

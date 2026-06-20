@@ -403,7 +403,7 @@ export interface TaskFieldValue {
 }
 
 // ---- Generalized custom fields (CRM + HR; org-scoped, polymorphic by entity_type) ----
-export type CustomEntityType = 'crm_deal' | 'crm_contact' | 'crm_company' | 'employee' | 'ledger_entry';
+export type CustomEntityType = 'crm_deal' | 'crm_contact' | 'crm_company' | 'employee' | 'ledger_entry' | (string & {});
 export interface CustomFieldDef {
   id: string; org_id: string; entity_type: CustomEntityType; name: string;
   field_type: 'text' | 'number' | 'date' | 'checkbox' | 'dropdown' | 'multiselect';
