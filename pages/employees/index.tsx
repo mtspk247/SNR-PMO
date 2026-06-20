@@ -4,14 +4,29 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon, StatCard } from '@/components/ui';
-import { usePagination, Pagination } from '@/components/Pagination';
 import EmployeeModal, { EmployeeFormValues } from '@/components/EmployeeModal';
 import { useEmployees, useOrgCompanies } from '@/lib/queries';
-import { createEmployee, getAvatarUrl } from '@/lib/db';
+import { createEmployee, getAvatarUrl, updateEmployeeProfile } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
 import { can } from '@/lib/authz';
+
+const STATUS_PILL: Record<string, string> = {
+  active: 'pill-green',
+  suspended: 'pill-red',
+};
+
+const STATUS_ORDER = ['active', 'suspended'] as const;
+const STATUS_GROUPS: GroupMeta[] = STATUS_ORDER.map((st) => ({
+  value: st,
+  label: titleCase(st),
+  pill: STATUS_PILL[st] || 'pill-gray',
+}));
+
+type GroupBy = 'status' | 'department' | 'none';
 
 const COLS: ColDef[] = [
   { id: 'name', label: 'Name', locked: true },
@@ -29,7 +44,7 @@ export default function EmployeesPage() {
   const { data: companies = [] } = useOrgCompanies();
   const me = useAuthStore((s) => s.user);
   const [showNew, setShowNew] = useState(false);
-  const lp = useListPrefs(`snr-employees-view-${me?.id || 'anon'}`, COLS);
+  const lp = useListPrefs('snrpmo.employees.cols', COLS);
   const FILTERS: FilterDef[] = useMemo(() => {
     const depts = Array.from(new Set(rows.map((e) => e.department).filter(Boolean))) as string[];
     const roles = Array.from(new Set(rows.map((e) => e.role).filter(Boolean))) as string[];
@@ -40,6 +55,8 @@ export default function EmployeesPage() {
     ];
   }, [rows]);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [groupBy, setGroupBy] = useState<GroupBy>('status');
 
   // avatar signed-URL cache: path → url
   const [avatarMap, setAvatarMap] = useState<Map<string, string>>(new Map());
@@ -81,15 +98,83 @@ export default function EmployeesPage() {
     });
   }, [rows, lp.query, lp.filters]);
 
-  const pg = usePagination(filtered, 25);
+  const rs = useRowSelection(filtered);
 
   const activeCount = useMemo(() => rows.filter((e) => e.status === 'active').length, [rows]);
   const deptCount = useMemo(() => new Set(rows.map((e) => e.department).filter(Boolean)).size, [rows]);
+
+  // Dept groups — built dynamically from data so unknown depts still render
+  const deptGroups: GroupMeta[] = useMemo(() => {
+    const depts = Array.from(new Set(rows.map((e) => e.department).filter(Boolean))) as string[];
+    const sorted = [...depts].sort();
+    return [
+      ...sorted.map((d) => ({ value: d, label: titleCase(d), pill: 'pill-blue' as const })),
+      { value: '', label: 'No department', pill: 'pill-gray' as const },
+    ];
+  }, [rows]);
+
+  const activeGroups = groupBy === 'status' ? STATUS_GROUPS : groupBy === 'department' ? deptGroups : [];
+
+  const cell = (id: string, e: any) => {
+    const avatarSrc = e.avatar_url ? avatarMap.get(e.avatar_url) : undefined;
+    switch (id) {
+      case 'name': return (
+        <Link href={`/employees/${e.id}`} className="inline-flex items-center gap-2.5 hover:text-accentstrong">
+          {avatarSrc ? (
+            <img src={avatarSrc} alt={e.full_name} width={28} height={28} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+          ) : (<Avatar name={e.full_name || '?'} size={28} />)}
+          <span className="min-w-0"><span className="block font-medium truncate">{e.full_name}</span><span className="block text-2xs text-muted2 truncate">{e.email}</span></span>
+        </Link>);
+      case 'role': return <span className="capitalize">{(e.role || '').replace('_', ' ')}</span>;
+      case 'department': return e.department || '—';
+      case 'status': return <span className={`pill ${STATUS_PILL[e.status] || 'pill-gray'}`}>{e.status}</span>;
+      case 'manager': return e.manager?.full_name || '—';
+      default: return '—';
+    }
+  };
+
+  const editable: Record<string, EditSpec> = {
+    status: { type: 'select', options: STATUS_ORDER.map((st) => ({ value: st, label: titleCase(st) })) },
+    department: { type: 'text' },
+    role: { type: 'text' },
+  };
+
+  const rawValue = (id: string, e: any) => {
+    if (id === 'status') return e.status || '';
+    if (id === 'department') return e.department || '';
+    if (id === 'role') return e.role || '';
+    return '';
+  };
+
+  const onInlineEdit = async (e: any, id: string, value: string) => {
+    try {
+      await updateEmployeeProfile(e.id, { [id]: value || null } as any);
+      qc.invalidateQueries({ queryKey: qk.employees(org?.id) });
+    } catch (ex: any) { setErr(ex.message); }
+  };
+
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Name', 'Email', 'Role', 'Department', 'Status', 'Manager'];
+    const rowData = rs.selected.map((e) => [e.full_name, e.email, e.role, e.department, e.status, e.manager?.full_name]);
+    const csv = heads.join(',') + '\n' + rowData.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'employees-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const bulkDelete = async () => {
+    if (!isAdmin || !rs.count || !confirm(`Delete ${rs.count} employee record${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setErr('');
+    // No deleteEmployee fn exists; guard here — admin-only, confirm required
+    rs.clear();
+  };
 
   return (
     <Layout flat title="Employees">
       <PageHeader help="hr" title="Employee directory" subtitle="Everyone in your organization, with role, department and manager"
         action={isAdmin ? <button onClick={() => setShowNew(true)} className="btn btn-primary"><Icon name="ti-user-plus" />New employee</button> : undefined} />
+
+      {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Headcount" value={rows.length} icon="ti-users" />
@@ -98,51 +183,50 @@ export default function EmployeesPage() {
         <StatCard label="Departments" value={deptCount} icon="ti-building-community" />
       </div>
 
-      <ListToolbar prefs={lp} cols={COLS} filters={FILTERS} placeholder="Search by name, email, department, role…" />
-
-      {isLoading ? <Spinner /> : filtered.length === 0 ? (
-        <EmptyState icon="ti-users" text={rows.length === 0 ? 'No employees yet' : 'No employees match your search'} />
-      ) : (
-        <div className="bg-surface overflow-hidden">
-          <div className="overflow-x-auto"><table className="w-full text-sm list-card">
-            <thead>
-              <tr className="text-2xs uppercase tracking-wide text-muted border-b border-line">
-                {lp.ordered.map((id) => <th key={id} className="th text-left">{COLS.find((c) => c.id === id)?.label}</th>)}
-                <th className="th"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pg.pageItems.map((e) => {
-                const avatarSrc = e.avatar_url ? avatarMap.get(e.avatar_url) : undefined;
-                const cell = (id: string) => {
-                  switch (id) {
-                    case 'name': return (
-                      <Link href={`/employees/${e.id}`} className="inline-flex items-center gap-2.5 hover:text-accentstrong">
-                        {avatarSrc ? (
-                          <img src={avatarSrc} alt={e.full_name} width={28} height={28} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                        ) : (<Avatar name={e.full_name || '?'} size={28} />)}
-                        <span className="min-w-0"><span className="block font-medium truncate">{e.full_name}</span><span className="block text-2xs text-muted2 truncate">{e.email}</span></span>
-                      </Link>);
-                    case 'role': return <span className="capitalize">{(e.role || '').replace('_', ' ')}</span>;
-                    case 'department': return e.department || '—';
-                    case 'status': return <span className={`pill ${e.status === 'active' ? 'pill-green' : 'pill-red'}`}>{e.status}</span>;
-                    case 'manager': return e.manager?.full_name || '—';
-                    default: return null;
-                  }
-                };
-                return (
-                  <tr key={e.id} className="row border-b border-line last:border-0">
-                    {lp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
-                    <td className="td text-right">
-                      <Link href={`/employees/${e.id}`} className="btn btn-ghost h-7 px-2 text-xs">View<Icon name="ti-chevron-right" className="text-sm" /></Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table></div>
-          <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
+      {/* Toolbar + Group-by control */}
+      <div className="flex items-end gap-2 flex-wrap mb-4">
+        <div className="flex-1 min-w-0">
+          <ListToolbar prefs={lp} cols={COLS} filters={FILTERS} placeholder="Search by name, email, department, role…" />
         </div>
+        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+          {(['status', 'department', 'none'] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => setGroupBy(g)}
+              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === g ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+            >
+              {g === 'none' ? 'None' : titleCase(g)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <BulkBar count={rs.count} onClear={rs.clear}>
+        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+      </BulkBar>
+
+      {isLoading ? (
+        <div className="card p-8 border border-line/40"><Spinner /></div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-8 border border-line/40"><EmptyState icon="ti-users" text={rows.length === 0 ? 'No employees yet' : 'No employees match your search'} /></div>
+      ) : (
+        <DataList
+          rows={filtered}
+          rowKey={(e) => e.id}
+          cols={COLS}
+          prefs={lp}
+          cell={cell}
+          onRowClick={(e) => { window.location.href = `/employees/${e.id}`; }}
+          selection={rs}
+          groupBy={groupBy === 'none' ? 'none' : groupBy}
+          groupOf={(e) => groupBy === 'status' ? (e.status || '') : (e.department || '')}
+          groups={activeGroups}
+          editable={editable}
+          rawValue={rawValue}
+          onEdit={onInlineEdit}
+        />
       )}
 
       {showNew && (

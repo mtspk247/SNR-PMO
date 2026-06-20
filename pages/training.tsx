@@ -4,7 +4,6 @@ import Select from '@/components/Select';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
-import { usePagination, Pagination } from '@/components/Pagination';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useTrainingDocs, useJobDescriptions } from '@/lib/queries';
 import {
@@ -16,6 +15,8 @@ import {
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
+import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
 import { can } from '@/lib/authz';
 import { TrainingDoc, JobDescription, RoleTemplate } from '@/lib/supabase';
 
@@ -37,8 +38,26 @@ const emptyJDForm = (): JDForm => ({
   title: '', department: '', role_template_id: '', summary: '', responsibilities: '', requirements: '',
 });
 
-const TD_COLS: ColDef[] = [{ id: 'title', label: 'Title', locked: true }, { id: 'category', label: 'Category' }, { id: 'department', label: 'Department' }, { id: 'role', label: 'Role' }, { id: 'file', label: 'File / Link' }, { id: 'added', label: 'Added' }];
-const JD_COLS: ColDef[] = [{ id: 'title', label: 'Title', locked: true }, { id: 'department', label: 'Department' }, { id: 'role', label: 'Role' }, { id: 'file', label: 'File' }, { id: 'added', label: 'Added' }];
+const TD_COLS: ColDef[] = [
+  { id: 'title', label: 'Title', locked: true },
+  { id: 'category', label: 'Category' },
+  { id: 'department', label: 'Department' },
+  { id: 'role', label: 'Role' },
+  { id: 'file', label: 'File / Link' },
+  { id: 'added', label: 'Added' },
+  { id: 'actions', label: '' },
+];
+const JD_COLS: ColDef[] = [
+  { id: 'title', label: 'Title', locked: true },
+  { id: 'department', label: 'Department' },
+  { id: 'role', label: 'Role' },
+  { id: 'file', label: 'File' },
+  { id: 'added', label: 'Added' },
+  { id: 'actions', label: '' },
+];
+
+type TdGroupBy = 'category' | 'none';
+type JdGroupBy = 'department' | 'none';
 
 export default function TrainingPage() {
   const org = useActiveOrg();
@@ -61,6 +80,7 @@ export default function TrainingPage() {
   const [editingTd, setEditingTd] = useState<TrainingDoc | null>(null);
   const [tdForm, setTdForm] = useState<TDocForm>(emptyTDocForm());
   const [tdBusy, setTdBusy] = useState(false);
+  const [tdGroupBy, setTdGroupBy] = useState<TdGroupBy>('category');
 
   // JD state
   const [showJdModal, setShowJdModal] = useState(false);
@@ -68,6 +88,7 @@ export default function TrainingPage() {
   const [jdForm, setJdForm] = useState<JDForm>(emptyJDForm());
   const [jdBusy, setJdBusy] = useState(false);
   const [expandedJd, setExpandedJd] = useState<string | null>(null);
+  const [jdGroupBy, setJdGroupBy] = useState<JdGroupBy>('department');
 
   // Stats
   const withFiles = trainingDocs.filter((d) => !!d.doc_path).length;
@@ -90,8 +111,8 @@ export default function TrainingPage() {
     return Array.from(s).sort();
   }, [jobDescs]);
 
-  const tdLp = useListPrefs(`snr-training-docs-view-${me?.id || 'anon'}`, TD_COLS);
-  const jdLp = useListPrefs(`snr-training-jd-view-${me?.id || 'anon'}`, JD_COLS);
+  const tdLp = useListPrefs(`snrpmo.training-docs.cols`, TD_COLS);
+  const jdLp = useListPrefs(`snrpmo.training-jd.cols`, JD_COLS);
   const TD_FILTERS: FilterDef[] = useMemo(() => [{ id: 'category', label: 'Category', options: [{ value: 'all', label: 'All categories' }, ...tdCategories.map((c) => ({ value: c, label: titleCase(c) }))] }], [tdCategories]);
   const JD_FILTERS: FilterDef[] = useMemo(() => [{ id: 'department', label: 'Department', options: [{ value: 'all', label: 'All departments' }, ...jdDepartments.map((d) => ({ value: d, label: titleCase(d) }))] }], [jdDepartments]);
 
@@ -122,8 +143,8 @@ export default function TrainingPage() {
     });
   }, [jobDescs, jdLp.query, jdLp.filters]);
 
-  const pgTd = usePagination(filteredTd, 25);
-  const pgJd = usePagination(filteredJd, 25);
+  const rsTd = useRowSelection(filteredTd);
+  const rsJd = useRowSelection(filteredJd);
 
   // Training doc CRUD
   const openNewTd = () => { setEditingTd(null); setTdForm(emptyTDocForm()); setShowTdModal(true); };
@@ -165,6 +186,16 @@ export default function TrainingPage() {
     try {
       await deleteTrainingDoc({ id: d.id, doc_path: d.doc_path });
       qc.setQueryData<TrainingDoc[]>(qk.trainingDocs(org.id), (prev = []) => prev.filter((x) => x.id !== d.id));
+    } catch (e: any) { alert(e.message); }
+  };
+
+  // Inline edit for TD: category field calls updateTrainingDoc
+  const onInlineEditTd = async (doc: TrainingDoc, colId: string, value: string) => {
+    if (!org) return;
+    try {
+      const updated = await updateTrainingDoc(doc.id, { [colId]: value || null });
+      qc.setQueryData<TrainingDoc[]>(qk.trainingDocs(org.id), (prev = []) =>
+        prev.map((d) => (d.id === updated.id ? updated : d)));
     } catch (e: any) { alert(e.message); }
   };
 
@@ -211,6 +242,100 @@ export default function TrainingPage() {
     } catch (e: any) { alert(e.message); }
   };
 
+  // Inline edit for JD: department field
+  const onInlineEditJd = async (jd: JobDescription, colId: string, value: string) => {
+    if (!org) return;
+    try {
+      const updated = await updateJobDescription(jd.id, { [colId]: value || null });
+      qc.setQueryData<JobDescription[]>(qk.jobDescriptions(org.id), (prev = []) =>
+        prev.map((d) => (d.id === updated.id ? updated : d)));
+    } catch (e: any) { alert(e.message); }
+  };
+
+  // Group metas derived from actual data
+  const tdGroups: GroupMeta[] = useMemo(() =>
+    tdCategories.map((c) => ({ value: c, label: titleCase(c), pill: 'pill-gray' })),
+    [tdCategories]
+  );
+  const jdGroups: GroupMeta[] = useMemo(() =>
+    jdDepartments.map((d) => ({ value: d, label: titleCase(d) })),
+    [jdDepartments]
+  );
+
+  const tdEditable: Record<string, EditSpec> = {
+    category: { type: 'text' },
+  };
+  const jdEditable: Record<string, EditSpec> = {
+    department: { type: 'text' },
+  };
+
+  // Cell renderers
+  const tdCell = (id: string, doc: TrainingDoc) => {
+    switch (id) {
+      case 'title': return (<><p className="font-medium text-content truncate">{doc.title}</p>{doc.description && <p className="text-2xs text-muted truncate mt-0.5">{doc.description}</p>}</>);
+      case 'category': return doc.category ? <span className="pill pill-gray">{doc.category}</span> : <span className="text-muted2">—</span>;
+      case 'department': return <span className="text-sm text-muted">{doc.department || '—'}</span>;
+      case 'role': return <span className="text-sm text-muted">{doc.role_template?.name || '—'}</span>;
+      case 'file': return <HrFileChip table="training_docs" row={doc} admin={admin} onUpdated={(updated) => qc.setQueryData<TrainingDoc[]>(qk.trainingDocs(org?.id), (prev = []) => prev.map((d) => (d.id === updated.id ? (updated as TrainingDoc) : d)))} />;
+      case 'added': return <span className="text-2xs text-muted tabular-nums">{doc.created_at ? doc.created_at.slice(0, 10) : '—'}</span>;
+      case 'actions': return admin ? (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEditTd(doc)}><Icon name="ti-pencil" /></button>
+          <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => removeTd(doc)}><Icon name="ti-trash" /></button>
+        </div>
+      ) : null;
+      default: return null;
+    }
+  };
+
+  const jdCell = (id: string, jd: JobDescription) => {
+    switch (id) {
+      case 'title': return (
+        <div className="flex items-center gap-1.5">
+          <Icon name={expandedJd === jd.id ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-muted2 text-xs shrink-0" />
+          <p className="font-medium text-content truncate">{jd.title}</p>
+        </div>
+      );
+      case 'department': return <span className="text-sm text-muted">{jd.department || '—'}</span>;
+      case 'role': return <span className="text-sm text-muted">{jd.role_template?.name || '—'}</span>;
+      case 'file': return <HrFileChip table="job_descriptions" row={jd} admin={admin} onUpdated={(updated) => qc.setQueryData<JobDescription[]>(qk.jobDescriptions(org?.id), (prev = []) => prev.map((d) => (d.id === updated.id ? (updated as JobDescription) : d)))} />;
+      case 'added': return <span className="text-2xs text-muted tabular-nums">{jd.created_at ? jd.created_at.slice(0, 10) : '—'}</span>;
+      case 'actions': return admin ? (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEditJd(jd)}><Icon name="ti-pencil" /></button>
+          <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => removeJd(jd)}><Icon name="ti-trash" /></button>
+        </div>
+      ) : null;
+      default: return null;
+    }
+  };
+
+  // BulkBar CSV export helpers
+  const exportTdSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Title', 'Category', 'Department', 'Role', 'Added'];
+    const rows = rsTd.selected.map((d) => [d.title, d.category, d.department, d.role_template?.name, d.created_at?.slice(0, 10)]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'training-docs-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+  const exportJdSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Title', 'Department', 'Role', 'Added'];
+    const rows = rsJd.selected.map((d) => [d.title, d.department, d.role_template?.name, d.created_at?.slice(0, 10)]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'job-descriptions-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+  const bulkDeleteTd = async () => {
+    if (!rsTd.count || !confirm(`Delete ${rsTd.count} training doc${rsTd.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    try { for (const d of rsTd.selected) await deleteTrainingDoc({ id: d.id, doc_path: d.doc_path }); rsTd.clear(); }
+    catch (e: any) { alert(e.message); }
+  };
+  const bulkDeleteJd = async () => {
+    if (!rsJd.count || !confirm(`Delete ${rsJd.count} job description${rsJd.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    try { for (const d of rsJd.selected) await deleteJobDescription({ id: d.id, doc_path: d.doc_path }); rsJd.clear(); }
+    catch (e: any) { alert(e.message); }
+  };
+
   const isLoading = loadingTd || loadingJd;
 
   return (
@@ -253,147 +378,150 @@ export default function TrainingPage() {
       </div>
 
       {tab === 'training' && (
-        <div className="card overflow-hidden">
-          <div className="px-4 py-3 border-b border-line">
-            <ListToolbar prefs={tdLp} cols={TD_COLS} filters={TD_FILTERS} placeholder="Search training docs…" />
+        <>
+          {/* Toolbar + Group-by control */}
+          <div className="flex items-end gap-2 flex-wrap mb-4">
+            <div className="flex-1 min-w-0">
+              <ListToolbar prefs={tdLp} cols={TD_COLS} filters={TD_FILTERS} placeholder="Search training docs…" />
+            </div>
+            <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+              <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+              <button
+                onClick={() => setTdGroupBy('category')}
+                className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${tdGroupBy === 'category' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              >
+                Category
+              </button>
+              <button
+                onClick={() => setTdGroupBy('none')}
+                className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${tdGroupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              >
+                None
+              </button>
+            </div>
           </div>
+
+          <BulkBar count={rsTd.count} onClear={rsTd.clear}>
+            <button onClick={exportTdSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+            {admin && <button onClick={bulkDeleteTd} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+          </BulkBar>
+
           {isLoading ? (
-            <div className="p-8"><Spinner /></div>
+            <div className="card p-8"><Spinner /></div>
           ) : filteredTd.length === 0 ? (
-            <div className="p-5">
+            <div className="card p-5">
               <EmptyState icon="ti-school" text={tdLp.query || tdLp.activeCount ? 'No docs match your filters.' : 'No training docs yet — add the first one.'} />
             </div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full list-card">
-                  <thead className="bg-surface2/60">
-                    <tr>
-                      {tdLp.ordered.map((id) => <th key={id} className="th">{TD_COLS.find((c) => c.id === id)?.label}</th>)}
-                      <th className="th w-24"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pgTd.pageItems.map((doc) => {
-                      const cell = (id: string) => {
-                        switch (id) {
-                          case 'title': return (<><p className="font-medium text-content truncate">{doc.title}</p>{doc.description && <p className="text-2xs text-muted truncate mt-0.5">{doc.description}</p>}</>);
-                          case 'category': return doc.category ? <span className="pill pill-gray">{doc.category}</span> : <span className="text-muted2">—</span>;
-                          case 'department': return <span className="text-sm text-muted">{doc.department || '—'}</span>;
-                          case 'role': return <span className="text-sm text-muted">{doc.role_template?.name || '—'}</span>;
-                          case 'file': return <HrFileChip table="training_docs" row={doc} admin={admin} onUpdated={(updated) => qc.setQueryData<TrainingDoc[]>(qk.trainingDocs(org?.id), (prev = []) => prev.map((d) => (d.id === updated.id ? (updated as TrainingDoc) : d)))} />;
-                          case 'added': return <span className="text-2xs text-muted tabular-nums">{doc.created_at ? doc.created_at.slice(0, 10) : '—'}</span>;
-                          default: return null;
-                        }
-                      };
-                      return (
-                        <tr key={doc.id} className="row">
-                          {tdLp.ordered.map((id) => <td key={id} className="td">{cell(id)}</td>)}
-                          <td className="td">
-                            {admin && (
-                              <div className="flex items-center justify-end gap-1">
-                                <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEditTd(doc)}><Icon name="ti-pencil" /></button>
-                                <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => removeTd(doc)}><Icon name="ti-trash" /></button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination page={pgTd.page} pageCount={pgTd.pageCount} total={pgTd.total} start={pgTd.start} end={pgTd.end} onPage={pgTd.setPage} />
-            </>
+            <DataList
+              rows={filteredTd}
+              rowKey={(d) => d.id}
+              cols={TD_COLS}
+              prefs={tdLp}
+              cell={tdCell}
+              selection={rsTd}
+              groupBy={tdGroupBy}
+              groupOf={(d) => d.category || ''}
+              groups={tdGroups}
+              editable={tdEditable}
+              rawValue={(id, d) => id === 'category' ? (d.category || '') : ''}
+              onEdit={onInlineEditTd}
+            />
           )}
-        </div>
+        </>
       )}
 
       {tab === 'jd' && (
-        <div className="card overflow-hidden">
-          <div className="px-4 py-3 border-b border-line">
-            <ListToolbar prefs={jdLp} cols={JD_COLS} filters={JD_FILTERS} placeholder="Search job descriptions…" />
+        <>
+          {/* Toolbar + Group-by control */}
+          <div className="flex items-end gap-2 flex-wrap mb-4">
+            <div className="flex-1 min-w-0">
+              <ListToolbar prefs={jdLp} cols={JD_COLS} filters={JD_FILTERS} placeholder="Search job descriptions…" />
+            </div>
+            <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+              <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+              <button
+                onClick={() => setJdGroupBy('department')}
+                className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${jdGroupBy === 'department' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              >
+                Department
+              </button>
+              <button
+                onClick={() => setJdGroupBy('none')}
+                className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${jdGroupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              >
+                None
+              </button>
+            </div>
           </div>
+
+          <BulkBar count={rsJd.count} onClear={rsJd.clear}>
+            <button onClick={exportJdSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+            {admin && <button onClick={bulkDeleteJd} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+          </BulkBar>
+
           {isLoading ? (
-            <div className="p-8"><Spinner /></div>
+            <div className="card p-8"><Spinner /></div>
           ) : filteredJd.length === 0 ? (
-            <div className="p-5">
+            <div className="card p-5">
               <EmptyState icon="ti-briefcase" text={jdLp.query || jdLp.activeCount ? 'No JDs match your filters.' : 'No job descriptions yet — add the first one.'} />
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full list-card">
-                  <thead className="bg-surface2/60">
-                    <tr>
-                      {jdLp.ordered.map((id) => <th key={id} className="th">{JD_COLS.find((c) => c.id === id)?.label}</th>)}
-                      <th className="th w-24"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pgJd.pageItems.map((jd) => (
-                      <>
-                        <tr key={jd.id} className="row cursor-pointer" onClick={() => setExpandedJd(expandedJd === jd.id ? null : jd.id)}>
-                          {jdLp.ordered.map((id) => {
-                            const cell = () => {
-                              switch (id) {
-                                case 'title': return <div className="flex items-center gap-1.5"><Icon name={expandedJd === jd.id ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-muted2 text-xs shrink-0" /><p className="font-medium text-content truncate">{jd.title}</p></div>;
-                                case 'department': return <span className="text-sm text-muted">{jd.department || '—'}</span>;
-                                case 'role': return <span className="text-sm text-muted">{jd.role_template?.name || '—'}</span>;
-                                case 'file': return <HrFileChip table="job_descriptions" row={jd} admin={admin} onUpdated={(updated) => qc.setQueryData<JobDescription[]>(qk.jobDescriptions(org?.id), (prev = []) => prev.map((d) => (d.id === updated.id ? (updated as JobDescription) : d)))} />;
-                                case 'added': return <span className="text-2xs text-muted tabular-nums">{jd.created_at ? jd.created_at.slice(0, 10) : '—'}</span>;
-                                default: return null;
-                              }
-                            };
-                            return <td key={id} className="td max-w-xs" onClick={id === 'file' ? (e) => e.stopPropagation() : undefined}>{cell()}</td>;
-                          })}
-                          <td className="td" onClick={(e) => e.stopPropagation()}>
-                            {admin && (
-                              <div className="flex items-center justify-end gap-1">
-                                <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEditJd(jd)}><Icon name="ti-pencil" /></button>
-                                <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => removeJd(jd)}><Icon name="ti-trash" /></button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                        {expandedJd === jd.id && (
-                          <tr key={`${jd.id}-expand`} className="bg-surface2/50">
-                            <td colSpan={jdLp.ordered.length + 1} className="px-8 py-3">
-                              <div className="grid sm:grid-cols-3 gap-4 text-sm">
-                                {jd.summary && (
-                                  <div>
-                                    <p className="text-2xs text-muted2 uppercase tracking-wide mb-1 font-medium">Summary</p>
-                                    <p className="text-muted whitespace-pre-wrap">{jd.summary}</p>
-                                  </div>
-                                )}
-                                {jd.responsibilities && (
-                                  <div>
-                                    <p className="text-2xs text-muted2 uppercase tracking-wide mb-1 font-medium">Responsibilities</p>
-                                    <p className="text-muted whitespace-pre-wrap">{jd.responsibilities}</p>
-                                  </div>
-                                )}
-                                {jd.requirements && (
-                                  <div>
-                                    <p className="text-2xs text-muted2 uppercase tracking-wide mb-1 font-medium">Requirements</p>
-                                    <p className="text-muted whitespace-pre-wrap">{jd.requirements}</p>
-                                  </div>
-                                )}
-                                {!jd.summary && !jd.responsibilities && !jd.requirements && (
-                                  <p className="text-muted2 text-sm col-span-3">No details recorded yet.</p>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination page={pgJd.page} pageCount={pgJd.pageCount} total={pgJd.total} start={pgJd.start} end={pgJd.end} onPage={pgJd.setPage} />
+              <DataList
+                rows={filteredJd}
+                rowKey={(d) => d.id}
+                cols={JD_COLS}
+                prefs={jdLp}
+                cell={jdCell}
+                onRowClick={(jd) => setExpandedJd(expandedJd === jd.id ? null : jd.id)}
+                selection={rsJd}
+                groupBy={jdGroupBy}
+                groupOf={(d) => d.department || ''}
+                groups={jdGroups}
+                editable={jdEditable}
+                rawValue={(id, d) => id === 'department' ? (d.department || '') : ''}
+                onEdit={onInlineEditJd}
+              />
+              {/* Expanded JD detail panel */}
+              {expandedJd && (() => {
+                const jd = filteredJd.find((d) => d.id === expandedJd);
+                if (!jd) return null;
+                return (
+                  <div className="card border border-line/40 px-8 py-4 mt-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium text-content">{jd.title}</p>
+                      <button onClick={() => setExpandedJd(null)} className="text-muted hover:text-content"><Icon name="ti-x" /></button>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-4 text-sm">
+                      {jd.summary && (
+                        <div>
+                          <p className="text-2xs text-muted2 uppercase tracking-wide mb-1 font-medium">Summary</p>
+                          <p className="text-muted whitespace-pre-wrap">{jd.summary}</p>
+                        </div>
+                      )}
+                      {jd.responsibilities && (
+                        <div>
+                          <p className="text-2xs text-muted2 uppercase tracking-wide mb-1 font-medium">Responsibilities</p>
+                          <p className="text-muted whitespace-pre-wrap">{jd.responsibilities}</p>
+                        </div>
+                      )}
+                      {jd.requirements && (
+                        <div>
+                          <p className="text-2xs text-muted2 uppercase tracking-wide mb-1 font-medium">Requirements</p>
+                          <p className="text-muted whitespace-pre-wrap">{jd.requirements}</p>
+                        </div>
+                      )}
+                      {!jd.summary && !jd.responsibilities && !jd.requirements && (
+                        <p className="text-muted2 text-sm col-span-3">No details recorded yet.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
-        </div>
+        </>
       )}
 
       <TdModal

@@ -14,6 +14,8 @@ import { createIdea, updateIdea, deleteIdea, toggleIdeaVote, convertIdeaToProjec
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { Idea, IdeaStatus } from '@/lib/supabase';
+import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
+import { useRowSelection, BulkBar } from '@/components/RowSelection';
 
 const STATUS_PILL: Record<IdeaStatus, string> = {
   idea: 'pill-gray',
@@ -38,10 +40,19 @@ const emptyForm = (): FormState => ({ title: '', pitch: '', status: 'idea' });
 
 const IDEA_COLS: ColDef[] = [{ id: 'votes', label: 'Votes' }, { id: 'title', label: 'Title', locked: true }, { id: 'status', label: 'Status' }, { id: 'project', label: 'Project' }, { id: 'by', label: 'By' }, { id: 'created', label: 'Created' }];
 
+const GROUPS: GroupMeta[] = IDEA_STATUSES.map((st) => ({
+  value: st,
+  label: STATUS_LABEL[st],
+  pill: STATUS_PILL[st] || 'pill-gray',
+}));
+
+type GroupBy = 'status' | 'none';
+
 export default function IdeasPage() {
   const org = useActiveOrg();
   const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
 
   const { data: ideas = [], isLoading } = useIdeas();
 
@@ -61,6 +72,7 @@ export default function IdeasPage() {
   const [votingId, setVotingId] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [pollAfter, setPollAfter] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupBy>('status');
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -84,6 +96,8 @@ export default function IdeasPage() {
   const gKey = (i: Idea) => vp.groupBy === 'status' ? i.status : vp.groupBy === 'project' ? (i.project?.name || 'No project') : vp.groupBy === 'by' ? (i.creator?.full_name || 'Unknown') : 'all';
   const gLabel = (k: string) => vp.groupBy === 'status' ? (STATUS_LABEL[k as IdeaStatus] || k) : k;
   const groups = vp.groupBy === 'none' ? [{ key: 'all', label: '', items: pg.pageItems }] : buildGroups(filtered, gKey, gLabel, vp.groupBy === 'status' ? [...IDEA_STATUSES] : undefined);
+
+  const rs = useRowSelection(filtered);
 
   const openNew = () => { setEditing(null); setForm(emptyForm()); setPollAfter(false); setShowModal(true); };
   const openEdit = (idea: Idea) => {
@@ -150,6 +164,98 @@ export default function IdeasPage() {
     } catch (err: any) { alert(err.message); } finally { setConvertingId(null); }
   };
 
+  const editable: Record<string, EditSpec> = {
+    title: { type: 'text' },
+    status: { type: 'select', options: IDEA_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] })) },
+  };
+
+  const rawValue = (id: string, idea: Idea) =>
+    id === 'title' ? idea.title : id === 'status' ? idea.status : '';
+
+  const onInlineEdit = async (idea: Idea, id: string, value: string) => {
+    try {
+      const updated = await updateIdea(idea.id, { [id]: value || null } as any);
+      qc.setQueryData<Idea[]>(qk.ideas(org?.id), (prev = []) =>
+        prev.map((i) => (i.id === updated.id ? updated : i))
+      );
+    } catch (err: any) { alert(err.message); }
+  };
+
+  const bulkDelete = async () => {
+    if (!rs.count || !confirm(`Delete ${rs.count} idea${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true);
+    try {
+      for (const idea of rs.selected) {
+        await deleteIdea(idea.id);
+        qc.setQueryData<Idea[]>(qk.ideas(org?.id), (prev = []) => prev.filter((i) => i.id !== idea.id));
+      }
+      rs.clear();
+    } catch (e: any) { alert(e.message); } finally { setBusy(false); }
+  };
+
+  const exportSelected = () => {
+    const esc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const heads = ['Title', 'Status', 'Project', 'By', 'Created', 'Votes'];
+    const rows = rs.selected.map((idea) => [
+      idea.title,
+      STATUS_LABEL[idea.status],
+      idea.project?.name || '',
+      idea.creator?.full_name || '',
+      idea.created_at ? idea.created_at.slice(0, 10) : '',
+      String(idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0),
+    ]);
+    const csv = heads.join(',') + '\n' + rows.map((r) => r.map(esc).join(',')).join('\n') + '\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = 'ideas-selected.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const cell = (id: string, idea: Idea) => {
+    const hasVoted = idea.votes?.some((v) => v.user_id === user?.id && (v.value ?? 1) === 1) ?? false;
+    const voteCount = idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0;
+    const isVoting = votingId === idea.id;
+    const isConverting = convertingId === idea.id;
+    switch (id) {
+      case 'votes':
+        return (
+          <button
+            className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded transition-colors ${hasVoted ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted hover:text-content hover:bg-surface2'} disabled:opacity-50`}
+            onClick={(e) => { e.stopPropagation(); vote(idea); }}
+            disabled={isVoting || !user}
+            title={hasVoted ? 'Remove vote' : 'Vote'}
+          >
+            <Icon name="ti-arrow-big-up" className="text-base leading-none" />
+            <span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span>
+          </button>
+        );
+      case 'title':
+        return (
+          <>
+            <p className="font-medium text-content truncate">{idea.title}</p>
+            {idea.pitch && <p className="text-2xs text-muted truncate mt-0.5">{idea.pitch}</p>}
+          </>
+        );
+      case 'status':
+        return <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>;
+      case 'project':
+        return idea.project?.name ? <span className="pill pill-gray">{idea.project.name}</span> : '—';
+      case 'by':
+        return idea.creator?.full_name || '—';
+      case 'created':
+        return idea.created_at ? idea.created_at.slice(0, 10) : '—';
+      case '__actions':
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <button className="btn-ghost p-1.5" title="Edit" onClick={(e) => { e.stopPropagation(); openEdit(idea); }}><Icon name="ti-pencil" /></button>
+            {!idea.project_id && (
+              <button className="btn-ghost p-1.5 text-accent" title="Convert to project" onClick={(e) => { e.stopPropagation(); convert(idea); }} disabled={isConverting}><Icon name="ti-rocket" /></button>
+            )}
+            <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={(e) => { e.stopPropagation(); remove(idea); }}><Icon name="ti-trash" /></button>
+          </div>
+        );
+      default:
+        return '—';
+    }
+  };
+
   const IdeaCards = ({ items }: { items: Idea[] }) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
       {items.map((idea) => {
@@ -177,49 +283,7 @@ export default function IdeasPage() {
       })}
     </div>
   );
-  const IdeaTable = ({ items }: { items: Idea[] }) => (
-    <div className="overflow-x-auto">
-      <table className="w-full list-card">
-        <thead>
-          <tr>
-            {lp.ordered.map((id) => <th key={id} className={`th ${id === 'votes' ? 'w-16 text-center' : ''}`}>{IDEA_COLS.find((c) => c.id === id)?.label}</th>)}
-            <th className="th w-28"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((idea) => {
-            const hasVoted = idea.votes?.some((v) => v.user_id === user?.id && (v.value ?? 1) === 1) ?? false;
-            const voteCount = idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0;
-            const isVoting = votingId === idea.id;
-            const isConverting = convertingId === idea.id;
-            const cell = (id: string) => {
-              switch (id) {
-                case 'votes': return (<button className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded transition-colors ${hasVoted ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted hover:text-content hover:bg-surface2'} disabled:opacity-50`} onClick={(e) => { e.stopPropagation(); vote(idea); }} disabled={isVoting || !user} title={hasVoted ? 'Remove vote' : 'Vote'}><Icon name="ti-arrow-big-up" className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span></button>);
-                case 'title': return (<><p className="font-medium text-content truncate">{idea.title}</p>{idea.pitch && <p className="text-2xs text-muted truncate mt-0.5">{idea.pitch}</p>}</>);
-                case 'status': return <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>;
-                case 'project': return idea.project?.name ? <span className="pill pill-gray">{idea.project.name}</span> : '—';
-                case 'by': return idea.creator?.full_name || '—';
-                case 'created': return idea.created_at ? idea.created_at.slice(0, 10) : '—';
-                default: return null;
-              }
-            };
-            return (
-              <tr key={idea.id} className="row cursor-pointer" onClick={() => router.push(`/ideas/${idea.id}`)}>
-                {lp.ordered.map((id) => <td key={id} className={`td ${id === 'votes' ? 'text-center' : ''} ${id === 'title' ? 'max-w-xs' : ''} ${['project', 'by', 'created'].includes(id) ? 'text-2xs text-muted' : ''} ${id === 'created' ? 'tabular-nums' : ''}`}>{cell(id)}</td>)}
-                <td className="td" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-end gap-1">
-                    <button className="btn-ghost p-1.5" title="Edit" onClick={() => openEdit(idea)}><Icon name="ti-pencil" /></button>
-                    {!idea.project_id && (<button className="btn-ghost p-1.5 text-accent" title="Convert to project" onClick={() => convert(idea)} disabled={isConverting}><Icon name="ti-rocket" /></button>)}
-                    <button className="btn-ghost p-1.5 text-rose-500" title="Delete" onClick={() => remove(idea)}><Icon name="ti-trash" /></button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+
   return (
     <Layout title="Ideas">
       <PageHeader help="work"
@@ -239,24 +303,68 @@ export default function IdeasPage() {
         <StatCard label="Total votes" value={String(totalVotes)} hint="Across all ideas" icon="ti-arrow-big-up" />
       </div>
 
-      <ListToolbar prefs={lp} cols={IDEA_COLS} filters={FILTERS} placeholder="Search ideas…">
-        <ViewControls prefs={vp} views={[{ id: 'list', icon: 'ti-list', label: 'List' }, { id: 'card', icon: 'ti-layout-grid', label: 'Cards' }]} groupOptions={groupOptions} />
-      </ListToolbar>
+      {/* Toolbar + Group-by control */}
+      <div className="flex items-end gap-2 flex-wrap mb-4">
+        <div className="flex-1 min-w-0">
+          <ListToolbar prefs={lp} cols={IDEA_COLS} filters={FILTERS} placeholder="Search ideas…">
+            <ViewControls prefs={vp} views={[{ id: 'list', icon: 'ti-list', label: 'List' }, { id: 'card', icon: 'ti-layout-grid', label: 'Cards' }]} groupOptions={groupOptions} />
+          </ListToolbar>
+        </div>
+        {vp.view === 'list' && (
+          <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+            <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
+            <button
+              onClick={() => setGroupBy('status')}
+              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+            >
+              Status
+            </button>
+            <button
+              onClick={() => setGroupBy('none')}
+              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+            >
+              None
+            </button>
+          </div>
+        )}
+      </div>
+
+      <BulkBar count={rs.count} onClear={rs.clear}>
+        <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
+        {isAdmin && <button onClick={bulkDelete} disabled={busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
+      </BulkBar>
+
       <div className="bg-surface overflow-hidden">
         {isLoading ? (
           <div className="p-8"><Spinner /></div>
         ) : filtered.length === 0 ? (
           <div className="p-5"><EmptyState icon="ti-bulb" text={lp.query || lp.activeCount ? 'No ideas match your filters.' : 'No ideas yet — add the first one.'} /></div>
-        ) : (
+        ) : vp.view === 'card' ? (
           <>
             {groups.map((g) => (
               <div key={g.key}>
                 {g.label && <div className="flex items-center gap-2 px-4 pt-4"><h3 className="text-sm font-semibold text-content">{g.label}</h3><span className="text-2xs text-muted2 bg-surface2 rounded-full px-2 py-0.5">{g.items.length}</span></div>}
-                {vp.view === 'card' ? <IdeaCards items={g.items} /> : <IdeaTable items={g.items} />}
+                <IdeaCards items={g.items} />
               </div>
             ))}
             {vp.groupBy === 'none' && <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />}
           </>
+        ) : (
+          <DataList
+            rows={filtered}
+            rowKey={(idea) => idea.id}
+            cols={IDEA_COLS}
+            prefs={lp}
+            cell={cell}
+            onRowClick={(idea) => router.push(`/ideas/${idea.id}`)}
+            selection={rs}
+            groupBy={groupBy}
+            groupOf={(idea) => idea.status}
+            groups={GROUPS}
+            editable={editable}
+            rawValue={rawValue}
+            onEdit={onInlineEdit}
+          />
         )}
       </div>
 
