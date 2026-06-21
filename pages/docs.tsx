@@ -141,6 +141,25 @@ export default function DocsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.asPath]);
 
+  // Scrollspy: the rail's active item follows the section nearest the top of the
+  // content pane as the user scrolls (click-to-scroll + #anchor deep-links stay).
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    const els = SECTIONS.map((s) => document.getElementById(s.id)).filter((e): e is HTMLElement => !!e);
+    if (els.length === 0) return;
+    const tops = new Map<string, number>();
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) tops.set(e.target.id, e.boundingClientRect.top); else tops.delete(e.target.id); });
+      let bestId = ''; let best = Infinity;
+      tops.forEach((top, id) => { if (top < best) { best = top; bestId = id; } });
+      if (bestId) setActive(bestId);
+    }, { root, rootMargin: '0px 0px -65% 0px', threshold: 0 });
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
   return (
     <Layout flat title="Docs">
       <PageHeader
