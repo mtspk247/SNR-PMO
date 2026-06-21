@@ -373,7 +373,7 @@ export default function CRM() {
           </div>
 
           {pipeView === 'board' ? <BoardView /> : (
-            <div className="card flex-1 min-w-0 overflow-y-auto">
+            <div className="flex-1 min-w-0 overflow-y-auto">
               {filtered.length === 0 ? <EmptyState text="No deals match" icon="ti-target" /> : stageNames.map((stage) => {
                 const items = filtered.filter((d) => d.stage === stage);
                 if (items.length === 0) return null;

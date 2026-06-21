@@ -801,7 +801,7 @@ export default function Tasks() {
                       )}
                     </div>
                     {!gcol && (
-                      <div className="card overflow-hidden">
+                      <div className="overflow-x-auto">
                         <ColHeader />
                         {items.map(renderTask)}
                       </div>
@@ -809,7 +809,7 @@ export default function Tasks() {
                   </div>
                   );
                 })
-              ) : (<div className="card overflow-hidden"><ColHeader />{pg.pageItems.map(renderTask)}</div>)}
+              ) : (<div className="overflow-x-auto"><ColHeader />{pg.pageItems.map(renderTask)}</div>)}
               {filtered.length > 0 && (
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}
