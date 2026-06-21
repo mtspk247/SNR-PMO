@@ -176,12 +176,13 @@ export default function ClientsPage() {
   const editable: Record<string, EditSpec> = {
     name: { type: 'text' }, contact: { type: 'text' }, email: { type: 'text' }, phone: { type: 'text' },
     status: { type: 'select', options: STATUSES.map((st) => ({ value: st, label: titleCase(st) })) },
+    owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
   };
   const rawValue = (id: string, c: Client) =>
     id === 'name' ? c.name : id === 'contact' ? (c.contact_name || '') : id === 'email' ? (c.email || '')
-    : id === 'phone' ? (c.phone || '') : id === 'status' ? c.status : '';
+    : id === 'phone' ? (c.phone || '') : id === 'owner' ? (c.owner_id || '') : id === 'status' ? c.status : '';
   const onInlineEdit = async (c: Client, id: string, value: string) => {
-    const field = id === 'contact' ? 'contact_name' : id;
+    const field = id === 'contact' ? 'contact_name' : id === 'owner' ? 'owner_id' : id;
     try { await updateClient(c.id, { [field]: value || null } as any); load(); } catch (e: any) { setErr(e.message); }
   };
 

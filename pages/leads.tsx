@@ -14,7 +14,7 @@ import {
 import { OrgUser } from '@/lib/supabase';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection } from '@/components/RowSelection';
-import { GroupMeta } from '@/components/DataList';
+import { GroupMeta, EditSpec } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import StatusManager from '@/components/StatusManager';
 
@@ -120,6 +120,16 @@ export default function LeadsPage() {
     : id === 'source' ? (l.source || '') : id === 'value' ? String(l.value ?? '') : id === 'owner' ? nameOf(l.owner_id)
     : id === 'status' ? l.status : '';
 
+  const editable: Record<string, EditSpec> = {
+    status: { type: 'select', options: STATUSES.map((s) => ({ value: s, label: cap(s) })) },
+    owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
+  };
+  const rawValueLead = (id: string, l: Lead) => id === 'owner' ? (l.owner_id || '') : id === 'status' ? l.status : '';
+  const onInlineEditLead = async (l: Lead, id: string, value: string) => {
+    const field = id === 'owner' ? 'owner_id' : 'status';
+    try { await updateLead(l.id, { [field]: value || null } as any); load(); } catch (e: any) { setErr(e.message); }
+  };
+
   const bulkDelete = async () => {
     if (!rs.count || !confirm(`Delete ${rs.count} lead${rs.count > 1 ? 's' : ''}? This can't be undone.`)) return;
     setBusy(true); setErr('');
@@ -220,6 +230,9 @@ export default function LeadsPage() {
         groupField={{ value: 'status', label: 'Status' }}
         groupOf={(l) => l.status}
         groups={GROUPS}
+        editable={editable}
+        rawValue={rawValueLead}
+        onEdit={onInlineEditLead}
         onRowClick={(l) => setEditor({ mode: 'edit', draft: l })}
         onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as Lead['status'] } })}
         exportName="leads"

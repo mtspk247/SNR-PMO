@@ -1,6 +1,6 @@
 import { useState, useEffect, ReactNode } from 'react';
 import type { PointerEvent as RPointerEvent } from 'react';
-import { Icon } from '@/components/ui';
+import { Icon, Avatar } from '@/components/ui';
 import Select from '@/components/Select';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
@@ -16,7 +16,7 @@ const CF_PREFIX = 'cf:';
 const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
 
 export type GroupMeta = { value: string; label: string; pill?: string };
-export type EditSpec = { type: 'text' | 'number' | 'date' | 'select'; options?: { value: string; label: string }[] };
+export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string }[] };
 
 type Selection = {
   isSelected: (id: string) => boolean;
@@ -49,8 +49,40 @@ export type DataListProps<T> = {
   orderKey?: string;
 };
 
+function PersonPicker({ options, value, onSave }: { options: { value: string; label: string }[]; value: string; onSave: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const cur = options.find((o) => o.value === value);
+  const list = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
+  return (
+    <span className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-1.5 -mx-1 px-1 py-0.5 rounded hover:bg-surface2 transition">
+        {cur ? <><Avatar name={cur.label} size={20} /><span className="text-sm text-content truncate max-w-[9rem]">{cur.label}</span></>
+             : <span className="inline-flex items-center gap-1 text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-plus" className="text-2xs" /></span></span>}
+      </button>
+      {open && <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />}
+      {open && (
+        <div className="absolute left-0 top-7 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-1.5">
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…" className="input h-8 text-sm w-full mb-1" />
+          <div className="max-h-56 overflow-auto">
+            <button onClick={() => { onSave(''); setOpen(false); }} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-x" className="text-2xs" /></span>Unassigned</button>
+            {list.map((o) => (
+              <button key={o.value} onClick={() => { onSave(o.value); setOpen(false); }} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${o.value === value ? 'bg-accent/5' : ''}`}>
+                <Avatar name={o.label} size={22} /><span className="truncate text-content">{o.label}</span>{o.value === value && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
 function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value: string; display: ReactNode; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
+  if (spec.type === 'person') {
+    return <PersonPicker options={spec.options || []} value={value} onSave={onSave} />;
+  }
   if (spec.type === 'select') {
     return (
       <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-[12rem]">
