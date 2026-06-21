@@ -78,7 +78,7 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
   const list = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q.trim());
   const W = 288;
-  const place = () => { const r = btnRef.current?.getBoundingClientRect(); if (!r) return; const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8)); const below = window.innerHeight - r.bottom - 8; const above = r.top - 8; const up = below < 240 && above > below; const maxH = Math.max(180, Math.min(320, (up ? above : below) - 6)); setPos({ top: up ? r.top - 6 - maxH : r.bottom + 6, left, maxH }); };
+  const place = () => { const r = btnRef.current?.getBoundingClientRect(); if (!r) return; const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8)); const below = window.innerHeight - r.bottom - 8; const above = r.top - 8; const up = below < 240 && above > below; const maxH = Math.max(140, Math.min(300, (up ? above : below) - 64)); setPos({ top: up ? r.top - 6 - maxH : r.bottom + 6, left, maxH }); };
   useLayoutEffect(() => { if (open) { place(); setQ(''); } /* eslint-disable-next-line */ }, [open]);
   useEffect(() => {
     if (!open) return;
