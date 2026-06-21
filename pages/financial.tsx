@@ -5,6 +5,7 @@ import Select from '@/components/Select';
 import { Spinner, EmptyState, Icon, StatCard, Pill } from '@/components/ui';
 import { getFinancials } from '@/lib/db';
 import { Financial } from '@/lib/supabase';
+import RefLink from '@/components/RefLink';
 
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 const monthLabel = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' });
@@ -190,7 +191,7 @@ export default function FinancialData() {
                         <span className="text-sm font-medium">{money(Number(p.actual))}</span>
                         <span className="text-2xs text-neutral-400">{fullDate(p.paid_on!)}</span>
                       </div>
-                      <p className="text-2xs text-neutral-500 truncate">{p.projects?.name || '—'} · {p.category}</p>
+                      <p className="text-2xs text-neutral-500 truncate">{p.project_id ? <RefLink href={`/projects/${p.project_id}`} label={p.projects?.name || '—'} className="text-neutral-500" /> : (p.projects?.name || '—')} · {p.category}</p>
                     </li>
                   ))}
                 </ol>

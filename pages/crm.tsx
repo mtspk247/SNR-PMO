@@ -17,6 +17,7 @@ import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListT
 import { ListView } from '@/components/ListView';
 import { useRowSelection } from '@/components/RowSelection';
 import { GroupMeta, DataList, EditSpec } from '@/components/DataList';
+import RefLink from '@/components/RefLink';
 
 const STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 const CONTACT_COLS: ColDef[] = [{ id: 'name', label: 'Name', locked: true }, { id: 'title', label: 'Title' }, { id: 'company', label: 'Company' }, { id: 'status', label: 'Status' }, { id: 'email', label: 'Email' }];
@@ -182,7 +183,7 @@ export default function CRM() {
     switch (id) {
       case 'name': return <button onClick={(e) => { e.stopPropagation(); router.push(`/crm/contact/${c.id}`); }} className="flex items-center gap-2.5 text-left hover:text-accentstrong"><Avatar name={c.full_name} size={28} /><span className="font-medium">{c.full_name}</span></button>;
       case 'title': return <span className="text-2xs text-muted">{c.title || '—'}</span>;
-      case 'company': return <span className="text-sm">{c.crm_companies?.name || '—'}</span>;
+      case 'company': return c.crm_companies?.name ? (c.company_id ? <RefLink href={`/crm/company/${c.company_id}`} label={c.crm_companies.name} className="text-sm" /> : <span className="text-sm">{c.crm_companies.name}</span>) : <span className="text-sm text-muted">—</span>;
       case 'status': return c.status ? <Pill label={c.status} /> : null;
       case 'email': return <span className="text-2xs text-sky-600">{c.email || '—'}</span>;
       default: return null;
@@ -215,7 +216,7 @@ export default function CRM() {
   const dealCell = (id: string, d: Deal) => {
     switch (id) {
       case 'name': return <span className="font-medium text-content">{d.title}</span>;
-      case 'company': return <span className="text-muted truncate">{d.crm_companies?.name || '—'}</span>;
+      case 'company': return d.crm_companies?.name ? (d.company_id ? <RefLink href={`/crm/company/${d.company_id}`} label={d.crm_companies.name} className="text-muted truncate" /> : <span className="text-muted truncate">{d.crm_companies.name}</span>) : <span className="text-muted truncate">—</span>;
       case 'value': return <span className="inline-flex items-center gap-2 min-w-0"><span className="tabular-nums text-content shrink-0">{money(d.value || 0)}</span><span className="h-1 rounded-full bg-surface2 w-16 overflow-hidden hidden sm:inline-block align-middle"><span className="h-full rounded-full bg-accent block" style={{ width: `${Math.min(100, ((d.value || 0) / maxValue) * 100)}%` }} /></span></span>;
       case 'stage': return <StatusBadge status={d.stage} color={sColor(d.stage)} />;
       case 'close': return <span className="text-muted2 tnum">{d.expected_close || '—'}</span>;
@@ -299,8 +300,8 @@ export default function CRM() {
       <dl className="mt-5 space-y-3">
         {[
           ['Stage', <StatusBadge key="s" status={selected.stage} />],
-          ['Company', selected.crm_companies?.name || '—'],
-          ['Contact', selected.crm_contacts?.full_name || '—'],
+          ['Company', selected.crm_companies?.name ? (selected.company_id ? <RefLink href={`/crm/company/${selected.company_id}`} label={selected.crm_companies.name} /> : selected.crm_companies.name) : '—'],
+          ['Contact', selected.crm_contacts?.full_name ? (selected.contact_id ? <RefLink href={`/crm/contact/${selected.contact_id}`} label={selected.crm_contacts.full_name} /> : selected.crm_contacts.full_name) : '—'],
           ['Expected close', selected.expected_close || '—'],
         ].map(([k, v], i) => (
           <div key={i} className="flex items-center justify-between text-sm">

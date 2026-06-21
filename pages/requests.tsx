@@ -5,6 +5,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { listAllGuestRequests, decideGuestRequest, createTask, GuestRequestG } from '@/lib/db';
+import RefLink from '@/components/RefLink';
 
 const STATUS_PILL: Record<string, string> = { open: 'pill-amber', approved: 'pill-green', rejected: 'pill-red' };
 const TYPE_ICON: Record<string, string> = { request: 'ti-help-circle', suggestion: 'ti-bulb', edit: 'ti-pencil' };
@@ -66,7 +67,7 @@ export default function RequestsPage() {
                   <span className="ml-auto text-2xs text-muted2">{new Date(r.created_at).toLocaleDateString()}</span>
                 </div>
                 <p className="text-sm font-medium text-content truncate">{r.title}</p>
-                <p className="text-2xs text-muted2 mt-1">{r.project?.name || 'Project'} · {r.creator?.full_name || 'Guest'}</p>
+                <p className="text-2xs text-muted2 mt-1">{r.project_id ? <RefLink href={`/projects/${r.project_id}`} label={r.project?.name || 'Project'} className="text-muted2" /> : (r.project?.name || 'Project')} · {r.creator?.full_name || 'Guest'}</p>
               </button>
             ))}
           </div>
@@ -79,7 +80,7 @@ export default function RequestsPage() {
                 </div>
                 <p className="text-base font-semibold text-content">{sel.title}</p>
                 {sel.body && <p className="text-sm text-muted mt-1 whitespace-pre-wrap">{sel.body}</p>}
-                <p className="text-2xs text-muted2 mt-2">{sel.creator?.full_name || 'Guest'} · {sel.project?.name || 'Project'} · {new Date(sel.created_at).toLocaleString()}</p>
+                <p className="text-2xs text-muted2 mt-2">{sel.creator?.full_name || 'Guest'} · {sel.project_id ? <RefLink href={`/projects/${sel.project_id}`} label={sel.project?.name || 'Project'} className="text-muted2" /> : (sel.project?.name || 'Project')} · {new Date(sel.created_at).toLocaleString()}</p>
                 {sel.decision_note && <p className="text-2xs text-muted mt-1 italic">&ldquo;{sel.decision_note}&rdquo;</p>}
                 {sel.decided_at && <p className="text-2xs text-muted2 mt-1">{sel.status} by {sel.decider?.full_name || 'team'} · {new Date(sel.decided_at).toLocaleDateString()}</p>}
                 <Link href={`/projects/${sel.project_id}`} className="text-2xs text-accentstrong hover:underline mt-2 inline-block">Open project &rarr;</Link>
