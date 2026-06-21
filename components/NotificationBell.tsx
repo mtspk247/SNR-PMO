@@ -114,7 +114,7 @@ export default function NotificationBell({ onCount }: { onCount?: (n: number) =>
               </div>
             ))}
           </div>
-          <button onClick={() => { setOpen(false); if (me) router.push(`/users/${me.id}`); }} className="w-full px-4 py-2.5 border-t border-line text-2xs text-muted hover:text-content hover:bg-surface2/60 transition inline-flex items-center justify-center gap-1.5"><Icon name="ti-settings" className="text-xs" />Notification settings</button>
+          <button onClick={() => { setOpen(false); if (me) router.push(`/users/${me.id}?tab=notifications`); }} className="w-full px-4 py-2.5 border-t border-line text-2xs text-muted hover:text-content hover:bg-surface2/60 transition inline-flex items-center justify-center gap-1.5"><Icon name="ti-settings" className="text-xs" />Notification settings</button>
         </div>
       )}
     </div>

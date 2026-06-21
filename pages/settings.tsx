@@ -355,7 +355,7 @@ export default function SettingsPage() {
       {admin && tab === 'notifications' && (
         <div className="space-y-3 max-w-3xl">
           <NotifPolicyPanel orgId={org.id} />
-          <p className="text-2xs text-muted">This is the <strong>workspace-wide</strong> notification policy — what members must receive and what they may manage. To change <strong>your own</strong> alerts, open <a href={meUser ? `/users/${meUser.id}` : '/users'} className="text-accentstrong hover:underline">your profile → Notifications</a>.</p>
+          <p className="text-2xs text-muted">This is the <strong>workspace-wide</strong> notification policy — what members must receive and what they may manage. To change <strong>your own</strong> alerts, open <a href={meUser ? `/users/${meUser.id}?tab=notifications` : '/users'} className="text-accentstrong hover:underline">your profile → Notifications</a>.</p>
         </div>
       )}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}

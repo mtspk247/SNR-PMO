@@ -44,6 +44,11 @@ export default function UserDetail() {
   const [u, setU] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('profile');
+  // Honor ?tab= deep-links (e.g. the bell's 'Notification settings' → notifications).
+  useEffect(() => {
+    const t = router.query.tab;
+    if (typeof t === 'string' && ['profile', 'access', 'email', 'notifications', 'security', 'activity'].includes(t)) setTab(t as Tab);
+  }, [router.query.tab]);
   const [roles, setRoles] = useState<RoleTemplate[]>([]);
   const [busy, setBusy] = useState(false);
 
