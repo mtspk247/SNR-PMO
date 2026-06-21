@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, ReactNode } from 'react';
 import type { PointerEvent as RPointerEvent, CSSProperties } from 'react';
 import { Icon, Avatar, INLINE_SELECT_CLS } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
@@ -68,50 +68,64 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
   const [q, setQ] = useState('');
   const [inviting, setInviting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; maxH: number } | null>(null);
   const meId = useAuthStore((st) => st.user?.id);
   const meOpt = meId ? options.find((o) => o.value === meId) : undefined;
   const sel = multi ? value.split(',').map((s) => s.trim()).filter(Boolean) : (value ? [value] : []);
   const selOpts = sel.map((id) => options.find((o) => o.value === id)).filter(Boolean) as { value: string; label: string }[];
   const list = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q.trim());
+  const W = 288;
+  const place = () => { const r = btnRef.current?.getBoundingClientRect(); if (!r) return; const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8)); const below = window.innerHeight - r.bottom - 8; const above = r.top - 8; const up = below < 240 && above > below; const maxH = Math.max(180, Math.min(320, (up ? above : below) - 6)); setPos({ top: up ? r.top - 6 - maxH : r.bottom + 6, left, maxH }); };
+  useLayoutEffect(() => { if (open) { place(); setQ(''); } /* eslint-disable-next-line */ }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const reposition = (e?: Event) => { if (e && menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return; place(); };
+    const onDown = (e: MouseEvent) => { const t = e.target as Node; if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return; setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('scroll', reposition, true); window.addEventListener('resize', reposition); document.addEventListener('mousedown', onDown, true); window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('scroll', reposition, true); window.removeEventListener('resize', reposition); document.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onKey); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const pick = (id: string) => {
     if (multi) { const next = sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]; onSave(next.join(',')); }
     else { onSave(id); setOpen(false); }
   };
   const doInvite = async () => { if (!onInvite || !isEmail) return; setInviting(true); try { await onInvite(q.trim()); setQ(''); } finally { setInviting(false); } };
   return (
-    <span className="relative inline-flex max-w-full" onClick={(e) => e.stopPropagation()}>
-      <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center -mx-1 px-1 py-0.5 rounded transition max-w-full">
+    <span className="inline-flex max-w-full" onClick={(e) => e.stopPropagation()}>
+      <button ref={btnRef} onClick={() => setOpen((v) => !v)} className={`inline-flex items-center -mx-1 px-1 py-0.5 rounded-md transition max-w-full ${open ? 'ring-1 ring-accent bg-surface' : 'hover:bg-surface2'}`}>
         {selOpts.length > 0
-          ? <span className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-1.5 py-0.5 hover:border-borderstrong transition">
-              {multi
-                ? <span className="inline-flex items-center -space-x-1.5">{selOpts.slice(0, 3).map((o) => <span key={o.value} title={o.label} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={20} /></span>)}{selOpts.length > 3 && <span className="ml-1.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}</span>
-                : <span title={selOpts[0].label} className="inline-flex"><Avatar name={selOpts[0].label} size={20} /></span>}
-            </span>
-          : <span className="inline-flex items-center gap-1 text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong hover:border-borderstrong"><Icon name="ti-plus" className="text-2xs" /></span></span>}
+          ? (multi
+              ? <span className="inline-flex items-center -space-x-1.5">{selOpts.slice(0, 3).map((o) => <span key={o.value} title={o.label} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={22} /></span>)}{selOpts.length > 3 && <span className="ml-1.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}</span>
+              : <span title={selOpts[0].label} className="inline-flex"><Avatar name={selOpts[0].label} size={22} /></span>)
+          : <span className="grid place-items-center h-6 w-6 rounded-full border border-dashed border-borderstrong text-muted2 hover:border-accent hover:text-accentstrong"><Icon name="ti-plus" className="text-2xs" /></span>}
       </button>
-      {open && <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />}
-      {open && (
-        <div className="absolute left-0 top-7 z-20 w-72 bg-surface border border-line rounded-lg shadow-lg p-1.5">
-          <div className="relative mb-1.5"><Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2 text-sm pointer-events-none" /><input ref={inputRef} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={onInvite ? 'Search or enter email…' : 'Search people…'} className="input h-8 text-sm w-full pl-8" /></div>
-          <div className="max-h-56 overflow-auto">
-            {multi && <div className="px-2 pt-0.5 pb-1 text-2xs font-semibold uppercase tracking-wide text-muted2">Assignees</div>}
-            {meOpt && !q && <button onClick={() => pick(meOpt.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${sel.includes(meOpt.value) ? 'bg-accent/5' : ''}`}><Avatar name={meOpt.label} size={22} /><span className="text-content font-medium">Me</span>{sel.includes(meOpt.value) && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}</button>}
-            {!multi && <button onClick={() => { onSave(''); setOpen(false); }} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-x" className="text-2xs" /></span>Unassigned</button>}
-            {(q ? list : list.filter((o) => o.value !== meId)).map((o) => { const on = sel.includes(o.value); return (
-              <button key={o.value} onClick={() => pick(o.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${on ? 'bg-accent/5' : ''}`}>
-                <Avatar name={o.label} size={22} /><span className={`truncate ${o.deactivated ? 'text-muted2' : 'text-content'}`}>{o.label}{o.deactivated ? ' (deactivated)' : ''}</span>{on && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
-              </button>
-            ); })}
-            {onInvite && isEmail && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase()) && (
-              <button onClick={doInvite} disabled={inviting} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-accent/10 text-sm text-accentstrong">
-                <span className="grid place-items-center h-5 w-5 rounded-full bg-accent/15"><Icon name="ti-mail" className="text-2xs" /></span><span className="truncate">{inviting ? 'Inviting…' : `Invite ${q.trim()}`}</span>
-              </button>
-            )}
-            {onInvite && !isEmail && <button type="button" onClick={() => inputRef.current?.focus()} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full bg-surface2"><Icon name="ti-mail-plus" className="text-2xs" /></span>Invite people via email</button>}
-            {list.length === 0 && !isEmail && <div className="px-2 py-2 text-sm text-muted2">No people found</div>}
+      {open && pos && (
+        <div ref={menuRef} className="fixed z-[61]" style={{ top: pos.top, left: pos.left, width: W }}>
+          <div className="bg-surface border border-line rounded-lg shadow-xl p-1.5">
+            <div className="relative mb-1.5"><Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2 text-sm pointer-events-none" /><input ref={inputRef} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={onInvite ? 'Search or enter email…' : 'Search people…'} className="input h-8 text-sm w-full pl-8" /></div>
+            <div className="overflow-auto" style={{ maxHeight: pos.maxH }}>
+              {multi && <div className="px-2 pt-0.5 pb-1 text-2xs font-semibold uppercase tracking-wide text-muted2">Assignees</div>}
+              {meOpt && !q && <button onClick={() => pick(meOpt.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${sel.includes(meOpt.value) ? 'bg-accent/5' : ''}`}><Avatar name={meOpt.label} size={24} /><span className="flex-1 text-left text-content font-medium">Me</span>{sel.includes(meOpt.value) && <Icon name="ti-check" className="text-accentstrong text-sm" />}</button>}
+              {!multi && <button onClick={() => { onSave(''); setOpen(false); }} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-6 w-6 rounded-full border border-dashed border-borderstrong"><Icon name="ti-x" className="text-2xs" /></span>Unassigned</button>}
+              {(q ? list : list.filter((o) => o.value !== meId)).map((o) => { const on = sel.includes(o.value); return (
+                <button key={o.value} onClick={() => pick(o.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${on ? 'bg-accent/5' : ''}`}>
+                  <Avatar name={o.label} size={24} /><span className={`flex-1 truncate text-left ${o.deactivated ? 'text-muted2' : 'text-content'}`}>{o.label}{o.deactivated ? ' (deactivated)' : ''}</span>{on && <Icon name="ti-check" className="text-accentstrong text-sm" />}
+                </button>
+              ); })}
+              {onInvite && isEmail && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase()) && (
+                <button onClick={doInvite} disabled={inviting} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-accent/10 text-sm text-accentstrong">
+                  <span className="grid place-items-center h-6 w-6 rounded-full bg-accent/15"><Icon name="ti-mail" className="text-2xs" /></span><span className="truncate">{inviting ? 'Inviting…' : `Invite ${q.trim()}`}</span>
+                </button>
+              )}
+              {onInvite && !isEmail && <button type="button" onClick={() => inputRef.current?.focus()} className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-6 w-6 rounded-full bg-surface2 text-accentstrong"><Icon name="ti-user-plus" className="text-2xs" /></span>Invite people via email</button>}
+              {list.length === 0 && !isEmail && <div className="px-2 py-2 text-sm text-muted2">No people found</div>}
+            </div>
+            {multi && <button onClick={() => setOpen(false)} className="w-full mt-1 pt-1.5 border-t border-line/60 text-2xs font-medium text-muted2 hover:text-content">Done</button>}
           </div>
-          {multi && <button onClick={() => setOpen(false)} className="w-full mt-1 pt-1 border-t border-line/60 text-2xs text-muted2 hover:text-content">Done</button>}
         </div>
       )}
     </span>
