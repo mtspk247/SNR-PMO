@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { DataList, GroupMeta } from '@/components/DataList';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
@@ -24,38 +26,16 @@ const SOURCES = [
 const sourceLabel = (s?: string | null) => SOURCES.find((x) => x.value === s)?.label || (s || '—');
 
 type TenantGroupBy = 'category' | 'industry' | 'plan' | 'status' | 'hierarchy' | 'none';
-type TenantGroup = { label: string; items: any[]; count?: number };
-const FALLBACK_GROUPS = new Set(['Uncategorized', 'No industry']);
-// Newest-joined first within every grouping (org created_at desc).
-const joinedDesc = (a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || ''));
-function groupsFor(rows: any[], groupBy: TenantGroupBy): TenantGroup[] {
-  const sorted = [...rows].sort(joinedDesc);
-  if (groupBy === 'hierarchy') {
-    const resellers = sorted.filter((r) => r.is_reseller);
-    const byParent = new Map<string, any[]>();
-    for (const t of sorted) if (t.parent_org_id) { if (!byParent.has(t.parent_org_id)) byParent.set(t.parent_org_id, []); byParent.get(t.parent_org_id)!.push(t); }
-    const groups: TenantGroup[] = []; const claimed = new Set<string>();
-    for (const rsl of resellers) {
-      const subs = byParent.get(rsl.org_id) || [];
-      groups.push({ label: rsl.org_name + ' · reseller', items: [rsl, ...subs], count: subs.length });
-      claimed.add(rsl.org_id); subs.forEach((x) => claimed.add(x.org_id));
-    }
-    const others = sorted.filter((r) => !claimed.has(r.org_id));
-    if (others.length) groups.push({ label: 'Direct tenants', items: others });
-    return groups;
-  }
-  if (groupBy === 'none') return [{ label: '', items: sorted }];
-  const keyOf = (t: any) =>
-    groupBy === 'plan' ? (t.plan_name || t.plan_key || 'Free')
-    : groupBy === 'category' ? (t.category || 'Uncategorized')
-    : groupBy === 'industry' ? (t.industry || 'No industry')
-    : (t.sub_status || 'free');
-  const m = new Map<string, any[]>();
-  for (const t of sorted) { const k = keyOf(t); if (!m.has(k)) m.set(k, []); m.get(k)!.push(t); }
-  return [...m.entries()]
-    .sort((a, b) => (FALLBACK_GROUPS.has(a[0]) ? 1 : 0) - (FALLBACK_GROUPS.has(b[0]) ? 1 : 0) || a[0].localeCompare(b[0]))
-    .map(([label, items]) => ({ label, items }));
-}
+
+const TENANT_COLS: ColDef[] = [
+  { id: 'org', label: 'Organization', locked: true, width: 280 },
+  { id: 'plan', label: 'Plan', width: 120 },
+  { id: 'members', label: 'Members', width: 90 },
+  { id: 'seats', label: 'Seats', width: 90 },
+  { id: 'status', label: 'Status', width: 100 },
+  { id: 'joined', label: 'Joined', width: 110 },
+  { id: 'actions', label: '', width: 120 },
+];
 
 export default function TenantsPage() {
   const router = useRouter();
@@ -104,6 +84,7 @@ export default function TenantsPage() {
     });
   }, [rows, q, fPlan, fType, fStatus]);
   const filtersOn = q.trim() !== '' || fPlan !== 'all' || fType !== 'all' || fStatus !== 'all';
+  const tenantPrefs = useListPrefs('snrpmo.tenants.cols', TENANT_COLS, { canManage: false });
 
   const copyLink = (link: string) => { try { navigator.clipboard?.writeText(link); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const submitInvite = async () => {
@@ -156,47 +137,107 @@ export default function TenantsPage() {
           </div>
         </div>
       )}
-      <div className="card overflow-hidden">
-        {rows === null ? <div className="p-8"><Spinner /></div> : rows.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-building-community" text="No tenants." /></div>
-        ) : filteredRows.length === 0 ? (
-          <div className="p-8"><EmptyState icon="ti-search" title="No matches" text="No tenants match the current filters." action={filtersOn ? <button className="btn" onClick={() => { setQ(''); setFPlan('all'); setFType('all'); setFStatus('all'); }}>Clear filters</button> : undefined} /></div>
-        ) : (
-          <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2/60 text-muted text-left text-2xs uppercase tracking-wider font-semibold sticky top-0 z-10">
-              <tr><th className="px-4 py-2.5 text-muted2">Organization</th><th className="px-4 py-2.5 text-muted2">Plan</th><th className="px-4 py-2.5 text-muted2">Members</th><th className="px-4 py-2.5 text-muted2">Seats</th><th className="px-4 py-2.5 text-muted2">Status</th><th className="px-4 py-2.5 text-muted2">Joined</th><th className="px-4 py-2.5 text-muted2"></th></tr>
-            </thead>
-            <tbody>
-              {groupsFor(filteredRows, groupBy).map((g) => (
-                <Fragment key={g.label || 'all'}>
-                  {g.label && <GroupHeader label={g.label} count={g.count ?? g.items.length} asTableRow colSpan={7} />}
-                  {g.items.map((t) => (
-                    <tr key={t.org_id} className="border-t border-line hover:bg-surface2/60 cursor-pointer transition-colors" style={t.is_reseller ? { background: 'rgb(139 92 246 / .06)' } : undefined} onClick={() => router.push(`/tenants/${t.org_id}`)}>
-                      <td className="px-4 py-3"><span className="font-medium text-content">{t.parent_org_id ? '↳ ' : ''}{t.org_name}</span>{t.is_reseller && (() => { const n = (rows || []).filter((x: any) => x.parent_org_id === t.org_id).length; return <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-2xs font-medium text-violet-600 align-middle"><Icon name="ti-buildings" className="text-2xs" />{n} sub-tenant{n === 1 ? '' : 's'}</span>; })()}<span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` · under ${(rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller'}` : ''}</span></td>
-                      <td className="px-4 py-3"><PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" /></td>
-                      <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
-                      <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
-                      <td className="px-4 py-3"><span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span></td>
-                      <td className="px-4 py-3 text-muted2 text-2xs whitespace-nowrap">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}</td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-2">
-                          {t.is_reseller && <span className="inline-flex items-center gap-1 rounded-full border border-violet-300/50 bg-violet-500/10 px-2 py-0.5 text-2xs font-medium text-violet-600"><Icon name="ti-building-community" className="text-2xs" />Reseller</span>}
-                          <button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="View as owner (opens in a private window)" aria-label="View as owner" className="h-8 w-8 grid place-items-center rounded-md border border-line text-muted hover:bg-surface2 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accentstrong/40 transition-colors"><Icon name="ti-login-2" /></button>
-                          <Dropdown align="right" width={208}
-                            trigger={<span className="h-8 w-8 grid place-items-center rounded-md border border-line text-muted hover:bg-surface2 hover:text-content transition-colors" title="More actions" aria-label="More actions"><Icon name="ti-dots-vertical" /></span>}
-                            items={[{ value: 'open', label: 'Open details', icon: 'ti-arrow-right' }, { value: 'reseller', label: t.is_reseller ? 'Unset reseller' : 'Make reseller', icon: t.is_reseller ? 'ti-circle-minus' : 'ti-building-community' }]}
-                            onChange={(v) => { if (v === 'open') router.push(`/tenants/${t.org_id}`); else if (v === 'reseller') toggleReseller(t.org_id, !t.is_reseller); }}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </Fragment>
-              ))}
-            </tbody>
-          </table></div>
-        )}
-      </div>
+      {/* ── Tenant list columns ─────────────────────────────────────────────── */}
+      {(() => {
+        const tenantCell = (id: string, t: any) => {
+          if (id === 'org') {
+            const subCount = (rows || []).filter((x: any) => x.parent_org_id === t.org_id).length;
+            const parentName = t.parent_org_id ? ((rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller') : '';
+            return (
+              <span>
+                <span className="font-medium text-content">{t.parent_org_id ? '↳ ' : ''}{t.org_name}</span>
+                {t.is_reseller && (
+                  <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-2xs font-medium text-violet-600 align-middle">
+                    <Icon name="ti-buildings" className="text-2xs" />{subCount} sub-tenant{subCount === 1 ? '' : 's'}
+                  </span>
+                )}
+                <span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` · under ${parentName}` : ''}</span>
+              </span>
+            );
+          }
+          if (id === 'plan') return <PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" />;
+          if (id === 'members') return <span className="tabular-nums">{t.member_count ?? '—'}</span>;
+          if (id === 'seats') return <span className="tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</span>;
+          if (id === 'status') return <span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span>;
+          if (id === 'joined') return <span className="text-2xs text-muted2 whitespace-nowrap">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}</span>;
+          if (id === 'actions') return (
+            <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+              {t.is_reseller && <span className="inline-flex items-center gap-1 rounded-full border border-violet-300/50 bg-violet-500/10 px-2 py-0.5 text-2xs font-medium text-violet-600"><Icon name="ti-building-community" className="text-2xs" />Reseller</span>}
+              <button onClick={(e) => { e.stopPropagation(); openAsOwner(t.org_id, t.org_name); }} title="View as owner (opens in a private window)" aria-label="View as owner" className="h-8 w-8 grid place-items-center rounded-md border border-line text-muted hover:bg-surface2 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accentstrong/40 transition-colors"><Icon name="ti-login-2" /></button>
+              <Dropdown align="right" width={208}
+                trigger={<span className="h-8 w-8 grid place-items-center rounded-md border border-line text-muted hover:bg-surface2 hover:text-content transition-colors" title="More actions" aria-label="More actions"><Icon name="ti-dots-vertical" /></span>}
+                items={[{ value: 'open', label: 'Open details', icon: 'ti-arrow-right' }, { value: 'reseller', label: t.is_reseller ? 'Unset reseller' : 'Make reseller', icon: t.is_reseller ? 'ti-circle-minus' : 'ti-building-community' }]}
+                onChange={(v) => { if (v === 'open') router.push(`/tenants/${t.org_id}`); else if (v === 'reseller') toggleReseller(t.org_id, !t.is_reseller); }}
+              />
+            </div>
+          );
+          return null;
+        };
+
+        // ── Grouping props for DataList ────────────────────────────────────────
+        // hierarchy: use childrenOf so sub-tenants nest under their reseller row.
+        // other modes: native DataList groupBy/groupOf/groups.
+        const sorted = [...filteredRows].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        let dlRows: any[] = sorted;
+        let dlGroupBy: string = groupBy;
+        let dlGroupOf: ((r: any) => string) | undefined;
+        let dlGroups: GroupMeta[] | undefined;
+        let dlChildrenOf: ((r: any) => any[]) | undefined;
+
+        if (groupBy === 'hierarchy') {
+          // Top-level rows: resellers + tenants with no parent that aren't sub-tenants.
+          // Sub-tenants are surfaced via childrenOf on their parent.
+          const byParent = new Map<string, any[]>();
+          for (const t of sorted) {
+            if (t.parent_org_id) {
+              if (!byParent.has(t.parent_org_id)) byParent.set(t.parent_org_id, []);
+              byParent.get(t.parent_org_id)!.push(t);
+            }
+          }
+          dlRows = sorted.filter((r) => !r.parent_org_id);
+          dlChildrenOf = (r: any) => byParent.get(r.org_id) || [];
+          dlGroupBy = 'none';
+        } else if (groupBy === 'none') {
+          dlGroupBy = 'none';
+        } else {
+          const keyOf = (t: any) =>
+            groupBy === 'plan' ? (t.plan_name || t.plan_key || 'Free')
+            : groupBy === 'category' ? (t.category || 'Uncategorized')
+            : groupBy === 'industry' ? (t.industry || 'No industry')
+            : (t.sub_status || 'free');
+          dlGroupOf = keyOf;
+          // Build ordered GroupMeta list (same order as groupsFor: fallbacks last, else alpha).
+          const FALLBACK = new Set(['Uncategorized', 'No industry']);
+          const seen = new Map<string, number>();
+          for (const t of sorted) { const k = keyOf(t); if (!seen.has(k)) seen.set(k, seen.size); }
+          const ordered = [...seen.keys()].sort((a, b) => (FALLBACK.has(a) ? 1 : 0) - (FALLBACK.has(b) ? 1 : 0) || a.localeCompare(b));
+          dlGroups = ordered.map((v) => ({ value: v, label: v }));
+        }
+
+        return (
+          <div className="card overflow-hidden">
+            {rows === null ? <div className="p-8"><Spinner /></div> : rows.length === 0 ? (
+              <div className="p-8"><EmptyState icon="ti-building-community" text="No tenants." /></div>
+            ) : filteredRows.length === 0 ? (
+              <div className="p-8"><EmptyState icon="ti-search" title="No matches" text="No tenants match the current filters." action={filtersOn ? <button className="btn" onClick={() => { setQ(''); setFPlan('all'); setFType('all'); setFStatus('all'); }}>Clear filters</button> : undefined} /></div>
+            ) : (
+              <DataList
+                rows={dlRows}
+                rowKey={(t) => t.org_id}
+                cols={TENANT_COLS}
+                prefs={tenantPrefs}
+                cell={tenantCell}
+                nameCol="org"
+                onRowClick={(t) => router.push(`/tenants/${t.org_id}`)}
+                groupBy={dlGroupBy}
+                groupOf={dlGroupOf}
+                groups={dlGroups}
+                childrenOf={dlChildrenOf}
+              />
+            )}
+          </div>
+        );
+      })()}
 
       <div className="card overflow-hidden mt-4">
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
