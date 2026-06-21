@@ -380,26 +380,23 @@ export default function TrainingPage() {
       {tab === 'training' && (
         <>
           {/* Toolbar + Group-by control */}
-          <div className="flex items-end gap-2 flex-wrap mb-4">
-            <div className="flex-1 min-w-0">
-              <ListToolbar prefs={tdLp} cols={TD_COLS} filters={TD_FILTERS} placeholder="Search training docs…" />
-            </div>
-            <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <ListToolbar prefs={tdLp} cols={TD_COLS} filters={TD_FILTERS} placeholder="Search training docs…">
+        <div className="flex items-center gap-1.5">
               <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
               <button
                 onClick={() => setTdGroupBy('category')}
-                className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${tdGroupBy === 'category' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+                className={`h-9 px-3 rounded-md text-xs font-medium transition-colors ${tdGroupBy === 'category' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
               >
                 Category
               </button>
               <button
                 onClick={() => setTdGroupBy('none')}
-                className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${tdGroupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+                className={`h-9 px-3 rounded-md text-xs font-medium transition-colors ${tdGroupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
               >
                 None
               </button>
             </div>
-          </div>
+      </ListToolbar>
 
           <BulkBar count={rsTd.count} onClear={rsTd.clear}>
             <button onClick={exportTdSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
@@ -434,26 +431,23 @@ export default function TrainingPage() {
       {tab === 'jd' && (
         <>
           {/* Toolbar + Group-by control */}
-          <div className="flex items-end gap-2 flex-wrap mb-4">
-            <div className="flex-1 min-w-0">
-              <ListToolbar prefs={jdLp} cols={JD_COLS} filters={JD_FILTERS} placeholder="Search job descriptions…" />
-            </div>
-            <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+          <ListToolbar prefs={jdLp} cols={JD_COLS} filters={JD_FILTERS} placeholder="Search job descriptions…">
+        <div className="flex items-center gap-1.5">
               <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
               <button
                 onClick={() => setJdGroupBy('department')}
-                className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${jdGroupBy === 'department' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+                className={`h-9 px-3 rounded-md text-xs font-medium transition-colors ${jdGroupBy === 'department' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
               >
                 Department
               </button>
               <button
                 onClick={() => setJdGroupBy('none')}
-                className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${jdGroupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+                className={`h-9 px-3 rounded-md text-xs font-medium transition-colors ${jdGroupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
               >
                 None
               </button>
             </div>
-          </div>
+      </ListToolbar>
 
           <BulkBar count={rsJd.count} onClear={rsJd.clear}>
             <button onClick={exportJdSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>

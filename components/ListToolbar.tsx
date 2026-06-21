@@ -116,7 +116,6 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
           className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
       </div>
       <div className="hidden sm:block flex-1" />
-      {children}
       {filters && filters.length > 0 && (
         <div className="relative">
           <button onClick={() => setFOpen((v) => !v)} className={`btn h-9 ${prefs.activeCount ? 'border-accent text-accentstrong' : ''}`}>
@@ -177,6 +176,7 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
           </div>
         )}
       </div>
+      {children}
       {rightControls}
     </div>
   );

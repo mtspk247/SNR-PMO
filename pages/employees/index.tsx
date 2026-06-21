@@ -184,23 +184,20 @@ export default function EmployeesPage() {
       </div>
 
       {/* Toolbar + Group-by control */}
-      <div className="flex items-end gap-2 flex-wrap mb-4">
-        <div className="flex-1 min-w-0">
-          <ListToolbar prefs={lp} cols={COLS} filters={FILTERS} placeholder="Search by name, email, department, role…" />
-        </div>
-        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+      <ListToolbar prefs={lp} cols={COLS} filters={FILTERS} placeholder="Search by name, email, department, role…">
+        <div className="flex items-center gap-1.5">
           <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
           {(['status', 'department', 'none'] as const).map((g) => (
             <button
               key={g}
               onClick={() => setGroupBy(g)}
-              className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === g ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              className={`h-9 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === g ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
             >
               {g === 'none' ? 'None' : titleCase(g)}
             </button>
           ))}
         </div>
-      </div>
+      </ListToolbar>
 
       <BulkBar count={rs.count} onClear={rs.clear}>
         <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>

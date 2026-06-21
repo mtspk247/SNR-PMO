@@ -134,26 +134,23 @@ export default function InvoicingPage() {
       </div>
 
       {/* Toolbar + Group-by control */}
-      <div className="flex items-end gap-2 flex-wrap mb-4">
-        <div className="flex-1 min-w-0">
-          <ListToolbar prefs={prefs} cols={COLS} filters={INVOICE_FILTERS} placeholder="Search invoices…" />
-        </div>
-        <div className="flex items-center gap-1.5 mb-[1px] pb-0.5">
+      <ListToolbar prefs={prefs} cols={COLS} filters={INVOICE_FILTERS} placeholder="Search invoices…">
+        <div className="flex items-center gap-1.5">
           <span className="text-2xs text-muted2 uppercase tracking-wide mr-0.5">Group by</span>
           <button
             onClick={() => setGroupBy('status')}
-            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+            className={`h-9 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'status' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
           >
             Status
           </button>
           <button
             onClick={() => setGroupBy('none')}
-            className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
+            className={`h-9 px-3 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-accent/15 text-accentstrong' : 'text-muted hover:text-content hover:bg-surface2'}`}
           >
             None
           </button>
         </div>
-      </div>
+      </ListToolbar>
 
       <BulkBar count={rs.count} onClear={rs.clear}>
         <button onClick={exportSelected} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>
