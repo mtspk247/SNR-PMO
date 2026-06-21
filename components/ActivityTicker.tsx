@@ -29,6 +29,7 @@ export default function ActivityTicker() {
   const [vis, setVis] = useState(true);
   const [paused, setPaused] = useState(false);
   const [stopped, setStopped] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const idxRef = useRef(0);
 
   useEffect(() => {
@@ -49,13 +50,13 @@ export default function ActivityTicker() {
 
   // Rotate with a quick fade.
   useEffect(() => {
-    if (stopped || paused || items.length === 0) return;
+    if (stopped || paused || hovered || items.length === 0) return;
     const t = setInterval(() => {
       setVis(false);
       setTimeout(() => { idxRef.current = (idxRef.current + 1) % Math.max(items.length, 1); setIdx(idxRef.current); setVis(true); }, 200);
     }, 3500);
     return () => clearInterval(t);
-  }, [items.length, paused, stopped]);
+  }, [items.length, paused, stopped, hovered]);
 
   const setP = (v: boolean) => { setPaused(v); try { localStorage.setItem('act_paused', v ? '1' : '0'); } catch { /* ignore */ } };
   const setS = (v: boolean) => { setStopped(v); try { localStorage.setItem('act_stopped', v ? '1' : '0'); } catch { /* ignore */ } };
@@ -73,7 +74,7 @@ export default function ActivityTicker() {
   const href = cur ? hrefFor(cur) : null;
 
   return (
-    <div className="group flex items-center gap-3 w-full min-w-0">
+    <div className="group flex items-center gap-3 w-full min-w-0" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       <span className="flex items-center gap-1.5 shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
         <span className="text-2xs font-medium uppercase tracking-wide text-muted2">Live</span>
@@ -84,6 +85,7 @@ export default function ActivityTicker() {
           <span className="text-2xs text-muted2 italic">No recent activity</span>
         ) : (
           <button onClick={() => href && router.push(href)} disabled={!href}
+            title={cur ? `${firstName(cur.username)} ${VERB[cur.action] || (cur.action || '').toLowerCase()} ${niceEntity(cur.entity_type)} · ${new Date(cur.ts).toLocaleString()}` : ''}
             className={`block truncate text-2xs transition-opacity duration-200 ${vis ? 'opacity-100' : 'opacity-0'} ${href ? 'text-content hover:text-accentstrong cursor-pointer' : 'text-content cursor-default'}`}>
             <span className="font-semibold">{firstName(cur?.username ?? null)}</span>{' '}
             <span className="text-muted">{VERB[cur?.action || ''] || (cur?.action || '').toLowerCase()}</span>{' '}

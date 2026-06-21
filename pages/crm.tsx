@@ -418,12 +418,12 @@ export default function CRM() {
                 const collapsed = collapsedStages.has(stage);
                 const total = items.reduce((a, d) => a + (d.value || 0), 0);
                 return (
-                  <div key={stage} className="mt-2 first:mt-0">
-                    <div className="sticky top-0 z-10 px-4 py-2.5 bg-surface2 border-y border-line flex items-center gap-2.5">
-                      <button onClick={() => setCollapsedStages((pr) => { const n = new Set(pr); n.has(stage) ? n.delete(stage) : n.add(stage); return n; })} className="text-muted2 hover:text-content"><Icon name={collapsed ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" /></button>
-                      <StatusBadge status={stage} color={sColor(stage)} />
-                      <span className="text-2xs text-muted2">{items.length}</span>
-                      <span className="ml-auto text-xs font-semibold tabular-nums text-content">{money(total)}</span>
+                  <div key={stage} className="mt-5 first:mt-1">
+                    <div className="px-1 py-2 mb-1 flex items-center gap-2.5">
+                      <button onClick={() => setCollapsedStages((pr) => { const n = new Set(pr); n.has(stage) ? n.delete(stage) : n.add(stage); return n; })} className="shrink-0 text-muted2 hover:text-content transition" title={collapsed ? 'Expand' : 'Collapse'}><Icon name={collapsed ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" /></button>
+                      <StatusBadge status={stage} solid color={sColor(stage)} />
+                      <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
+                      <span className="ml-auto text-xs font-semibold tnum text-content">{money(total)}</span>
                       <button onClick={() => { setNewDealStage(stage); setShowDeal(true); }} className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong" title={`Add deal to ${stage}`}><Icon name="ti-plus" /></button>
                     </div>
                     {!collapsed && renderDealList(items, stage)}
