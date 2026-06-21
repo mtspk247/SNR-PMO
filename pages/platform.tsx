@@ -787,7 +787,7 @@ function OwnersTab() {
           if (id === 'actions') return <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>{r.is_primary ? <span className="text-2xs text-muted2">Protected</span> : <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => remove(r)}><Icon name="ti-user-minus" className="text-sm" />Remove</button>}</div>;
           return null;
         };
-        return <DataList rows={rows} rowKey={(r) => r.user_id} cols={OWNERS_COLS} prefs={ownersPrefs} cell={ownerCell} nameCol="owner" />;
+        return <DataList rows={rows ?? []} rowKey={(r) => r.user_id} cols={OWNERS_COLS} prefs={ownersPrefs} cell={ownerCell} nameCol="owner" />;
       })()}
     </div>
   );
