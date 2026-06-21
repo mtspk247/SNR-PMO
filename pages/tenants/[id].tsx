@@ -25,7 +25,7 @@ function UsageBar({ label, used, limit }: { label: string; used: number; limit: 
   return (
     <div>
       <div className="flex items-center justify-between text-2xs mb-1"><span className="text-muted">{label}</span>
-        <span className={over ? 'text-rose-600 font-medium' : 'text-content'}>{used}{limit != null ? ` / ${limit}` : ' / ∞'}{pct != null ? ` (${pct}%)` : ''}</span></div>
+        <span className={over ? 'text-rose-600 font-medium' : 'text-content'}>{used}{limit != null ? ` / ${limit}` : ' · Unlimited'}{pct != null ? ` (${pct}%)` : ''}</span></div>
       <div className="h-1.5 rounded-full bg-surface2 overflow-hidden"><div className={`h-full ${over ? 'bg-rose-500' : 'bg-accent'}`} style={{ width: `${pct == null ? 0 : Math.max(pct, used > 0 ? 3 : 0)}%` }} /></div>
     </div>
   );
