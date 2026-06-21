@@ -16,7 +16,7 @@ import { qk } from '@/lib/queryKeys';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { ListView } from '@/components/ListView';
 import { useRowSelection } from '@/components/RowSelection';
-import { GroupMeta } from '@/components/DataList';
+import { GroupMeta, DataList, EditSpec } from '@/components/DataList';
 
 const STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 const CONTACT_COLS: ColDef[] = [{ id: 'name', label: 'Name', locked: true }, { id: 'title', label: 'Title' }, { id: 'company', label: 'Company' }, { id: 'status', label: 'Status' }, { id: 'email', label: 'Email' }];
@@ -25,6 +25,13 @@ const CONTACT_GROUPS: GroupMeta[] = [
   { value: 'Active', label: 'Active', pill: 'pill-green' },
   { value: 'Customer', label: 'Customer', pill: 'pill-blue' },
   { value: 'Inactive', label: 'Inactive', pill: 'pill-gray' },
+];
+const DEAL_COLS: ColDef[] = [
+  { id: 'name', label: 'Deal', locked: true },
+  { id: 'company', label: 'Company' },
+  { id: 'value', label: 'Value' },
+  { id: 'stage', label: 'Stage' },
+  { id: 'close', label: 'Expected close' },
 ];
 const STAGE_RANK: Record<string, number> = { Lead: 1, Qualified: 2, Proposal: 3, Negotiation: 4, Won: 5, Lost: 0 };
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
@@ -156,6 +163,7 @@ export default function CRM() {
 
   // Contacts: search + status filter + customizable columns (deals are a pipeline board).
   const clp = useListPrefs(`snr-crm-contacts-view-${me?.id || 'anon'}`, CONTACT_COLS);
+  const dlp = useListPrefs(`snr-crm-deals-view-${me?.id || 'anon'}`, DEAL_COLS);
   const CONTACT_FILTERS: FilterDef[] = useMemo(() => {
     const sts = Array.from(new Set(contacts.map((c) => c.status).filter(Boolean))) as string[];
     return [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...sts.map((x) => ({ value: x, label: titleCase(x) }))] }];
@@ -203,6 +211,36 @@ export default function CRM() {
     setDealsCache((p) => p.map((x) => (x.id === id ? { ...x, stage } : x)));
     updateDeal(id, { stage }).then((r) => setDealsCache((p) => p.map((x) => (x.id === r.id ? r : x)))).catch((e: any) => alert(e.message));
   };
+
+  const dealCell = (id: string, d: Deal) => {
+    switch (id) {
+      case 'name': return <span className="font-medium text-content">{d.title}</span>;
+      case 'company': return <span className="text-muted truncate">{d.crm_companies?.name || '—'}</span>;
+      case 'value': return <span className="inline-flex items-center gap-2 min-w-0"><span className="tabular-nums text-content shrink-0">{money(d.value || 0)}</span><span className="h-1 rounded-full bg-surface2 w-16 overflow-hidden hidden sm:inline-block align-middle"><span className="h-full rounded-full bg-accent block" style={{ width: `${Math.min(100, ((d.value || 0) / maxValue) * 100)}%` }} /></span></span>;
+      case 'stage': return <StatusBadge status={d.stage} color={sColor(d.stage)} />;
+      case 'close': return <span className="text-muted2 tnum">{d.expected_close || '—'}</span>;
+      default: return <span className="text-muted2">—</span>;
+    }
+  };
+  const dealEditable: Record<string, EditSpec> = {
+    stage: { type: 'select', options: stageNames.map((s) => ({ value: s, label: s, dot: sColor(s) || '#9ca3af' })) },
+    value: { type: 'number' },
+    close: { type: 'date' },
+  };
+  const dealRawValue = (id: string, d: Deal) =>
+    id === 'name' ? d.title : id === 'company' ? (d.crm_companies?.name || '') : id === 'value' ? String(d.value || 0)
+    : id === 'stage' ? d.stage : id === 'close' ? (d.expected_close || '') : '';
+  const onDealEdit = (d: Deal, id: string, value: string) => {
+    const patch: any = id === 'stage' ? { stage: value } : id === 'value' ? { value: Number(value) || 0 } : id === 'close' ? { expected_close: value || null } : null;
+    if (!patch) return;
+    updateDeal(d.id, patch).then((r) => setDealsCache((pp) => pp.map((x) => (x.id === r.id ? r : x)))).catch((e: any) => alert(e.message));
+  };
+  const onRenameDeal = (d: Deal, name: string) => { if (name && name !== d.title) updateDeal(d.id, { title: name }).then((r) => setDealsCache((pp) => pp.map((x) => (x.id === r.id ? r : x)))).catch((e: any) => alert(e.message)); };
+  const renderDealList = (rows: Deal[], stage: string) => (
+    <DataList rows={rows} rowKey={(d) => d.id} cols={DEAL_COLS} prefs={dlp} cell={dealCell}
+      editable={dealEditable} rawValue={dealRawValue} onEdit={onDealEdit} onRowClick={(d) => selectDeal(d.id)}
+      onRename={onRenameDeal} orderKey={'snrpmo.deals.roworder.' + stage} />
+  );
 
   const BoardView = () => (
     <div className="flex-1 min-w-0 overflow-x-auto pb-2">
@@ -388,18 +426,7 @@ export default function CRM() {
                       <span className="ml-auto text-xs font-semibold tabular-nums text-content">{money(total)}</span>
                       <button onClick={() => { setNewDealStage(stage); setShowDeal(true); }} className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong" title={`Add deal to ${stage}`}><Icon name="ti-plus" /></button>
                     </div>
-                    {!collapsed && items.map((d) => (
-                      <div key={d.id} onClick={() => selectDeal(d.id)}
-                        className={`group w-full text-left flex items-center gap-3 px-4 py-3 border-b border-line/50 cursor-pointer transition ${selectedId === d.id ? 'bg-accent/5' : 'hover:bg-surface2'}`}>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-content truncate">{d.title}</p>
-                          <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>
-                          <div className="h-1 rounded-full bg-surface2 mt-1.5 max-w-[160px] overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${((d.value || 0) / maxValue) * 100}%` }} /></div>
-                        </div>
-                        <span className="text-sm font-medium w-20 text-right">{money(d.value || 0)}</span>
-                        <button onClick={(e) => { e.stopPropagation(); router.push(`/crm/deal/${d.id}`); }} className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong opacity-0 group-hover:opacity-100 shrink-0" title="Open deal"><Icon name="ti-arrow-up-right" /></button>
-                      </div>
-                    ))}
+                    {!collapsed && renderDealList(items, stage)}
                   </div>
                 );
               })}
