@@ -6,12 +6,13 @@ import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
-import { listJobs, createJob, updateJob, deleteJob, JobPosting } from '@/lib/db';
+import { listJobs, createJob, updateJob, deleteJob, ensureTaskStatuses, TaskStatus, JobPosting } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { getOrgUsers, inviteMember } from '@/lib/db';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar, BulkAssign } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
+import StatusManager from '@/components/StatusManager';
 
 const fmtType = (t: string) => t.replace(/_/g, ' ');
 const STATUS_PILL: Record<string, string> = {
@@ -30,9 +31,7 @@ const COLS: ColDef[] = [
   { id: 'owner', label: 'Owner' },
   { id: 'status', label: 'Status' },
 ];
-const JOB_FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: fmtType(s) }))] }];
-const JOB_GROUP_ORDER = ['open', 'on_hold', 'draft', 'closed'];
-const GROUPS: GroupMeta[] = JOB_GROUP_ORDER.map((st) => ({ value: st, label: fmtType(st), pill: STATUS_PILL[st] || 'pill-gray' }));
+// JOB_FILTERS + GROUPS built per-render from managed statuses (inside the component).
 const EMP_TYPES = ['full_time', 'part_time', 'contract', 'intern', 'temporary'];
 
 type Draft = Partial<JobPosting>;
@@ -43,6 +42,14 @@ export default function JobsPage() {
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'hr');
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [statusDefs, setStatusDefs] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
+  useEffect(() => { if (org?.id) ensureTaskStatuses(org.id, 'job_posting').then(setStatusDefs).catch(() => {}); }, [org?.id]);
+  const reloadStatusDefs = () => { if (org?.id) ensureTaskStatuses(org.id, 'job_posting').then(setStatusDefs).catch(() => {}); };
+  const statusNames = statusDefs.length ? statusDefs.map((s) => s.name) : STATUSES;
+  const statusColor = (n: string) => statusDefs.find((s) => s.name === n)?.color || '#9ca3af';
+  const GROUPS: GroupMeta[] = statusNames.map((st) => ({ value: st, label: fmtType(st), pill: STATUS_PILL[st] || 'pill-gray' }));
+  const JOB_FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...statusNames.map((s) => ({ value: s, label: fmtType(s) }))] }];
 
   const [jobs, setJobs] = useState<JobPosting[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
@@ -86,7 +93,7 @@ export default function JobsPage() {
       case 'type': return <span className="pill pill-gray">{fmtType(j.employment_type || '')}</span>;
       case 'openings': return j.openings ?? '—';
       case 'owner': return <PersonTag name={name(j.owner_id)} />;
-      case 'status': return <span className={`pill ${STATUS_PILL[j.status] || 'pill-gray'}`}>{fmtType(j.status)}</span>;
+      case 'status': return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusColor(j.status) + '1f', color: statusColor(j.status), boxShadow: `inset 0 0 0 1px ${statusColor(j.status)}33` }}>{fmtType(j.status)}</span>;
       default: return '—';
     }
   };
@@ -159,9 +166,12 @@ export default function JobsPage() {
     <Layout flat title="Jobs">
       <PageHeader help="hr" title="Job Postings" subtitle="Manage open roles, hiring status and headcount" icon="ti-briefcase"
         action={isAdmin && (
-          <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
-            <Icon name="ti-plus" />Add job
-          </button>
+          <div className="flex items-center gap-2">
+            <button className="btn" onClick={() => setStatusMgr(true)}><Icon name="ti-flag-3" className="text-sm" />Statuses</button>
+            <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
+              <Icon name="ti-plus" />Add job
+            </button>
+          </div>
         )} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
@@ -230,7 +240,7 @@ export default function JobsPage() {
               <Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || undefined })} options={[{ value: '', label: 'None' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} />
             </Field>
             <Field label="Status">
-              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as JobPosting['status'] })} options={[...STATUSES.map((s) => ({ value: s, label: fmtType(s) }))]} />
+              <Select value={editor.draft.status || 'draft'} onChange={(v) => setD({ status: v as JobPosting['status'] })} options={[...statusNames.map((s) => ({ value: s, label: fmtType(s) }))]} />
             </Field>
             <Field label="Description" className="sm:col-span-2">
               <textarea className="input min-h-[90px]" value={editor.draft.description || ''} onChange={(e) => setD({ description: e.target.value })} placeholder="Role summary, responsibilities, requirements…" />
@@ -238,6 +248,7 @@ export default function JobsPage() {
           </div>
         </Modal>
       )}
+      {org?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="job_posting" statuses={statusDefs} onChanged={reloadStatusDefs} />}
     </Layout>
   );
 }

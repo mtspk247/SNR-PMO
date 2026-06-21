@@ -9,12 +9,13 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listVendorSubscriptions, createVendorSubscription, updateVendorSubscription, deleteVendorSubscription,
   requestVendorSubscription, listReconciliations, addReconciliation, deleteReconciliation, getOrgUsers, inviteMember,
-  VendorSubscription, VendorSubReconciliation,
+  ensureTaskStatuses, TaskStatus, VendorSubscription, VendorSubReconciliation,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar, BulkAssign } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
+import StatusManager from '@/components/StatusManager';
 
 const STATUS_PILL: Record<string, string> = { requested: 'pill-violet', active: 'pill-green', trial: 'pill-blue', paused: 'pill-amber', cancelled: 'pill-gray', expired: 'pill-red', rejected: 'pill-red' };
 const STATUSES = ['active', 'trial', 'paused', 'cancelled', 'expired'];
@@ -28,9 +29,7 @@ const COLS: ColDef[] = [
   { id: 'status', label: 'Status' },
 ];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const SUB_FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...['requested', ...STATUSES, 'rejected'].map((s) => ({ value: s, label: cap(s) }))] }];
-const SUB_GROUP_ORDER = ['active', 'trial', 'paused', 'requested', 'cancelled', 'expired', 'rejected'];
-const GROUPS: GroupMeta[] = SUB_GROUP_ORDER.map((st) => ({ value: st, label: cap(st), pill: STATUS_PILL[st] || 'pill-gray' }));
+// SUB_FILTERS + GROUPS built per-render from managed statuses (inside the component).
 const PLAN_TYPES = ['monthly', 'annual', 'one-time', 'usage'];
 const fmtMoney = (n: number, c = 'USD') => `${c === 'USD' ? '$' : c + ' '}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const monthly = (s: VendorSubscription) => s.plan_type === 'annual' ? (s.cost || 0) / 12 : s.plan_type === 'one-time' ? 0 : (s.cost || 0);
@@ -44,6 +43,14 @@ export default function SubscriptionsPage() {
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'subscriptions');
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [statusDefs, setStatusDefs] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
+  useEffect(() => { if (org?.id) ensureTaskStatuses(org.id, 'vendor_subscription').then(setStatusDefs).catch(() => {}); }, [org?.id]);
+  const reloadStatusDefs = () => { if (org?.id) ensureTaskStatuses(org.id, 'vendor_subscription').then(setStatusDefs).catch(() => {}); };
+  const statusNames = statusDefs.length ? statusDefs.map((s) => s.name) : ['requested', ...STATUSES, 'rejected'];
+  const statusColor = (n: string) => statusDefs.find((s) => s.name === n)?.color || '#9ca3af';
+  const GROUPS: GroupMeta[] = statusNames.map((st) => ({ value: st, label: cap(st), pill: STATUS_PILL[st] || 'pill-gray' }));
+  const SUB_FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...statusNames.map((s) => ({ value: s, label: cap(s) }))] }];
 
   const [subs, setSubs] = useState<VendorSubscription[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
@@ -74,7 +81,7 @@ export default function SubscriptionsPage() {
       case 'cost': return <span className="tabular-nums">{fmtMoney(s.cost, s.currency)}{s.plan_type ? <span className="text-2xs text-muted2">{`/${s.plan_type === 'annual' ? 'yr' : s.plan_type === 'monthly' ? 'mo' : ''}`}</span> : ''}</span>;
       case 'renews': { const d = daysTo(s.next_renewal); return s.next_renewal ? <span className={d != null && d < 0 ? 'text-rose-600' : d != null && d <= 30 ? 'text-amber-600' : 'text-muted'}>{s.next_renewal}{d != null && d >= 0 && d <= 30 ? ` · ${d}d` : d != null && d < 0 ? ' · overdue' : ''}</span> : <span className="text-muted2">—</span>; }
       case 'owner': return <PersonTag name={s.owner_id ? name(s.owner_id) : ''} />;
-      case 'status': return <span className={`pill ${STATUS_PILL[s.status] || 'pill-gray'}`}>{s.status}</span>;
+      case 'status': return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusColor(s.status) + '1f', color: statusColor(s.status), boxShadow: `inset 0 0 0 1px ${statusColor(s.status)}33` }}>{cap(s.status)}</span>;
       default: return '—';
     }
   };
@@ -124,6 +131,7 @@ export default function SubscriptionsPage() {
       <PageHeader title="Subscriptions" subtitle="Track every SaaS subscription, cost, renewal and owner" icon="ti-credit-card"
         action={<div className="flex gap-2">
           <button className="btn" onClick={() => setEditor({ mode: 'request', draft: emptyDraft() })}><Icon name="ti-send" />Request</button>
+          {isAdmin && <button className="btn" onClick={() => setStatusMgr(true)}><Icon name="ti-flag-3" className="text-sm" />Statuses</button>}
           {isAdmin && <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}><Icon name="ti-plus" />Add</button>}
         </div>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
@@ -178,7 +186,7 @@ export default function SubscriptionsPage() {
               <Field label="Payment method"><input className="input" value={editor.draft.payment_method || ''} onChange={(e) => setD({ payment_method: e.target.value })} placeholder="Visa ••42" /></Field>
               <Field label="Paid by (company)"><input className="input" value={editor.draft.paid_by_company || ''} onChange={(e) => setD({ paid_by_company: e.target.value })} /></Field>
               <Field label="Owner"><Select value={editor.draft.owner_id || ''} onChange={(v) => setD({ owner_id: v || null })} search placeholder="Unassigned" options={[{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name }))]} /></Field>
-              <Field label="Status"><Select value={editor.draft.status || 'active'} onChange={(v) => setD({ status: v })} options={STATUSES.map((s) => ({ value: s, label: cap(s) }))} /></Field>
+              <Field label="Status"><Select value={editor.draft.status || 'active'} onChange={(v) => setD({ status: v })} options={statusNames.map((s) => ({ value: s, label: cap(s) }))} /></Field>
               <Field label="Total spending"><input className="input" type="number" value={editor.draft.total_spending ?? 0} onChange={(e) => setD({ total_spending: Number(e.target.value) })} /></Field>
             </>}
           </div>
@@ -187,6 +195,7 @@ export default function SubscriptionsPage() {
 
       {detail && <DetailModal sub={detail} users={users} me={me?.id} canEdit={isAdmin || detail.created_by === me?.id || detail.owner_id === me?.id} orgId={org?.id}
         onClose={() => setDetail(null)} onEdit={() => { setEditor({ mode: 'edit', draft: detail }); setDetail(null); }} onDelete={() => remove(detail)} nameOf={name} />}
+      {org?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="vendor_subscription" statuses={statusDefs} onChanged={reloadStatusDefs} />}
     </Layout>
   );
 }
