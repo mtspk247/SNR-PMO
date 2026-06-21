@@ -1695,11 +1695,16 @@ export async function getCustomFieldDefs(orgId: string, entityType: CustomEntity
 
 export async function createCustomFieldDef(d: {
   org_id: string; entity_type: CustomEntityType; name: string; field_type: string;
-  options?: string[] | null; position?: number;
+  options?: string[] | null; option_meta?: Record<string, string> | null; position?: number;
 }): Promise<CustomFieldDef> {
   const { data, error } = await sb.from('custom_field_definitions').insert(d).select('*').single();
   if (error) throw new Error(error.message);
   return data as CustomFieldDef;
+}
+
+export async function updateCustomFieldDef(id: string, patch: Partial<{ name: string; options: string[] | null; option_meta: Record<string, string>; position: number }>): Promise<void> {
+  const { error } = await sb.from('custom_field_definitions').update(patch).eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteCustomFieldDef(id: string): Promise<void> {

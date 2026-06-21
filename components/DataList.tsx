@@ -1,7 +1,7 @@
 import { useState, useEffect, ReactNode } from 'react';
 import type { PointerEvent as RPointerEvent } from 'react';
 import { Icon, Avatar, INLINE_SELECT_CLS } from '@/components/ui';
-import Select from '@/components/Select';
+import Dropdown from '@/components/Dropdown';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
 import AddColumnForm from '@/components/AddColumnForm';
@@ -16,7 +16,7 @@ const CF_PREFIX = 'cf:';
 const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
 
 export type GroupMeta = { value: string; label: string; pill?: string };
-export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string }[] };
+export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string }[] };
 
 type Selection = {
   isSelected: (id: string) => boolean;
@@ -87,9 +87,15 @@ function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value:
     return <PersonPicker options={spec.options || []} value={value} onSave={onSave} />;
   }
   if (spec.type === 'select') {
+    const opts = spec.options || [];
+    const cur = opts.find((o) => o.value === value);
+    const dot = cur?.dot;
     return (
       <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-[12rem]">
-        <Select value={value} onChange={(v) => { if (v !== value) onSave(v); }} options={spec.options || []} className={INLINE_SELECT_CLS} />
+        <Dropdown value={value} onChange={(v) => { if (v !== value) onSave(v); }} items={opts} width={208} search={opts.length > 8}
+          trigger={dot
+            ? <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-2xs font-medium cursor-pointer max-w-full" style={{ backgroundColor: dot + '1f', color: dot, boxShadow: `inset 0 0 0 1px ${dot}33` }}><span className="truncate">{cur?.label ?? value}</span><Icon name="ti-chevron-down" className="text-2xs opacity-70 shrink-0" /></span>
+            : <span className={`input flex items-center justify-between gap-2 cursor-pointer ${INLINE_SELECT_CLS}`}><span className={`truncate ${cur ? 'text-content' : 'text-muted2'}`}>{cur ? cur.label : (value || 'Select…')}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} />
       </span>
     );
   }

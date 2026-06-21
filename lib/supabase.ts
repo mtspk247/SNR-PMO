@@ -407,7 +407,7 @@ export type CustomEntityType = 'crm_deal' | 'crm_contact' | 'crm_company' | 'emp
 export interface CustomFieldDef {
   id: string; org_id: string; entity_type: CustomEntityType; name: string;
   field_type: 'text' | 'textarea' | 'number' | 'currency' | 'progress' | 'rating' | 'date' | 'checkbox' | 'dropdown' | 'multiselect' | 'labels' | 'url' | 'email' | 'phone';
-  options?: string[] | null; position?: number; created_by?: string | null; created_at?: string;
+  options?: string[] | null; option_meta?: Record<string, string> | null; position?: number; created_by?: string | null; created_at?: string;
 }
 export interface CustomFieldValue {
   org_id: string; entity_type: CustomEntityType; entity_id: string; field_id: string;

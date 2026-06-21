@@ -8,7 +8,7 @@ import { Icon } from '@/components/ui';
 export default function Select({ value, onChange, options, placeholder = 'Select…', disabled, search, width, className = '', allowAdd, onAdd }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; dot?: string }[];
   placeholder?: string;
   disabled?: boolean;
   search?: boolean;

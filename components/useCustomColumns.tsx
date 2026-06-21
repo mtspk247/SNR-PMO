@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui';
 import type { ColDef } from '@/components/ListToolbar';
 import type { EditSpec } from '@/components/DataList';
 import {
-  getCustomFieldDefs, createCustomFieldDef, deleteCustomFieldDef,
+  getCustomFieldDefs, createCustomFieldDef, updateCustomFieldDef, deleteCustomFieldDef,
   getCustomFieldValuesByType, upsertCustomFieldValue,
 } from '@/lib/db';
 import { CustomFieldDef, CustomEntityType } from '@/lib/supabase';
@@ -30,11 +30,20 @@ export const CUSTOM_FIELD_TYPES: { value: string; label: string; icon: string }[
 ];
 export const NEEDS_OPTIONS = new Set(['dropdown', 'multiselect']);
 
+// Colored, ClickUp-style option pills. Each option may carry an explicit hex in the
+// field def's option_meta; otherwise a stable palette colour is derived from the label.
+export const OPTION_PALETTE = ['#6366F1', '#0EA5A4', '#EC8C36', '#E1568E', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4', '#7C3AED', '#0891B2', '#64748B'];
+export const defaultOptionColor = (label: string) => { let h = 0; for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) >>> 0; return OPTION_PALETTE[h % OPTION_PALETTE.length]; };
+const optColor = (d: CustomFieldDef, v: string) => (d.option_meta && d.option_meta[v]) || defaultOptionColor(v);
+const colorPill = (text: string, color: string, key?: string): ReactNode => (
+  <span key={key} className="inline-flex items-center rounded-md px-2.5 py-0.5 text-2xs font-medium max-w-full truncate align-middle" style={{ backgroundColor: color + '1f', color, boxShadow: `inset 0 0 0 1px ${color}33` }}>{text}</span>
+);
+
 const specFor = (d: CustomFieldDef): EditSpec => {
   switch (d.field_type) {
     case 'dropdown':
     case 'multiselect':
-    case 'labels': return { type: 'select', options: [{ value: '', label: '—' }, ...(d.options || []).map((o) => ({ value: o, label: o }))] };
+    case 'labels': return { type: 'select', options: [{ value: '', label: '—' }, ...(d.options || []).map((o) => ({ value: o, label: o, dot: optColor(d, o) }))] };
     case 'checkbox': return { type: 'select', options: [{ value: '', label: '—' }, { value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }] };
     case 'number':
     case 'currency':
@@ -83,9 +92,9 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
       case 'url': return <a href={/^https?:\/\//.test(v) ? v : `https://${v}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-sm text-accentstrong hover:underline truncate inline-block max-w-[12rem] align-middle">{v}</a>;
       case 'email': return <a href={`mailto:${v}`} onClick={(e) => e.stopPropagation()} className="text-sm text-accentstrong hover:underline">{v}</a>;
       case 'phone': return <a href={`tel:${v}`} onClick={(e) => e.stopPropagation()} className="text-sm text-accentstrong hover:underline">{v}</a>;
-      case 'dropdown': return <span className="pill pill-gray">{v}</span>;
+      case 'dropdown': return colorPill(v, optColor(d, v));
       case 'multiselect':
-      case 'labels': return <span className="inline-flex flex-wrap gap-1">{v.split(',').map((s) => s.trim()).filter(Boolean).map((s) => <span key={s} className="pill pill-gray">{s}</span>)}</span>;
+      case 'labels': return <span className="inline-flex flex-wrap gap-1">{v.split(',').map((s) => s.trim()).filter(Boolean).map((s) => colorPill(s, optColor(d, s), s))}</span>;
       default: return <span className="text-sm text-muted">{v}</span>;
     }
   };
@@ -96,9 +105,13 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
     try { await upsertCustomFieldValue({ org_id: orgId, entity_type: entityType, entity_id: entityId, field_id: fieldId, value: value || null }); }
     catch { reload(); }
   };
-  const addColumn = async (name: string, type: string, options?: string[]) => {
+  const addColumn = async (name: string, type: string, options?: string[], optionMeta?: Record<string, string>) => {
     if (!orgId) return;
-    await createCustomFieldDef({ org_id: orgId, entity_type: entityType, name, field_type: type, options: options && options.length ? options : null, position: defs.length });
+    await createCustomFieldDef({ org_id: orgId, entity_type: entityType, name, field_type: type, options: options && options.length ? options : null, option_meta: optionMeta || {}, position: defs.length });
+    reload();
+  };
+  const updateColumnOptions = async (colId: string, options: string[], option_meta: Record<string, string>) => {
+    await updateCustomFieldDef(colId.slice(PREFIX.length), { options: options.length ? options : null, option_meta });
     reload();
   };
   const removeColumn = async (colId: string) => {
@@ -109,7 +122,7 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
   const customColIds = new Set(cols.map((c) => c.id));
   const exportValue = (colId: string, entityId: string) => rawValue(colId, entityId);
 
-  return { cols, editable, rawValue, cell, onEdit, addColumn, removeColumn, customColIds, canManage, exportValue, defs, reload };
+  return { cols, editable, rawValue, cell, onEdit, addColumn, updateColumnOptions, removeColumn, customColIds, canManage, exportValue, defs, reload };
 }
 
 export type CustomColumnsApi = ReturnType<typeof useCustomColumns>;

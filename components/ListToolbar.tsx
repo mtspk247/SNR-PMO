@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
 import { useCustomColumns } from '@/components/useCustomColumns';
 import AddColumnForm from '@/components/AddColumnForm';
+import { ColumnOptionsEditor } from '@/components/OptionsEditor';
 import type { CustomColumnsApi } from '@/components/useCustomColumns';
 
 // Shared, config-driven list controls: search + Filter popover + Columns
@@ -148,6 +149,7 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
                 <button onClick={() => prefs.move(id, -1)} disabled={idx === 0} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-chevron-up" className="text-sm" /></button>
                 <button onClick={() => prefs.move(id, 1)} disabled={idx === prefs.order.length - 1} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-chevron-down" className="text-sm" /></button>
                 <button onClick={() => prefs.toggleWrap(id)} title={prefs.wrap[id] ? 'Text wrapping: on' : 'Text wrapping: off'} className={prefs.wrap[id] ? 'text-accentstrong' : 'text-muted2 hover:text-content'}><Icon name="ti-text-wrap" className="text-sm" /></button>
+                {prefs.cf && (() => { const cf = prefs.cf!; const def = cf.defs.find((d) => 'cf:' + d.id === id); return def && ['dropdown', 'multiselect', 'labels'].includes(def.field_type) ? <ColumnOptionsEditor def={def} cf={cf} /> : null; })()}
                 {prefs.cf?.customColIds.has(id) && <button onClick={() => prefs.cf!.removeColumn(id)} title="Delete column" className="text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>}
               </div>
             ); })}
