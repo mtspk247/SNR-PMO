@@ -1782,7 +1782,7 @@ export async function deleteLedgerEntry(id: string): Promise<void> {
 import { Idea, IdeaStatus } from './supabase';
 
 export const IDEA_STATUSES: IdeaStatus[] = ['idea', 'exploring', 'approved', 'building', 'shipped', 'parked'];
-const IDEA_SEL = '*, votes:idea_votes(user_id, value, reason, voter:users(full_name)), project:projects(name), creator:users!ideas_created_by_fkey(full_name)';
+const IDEA_SEL = '*, votes:idea_votes(user_id, value, reason, voter:users(full_name)), project:projects(name), creator:users!ideas_created_by_fkey(full_name, avatar_url)';
 
 export async function getIdeas(orgId: string | null = activeOrgScope): Promise<Idea[]> {
   let q = sb.from('ideas').select(IDEA_SEL)

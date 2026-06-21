@@ -436,7 +436,7 @@ export interface Idea {
   created_by?: string | null; created_at?: string;
   votes?: { user_id: string; value?: number; reason?: string | null; voter?: { full_name: string | null } | null }[];
   project?: { name: string | null } | null;
-  creator?: { full_name: string | null } | null;
+  creator?: { full_name: string | null; avatar_url?: string | null } | null;
 }
 
 // ---- S4: Training docs & Job descriptions (HR) -----------------------------

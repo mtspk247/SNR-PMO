@@ -10,7 +10,7 @@ import type { CustomColumnsApi } from '@/components/useCustomColumns';
 // (show/hide + reorder), with per-user view persisted to localStorage.
 // Reuse across every module list so filters/columns are universally customizable.
 
-export type ColDef = { id: string; label: string; locked?: boolean };
+export type ColDef = { id: string; label: string; locked?: boolean; width?: number };
 export type FilterDef = { id: string; label: string; options: { value: string; label: string }[] };
 
 export type ListPrefs = {

@@ -249,7 +249,8 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   // Primary/name column = the ONLY click target that opens the record detail (ClickUp model).
   const primaryId = [nameCol, cols[0]?.id].find((x) => x && prefs.ordered.includes(x)) || prefs.ordered[0];
   const selCol = !!selection;
-  const colW = (id: string, i: number) => prefs.widths[id] ?? (i === 0 ? 280 : 160);
+  const defW = (id: string) => (prefs.allCols || cols).find((c) => c.id === id)?.width;
+  const colW = (id: string, i: number) => prefs.widths[id] ?? defW(id) ?? (i === 0 ? 280 : 160);
   const totalW = (rowDnD ? 28 : 0) + (selCol ? 36 : 0) + prefs.ordered.reduce((a, id, i) => a + colW(id, i), 0) + 36;
   // Freeze / pin: the first `pinCount` data columns (plus grip/checkbox) stick to the left.
   const pinCount = Math.min(prefs.pinned || 0, prefs.ordered.length);

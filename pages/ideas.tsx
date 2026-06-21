@@ -4,13 +4,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, StatCard, Icon, Avatar } from '@/components/ui';
 import { usePagination, Pagination } from '@/components/Pagination';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { ViewControls, useViewPrefs, buildGroups } from '@/components/ViewControls';
 import { Modal, Field } from '@/components/Modal';
 import { useIdeas } from '@/lib/queries';
-import { createIdea, updateIdea, deleteIdea, toggleIdeaVote, convertIdeaToProject, IDEA_STATUSES } from '@/lib/db';
+import { createIdea, updateIdea, deleteIdea, setIdeaVote, convertIdeaToProject, IDEA_STATUSES, avatarSrc } from '@/lib/db';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { Idea, IdeaStatus } from '@/lib/supabase';
@@ -35,10 +35,15 @@ const STATUS_LABEL: Record<IdeaStatus, string> = {
   parked: 'Parked',
 };
 
+// Per-status colour for the inline status dropdown (colored pill + dots).
+const STATUS_HEX: Record<IdeaStatus, string> = {
+  idea: '#9ca3af', exploring: '#0ea5e9', approved: '#8b5cf6', building: '#f59e0b', shipped: '#10b981', parked: '#f43f5e',
+};
+
 type FormState = { title: string; pitch: string; status: IdeaStatus };
 const emptyForm = (): FormState => ({ title: '', pitch: '', status: 'idea' });
 
-const IDEA_COLS: ColDef[] = [{ id: 'votes', label: 'Votes' }, { id: 'title', label: 'Title', locked: true }, { id: 'status', label: 'Status' }, { id: 'project', label: 'Project' }, { id: 'by', label: 'By' }, { id: 'created', label: 'Created' }];
+const IDEA_COLS: ColDef[] = [{ id: 'votes', label: 'Votes', width: 104 }, { id: 'title', label: 'Title', locked: true, width: 380 }, { id: 'status', label: 'Status', width: 150 }, { id: 'project', label: 'Project', width: 200 }, { id: 'by', label: 'By', width: 190 }, { id: 'created', label: 'Created', width: 120 }];
 
 const GROUPS: GroupMeta[] = IDEA_STATUSES.map((st) => ({
   value: st,
@@ -140,11 +145,11 @@ export default function IdeasPage() {
     } catch (err: any) { alert(err.message); }
   };
 
-  const vote = async (idea: Idea) => {
+  const setVote = async (idea: Idea, value: 1 | -1) => {
     if (!user || votingId) return;
     setVotingId(idea.id);
     try {
-      await toggleIdeaVote(idea, user.id);
+      await setIdeaVote(idea.id, user.id, value);
       qc.invalidateQueries({ queryKey: qk.ideas(org?.id) });
     } catch (err: any) { alert(err.message); } finally { setVotingId(null); }
   };
@@ -162,10 +167,10 @@ export default function IdeasPage() {
     } catch (err: any) { alert(err.message); } finally { setConvertingId(null); }
   };
 
-  const editable: Record<string, EditSpec> = {
-    title: { type: 'text' },
-    status: { type: 'select', options: IDEA_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] })) },
-  };
+  // RBAC: only managers (owner/admin) inline-edit status; others see read-only colored pills.
+  const editable: Record<string, EditSpec> | undefined = isAdmin ? {
+    status: { type: 'select', options: IDEA_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s], dot: STATUS_HEX[s] })) },
+  } : undefined;
 
   const rawValue = (id: string, idea: Idea) =>
     id === 'title' ? idea.title : id === 'status' ? idea.status : '';
@@ -207,22 +212,28 @@ export default function IdeasPage() {
   };
 
   const cell = (id: string, idea: Idea) => {
-    const hasVoted = idea.votes?.some((v) => v.user_id === user?.id && (v.value ?? 1) === 1) ?? false;
-    const voteCount = idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0;
+    const myVote = idea.votes?.find((v) => v.user_id === user?.id)?.value ?? 0;
+    const ups = idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0;
+    const downs = idea.votes?.filter((v) => v.value === -1).length ?? 0;
     const isVoting = votingId === idea.id;
     const isConverting = convertingId === idea.id;
     switch (id) {
       case 'votes':
         return (
-          <button
-            className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded transition-colors ${hasVoted ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-muted hover:text-content hover:bg-surface2'} disabled:opacity-50`}
-            onClick={(e) => { e.stopPropagation(); vote(idea); }}
-            disabled={isVoting || !user}
-            title={hasVoted ? 'Remove vote' : 'Vote'}
-          >
-            <Icon name="ti-arrow-big-up" className="text-base leading-none" />
-            <span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span>
-          </button>
+          <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setVote(idea, 1)} disabled={isVoting || !user}
+              className={`inline-flex items-center gap-1 px-1.5 py-1 rounded transition-colors disabled:opacity-50 ${myVote === 1 ? 'text-emerald-600 bg-emerald-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              title={myVote === 1 ? 'Remove your upvote' : 'Thumbs up'}>
+              <Icon name={myVote === 1 ? 'ti-thumb-up-filled' : 'ti-thumb-up'} className="text-sm leading-none" />
+              <span className="text-2xs tabular-nums font-medium leading-none">{ups}</span>
+            </button>
+            <button onClick={() => setVote(idea, -1)} disabled={isVoting || !user}
+              className={`inline-flex items-center gap-1 px-1.5 py-1 rounded transition-colors disabled:opacity-50 ${myVote === -1 ? 'text-rose-600 bg-rose-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              title={myVote === -1 ? 'Remove your downvote' : 'Thumbs down'}>
+              <Icon name={myVote === -1 ? 'ti-thumb-down-filled' : 'ti-thumb-down'} className="text-sm leading-none" />
+              <span className="text-2xs tabular-nums font-medium leading-none">{downs}</span>
+            </button>
+          </span>
         );
       case 'title':
         return (
@@ -234,9 +245,9 @@ export default function IdeasPage() {
       case 'status':
         return <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>;
       case 'project':
-        return idea.project?.name ? <span className="pill pill-gray truncate max-w-[10rem] inline-block align-middle">{idea.project.name}</span> : '—';
+        return idea.project?.name ? (idea.project_id ? <Link href={`/projects/${idea.project_id}`} onClick={(e) => e.stopPropagation()} className="text-content hover:text-accentstrong hover:underline truncate inline-block max-w-full align-middle">{idea.project.name}</Link> : <span className="truncate inline-block max-w-full align-middle">{idea.project.name}</span>) : '—';
       case 'by':
-        return idea.creator?.full_name || '—';
+        return idea.creator?.full_name ? <span className="inline-flex items-center gap-1.5 min-w-0"><Avatar name={idea.creator.full_name} size={20} src={avatarSrc(idea.creator.avatar_url)} /><span className="truncate">{idea.creator.full_name}</span></span> : '—';
       case 'created':
         return idea.created_at ? idea.created_at.slice(0, 10) : '—';
       case '__actions':
@@ -257,15 +268,22 @@ export default function IdeasPage() {
   const IdeaCards = ({ items }: { items: Idea[] }) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
       {items.map((idea) => {
-        const hasVoted = idea.votes?.some((v) => v.user_id === user?.id && (v.value ?? 1) === 1) ?? false;
-        const voteCount = idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0;
+        const myVote = idea.votes?.find((v) => v.user_id === user?.id)?.value ?? 0;
+        const ups = idea.votes?.filter((v) => (v.value ?? 1) === 1).length ?? 0;
+        const downs = idea.votes?.filter((v) => v.value === -1).length ?? 0;
         return (
           <div key={idea.id} onClick={() => router.push(`/ideas/${idea.id}`)} className="card card-interactive p-4 cursor-pointer">
             <div className="flex items-start gap-3">
-              <button onClick={(e) => { e.stopPropagation(); vote(idea); }} disabled={!user || votingId === idea.id}
-                className={`shrink-0 inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded ${hasVoted ? 'text-accent bg-accent/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
-                <Icon name="ti-arrow-big-up" className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{voteCount}</span>
-              </button>
+              <span className="shrink-0 inline-flex flex-col items-stretch gap-1" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => setVote(idea, 1)} disabled={!user || votingId === idea.id}
+                  className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded ${myVote === 1 ? 'text-emerald-600 bg-emerald-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
+                  <Icon name={myVote === 1 ? 'ti-thumb-up-filled' : 'ti-thumb-up'} className="text-sm leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{ups}</span>
+                </button>
+                <button onClick={() => setVote(idea, -1)} disabled={!user || votingId === idea.id}
+                  className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded ${myVote === -1 ? 'text-rose-600 bg-rose-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
+                  <Icon name={myVote === -1 ? 'ti-thumb-down-filled' : 'ti-thumb-down'} className="text-sm leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{downs}</span>
+                </button>
+              </span>
               <div className="min-w-0 flex-1">
                 <Link href={`/ideas/${idea.id}`} onClick={(e) => e.stopPropagation()} className="font-medium text-content truncate hover:text-accentstrong block">{idea.title}</Link>
                 {idea.pitch && <p className="text-2xs text-muted mt-0.5" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{idea.pitch}</p>}
@@ -273,7 +291,7 @@ export default function IdeasPage() {
             </div>
             <div className="flex items-center gap-2 mt-3">
               <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>
-              {idea.project?.name && <span className="pill pill-gray truncate max-w-[8rem]">{idea.project.name}</span>}
+              {idea.project?.name && <span className="text-2xs text-muted2 truncate max-w-[8rem]">{idea.project.name}</span>}
               <span className="ml-auto text-2xs text-muted2 truncate">{idea.creator?.full_name || ''}</span>
             </div>
           </div>
@@ -335,6 +353,7 @@ export default function IdeasPage() {
             rows={filtered}
             rowKey={(idea) => idea.id}
             cols={IDEA_COLS}
+            nameCol="title"
             prefs={lp}
             cell={cell}
             onRowClick={(idea) => router.push(`/ideas/${idea.id}`)}

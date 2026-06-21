@@ -103,7 +103,7 @@ export default function IdeaDetail() {
               </button>
               {myVote && <button onClick={clearVote} disabled={busy} className="btn-ghost h-8 px-2 text-2xs text-muted">Remove</button>}
               <span className={`pill ${SP[idea.status] || 'pill-gray'} ml-1`}>{SL[idea.status] || idea.status}</span>
-              {idea.project?.name && <Link href="/projects" className="pill pill-gray inline-flex items-center gap-1"><Icon name="ti-folder" />{idea.project.name}</Link>}
+              {idea.project?.name && <Link href={idea.project_id ? `/projects/${idea.project_id}` : '/projects'} className="inline-flex items-center gap-1 text-sm text-content hover:text-accentstrong hover:underline"><Icon name="ti-folder" className="text-muted2" />{idea.project.name}</Link>}
               <span className="ml-auto text-2xs text-muted2 inline-flex items-center gap-1.5"><Avatar name={idea.creator?.full_name || 'U'} size={20} />{idea.creator?.full_name || '—'}</span>
             </div>
 
