@@ -19,7 +19,7 @@ const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
 const PILL_HEX: Record<string, string> = { 'pill-green': '#10b981', 'pill-amber': '#f59e0b', 'pill-blue': '#0ea5e9', 'pill-red': '#f43f5e', 'pill-rose': '#f43f5e', 'pill-gray': '#9ca3af', 'pill-violet': '#8b5cf6' };
 
 export type GroupMeta = { value: string; label: string; pill?: string };
-export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string }[]; multi?: boolean };
+export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string }[]; multi?: boolean; manage?: () => void };
 
 type Selection = {
   isSelected: (id: string) => boolean;
@@ -127,6 +127,7 @@ function EditableCell({ spec, value, display, onSave, onInvite }: { spec: EditSp
     return (
       <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-[12rem]">
         <Dropdown value={value} onChange={(v) => { if (v !== value) onSave(v); }} items={opts} width={208} search={opts.length > 8}
+          footer={spec.manage ? ((close) => (<button type="button" onClick={() => { close(); spec.manage!(); }} className="w-full flex items-center gap-1.5 px-1.5 py-1 rounded text-2xs text-muted2 hover:text-content hover:bg-surface2"><Icon name="ti-pencil" className="text-2xs" />Edit options</button>)) : undefined}
           trigger={dot
             ? <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-2xs font-medium cursor-pointer max-w-full" style={{ backgroundColor: dot + '1f', color: dot, boxShadow: `inset 0 0 0 1px ${dot}33` }}><span className="truncate">{cur?.label ?? value}</span><Icon name="ti-chevron-down" className="text-2xs opacity-70 shrink-0" /></span>
             : <span className={`input flex items-center justify-between gap-2 cursor-pointer ${INLINE_SELECT_CLS}`}><span className={`truncate ${cur ? 'text-content' : 'text-muted2'}`}>{cur ? cur.label : (value || 'Select…')}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2 shrink-0" /></span>} />

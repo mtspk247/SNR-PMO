@@ -224,7 +224,7 @@ export default function CRM() {
     }
   };
   const dealEditable: Record<string, EditSpec> = {
-    stage: { type: 'select', options: stageNames.map((s) => ({ value: s, label: s, dot: sColor(s) || '#9ca3af' })) },
+    stage: { type: 'select', options: stageNames.map((s) => ({ value: s, label: s, dot: sColor(s) || '#9ca3af' })), manage: isAdmin ? () => setStatusMgr(true) : undefined },
     value: { type: 'number' },
     close: { type: 'date' },
   };

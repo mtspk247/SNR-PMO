@@ -614,7 +614,7 @@ export default function Tasks() {
     }
   };
   const editable: Record<string, EditSpec> = {
-    status: { type: 'select', options: statuses.map((s) => ({ value: s, label: titleCase(s), dot: statusColor(s) || '#9ca3af' })) },
+    status: { type: 'select', options: statuses.map((s) => ({ value: s, label: titleCase(s), dot: statusColor(s) || '#9ca3af' })), manage: canDelete ? () => setStatusMgr(true) : undefined },
     assignee: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
     priority: { type: 'select', options: priorities.map((pr) => ({ value: pr, label: titleCase(pr), dot: PRIORITY_DOT[pr] })) },
     due: { type: 'date' },

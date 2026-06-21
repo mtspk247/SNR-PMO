@@ -27,7 +27,7 @@ export default function Dropdown({
   multiple?: boolean;
   values?: string[];
   onToggle?: (v: string) => void;
-  footer?: React.ReactNode;
+  footer?: React.ReactNode | ((close: () => void) => React.ReactNode);
   placeholder?: string;
   disabled?: boolean;
   allowAdd?: boolean;
@@ -116,7 +116,7 @@ export default function Dropdown({
                 </button>
               )}
               {filtered.length === 0 && !allowAdd && <div className="px-2.5 py-2 text-sm text-muted2">No matches</div>}
-              {footer && <div className="border-t border-line mt-1 pt-1.5 px-0.5" onClick={(e) => e.stopPropagation()}>{footer}</div>}
+              {footer && <div className="border-t border-line mt-1 pt-1.5 px-0.5" onClick={(e) => e.stopPropagation()}>{typeof footer === 'function' ? footer(() => setOpen(false)) : footer}</div>}
             </div>
           </div>
         </>

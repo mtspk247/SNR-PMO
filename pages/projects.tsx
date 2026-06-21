@@ -131,7 +131,7 @@ export default function Projects() {
     }
   };
   const editable: Record<string, EditSpec> = canCreate ? {
-    status: { type: 'select', options: pNames.map((x) => ({ value: x, label: titleCase(x) })) },
+    status: { type: 'select', options: pNames.map((x) => ({ value: x, label: titleCase(x), dot: pColor(x) || '#9ca3af' })), manage: () => setStatusMgr(true) },
     priority: { type: 'select', options: PRIORITIES.map((x) => ({ value: x, label: titleCase(x) })) },
   } : {};
   const rawValue = (id: string, p: Project) => id === 'status' ? p.status : id === 'priority' ? p.priority : '';
