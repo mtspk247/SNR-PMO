@@ -1,4 +1,4 @@
-import { ReactNode, useState, useMemo } from 'react';
+import { ReactNode, useState, useMemo, useEffect, useRef } from 'react';
 import { ListToolbar, useListPrefs, ColDef, FilterDef, ListPrefs } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
 import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
@@ -74,6 +74,28 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
   const [sortBy, setSortBy] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [view, setView] = useState<'list' | 'board'>('list');
+  // Persist sort + view + grouping per-user (last-used), keyed off the list's prefs storage key.
+  const vsKey = prefs.storageKey + ':vs';
+  const vsLoaded = useRef(false);
+  useEffect(() => {
+    vsLoaded.current = false;
+    try {
+      const raw = localStorage.getItem(vsKey);
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (typeof v.sortBy === 'string') setSortBy(v.sortBy);
+        if (v.sortDir === 'asc' || v.sortDir === 'desc') setSortDir(v.sortDir);
+        if (canGroup && typeof v.grouped === 'boolean') setGrouped(v.grouped);
+        if (canGroup && (v.view === 'list' || v.view === 'board')) setView(v.view);
+      }
+    } catch { /* ignore */ }
+    vsLoaded.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vsKey]);
+  useEffect(() => {
+    if (!vsLoaded.current) return;
+    try { localStorage.setItem(vsKey, JSON.stringify({ sortBy, sortDir, grouped, view })); } catch { /* ignore */ }
+  }, [vsKey, sortBy, sortDir, grouped, view]);
   const sorted = useMemo<T[] | null>(() => {
     if (rows === null) return null;
     if (!sortBy) return rows;
@@ -105,32 +127,30 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
 
   return (
     <>
-      <div className="flex items-center gap-2 flex-wrap mb-4">
-        <div className="flex-1 min-w-0">
-          <ListToolbar prefs={prefs} cols={cols} filters={p.filters} placeholder={p.searchPlaceholder || 'Search…'}>
-            {p.toolbarExtra}
-          </ListToolbar>
-        </div>
-        {canGroup && (
-          <Dropdown value={grouped ? 'group' : 'none'} onChange={(v) => setGrouped(v === 'group')} width={190}
-            items={[{ value: 'none', label: 'No grouping' }, { value: 'group', label: `Group: ${p.groupField!.label}` }]}
-            trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{grouped ? `Group: ${p.groupField!.label}` : 'No grouping'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
-        )}
-        <Dropdown value={sortBy} onChange={setSortBy} width={190}
-          items={[{ value: '', label: 'No sort' }, ...prefs.ordered.map((id) => ({ value: id, label: `Sort: ${cols.find((c) => c.id === id)?.label || id}` }))]}
-          trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{sortBy ? `Sort: ${cols.find((c) => c.id === sortBy)?.label || sortBy}` : 'No sort'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
-        {sortBy && <button onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} title={sortDir === 'asc' ? 'Ascending' : 'Descending'} className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-line bg-surface text-muted hover:text-content hover:border-borderstrong shrink-0"><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>}
-        {canGroup && (
-          <div className="flex items-center rounded-md border border-line overflow-hidden h-9 shrink-0">
-            {(['list', 'board'] as const).map((vw) => (
-              <button key={vw} onClick={() => setView(vw)}
-                className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === vw ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
-                <Icon name={vw === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{vw}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <ListToolbar prefs={prefs} cols={cols} filters={p.filters} placeholder={p.searchPlaceholder || 'Search…'}
+        rightControls={<>
+          {canGroup && (
+            <Dropdown value={grouped ? 'group' : 'none'} onChange={(v) => setGrouped(v === 'group')} width={190}
+              items={[{ value: 'none', label: 'No grouping' }, { value: 'group', label: `Group: ${p.groupField!.label}` }]}
+              trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{grouped ? `Group: ${p.groupField!.label}` : 'No grouping'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+          )}
+          <Dropdown value={sortBy} onChange={setSortBy} width={190}
+            items={[{ value: '', label: 'No sort' }, ...prefs.ordered.map((id) => ({ value: id, label: `Sort: ${cols.find((c) => c.id === id)?.label || id}` }))]}
+            trigger={<span className="inline-flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-line bg-surface text-sm text-content hover:border-borderstrong cursor-pointer whitespace-nowrap">{sortBy ? `Sort: ${cols.find((c) => c.id === sortBy)?.label || sortBy}` : 'No sort'}<Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+          {sortBy && <button onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} title={sortDir === 'asc' ? 'Ascending' : 'Descending'} className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-line bg-surface text-muted hover:text-content hover:border-borderstrong shrink-0"><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>}
+          {canGroup && (
+            <div className="flex items-center rounded-md border border-line overflow-hidden h-9 shrink-0">
+              {(['list', 'board'] as const).map((vw) => (
+                <button key={vw} onClick={() => setView(vw)}
+                  className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${view === vw ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}>
+                  <Icon name={vw === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{vw}
+                </button>
+              ))}
+            </div>
+          )}
+        </>}>
+        {p.toolbarExtra}
+      </ListToolbar>
 
       {hasBulk && (
         <BulkBar count={rs.count} onClear={rs.clear}>

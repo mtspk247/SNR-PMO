@@ -24,6 +24,7 @@ export type ListPrefs = {
   widths: Record<string, number>; setWidth: (id: string, w: number) => void;
   wrap: Record<string, boolean>; toggleWrap: (id: string) => void;
   pinned: number; setPinned: (n: number) => void; // # of leading columns frozen (sticky-left)
+  storageKey: string;
 };
 
 export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { entity?: string; orgId?: string; canManage?: boolean }): ListPrefs {
@@ -91,11 +92,11 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   const setWidth = (id: string, w: number) => setWidths((pr) => ({ ...pr, [id]: Math.max(60, Math.round(w)) }));
   const toggleWrap = (id: string) => setWrap((pr) => ({ ...pr, [id]: !pr[id] }));
   const ordered = order.filter((id) => visible.has(id) && ids.includes(id));
-  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: cfOpts?.entity ? cf : undefined, widths, setWidth, wrap, toggleWrap, pinned, setPinned };
+  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: cfOpts?.entity ? cf : undefined, widths, setWidth, wrap, toggleWrap, pinned, setPinned, storageKey };
 }
 
-export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children }:
-  { prefs: ListPrefs; cols: ColDef[]; filters?: FilterDef[]; placeholder?: string; children?: React.ReactNode }) {
+export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children, rightControls }:
+  { prefs: ListPrefs; cols: ColDef[]; filters?: FilterDef[]; placeholder?: string; children?: React.ReactNode; rightControls?: React.ReactNode }) {
   const [fOpen, setFOpen] = useState(false);
   const [cOpen, setCOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -176,6 +177,7 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
           </div>
         )}
       </div>
+      {rightControls}
     </div>
   );
 }
