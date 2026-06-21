@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
+import RefLink from '@/components/RefLink';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { PageHeader, StatCard, Icon, Tabs } from '@/components/ui';
@@ -267,8 +268,8 @@ export default function AccountingPage() {
       case 'date': return <span className="text-2xs text-muted tabular-nums">{e.entry_date}</span>;
       case 'type': return <span className={`pill ${e.type === 'income' ? 'pill-green' : 'pill-red'}`}>{e.type}</span>;
       case 'category': return <span className="font-medium">{e.category}{e.payroll_run_id && <Icon name="ti-lock" className="ml-1 text-2xs text-muted2" />}</span>;
-      case 'project': return <span className="text-2xs text-muted">{e.project?.name || '—'}</span>;
-      case 'company': return <span className="text-2xs text-muted">{e.company?.name || '—'}</span>;
+      case 'project': return e.project?.name ? (e.project_id ? <RefLink href={`/projects/${e.project_id}`} label={e.project.name} className="text-2xs text-muted" /> : <span className="text-2xs text-muted">{e.project.name}</span>) : <span className="text-2xs text-muted">—</span>;
+      case 'company': return e.company?.name ? (e.company_id ? <RefLink href={`/companies/${e.company_id}`} label={e.company.name} className="text-2xs text-muted" /> : <span className="text-2xs text-muted">{e.company.name}</span>) : <span className="text-2xs text-muted">—</span>;
       case 'notes': return <span className="text-2xs text-muted block max-w-[16rem] truncate">{e.notes || '—'}</span>;
       case 'amount': return <span className={`block text-right font-medium tabular-nums ${e.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>{e.type === 'income' ? '+' : '−'}{money(e.amount)}</span>;
       default: return null;

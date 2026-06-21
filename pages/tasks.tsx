@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
+import RefLink from '@/components/RefLink';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Dropdown from '@/components/Dropdown';
@@ -606,7 +607,7 @@ export default function Tasks() {
       case 'status': return <StatusBadge status={t.status} color={statusColor(t.status)} />;
       case 'assignee': return t.assignee_id ? <span className="inline-flex items-center gap-1.5 min-w-0"><Avatar name={userName(t.assignee_id)} size={20} src={userAvatar(t.assignee_id)} /><span className="truncate text-content">{userName(t.assignee_id)}</span></span> : <span className="text-muted2">Unassigned</span>;
       case 'priority': return <Pill label={t.priority} />;
-      case 'project': return <span className="text-muted truncate">{t.projects?.name || '—'}</span>;
+      case 'project': return t.project_id && t.projects?.name ? <RefLink href={`/projects/${t.project_id}`} label={t.projects.name} className="text-muted" /> : <span className="text-muted truncate">{t.projects?.name || '—'}</span>;
       case 'created': return <span className="text-muted2 tnum">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}</span>;
       case 'due': { const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled'; return <span className={`tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>; }
       default: return <span className="text-muted2">—</span>;

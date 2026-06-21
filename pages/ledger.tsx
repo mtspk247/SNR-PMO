@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import RefLink from '@/components/RefLink';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
@@ -455,7 +456,7 @@ export default function LedgerPage() {
               <thead><tr><th className="px-4 py-2 text-left">Project</th><th className="px-4 py-2 text-right w-36">Revenue</th><th className="px-4 py-2 text-right w-36">Cost</th><th className="px-4 py-2 text-right w-36">Margin</th></tr></thead>
               <tbody>{projRows.map((r) => (
                 <tr key={r.project_id}>
-                  <td className="px-4 py-2 text-content">{r.project_name || r.project_id.slice(0, 8)}</td>
+                  <td className="px-4 py-2 text-content"><RefLink href={`/projects/${r.project_id}`} label={r.project_name || r.project_id.slice(0, 8)} className="text-content" /></td>
                   <td className="px-4 py-2 text-right tabular-nums text-emerald-600">{money(Number(r.revenue))}</td>
                   <td className="px-4 py-2 text-right tabular-nums text-rose-600">{money(Number(r.cost))}</td>
                   <td className={`px-4 py-2 text-right tabular-nums font-medium ${Number(r.margin) >= 0 ? 'text-content' : 'text-rose-600'}`}>{money(Number(r.margin))}</td>
