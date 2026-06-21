@@ -68,13 +68,13 @@ export default function HeaderActions({ onOpenChat }: { onOpenChat: () => void }
 
       {/* The single control: hover (desktop) peeks; click pins/unpins (persisted). */}
       <button onClick={togglePin}
-        title={pinned ? 'Unpin tools' : 'Tools'} aria-label="Header tools" aria-expanded={expanded}
+        title={pinned ? 'Unpin tools' : expanded ? 'Pin tools open' : 'Tools'} aria-label="Header tools" aria-expanded={expanded}
         className={`relative h-9 w-9 grid place-items-center rounded-lg border transition ${
           pinned
             ? 'border-accent/60 text-accentstrong bg-accent/10'
             : 'border-line text-muted hover:text-content hover:bg-surface2'
         }`}>
-        <Icon name={pinned ? 'ti-pin' : 'ti-dots'} className="text-base" />
+        <Icon name={expanded ? 'ti-pin' : 'ti-dots'} className="text-base" />
         {!expanded && attention > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-[#fff] text-2xs grid place-items-center">
             {attention > 9 ? '9+' : attention}
