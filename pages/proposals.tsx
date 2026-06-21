@@ -10,7 +10,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listProposals, createProposal, updateProposal, deleteProposal, Proposal } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
-import { getOrgUsers, getTaskStatuses, TaskStatus } from '@/lib/db';
+import { getOrgUsers, getTaskStatuses, TaskStatus, inviteMember } from '@/lib/db';
 import StatusManager from '@/components/StatusManager';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
@@ -237,6 +237,10 @@ export default function ProposalsPage() {
           groupOf={(p) => p.status}
           groups={GROUPS}
           onAddInGroup={(g) => setEditor({ draft: { ...emptyDraft(), status: g as Proposal['status'] } })}
+          editable={{ owner: { type: 'person' as const, options: users.map((u) => ({ value: u.id, label: u.full_name })) } }}
+          rawValue={(id, p) => (id === 'owner' ? (p.owner_id || '') : '')}
+          onEdit={(p, id, v) => { if (id === 'owner') updateProposal(p.id, { owner_id: v || null } as any).then(load).catch((e: any) => alert(e.message)); }}
+          onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
         />
       )}
 

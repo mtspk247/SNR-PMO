@@ -13,7 +13,7 @@ import { useRowSelection, BulkAssign } from '@/components/RowSelection';
 import { GroupMeta, EditSpec } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import { OrgUser } from '@/lib/supabase';
-import { getOrgUsers } from '@/lib/db';
+import { getOrgUsers, inviteMember } from '@/lib/db';
 import StatusManager from '@/components/StatusManager';
 
 const STATUS_PILL: Record<string, string> = {
@@ -226,6 +226,7 @@ export default function ClientsPage() {
         editable={editable}
         rawValue={rawValue}
         onEdit={onInlineEdit}
+        onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
         onRowClick={(c) => setEditor({ mode: 'edit', draft: c })}
         onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as ClientStatus } })}
         exportName="clients"

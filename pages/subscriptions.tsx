@@ -8,7 +8,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import {
   listVendorSubscriptions, createVendorSubscription, updateVendorSubscription, deleteVendorSubscription,
-  requestVendorSubscription, listReconciliations, addReconciliation, deleteReconciliation, getOrgUsers,
+  requestVendorSubscription, listReconciliations, addReconciliation, deleteReconciliation, getOrgUsers, inviteMember,
   VendorSubscription, VendorSubReconciliation,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
@@ -151,7 +151,7 @@ export default function SubscriptionsPage() {
       ) : shown.length === 0 ? (
         <div className="card p-8 border border-line/40"><EmptyState icon="ti-credit-card" text="No subscriptions yet." /></div>
       ) : (
-        <DataList rows={shown} rowKey={(s) => s.id} cols={COLS} prefs={prefs} cell={cell} onRowClick={(s) => setDetail(s)} selection={rs} groupBy={groupBy} groupOf={(s) => s.status} groups={GROUPS} />
+        <DataList rows={shown} rowKey={(s) => s.id} cols={COLS} prefs={prefs} cell={cell} onRowClick={(s) => setDetail(s)} selection={rs} groupBy={groupBy} groupOf={(s) => s.status} groups={GROUPS} editable={{ owner: { type: 'person' as const, options: users.map((u) => ({ value: u.id, label: u.full_name })) } }} rawValue={(id, s) => (id === 'owner' ? (s.owner_id || '') : '')} onEdit={(s, id, v) => { if (id === 'owner') updateVendorSubscription(s.id, { owner_id: v || null } as any).then(load).catch((e: any) => alert(e.message)); }} onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined} />
       )}
 
       {/* Add / Edit / Request editor */}

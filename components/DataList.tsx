@@ -16,7 +16,7 @@ const CF_PREFIX = 'cf:';
 const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
 
 export type GroupMeta = { value: string; label: string; pill?: string };
-export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string }[] };
+export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string }[]; multi?: boolean };
 
 type Selection = {
   isSelected: (id: string) => boolean;
@@ -50,41 +50,61 @@ export type DataListProps<T> = {
   /** Primary/name column id — the only cell that opens the record detail on click.
    *  Defaults to the first declared column. */
   nameCol?: string;
+  /** Invite-by-email handler for person/assignee cells (org-scoped, page-supplied). */
+  onInvitePerson?: (email: string) => void | Promise<void>;
 };
 
-function PersonPicker({ options, value, onSave }: { options: { value: string; label: string }[]; value: string; onSave: (v: string) => void }) {
+function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { value: string; label: string }[]; value: string; onSave: (v: string) => void; multi?: boolean; onInvite?: (email: string) => void | Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const cur = options.find((o) => o.value === value);
+  const [inviting, setInviting] = useState(false);
+  const sel = multi ? value.split(',').map((s) => s.trim()).filter(Boolean) : (value ? [value] : []);
+  const selOpts = sel.map((id) => options.find((o) => o.value === id)).filter(Boolean) as { value: string; label: string }[];
   const list = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q.trim());
+  const pick = (id: string) => {
+    if (multi) { const next = sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]; onSave(next.join(',')); }
+    else { onSave(id); setOpen(false); }
+  };
+  const doInvite = async () => { if (!onInvite || !isEmail) return; setInviting(true); try { await onInvite(q.trim()); setQ(''); } finally { setInviting(false); } };
   return (
-    <span className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
-      <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-1.5 -mx-1 px-1 py-0.5 rounded hover:bg-surface2 transition">
-        {cur ? <><Avatar name={cur.label} size={20} /><span className="text-sm text-content truncate max-w-[9rem]">{cur.label}</span></>
-             : <span className="inline-flex items-center gap-1 text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-plus" className="text-2xs" /></span></span>}
+    <span className="relative inline-flex max-w-full" onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-1.5 -mx-1 px-1 py-0.5 rounded hover:bg-surface2 transition max-w-full">
+        {selOpts.length > 0
+          ? (multi
+              ? <span className="inline-flex items-center -space-x-1.5">{selOpts.slice(0, 3).map((o) => <span key={o.value} title={o.label} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={20} /></span>)}{selOpts.length > 3 && <span className="ml-2.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}</span>
+              : <><Avatar name={selOpts[0].label} size={20} /><span className="text-sm text-content truncate max-w-[9rem]">{selOpts[0].label}</span></>)
+          : <span className="inline-flex items-center gap-1 text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-plus" className="text-2xs" /></span></span>}
       </button>
       {open && <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />}
       {open && (
-        <div className="absolute left-0 top-7 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-1.5">
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…" className="input h-8 text-sm w-full mb-1" />
+        <div className="absolute left-0 top-7 z-20 w-60 bg-surface border border-line rounded-lg shadow-lg p-1.5">
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={onInvite ? 'Search or invite by email…' : 'Search people…'} className="input h-8 text-sm w-full mb-1" />
           <div className="max-h-56 overflow-auto">
-            <button onClick={() => { onSave(''); setOpen(false); }} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-x" className="text-2xs" /></span>Unassigned</button>
-            {list.map((o) => (
-              <button key={o.value} onClick={() => { onSave(o.value); setOpen(false); }} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${o.value === value ? 'bg-accent/5' : ''}`}>
-                <Avatar name={o.label} size={22} /><span className="truncate text-content">{o.label}</span>{o.value === value && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
+            {!multi && <button onClick={() => { onSave(''); setOpen(false); }} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-x" className="text-2xs" /></span>Unassigned</button>}
+            {list.map((o) => { const on = sel.includes(o.value); return (
+              <button key={o.value} onClick={() => pick(o.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${on ? 'bg-accent/5' : ''}`}>
+                <Avatar name={o.label} size={22} /><span className="truncate text-content">{o.label}</span>{on && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
               </button>
-            ))}
+            ); })}
+            {onInvite && isEmail && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase()) && (
+              <button onClick={doInvite} disabled={inviting} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-accent/10 text-sm text-accentstrong">
+                <span className="grid place-items-center h-5 w-5 rounded-full bg-accent/15"><Icon name="ti-mail" className="text-2xs" /></span><span className="truncate">{inviting ? 'Inviting…' : `Invite ${q.trim()}`}</span>
+              </button>
+            )}
+            {list.length === 0 && !isEmail && <div className="px-2 py-2 text-sm text-muted2">No people found</div>}
           </div>
+          {multi && <button onClick={() => setOpen(false)} className="w-full mt-1 pt-1 border-t border-line/60 text-2xs text-muted2 hover:text-content">Done</button>}
         </div>
       )}
     </span>
   );
 }
 
-function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value: string; display: ReactNode; onSave: (v: string) => void }) {
+function EditableCell({ spec, value, display, onSave, onInvite }: { spec: EditSpec; value: string; display: ReactNode; onSave: (v: string) => void; onInvite?: (email: string) => void | Promise<void> }) {
   const [editing, setEditing] = useState(false);
   if (spec.type === 'person') {
-    return <PersonPicker options={spec.options || []} value={value} onSave={onSave} />;
+    return <PersonPicker options={spec.options || []} value={value} onSave={onSave} multi={spec.multi} onInvite={onInvite} />;
   }
   if (spec.type === 'select') {
     const opts = spec.options || [];
@@ -134,7 +154,7 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey, nameCol }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey, nameCol, onInvitePerson }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -300,7 +320,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
           return (
             <td key={cid} data-col={cid} className={`px-4 py-2.5 text-sm text-muted align-middle ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'truncate'}`}>
               {ed && save && rv !== undefined
-                ? <EditableCell spec={ed} value={rv} display={disp} onSave={save} />
+                ? <EditableCell spec={ed} value={rv} display={disp} onSave={save} onInvite={onInvitePerson} />
                 : disp}
             </td>
           );

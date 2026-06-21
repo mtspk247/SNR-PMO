@@ -47,6 +47,7 @@ export type ListViewProps<T extends { id: string }> = {
   // ── interactions ────────────────────────────────────────
   onRowClick?: (r: T) => void;
   nameCol?: string;                       // primary/name column id (defaults to first col)
+  onInvitePerson?: (email: string) => void | Promise<void>;  // invite-by-email from person cells
   onAddInGroup?: (groupValue: string) => void;
   orderKey?: string;                      // enables persisted drag-to-reorder of rows
   // ── bulk actions ────────────────────────────────────────
@@ -173,6 +174,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           onAddInGroup={p.onAddInGroup}
           orderKey={p.orderKey}
           nameCol={p.nameCol}
+          onInvitePerson={p.onInvitePerson}
         />
       )}
     </>

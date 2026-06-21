@@ -8,7 +8,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listJobs, createJob, updateJob, deleteJob, JobPosting } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
-import { getOrgUsers } from '@/lib/db';
+import { getOrgUsers, inviteMember } from '@/lib/db';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar, BulkAssign } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
@@ -188,7 +188,7 @@ export default function JobsPage() {
       ) : shown.length === 0 ? (
         <div className="card p-8 border border-line/40"><EmptyState icon="ti-briefcase" text="No job postings yet." /></div>
       ) : (
-        <DataList rows={shown} rowKey={(j) => j.id} cols={COLS} prefs={prefs} cell={cell} onRowClick={(j) => setEditor({ mode: 'edit', draft: j })} selection={rs} groupBy={groupBy} groupOf={(j) => j.status} groups={GROUPS} onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as typeof STATUSES[number] } })} />
+        <DataList rows={shown} rowKey={(j) => j.id} cols={COLS} prefs={prefs} cell={cell} onRowClick={(j) => setEditor({ mode: 'edit', draft: j })} selection={rs} groupBy={groupBy} groupOf={(j) => j.status} groups={GROUPS} onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as typeof STATUSES[number] } })} editable={{ owner: { type: 'person' as const, options: users.map((u) => ({ value: u.id, label: u.full_name })) } }} rawValue={(id, j) => (id === 'owner' ? (j.owner_id || '') : '')} onEdit={(j, id, v) => { if (id === 'owner') updateJob(j.id, { owner_id: v || null } as any).then(load).catch((e: any) => alert(e.message)); }} onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined} />
       )}
 
       {editor && (
