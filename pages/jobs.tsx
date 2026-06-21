@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
 import { PersonTag, PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -50,6 +50,10 @@ export default function JobsPage() {
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
+  const initialRef = useRef('');
+  // capture the draft snapshot only when the editor opens (not each keystroke)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (editor) initialRef.current = JSON.stringify(editor.draft); }, [!!editor]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [groupBy, setGroupBy] = useState<'status' | 'none'>('status');
@@ -191,7 +195,7 @@ export default function JobsPage() {
       )}
 
       {editor && (
-        <Modal open onClose={() => setEditor(null)} size="lg" icon="ti-briefcase"
+        <Modal open onClose={() => setEditor(null)} dirty={editor ? JSON.stringify(editor.draft) !== initialRef.current : false} size="lg" icon="ti-briefcase"
           title={editor.mode === 'edit' ? 'Edit job posting' : 'Add job posting'}
           onSubmit={() => save()}
           footer={

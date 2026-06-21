@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
 import { PersonTag, PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
@@ -51,6 +51,10 @@ export default function SubscriptionsPage() {
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit' | 'request'; draft: Draft } | null>(null);
+  const initialRef = useRef('');
+  // capture the draft snapshot only when the editor opens (not each keystroke)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (editor) initialRef.current = JSON.stringify(editor.draft); }, [!!editor]);
   const [detail, setDetail] = useState<VendorSubscription | null>(null);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [groupBy, setGroupBy] = useState<'status' | 'none'>('status');
@@ -155,7 +159,7 @@ export default function SubscriptionsPage() {
 
       {/* Add / Edit / Request editor */}
       {editor && (
-        <Modal open onClose={() => setEditor(null)} size="lg" icon="ti-credit-card"
+        <Modal open onClose={() => setEditor(null)} dirty={editor ? JSON.stringify(editor.draft) !== initialRef.current : false} size="lg" icon="ti-credit-card"
           title={editor.mode === 'request' ? 'Request a subscription' : editor.mode === 'edit' ? 'Edit subscription' : 'Add subscription'}
           subtitle={editor.mode === 'request' ? 'Sent to admins for approval' : undefined} onSubmit={() => save()}
           footer={<><button className="btn" onClick={() => setEditor(null)}>Cancel</button><button className="btn btn-primary" disabled={busy || !editor.draft.service?.trim()} onClick={save}>{busy ? 'Saving…' : editor.mode === 'request' ? 'Submit request' : 'Save'}</button></>}>

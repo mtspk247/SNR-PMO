@@ -64,7 +64,7 @@ export default function ClientsPage() {
   const prefs = useListPrefs('snrpmo.clients.cols', COLS, { entity: 'clients', orgId: org?.id, canManage: isAdmin });
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
-  const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft } | null>(null);
+  const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft; initial: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   // Set of collapsed group keys
@@ -195,7 +195,7 @@ export default function ClientsPage() {
         action={
           <div className="flex items-center gap-2">
             {isAdmin && <button className="btn" onClick={() => setStatusMgr(true)}><Icon name="ti-flag-3" className="text-sm" />Statuses</button>}
-            <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft() })}>
+            <button className="btn btn-primary" onClick={() => setEditor({ mode: 'add', draft: emptyDraft(), initial: JSON.stringify(emptyDraft()) })}>
               <Icon name="ti-plus" />Add client
             </button>
           </div>
@@ -228,8 +228,8 @@ export default function ClientsPage() {
         onEdit={onInlineEdit}
         onRename={(c, v) => { updateClient(c.id, { name: v } as any).then(load).catch((e: any) => setErr(e.message)); }}
         onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
-        onRowClick={(c) => setEditor({ mode: 'edit', draft: c })}
-        onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as ClientStatus } })}
+        onRowClick={(c) => setEditor({ mode: 'edit', draft: c, initial: JSON.stringify(c) })}
+        onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as ClientStatus }, initial: JSON.stringify({ ...emptyDraft(), status: g as ClientStatus }) })}
         exportName="clients"
         exportValue={exportValue}
         bulkActions={() => <BulkAssign users={users} onAssign={bulkAssign} />}
@@ -244,6 +244,7 @@ export default function ClientsPage() {
         <Modal
           open
           onClose={() => setEditor(null)}
+          dirty={JSON.stringify(editor.draft) !== editor.initial}
           size="lg"
           icon="ti-users"
           title={editor.mode === 'edit' ? 'Edit client' : 'Add client'}

@@ -19,10 +19,12 @@ export function useModalTabs(initial: string) {
  * `headerExtra` renders inline next to the title (pills, EntityLink dropdowns…).
  */
 export function Modal({
-  open, onClose, title, subtitle, icon, size = 'md', onSubmit, children, footer, headerExtra, tabs, tab, onTab,
+  open, onClose, title, subtitle, icon, size = 'md', onSubmit, children, footer, headerExtra, tabs, tab, onTab, dirty,
 }: {
   open: boolean;
   onClose: () => void;
+  /** When true, ESC / backdrop / X confirm before discarding (unsaved-changes guard). */
+  dirty?: boolean;
   title: string;
   subtitle?: string;
   icon?: string;
@@ -39,7 +41,7 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+      if (e.key === 'Escape') { e.stopPropagation(); if (dirty && !window.confirm('Discard unsaved changes?')) return; onClose(); }
       else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && onSubmit) { e.preventDefault(); onSubmit(); }
       else if (e.key === 'Enter' && onSubmit) {
         // Standard form behaviour: Enter in a single-line input/select submits.
@@ -51,14 +53,15 @@ export function Modal({
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [open, onClose, onSubmit]);
+  }, [open, onClose, onSubmit, dirty]);
 
   if (!open) return null;
+  const requestClose = () => { if (dirty && !window.confirm('Discard unsaved changes?')) return; onClose(); };
 
   return (
     <div
       className="modal-backdrop fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
+      onClick={requestClose}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -82,7 +85,7 @@ export function Modal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             className="btn btn-ghost h-8 w-8 px-0 -mt-1 -mr-1 text-muted hover:text-content"
           >

@@ -142,6 +142,9 @@ export default function Tasks() {
   // Create/edit modal — shared form for both flows.
   const [modal, setModal] = useState<null | { mode: 'create' | 'edit'; id?: string }>(null);
   const [form, setForm] = useState<TaskForm>(EMPTY_FORM);
+  const taskInitialRef = useRef('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (modal) taskInitialRef.current = JSON.stringify(form); }, [!!modal]);
 
   useEffect(() => {
     getOrgUsers().then(setUsers).finally(() => setUsersLoading(false));
@@ -802,6 +805,7 @@ export default function Tasks() {
       <Modal
         open={!!modal}
         onClose={closeModal}
+        dirty={!!modal && JSON.stringify(form) !== taskInitialRef.current}
         title={modal?.mode === 'edit' ? 'Edit task' : 'New task'}
         subtitle={modal?.mode === 'edit' ? 'Update details, assignment and schedule.' : 'Add a task and assign it to a project.'}
         icon={modal?.mode === 'edit' ? 'ti-edit' : 'ti-checkbox'}

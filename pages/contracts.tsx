@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
@@ -63,6 +63,10 @@ export default function ContractsPage() {
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
   const [editor, setEditor] = useState<{ draft: Draft } | null>(null);
+  const initialRef = useRef('');
+  // capture the draft snapshot only when the editor opens (not each keystroke)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (editor) initialRef.current = JSON.stringify(editor.draft); }, [!!editor]);
   const [detail, setDetail] = useState<Contract | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -239,7 +243,7 @@ export default function ContractsPage() {
 
       {/* Add/Edit modal */}
       {editor && (
-        <Modal open onClose={() => setEditor(null)} size="lg" icon="ti-file-certificate"
+        <Modal open onClose={() => setEditor(null)} dirty={editor ? JSON.stringify(editor.draft) !== initialRef.current : false} size="lg" icon="ti-file-certificate"
           title={editor.draft.id ? 'Edit contract' : 'Add contract'}
           onSubmit={save}
           footer={

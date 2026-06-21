@@ -372,6 +372,9 @@ export default function IdeasPage() {
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
+        dirty={editing
+          ? (form.title !== editing.title || form.pitch !== (editing.pitch || '') || form.status !== editing.status)
+          : (!!form.title.trim() || !!form.pitch.trim() || form.status !== 'idea')}
         onSubmit={save}
         title={editing ? 'Edit idea' : 'New idea'}
         subtitle={editing ? editing.title : 'Capture a new idea for the backlog'}
