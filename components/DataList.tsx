@@ -5,6 +5,7 @@ import Dropdown from '@/components/Dropdown';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
 import AddColumnForm from '@/components/AddColumnForm';
+import { useAuthStore } from '@/lib/store';
 
 // One reusable, ClickUp-style list: PLAIN borderless rows that highlight on hover,
 // a left 6-dot grip handle that drags rows with a floating chip that STICKS TO THE
@@ -66,6 +67,8 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [inviting, setInviting] = useState(false);
+  const meId = useAuthStore((st) => st.user?.id);
+  const meOpt = meId ? options.find((o) => o.value === meId) : undefined;
   const sel = multi ? value.split(',').map((s) => s.trim()).filter(Boolean) : (value ? [value] : []);
   const selOpts = sel.map((id) => options.find((o) => o.value === id)).filter(Boolean) as { value: string; label: string }[];
   const list = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
@@ -77,20 +80,23 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
   const doInvite = async () => { if (!onInvite || !isEmail) return; setInviting(true); try { await onInvite(q.trim()); setQ(''); } finally { setInviting(false); } };
   return (
     <span className="relative inline-flex max-w-full" onClick={(e) => e.stopPropagation()}>
-      <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-1.5 -mx-1 px-1 py-0.5 rounded hover:bg-surface2 transition max-w-full">
+      <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center -mx-1 px-1 py-0.5 rounded transition max-w-full">
         {selOpts.length > 0
-          ? (multi
-              ? <span className="inline-flex items-center -space-x-1.5">{selOpts.slice(0, 3).map((o) => <span key={o.value} title={o.label} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={20} /></span>)}{selOpts.length > 3 && <span className="ml-2.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}</span>
-              : <span title={selOpts[0].label} className="inline-flex"><Avatar name={selOpts[0].label} size={20} /></span>)
-          : <span className="inline-flex items-center gap-1 text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-plus" className="text-2xs" /></span></span>}
+          ? <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-1 py-0.5 hover:border-borderstrong transition">
+              {multi
+                ? <span className="inline-flex items-center -space-x-1.5">{selOpts.slice(0, 3).map((o) => <span key={o.value} title={o.label} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={20} /></span>)}{selOpts.length > 3 && <span className="ml-1.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}</span>
+                : <span title={selOpts[0].label} className="inline-flex"><Avatar name={selOpts[0].label} size={20} /></span>}
+            </span>
+          : <span className="inline-flex items-center gap-1 text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong hover:border-borderstrong"><Icon name="ti-plus" className="text-2xs" /></span></span>}
       </button>
       {open && <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />}
       {open && (
         <div className="absolute left-0 top-7 z-20 w-60 bg-surface border border-line rounded-lg shadow-lg p-1.5">
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={onInvite ? 'Search or invite by email…' : 'Search people…'} className="input h-8 text-sm w-full mb-1" />
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={onInvite ? 'Search or enter email…' : 'Search people…'} className="input h-8 text-sm w-full mb-1" />
           <div className="max-h-56 overflow-auto">
+            {meOpt && !q && <button onClick={() => pick(meOpt.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${sel.includes(meOpt.value) ? 'bg-accent/5' : ''}`}><Avatar name={meOpt.label} size={22} /><span className="text-content font-medium">Me</span>{sel.includes(meOpt.value) && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}</button>}
             {!multi && <button onClick={() => { onSave(''); setOpen(false); }} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-x" className="text-2xs" /></span>Unassigned</button>}
-            {list.map((o) => { const on = sel.includes(o.value); return (
+            {(q ? list : list.filter((o) => o.value !== meId)).map((o) => { const on = sel.includes(o.value); return (
               <button key={o.value} onClick={() => pick(o.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${on ? 'bg-accent/5' : ''}`}>
                 <Avatar name={o.label} size={22} /><span className="truncate text-content">{o.label}</span>{on && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
               </button>
