@@ -9,7 +9,7 @@ import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import StatusManager from '@/components/StatusManager';
 import EntityLink from '@/components/EntityLink';
-import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
+import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta, INLINE_SELECT_CLS } from '@/components/ui';
 import { getOrgUsers, createTask, updateTask, deleteTask, notify, avatarSrc, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
@@ -598,8 +598,8 @@ export default function Tasks() {
     switch (id) {
       case 'status':
         return (
-          <span onClick={(e) => e.stopPropagation()} className="inline-flex">
-            <Select value={t.status} onChange={(v) => setStatus(t.id, v)} disabled={busy} options={[...statuses.map((s) => ({ value: s, label: titleCase(s) }))]} />
+          <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-full">
+            <Select value={t.status} onChange={(v) => setStatus(t.id, v)} disabled={busy} options={[...statuses.map((s) => ({ value: s, label: titleCase(s) }))]} className={INLINE_SELECT_CLS} />
           </span>
         );
       case 'assignee':

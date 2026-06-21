@@ -24,6 +24,8 @@ const COLOR: Record<string, string> = {
   'On track': 'pill-green', 'At risk': 'pill-amber', 'Off track': 'pill-red',
 };
 
+export const INLINE_SELECT_CLS = 'h-7 py-0 text-xs';
+
 export const Pill = ({ label }: { label: string }) => (
   <span className={`pill ${COLOR[label] || 'pill-gray'}`}>{label}</span>
 );

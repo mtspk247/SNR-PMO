@@ -1,6 +1,6 @@
 import { useState, useEffect, ReactNode } from 'react';
 import type { PointerEvent as RPointerEvent } from 'react';
-import { Icon, Avatar } from '@/components/ui';
+import { Icon, Avatar, INLINE_SELECT_CLS } from '@/components/ui';
 import Select from '@/components/Select';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
@@ -47,6 +47,9 @@ export type DataListProps<T> = {
   onAddInGroup?: (groupValue: string) => void;
   /** When set, the grip handle reorders rows and persists the manual order per-user. */
   orderKey?: string;
+  /** Primary/name column id — the only cell that opens the record detail on click.
+   *  Defaults to the first declared column. */
+  nameCol?: string;
 };
 
 function PersonPicker({ options, value, onSave }: { options: { value: string; label: string }[]; value: string; onSave: (v: string) => void }) {
@@ -86,7 +89,7 @@ function EditableCell({ spec, value, display, onSave }: { spec: EditSpec; value:
   if (spec.type === 'select') {
     return (
       <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-[12rem]">
-        <Select value={value} onChange={(v) => { if (v !== value) onSave(v); }} options={spec.options || []} className="h-7 py-0 text-xs" />
+        <Select value={value} onChange={(v) => { if (v !== value) onSave(v); }} options={spec.options || []} className={INLINE_SELECT_CLS} />
       </span>
     );
   }
@@ -125,7 +128,7 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey, nameCol }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -206,6 +209,8 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
 
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const labelOf = (id: string) => (prefs.allCols || cols).find((c) => c.id === id)?.label;
+  // Primary/name column = the ONLY click target that opens the record detail (ClickUp model).
+  const primaryId = [nameCol, cols[0]?.id].find((x) => x && prefs.ordered.includes(x)) || prefs.ordered[0];
   const selCol = !!selection;
   const colW = (id: string, i: number) => prefs.widths[id] ?? (i === 0 ? 280 : 160);
   const totalW = (rowDnD ? 28 : 0) + (selCol ? 36 : 0) + prefs.ordered.reduce((a, id, i) => a + colW(id, i), 0) + 36;
@@ -261,8 +266,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     const dropHi = overId === id && !!dragId && dragId !== id;
     return (
       <tr key={id} data-rowid={id}
-        className={`group relative transition border-b border-line/50 last:border-0 ${onRowClick ? 'cursor-pointer' : ''} ${dragId === id ? 'opacity-50' : ''} ${dropHi ? 'bg-accent/10' : sel ? 'bg-accent/5' : 'hover:bg-surface2'}`}
-        onClick={onRowClick ? () => onRowClick(r) : undefined}>
+        className={`group relative transition border-b border-line/50 last:border-0 ${dragId === id ? 'opacity-50' : ''} ${dropHi ? 'bg-accent/10' : sel ? 'bg-accent/5' : 'hover:bg-surface2'}`}>
         {rowDnD && (
           <td className="w-7 pl-1.5 pr-0 align-middle" onClick={(e) => e.stopPropagation()}>
             <span onPointerDown={(e) => beginDrag(e, id)} title="Drag to reorder"
@@ -277,6 +281,16 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
           const disp = isCf ? prefs.cf!.cell(cid, id) : cell(cid, r);
           const rv = isCf ? prefs.cf!.rawValue(cid, id) : (rawValue ? rawValue(cid, r) : undefined);
           const save = isCf ? (v: string) => prefs.cf!.onEdit(cid, id, v) : (onEdit ? (v: string) => onEdit(r, cid, v) : undefined);
+          // Name (primary) column opens the detail on click; every other cell is inline-edit on hover.
+          if (cid === primaryId) {
+            return (
+              <td key={cid} data-col={cid}
+                onClick={onRowClick ? (e) => { e.stopPropagation(); onRowClick(r); } : undefined}
+                className={`px-4 py-2.5 text-sm align-middle ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'truncate'} ${onRowClick ? 'cursor-pointer' : ''}`}>
+                <span className={onRowClick ? 'hover:underline underline-offset-2' : ''}>{disp}</span>
+              </td>
+            );
+          }
           return (
             <td key={cid} data-col={cid} className={`px-4 py-2.5 text-sm text-muted align-middle ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'truncate'}`}>
               {ed && save && rv !== undefined

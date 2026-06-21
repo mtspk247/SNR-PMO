@@ -46,6 +46,7 @@ export type ListViewProps<T extends { id: string }> = {
   onEdit?: (r: T, id: string, value: string) => void;
   // ── interactions ────────────────────────────────────────
   onRowClick?: (r: T) => void;
+  nameCol?: string;                       // primary/name column id (defaults to first col)
   onAddInGroup?: (groupValue: string) => void;
   orderKey?: string;                      // enables persisted drag-to-reorder of rows
   // ── bulk actions ────────────────────────────────────────
@@ -171,6 +172,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           onEdit={p.onEdit}
           onAddInGroup={p.onAddInGroup}
           orderKey={p.orderKey}
+          nameCol={p.nameCol}
         />
       )}
     </>
