@@ -615,21 +615,23 @@ export default function Tasks() {
   };
   const editable: Record<string, EditSpec> = {
     status: { type: 'select', options: statuses.map((s) => ({ value: s, label: titleCase(s), dot: statusColor(s) || '#9ca3af' })), manage: canDelete ? () => setStatusMgr(true) : undefined },
-    assignee: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
+    assignee: { type: 'person', multi: true, options: users.map((u) => ({ value: u.id, label: u.full_name })) },
     priority: { type: 'select', options: priorities.map((pr) => ({ value: pr, label: titleCase(pr), dot: PRIORITY_DOT[pr] })) },
     due: { type: 'date' },
   };
   const rawValue = (id: string, t: Task) =>
-    id === 'name' ? t.name : id === 'status' ? (t.status || '') : id === 'assignee' ? (t.assignee_id || '')
+    id === 'name' ? t.name : id === 'status' ? (t.status || '') : id === 'assignee' ? ((t.assignee_ids && t.assignee_ids.length ? t.assignee_ids : (t.assignee_id ? [t.assignee_id] : [])).join(','))
     : id === 'priority' ? (t.priority || '') : id === 'due' ? (t.due_date || '') : id === 'project' ? (t.projects?.name || '')
     : id === 'created' ? (t.created_at || '') : '';
   const onInlineEdit = (t: Task, id: string, value: string) => {
-    const patch: any = id === 'assignee' ? { assignee_id: value || null } : id === 'due' ? { due_date: value || null }
+    const ids = value ? value.split(',') : [];
+    const patch: any = id === 'assignee' ? { assignee_ids: ids, assignee_id: ids[0] || null } : id === 'due' ? { due_date: value || null }
       : id === 'status' ? { status: value } : id === 'priority' ? { priority: value } : null;
     if (!patch) return;
+    const prevAssignees = t.assignee_ids && t.assignee_ids.length ? t.assignee_ids : (t.assignee_id ? [t.assignee_id] : []);
     mutate(async () => {
       const u = await updateTask(t.id, patch); patchLocal(u);
-      if (id === 'assignee' && value && value !== me?.id && activeOrg?.id) notify({ org_id: activeOrg.id, user_id: value, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: u.name, link: '/tasks', entity_type: 'task', entity_id: t.id }).catch(() => {});
+      if (id === 'assignee' && activeOrg?.id) ids.filter((x) => x !== me?.id && !prevAssignees.includes(x)).forEach((x) => notify({ org_id: activeOrg.id, user_id: x, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: u.name, link: '/tasks', entity_type: 'task', entity_id: t.id }).catch(() => {}));
     });
   };
   const onRenameTask = (t: Task, name: string) => { if (name && name !== t.name) mutate(async () => patchLocal(await updateTask(t.id, { name }))); };
