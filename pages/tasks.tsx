@@ -8,9 +8,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import StatusManager from '@/components/StatusManager';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { DataList, EditSpec } from '@/components/DataList';
 import EntityLink from '@/components/EntityLink';
-import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta, INLINE_SELECT_CLS } from '@/components/ui';
-import { getOrgUsers, createTask, updateTask, deleteTask, notify, avatarSrc, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions } from '@/lib/db';
+import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
+import { getOrgUsers, createTask, updateTask, deleteTask, notify, avatarSrc, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions, inviteMember } from '@/lib/db';
 import { Task, OrgUser } from '@/lib/supabase';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -34,6 +36,7 @@ const COL_DEFS: { id: string; label: string; w: string }[] = [
   { id: 'created', label: 'Created', w: '100px' },
   { id: 'due', label: 'Due', w: '96px' },
 ];
+const TASK_COLS: ColDef[] = [{ id: 'name', label: 'Task', locked: true }, ...COL_DEFS.map((c) => ({ id: c.id, label: c.label }))];
 const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low'];
 const PRIORITY_RANK: Record<string, number> = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
 const PRIORITY_DOT: Record<string, string> = { Urgent: '#ef4444', High: '#f59e0b', Medium: '#3b82f6', Low: '#9aa0ae' };
@@ -122,8 +125,7 @@ export default function Tasks() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const boardScrollRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ x: number; left: number } | null>(null);
-  const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(COL_DEFS.map((c) => c.id)));
-  const [colOrder, setColOrder] = useState<string[]>(COL_DEFS.map((c) => c.id));
+  const prefs = useListPrefs('snrpmo.tasks.cols', TASK_COLS);
   const [colMenu, setColMenu] = useState(false);
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([]);
   const [statusMgr, setStatusMgr] = useState(false);
@@ -133,7 +135,6 @@ export default function Tasks() {
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(false);
   const [subInput, setSubInput] = useState('');
@@ -166,16 +167,14 @@ export default function Tasks() {
         if (v.groupBy) setGroupBy(v.groupBy);
         if (v.sort) setSort(v.sort);
         if (v.view) setView(v.view);
-        if (Array.isArray(v.colOrder)) setColOrder(v.colOrder);
-        if (Array.isArray(v.visibleCols)) setVisibleCols(new Set(v.visibleCols));
       }
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
   useEffect(() => {
     if (!me?.id) return;
-    try { localStorage.setItem(`snr-tasks-view-${me.id}`, JSON.stringify({ groupBy, sort, view, colOrder, visibleCols: [...visibleCols] })); } catch { /* ignore */ }
-  }, [me?.id, groupBy, sort, view, colOrder, visibleCols]);
+    try { localStorage.setItem(`snr-tasks-view-${me.id}`, JSON.stringify({ groupBy, sort, view })); } catch { /* ignore */ }
+  }, [me?.id, groupBy, sort, view]);
   const statuses = taskStatuses.length ? taskStatuses.map((x) => x.name) : STATUSES;
   const statusColor = (n: string) => taskStatuses.find((x) => x.name === n)?.color;
   const reloadStatuses = () => { if (activeOrg?.id) ensureTaskStatuses(activeOrg.id).then(setTaskStatuses).catch(() => {}); };
@@ -589,96 +588,59 @@ export default function Tasks() {
   };
 
 
-  const shownCols = colOrder.map((id) => COL_DEFS.find((c) => c.id === id)!).filter((c) => c && visibleCols.has(c.id));
-  const moveCol = (id: string, dir: number) => setColOrder((o) => { const i = o.indexOf(id); const j = i + dir; if (j < 0 || j >= o.length) return o; const n = [...o]; [n[i], n[j]] = [n[j], n[i]]; return n; });
-  const gridStyle = { gridTemplateColumns: `minmax(200px,1fr) ${shownCols.map((c) => c.w).join(' ')} 48px` } as React.CSSProperties;
-  const GRID = 'grid items-center gap-2 px-4';
+  // List now renders through the shared DataList engine (Batch 3 C2). Grouping/headers/
+  // filters/board/detail/pagination stay page-owned; each group renders a DataList.
+  const subByParent = useMemo(() => {
+    const m = new Map<string, Task[]>();
+    tasks.forEach((t) => { if (t.parent_task_id) { const a = m.get(t.parent_task_id) || []; a.push(t); m.set(t.parent_task_id, a); } });
+    return m;
+  }, [tasks]);
+  const childrenOf = (t: Task) => subByParent.get(t.id) || [];
 
-  const cell = (t: Task, id: string) => {
+  const cell = (id: string, t: Task) => {
     switch (id) {
-      case 'status':
-        return (
-          <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-full">
-            <Select value={t.status} onChange={(v) => setStatus(t.id, v)} disabled={busy} options={[...statuses.map((s) => ({ value: s, label: titleCase(s) }))]} className={INLINE_SELECT_CLS} />
-          </span>
-        );
-      case 'assignee':
-        return <div key={id} className="flex items-center min-w-0">{t.assignee_id ? <span title={userName(t.assignee_id)} className="inline-flex cursor-default"><Avatar name={userName(t.assignee_id)} size={22} src={userAvatar(t.assignee_id)} /></span> : <span className="text-muted2 text-2xs">—</span>}</div>;
-      case 'priority':
-        return <div key={id}><Pill label={t.priority} /></div>;
-      case 'project':
-        return <span key={id} className="text-2xs text-muted truncate">{t.projects?.name || '—'}</span>;
-      case 'created':
-        return <span key={id} className="text-2xs text-muted2 tnum">{new Date(t.created_at!).toLocaleDateString()}</span>;
-      case 'due': {
-        const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled';
-        return <span key={id} className={`text-2xs tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>;
-      }
-      default:
-        return <span key={id} />;
+      case 'name': return <span className="font-medium text-content">{t.name}</span>;
+      case 'status': return <StatusBadge status={t.status} color={statusColor(t.status)} />;
+      case 'assignee': return t.assignee_id ? <span className="inline-flex items-center gap-1.5 min-w-0"><Avatar name={userName(t.assignee_id)} size={20} src={userAvatar(t.assignee_id)} /><span className="truncate text-content">{userName(t.assignee_id)}</span></span> : <span className="text-muted2">Unassigned</span>;
+      case 'priority': return <Pill label={t.priority} />;
+      case 'project': return <span className="text-muted truncate">{t.projects?.name || '—'}</span>;
+      case 'created': return <span className="text-muted2 tnum">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}</span>;
+      case 'due': { const od = isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled'; return <span className={`tnum ${od ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{t.due_date || '—'}</span>; }
+      default: return <span className="text-muted2">—</span>;
     }
   };
-
-  const ColHeader = () => (
-    <div className={`${GRID} py-2 border-b border-line text-2xs font-semibold uppercase tracking-wider text-muted2`} style={gridStyle}>
-      <span className="flex items-center gap-2"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} onClick={(e) => e.stopPropagation()} className="accent-accentstrong" title="Select all" />Name</span>
-      {shownCols.map((c) => <span key={c.id}>{c.label}</span>)}
-      <span />
-    </div>
-  );
-
-  const Row = (t: Task) => {
-    const subs = tasks.filter((s) => s.parent_task_id === t.id);
-    return (
-      <div key={t.id}
-        className={`group relative ${GRID} py-2.5 border-b border-line/50 transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5' : 'hover:bg-surface2'}`}
-        style={gridStyle} onClick={() => selectTask(t.id)}>
-        <div className="flex items-center gap-2 min-w-0">
-          <input type="checkbox" checked={sel.has(t.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSel(t.id)} className="accent-accentstrong shrink-0" title="Select" />
-          {subs.length > 0 ? (
-            <button onClick={(e) => { e.stopPropagation(); setExpanded((pr) => { const n = new Set(pr); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; }); }}
-              className="shrink-0 -ml-1 text-muted2 hover:text-content" title={expanded.has(t.id) ? 'Collapse subtasks' : 'Expand subtasks'}>
-              <Icon name={expanded.has(t.id) ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-sm" />
-            </button>
-          ) : <span className="w-4 shrink-0" />}
-          <Bars level={PRIORITY_RANK[t.priority] || 1} />
-          <span className="text-sm font-medium text-content truncate">{t.name}</span>
-          {subs.length > 0 && <span className="shrink-0 inline-flex items-center gap-0.5 text-2xs text-muted2"><Icon name="ti-subtask" />{subs.filter((s) => s.status === 'Done').length}/{subs.length}</span>}
-        </div>
-        {shownCols.map((c) => cell(t, c.id))}
-        <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 transition">
-          <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} disabled={busy} title="Edit task" className="p-1 rounded text-muted2 hover:text-content"><Icon name="ti-pencil" className="text-sm" /></button>
-          {canDelete && (
-            <button onClick={(e) => { e.stopPropagation(); removeTask(t.id, t.name); }} disabled={busy} title="Delete task" className="p-1 rounded text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>
-          )}
-        </div>
-      </div>
-    );
+  const editable: Record<string, EditSpec> = {
+    status: { type: 'select', options: statuses.map((s) => ({ value: s, label: titleCase(s), dot: statusColor(s) || '#9ca3af' })) },
+    assignee: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
+    priority: { type: 'select', options: priorities.map((pr) => ({ value: pr, label: titleCase(pr), dot: PRIORITY_DOT[pr] })) },
+    due: { type: 'date' },
   };
-
-  const SubRow = (t: Task) => (
-    <div key={t.id}
-      className={`group relative ${GRID} py-2 border-b border-line/50 transition cursor-pointer ${selectedId === t.id ? 'bg-accent/5' : 'bg-surface2/30 hover:bg-surface2'}`}
-      style={gridStyle} onClick={() => selectTask(t.id)}>
-      <div className="flex items-center gap-2 min-w-0 pl-5">
-        <Icon name="ti-corner-down-right" className="text-muted2 text-sm shrink-0" />
-        <input type="checkbox" checked={t.status === 'Done'} disabled={busy} onClick={(e) => e.stopPropagation()} onChange={() => setStatus(t.id, t.status === 'Done' ? 'To Do' : 'Done')} className="accent-accentstrong shrink-0" />
-        <span className={`text-sm truncate ${t.status === 'Done' ? 'line-through text-muted2' : 'text-content'}`}>{t.name}</span>
-      </div>
-      {shownCols.map((c) => cell(t, c.id))}
-      <span />
-    </div>
-  );
-
-  const renderTask = (t: Task) => {
-    const subs = tasks.filter((s) => s.parent_task_id === t.id);
-    return (
-      <div key={t.id}>
-        {Row(t)}
-        {expanded.has(t.id) && subs.map((st) => SubRow(st))}
-      </div>
-    );
+  const rawValue = (id: string, t: Task) =>
+    id === 'name' ? t.name : id === 'status' ? (t.status || '') : id === 'assignee' ? (t.assignee_id || '')
+    : id === 'priority' ? (t.priority || '') : id === 'due' ? (t.due_date || '') : id === 'project' ? (t.projects?.name || '')
+    : id === 'created' ? (t.created_at || '') : '';
+  const onInlineEdit = (t: Task, id: string, value: string) => {
+    const patch: any = id === 'assignee' ? { assignee_id: value || null } : id === 'due' ? { due_date: value || null }
+      : id === 'status' ? { status: value } : id === 'priority' ? { priority: value } : null;
+    if (!patch) return;
+    mutate(async () => {
+      const u = await updateTask(t.id, patch); patchLocal(u);
+      if (id === 'assignee' && value && value !== me?.id && activeOrg?.id) notify({ org_id: activeOrg.id, user_id: value, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: u.name, link: '/tasks', entity_type: 'task', entity_id: t.id }).catch(() => {});
+    });
   };
+  const onRenameTask = (t: Task, name: string) => { if (name && name !== t.name) mutate(async () => patchLocal(await updateTask(t.id, { name }))); };
+  const onAddSubtaskRow = (t: Task) => mutate(async () => {
+    const st = await createTask({ name: 'New subtask', org_id: t.org_id as string, project_id: t.project_id, parent_task_id: t.id, priority: 'Medium', status: 'To Do' });
+    setCache((pr) => [...pr, st]);
+  });
+  const selectionAdapter = { isSelected: (id: string) => sel.has(id), toggle: toggleSel, allSelected, someSelected: sel.size > 0 && !allSelected, toggleAll: toggleSelectAll };
+  const renderList = (rows: Task[], orderKey: string) => (
+    <DataList rows={rows} rowKey={(t) => t.id} cols={TASK_COLS} prefs={prefs} cell={cell} selection={selectionAdapter}
+      editable={editable} rawValue={rawValue} onEdit={onInlineEdit} onRowClick={(t) => selectTask(t.id)}
+      onRename={onRenameTask} onAddSubtask={onAddSubtaskRow} childrenOf={childrenOf}
+      onInvitePerson={canDelete ? (email) => { inviteMember(activeOrg!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
+      orderKey={orderKey} />
+  );
 
   return (
     <Layout title="Tasks">
@@ -752,14 +714,14 @@ export default function Tasks() {
               {colMenu && (
                 <div className="absolute right-0 top-10 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-1">
                   <p className="px-2 py-1 text-2xs text-muted2">Show &amp; reorder columns</p>
-                  {colOrder.map((cid, idx) => { const c = COL_DEFS.find((x) => x.id === cid)!; return (
+                  {prefs.order.map((cid, idx) => { const c = prefs.allCols.find((x) => x.id === cid); if (!c) return null; return (
                     <div key={cid} className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface2">
                       <label className="flex items-center gap-2 text-sm flex-1 cursor-pointer">
-                        <input type="checkbox" checked={visibleCols.has(cid)} onChange={() => setVisibleCols((pr) => { const n = new Set(pr); n.has(cid) ? n.delete(cid) : n.add(cid); return n; })} className="accent-accentstrong" />
+                        <input type="checkbox" checked={prefs.visible.has(cid)} disabled={c.locked} onChange={() => prefs.toggle(cid)} className="accent-accentstrong" />
                         {c.label}
                       </label>
-                      <button onClick={() => moveCol(cid, -1)} disabled={idx === 0} title="Move up" className="text-muted2 hover:text-content disabled:opacity-25"><Icon name="ti-chevron-up" className="text-sm" /></button>
-                      <button onClick={() => moveCol(cid, 1)} disabled={idx === colOrder.length - 1} title="Move down" className="text-muted2 hover:text-content disabled:opacity-25"><Icon name="ti-chevron-down" className="text-sm" /></button>
+                      <button onClick={() => prefs.move(cid, -1)} disabled={idx === 0} title="Move up" className="text-muted2 hover:text-content disabled:opacity-25"><Icon name="ti-chevron-up" className="text-sm" /></button>
+                      <button onClick={() => prefs.move(cid, 1)} disabled={idx === prefs.order.length - 1} title="Move down" className="text-muted2 hover:text-content disabled:opacity-25"><Icon name="ti-chevron-down" className="text-sm" /></button>
                     </div>
                   ); })}
                 </div>
@@ -800,16 +762,11 @@ export default function Tasks() {
                         </button>
                       )}
                     </div>
-                    {!gcol && (
-                      <div className="overflow-x-auto">
-                        <ColHeader />
-                        {items.map(renderTask)}
-                      </div>
-                    )}
+                    {!gcol && renderList(items, 'snrpmo.tasks.roworder.' + label)}
                   </div>
                   );
                 })
-              ) : (<div className="overflow-x-auto"><ColHeader />{pg.pageItems.map(renderTask)}</div>)}
+              ) : renderList(pg.pageItems, 'snrpmo.tasks.roworder.all')}
               {filtered.length > 0 && (
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}
