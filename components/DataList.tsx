@@ -359,7 +359,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
                   ) : (
                     <>
                       <span onClick={onRowClick ? (e) => { e.stopPropagation(); onRowClick(r); } : undefined}
-                        className={`truncate min-w-0 ${onRowClick ? 'cursor-pointer hover:underline underline-offset-2' : ''}`}>{disp}</span>
+                        className={`truncate min-w-0 ${onRowClick ? 'cursor-pointer' : ''}`}>{disp}</span>
                       {onRename && <button onClick={(e) => { e.stopPropagation(); setRenaming(id); }} title="Rename" className="opacity-0 group-hover/name:opacity-100 text-muted2 hover:text-content shrink-0 transition"><Icon name="ti-pencil" className="text-2xs" /></button>}
                       {onAddSubtask && <button onClick={(e) => { e.stopPropagation(); onAddSubtask(r); }} title="Add subtask" className="opacity-0 group-hover/name:opacity-100 text-muted2 hover:text-accentstrong shrink-0 transition"><Icon name="ti-plus" className="text-2xs" /></button>}
                     </>

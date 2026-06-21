@@ -245,7 +245,7 @@ export default function IdeasPage() {
       case 'status':
         return <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>;
       case 'project':
-        return idea.project?.name ? (idea.project_id ? <Link href={`/projects/${idea.project_id}`} onClick={(e) => e.stopPropagation()} className="text-content hover:text-accentstrong hover:underline truncate inline-block max-w-full align-middle">{idea.project.name}</Link> : <span className="truncate inline-block max-w-full align-middle">{idea.project.name}</span>) : '—';
+        return idea.project?.name ? (idea.project_id ? <Link href={`/projects/${idea.project_id}`} onClick={(e) => e.stopPropagation()} className="text-content hover:text-accentstrong truncate inline-block max-w-full align-middle">{idea.project.name}</Link> : <span className="truncate inline-block max-w-full align-middle">{idea.project.name}</span>) : '—';
       case 'by':
         return idea.creator?.full_name ? <span className="inline-flex items-center gap-1.5 min-w-0"><Avatar name={idea.creator.full_name} size={20} src={avatarSrc(idea.creator.avatar_url)} /><span className="truncate">{idea.creator.full_name}</span></span> : '—';
       case 'created':
