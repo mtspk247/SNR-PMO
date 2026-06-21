@@ -58,6 +58,8 @@ export type DataListProps<T> = {
   onRename?: (r: T, name: string) => void;
   /** Adds a "+" on the name cell to create a subtask/child (page-supplied). */
   onAddSubtask?: (r: T) => void;
+  /** Returns a row's child rows (subtasks) → enables expand/collapse nesting. */
+  childrenOf?: (r: T) => T[];
 };
 
 function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { value: string; label: string }[]; value: string; onSave: (v: string) => void; multi?: boolean; onInvite?: (email: string) => void | Promise<void> }) {
@@ -160,7 +162,7 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -168,6 +170,8 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const [colDrag, setColDrag] = useState<string | null>(null);
   const [manualOrder, setManualOrder] = useState<string[]>([]);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const toggleExpand = (rid: string) => setExpandedRows((p) => { const n = new Set(p); n.has(rid) ? n.delete(rid) : n.add(rid); return n; });
   const dragId = drag?.id || null;
 
   useEffect(() => {
@@ -302,20 +306,20 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     </tr>
   );
 
-  const dataRow = (r: T) => {
+  const dataRow = (r: T, depth = 0, hasKids = false) => {
     const id = rowKey(r);
     const sel = selection?.isSelected(id) || false;
     const dropHi = overId === id && !!dragId && dragId !== id;
     return (
       <tr key={id} data-rowid={id}
         className={`group relative transition border-b border-line/50 last:border-0 ${dragId === id ? 'opacity-50' : ''} ${dropHi ? 'bg-accent/10' : sel ? 'bg-accent/5' : 'hover:bg-surface2'}`}>
-        {rowDnD && (
+        {rowDnD && (depth === 0 ? (
           <td className={`w-7 pl-1.5 pr-0 align-middle ${leadCls}`} style={leadSty('grip')} onClick={(e) => e.stopPropagation()}>
             <span onPointerDown={(e) => beginDrag(e, id)} title="Drag to reorder"
               style={{ touchAction: 'none' }}
               className="inline-flex cursor-grab active:cursor-grabbing text-muted2 opacity-0 group-hover:opacity-100 transition"><Icon name="ti-grip-vertical" className="text-sm" /></span>
           </td>
-        )}
+        ) : <td className={`w-7 ${leadCls}`} style={leadSty('grip')} />)}
         {selCol && <td className={`px-3 py-2.5 w-9 align-middle ${leadCls}`} style={leadSty('sel')} onClick={(e) => e.stopPropagation()}><RowCheckbox checked={sel} onChange={() => selection!.toggle(id)} /></td>}
         {prefs.ordered.map((cid, ci) => {
           const isCf = isCustomCol(cid) && !!prefs.cf;
@@ -341,7 +345,10 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
             return (
               <td key={cid} data-col={cid} style={pinSty(ci)}
                 className={`px-4 py-2.5 text-sm align-middle ${pinCls(ci)} ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'overflow-hidden'}`}>
-                <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full group/name">
+                <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full group/name" style={depth ? { paddingLeft: depth * 16 } : undefined}>
+                  {hasKids
+                    ? <button onClick={(e) => { e.stopPropagation(); toggleExpand(id); }} title={expandedRows.has(id) ? 'Collapse' : 'Expand'} className="shrink-0 -ml-1 text-muted2 hover:text-content transition"><Icon name={expandedRows.has(id) ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-sm" /></button>
+                    : depth > 0 ? <Icon name="ti-corner-down-right" className="text-muted2 text-sm shrink-0" /> : null}
                   {stCircle}
                   {renaming === id ? (
                     <input autoFocus defaultValue={rawValue ? rawValue(cid, r) : ''} onClick={(e) => e.stopPropagation()}
@@ -373,12 +380,19 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     );
   };
 
+  const renderRows = (list: T[], depth: number): ReactNode[] => list.flatMap((r) => {
+    const rid = rowKey(r);
+    const kids = childrenOf ? childrenOf(r) : [];
+    const rowEl = dataRow(r, depth, kids.length > 0);
+    return (kids.length > 0 && expandedRows.has(rid)) ? [rowEl, ...renderRows(kids, depth + 1)] : [rowEl];
+  });
+
   const tableCard = (rs: T[]) => (
     <div className="overflow-x-auto">
       <table className="text-sm" style={{ tableLayout: 'fixed', width: totalW }}>
         {colGroup}
         <thead>{headerRow(true)}</thead>
-        <tbody>{rs.map(dataRow)}</tbody>
+        <tbody>{renderRows(rs, 0)}</tbody>
       </table>
     </div>
   );
