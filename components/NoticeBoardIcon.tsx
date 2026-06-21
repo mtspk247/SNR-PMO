@@ -7,13 +7,14 @@ import { useActiveOrg } from '@/lib/store';
 const isUnread = (n: Notice) => !!n.mine?.some((m) => !m.read_at);
 
 /** Notice board — dropdown of received notices (like the notification bell). */
-export default function NoticeBoardIcon() {
+export default function NoticeBoardIcon({ onCount }: { onCount?: (n: number) => void } = {}) {
   const org = useActiveOrg();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const onCountRef = useRef(onCount); onCountRef.current = onCount;
 
   const load = () => {
     if (!org) return;
@@ -23,6 +24,8 @@ export default function NoticeBoardIcon() {
       .catch(() => {}).finally(() => setLoading(false));
   };
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [org?.id]);
+  // Report unread-notice count up for the collapsed header cluster badge.
+  useEffect(() => { onCountRef.current?.(items.filter(isUnread).length); }, [items]);
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);

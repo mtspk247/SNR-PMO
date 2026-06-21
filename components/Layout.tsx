@@ -8,35 +8,19 @@ import { roleLabel, can } from '@/lib/authz';
 import { hasFeature, roleAllowsFeature, navVisible, isUpsellLocked } from '@/lib/entitlements';
 import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, RESELLER_LINK, RESELLER_SECTION, DOCS_LINK, ROUTE_LABELS, featureForRoute } from '@/lib/nav';
 import { Icon, Avatar, Spinner } from '@/components/ui';
-import NotificationBell from '@/components/NotificationBell';
-import RequestsBell from '@/components/RequestsBell';
-import NoticeBoardIcon from '@/components/NoticeBoardIcon';
+import HeaderActions from '@/components/HeaderActions';
 import StickyNotesFab from '@/components/StickyNotesFab';
 import HelpAssistant from '@/components/HelpAssistant';
 import GlobalSearch from '@/components/GlobalSearch';
 import ActivityTicker from '@/components/ActivityTicker';
 import ChatPanel from '@/components/ChatPanel';
 import { TimerChip } from '@/components/TimeTracking';
-import RunningTimers from '@/components/RunningTimers';
 import UpgradeScreen from '@/components/UpgradeScreen';
 import Toaster from '@/components/Toaster';
 import Breadcrumbs, { Crumb } from '@/components/Breadcrumbs';
 import { applyBranding } from '@/lib/branding';
 import SidebarPlanBadge from '@/components/SidebarPlanBadge';
 import { effectiveSkin } from '@/lib/skin';
-import { getTheme, toggleTheme, Theme } from '@/lib/theme';
-
-
-function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('light');
-  useEffect(() => { setTheme(getTheme()); }, []);
-  return (
-    <button onClick={() => setTheme(toggleTheme())} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-      className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">
-      <Icon name={theme === 'dark' ? 'ti-sun' : 'ti-moon'} className="text-base" />
-    </button>
-  );
-}
 
 export default function Layout({ title, children, flat = false }: { title: string; children: React.ReactNode; flat?: boolean }) {
   const router = useRouter();
@@ -289,15 +273,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <GlobalSearch />
             <TimerChip />
-            <RunningTimers />
-            <button onClick={() => setChatOpen(true)} title="Chat"
-              className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">
-              <Icon name="ti-messages" className="text-base" />
-            </button>
-            <ThemeToggle />
-            <RequestsBell />
-            <NoticeBoardIcon />
-            <NotificationBell />
+            <HeaderActions onOpenChat={() => setChatOpen(true)} />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full${flat ? ' flat-surfaces' : ''}`} style={{ maxWidth: 'var(--container-max, 1400px)' }}>{routeFeature && isUpsellLocked(activeOrg, routeFeature) ? <UpgradeScreen feature={routeFeature} canManage={can.manageBilling(activeOrg)} /> : children}</div></main>

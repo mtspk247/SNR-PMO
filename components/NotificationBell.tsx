@@ -42,7 +42,7 @@ function hrefFor(n: AppNotification): string | null {
   return n.link || null;
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ onCount }: { onCount?: (n: number) => void } = {}) {
   const me = useAuthStore((s) => s.user);
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -50,9 +50,12 @@ export default function NotificationBell() {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const ref = useRef<HTMLDivElement>(null);
+  const onCountRef = useRef(onCount); onCountRef.current = onCount;
 
   const load = () => { if (!me) return; setLoading(true); getNotifications(me.id).then(setItems).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [me?.id]);
+  // Report unread count up so a collapsed header cluster can aggregate it.
+  useEffect(() => { onCountRef.current?.(items.filter((n) => !n.is_read).length); }, [items]);
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h);

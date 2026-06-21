@@ -7,13 +7,14 @@ import { useActiveOrg } from '@/lib/store';
 const TYPE_ICON: Record<string, string> = { request: 'ti-help-circle', suggestion: 'ti-bulb', edit: 'ti-pencil' };
 
 /** Header dropdown of guest requests/suggestions across the user's visible projects. */
-export default function RequestsBell() {
+export default function RequestsBell({ onCount }: { onCount?: (n: number) => void } = {}) {
   const org = useActiveOrg();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<GuestRequestG[]>([]);
   const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const onCountRef = useRef(onCount); onCountRef.current = onCount;
 
   const load = () => {
     if (!org) return;
@@ -21,6 +22,8 @@ export default function RequestsBell() {
     listAllGuestRequests().then(setItems).catch(() => {}).finally(() => setLoading(false));
   };
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [org?.id]);
+  // Report open-request count up for the collapsed header cluster badge.
+  useEffect(() => { onCountRef.current?.(items.filter((r) => r.status === 'open').length); }, [items]);
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);
