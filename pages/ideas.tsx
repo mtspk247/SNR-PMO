@@ -222,15 +222,15 @@ export default function IdeasPage() {
         return (
           <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setVote(idea, 1)} disabled={isVoting || !user}
-              className={`inline-flex items-center gap-1 px-1.5 py-1 rounded transition-colors disabled:opacity-50 ${myVote === 1 ? 'text-emerald-600 bg-emerald-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              className={`inline-flex flex-col items-center gap-0.5 px-1.5 py-1 rounded transition-colors disabled:opacity-50 ${myVote === 1 ? 'text-emerald-600 bg-emerald-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}
               title={myVote === 1 ? 'Remove your upvote' : 'Thumbs up'}>
-              <Icon name={myVote === 1 ? 'ti-thumb-up-filled' : 'ti-thumb-up'} className="text-sm leading-none" />
+              <Icon name={myVote === 1 ? 'ti-thumb-up-filled' : 'ti-thumb-up'} className="text-base leading-none" />
               <span className="text-2xs tabular-nums font-medium leading-none">{ups}</span>
             </button>
             <button onClick={() => setVote(idea, -1)} disabled={isVoting || !user}
-              className={`inline-flex items-center gap-1 px-1.5 py-1 rounded transition-colors disabled:opacity-50 ${myVote === -1 ? 'text-rose-600 bg-rose-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}
+              className={`inline-flex flex-col items-center gap-0.5 px-1.5 py-1 rounded transition-colors disabled:opacity-50 ${myVote === -1 ? 'text-rose-600 bg-rose-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}
               title={myVote === -1 ? 'Remove your downvote' : 'Thumbs down'}>
-              <Icon name={myVote === -1 ? 'ti-thumb-down-filled' : 'ti-thumb-down'} className="text-sm leading-none" />
+              <Icon name={myVote === -1 ? 'ti-thumb-down-filled' : 'ti-thumb-down'} className="text-base leading-none" />
               <span className="text-2xs tabular-nums font-medium leading-none">{downs}</span>
             </button>
           </span>
@@ -274,14 +274,14 @@ export default function IdeasPage() {
         return (
           <div key={idea.id} onClick={() => router.push(`/ideas/${idea.id}`)} className="card card-interactive p-4 cursor-pointer">
             <div className="flex items-start gap-3">
-              <span className="shrink-0 inline-flex flex-col items-stretch gap-1" onClick={(e) => e.stopPropagation()}>
+              <span className="shrink-0 inline-flex items-start gap-1" onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => setVote(idea, 1)} disabled={!user || votingId === idea.id}
-                  className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded ${myVote === 1 ? 'text-emerald-600 bg-emerald-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
-                  <Icon name={myVote === 1 ? 'ti-thumb-up-filled' : 'ti-thumb-up'} className="text-sm leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{ups}</span>
+                  className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded ${myVote === 1 ? 'text-emerald-600 bg-emerald-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
+                  <Icon name={myVote === 1 ? 'ti-thumb-up-filled' : 'ti-thumb-up'} className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{ups}</span>
                 </button>
                 <button onClick={() => setVote(idea, -1)} disabled={!user || votingId === idea.id}
-                  className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded ${myVote === -1 ? 'text-rose-600 bg-rose-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
-                  <Icon name={myVote === -1 ? 'ti-thumb-down-filled' : 'ti-thumb-down'} className="text-sm leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{downs}</span>
+                  className={`inline-flex flex-col items-center gap-0.5 px-2 py-1 rounded ${myVote === -1 ? 'text-rose-600 bg-rose-500/10' : 'text-muted hover:text-content hover:bg-surface2'}`}>
+                  <Icon name={myVote === -1 ? 'ti-thumb-down-filled' : 'ti-thumb-down'} className="text-base leading-none" /><span className="text-2xs tabular-nums font-medium leading-none">{downs}</span>
                 </button>
               </span>
               <div className="min-w-0 flex-1">
