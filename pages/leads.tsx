@@ -9,7 +9,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import {
   listLeads, createLead, updateLead, deleteLead, convertLeadToClient, leadToDeal, getOrgUsers, Lead,
-  getTaskStatuses, TaskStatus,
+  ensureTaskStatuses, TaskStatus,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
@@ -82,16 +82,17 @@ export default function LeadsPage() {
     if (org?.id && enabled) {
       load();
       getOrgUsers(org.id).then(setUsers).catch(() => {});
-      getTaskStatuses(org.id, 'leads').then(setStatusDefs).catch(() => {});
+      ensureTaskStatuses(org.id, 'leads').then(setStatusDefs).catch(() => {});
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
   const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
-  const reloadStatusDefs = () => { if (org?.id) getTaskStatuses(org.id, 'leads').then(setStatusDefs).catch(() => {}); };
+  const reloadStatusDefs = () => { if (org?.id) ensureTaskStatuses(org.id, 'leads').then(setStatusDefs).catch(() => {}); };
   const STATUSES = statusDefs.length ? statusDefs.map((s) => s.name) : DEFAULT_STATUSES;
   const catPill: Record<string, string> = { todo: 'pill-amber', active: 'pill-green', done: 'pill-gray', blocked: 'pill-rose' };
   const statusPill = (name: string) => { const d = statusDefs.find((s) => s.name === name); return d ? (catPill[d.category] || 'pill-gray') : (STATUS_PILL[name] || 'pill-gray'); };
+  const statusHex = (name: string) => statusDefs.find((s) => s.name === name)?.color || '#9ca3af';
   const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: cap(s), pill: statusPill(s) }));
 
   const shown = useMemo(() =>
@@ -110,7 +111,7 @@ export default function LeadsPage() {
       case 'source': return l.source || '—';
       case 'value': return <span className="tabular-nums">{fmtMoney(l.value || 0, l.currency)}</span>;
       case 'owner': return <PersonTag name={nameOf(l.owner_id)} />;
-      case 'status': return <span className={`pill ${statusPill(l.status)}`}>{l.status}</span>;
+      case 'status': return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusHex(l.status) + '1f', color: statusHex(l.status), boxShadow: `inset 0 0 0 1px ${statusHex(l.status)}33` }}>{cap(l.status)}</span>;
       default: return '—';
     }
   };
@@ -121,7 +122,7 @@ export default function LeadsPage() {
     : id === 'status' ? l.status : '';
 
   const editable: Record<string, EditSpec> = {
-    status: { type: 'select', options: STATUSES.map((s) => ({ value: s, label: cap(s) })) },
+    status: { type: 'select', options: STATUSES.map((s) => ({ value: s, label: cap(s), dot: statusHex(s) })), manage: isAdmin ? () => setStatusMgr(true) : undefined },
     owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
   };
   const rawValueLead = (id: string, l: Lead) => id === 'owner' ? (l.owner_id || '') : id === 'status' ? l.status : '';

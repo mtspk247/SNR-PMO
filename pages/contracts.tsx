@@ -10,7 +10,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listContracts, createContract, updateContract, deleteContract, Contract } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
-import { getOrgUsers, getTaskStatuses, TaskStatus, inviteMember } from '@/lib/db';
+import { getOrgUsers, ensureTaskStatuses, TaskStatus, inviteMember } from '@/lib/db';
 import StatusManager from '@/components/StatusManager';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar, BulkAssign } from '@/components/RowSelection';
@@ -80,16 +80,17 @@ export default function ContractsPage() {
     if (org?.id && enabled) {
       load();
       getOrgUsers(org.id).then(setUsers).catch(() => {});
-      getTaskStatuses(org.id, 'contracts').then(setStatusDefs).catch(() => {});
+      ensureTaskStatuses(org.id, 'contracts').then(setStatusDefs).catch(() => {});
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
   const name = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
-  const reloadStatusDefs = () => { if (org?.id) getTaskStatuses(org.id, 'contracts').then(setStatusDefs).catch(() => {}); };
+  const reloadStatusDefs = () => { if (org?.id) ensureTaskStatuses(org.id, 'contracts').then(setStatusDefs).catch(() => {}); };
   const STATUSES = statusDefs.length ? statusDefs.map((s) => s.name) : DEFAULT_STATUSES;
   const catPill: Record<string, string> = { todo: 'pill-amber', active: 'pill-green', done: 'pill-gray', blocked: 'pill-rose' };
   const statusPill = (nm: string) => { const d = statusDefs.find((s) => s.name === nm); return d ? (catPill[d.category] || 'pill-gray') : (STATUS_PILL[nm] || 'pill-gray'); };
+  const statusHex = (name: string) => statusDefs.find((s) => s.name === name)?.color || '#9ca3af';
   const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: titleCase(s), pill: statusPill(s) }));
 
   const shown = useMemo(() =>
@@ -113,7 +114,7 @@ export default function ContractsPage() {
           </span>
         : <span className="text-muted2">—</span>;
       case 'owner': return <PersonTag name={name(c.owner_id)} />;
-      case 'status': return <span className={`pill ${statusPill(c.status)}`}>{c.status}</span>;
+      case 'status': return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusHex(c.status) + '1f', color: statusHex(c.status), boxShadow: `inset 0 0 0 1px ${statusHex(c.status)}33` }}>{titleCase(c.status)}</span>;
       default: return '—';
     }
   };

@@ -7,7 +7,7 @@ import { Modal, Field } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
-import { listClients, createClient, updateClient, deleteClient, getTaskStatuses, TaskStatus, Client } from '@/lib/db';
+import { listClients, createClient, updateClient, deleteClient, ensureTaskStatuses, TaskStatus, Client } from '@/lib/db';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkAssign } from '@/components/RowSelection';
 import { GroupMeta, EditSpec } from '@/components/DataList';
@@ -78,16 +78,17 @@ export default function ClientsPage() {
     if (org?.id && enabled) {
       load();
       getOrgUsers(org.id).then(setUsers).catch(() => {});
-      getTaskStatuses(org.id, 'clients').then(setStatusDefs).catch(() => {});
+      ensureTaskStatuses(org.id, 'clients').then(setStatusDefs).catch(() => {});
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
   const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
-  const reloadStatusDefs = () => { if (org?.id) getTaskStatuses(org.id, 'clients').then(setStatusDefs).catch(() => {}); };
+  const reloadStatusDefs = () => { if (org?.id) ensureTaskStatuses(org.id, 'clients').then(setStatusDefs).catch(() => {}); };
   const STATUSES = statusDefs.length ? statusDefs.map((s) => s.name) : DEFAULT_STATUSES;
   const catPill: Record<string, string> = { todo: 'pill-amber', active: 'pill-green', done: 'pill-gray', blocked: 'pill-rose' };
   const statusPill = (name: string) => { const d = statusDefs.find((s) => s.name === name); return d ? (catPill[d.category] || 'pill-gray') : (STATUS_PILL[name] || 'pill-gray'); };
+  const statusHex = (name: string) => statusDefs.find((s) => s.name === name)?.color || '#9ca3af';
   const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: titleCase(s), pill: statusPill(s) }));
 
   const shown = useMemo(() =>
@@ -108,7 +109,7 @@ export default function ClientsPage() {
       case 'phone': return c.phone || '—';
       case 'since': return c.since || '—';
       case 'owner': return <PersonTag name={nameOf(c.owner_id)} />;
-      case 'status': return <span className={`pill ${statusPill(c.status)}`}>{c.status}</span>;
+      case 'status': return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusHex(c.status) + '1f', color: statusHex(c.status), boxShadow: `inset 0 0 0 1px ${statusHex(c.status)}33` }}>{titleCase(c.status)}</span>;
       default: return '—';
     }
   };
@@ -175,7 +176,7 @@ export default function ClientsPage() {
 
   const editable: Record<string, EditSpec> = {
     name: { type: 'text' }, contact: { type: 'text' }, email: { type: 'text' }, phone: { type: 'text' },
-    status: { type: 'select', options: STATUSES.map((st) => ({ value: st, label: titleCase(st) })) },
+    status: { type: 'select', options: STATUSES.map((st) => ({ value: st, label: titleCase(st), dot: statusHex(st) })), manage: isAdmin ? () => setStatusMgr(true) : undefined },
     owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
   };
   const rawValue = (id: string, c: Client) =>

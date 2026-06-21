@@ -10,7 +10,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { listProposals, createProposal, updateProposal, deleteProposal, Proposal } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
-import { getOrgUsers, getTaskStatuses, TaskStatus, inviteMember } from '@/lib/db';
+import { getOrgUsers, ensureTaskStatuses, TaskStatus, inviteMember } from '@/lib/db';
 import StatusManager from '@/components/StatusManager';
 import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
@@ -80,16 +80,17 @@ export default function ProposalsPage() {
     if (org?.id && enabled) {
       load();
       getOrgUsers(org.id).then(setUsers).catch(() => {});
-      getTaskStatuses(org.id, 'proposals').then(setStatusDefs).catch(() => {});
+      ensureTaskStatuses(org.id, 'proposals').then(setStatusDefs).catch(() => {});
     }
     // eslint-disable-next-line
   }, [org?.id, enabled]);
 
   const nameOf = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
-  const reloadStatusDefs = () => { if (org?.id) getTaskStatuses(org.id, 'proposals').then(setStatusDefs).catch(() => {}); };
+  const reloadStatusDefs = () => { if (org?.id) ensureTaskStatuses(org.id, 'proposals').then(setStatusDefs).catch(() => {}); };
   const STATUSES = statusDefs.length ? statusDefs.map((s) => s.name) : DEFAULT_STATUSES;
   const catPill: Record<string, string> = { todo: 'pill-amber', active: 'pill-green', done: 'pill-gray', blocked: 'pill-rose' };
   const statusPill = (name: string) => { const d = statusDefs.find((s) => s.name === name); return d ? (catPill[d.category] || 'pill-gray') : (STATUS_PILL[name] || 'pill-gray'); };
+  const statusHex = (name: string) => statusDefs.find((s) => s.name === name)?.color || '#9ca3af';
   const GROUPS: GroupMeta[] = STATUSES.map((s) => ({ value: s, label: titleCase(s), pill: statusPill(s) }));
 
   const shown = useMemo(() =>
@@ -113,7 +114,7 @@ export default function ProposalsPage() {
         </span>
       ) : <span className="text-muted2">—</span>;
       case 'owner': return <PersonTag name={nameOf(p.owner_id)} />;
-      case 'status': return <span className={`pill ${statusPill(p.status)}`}>{p.status}</span>;
+      case 'status': return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusHex(p.status) + '1f', color: statusHex(p.status), boxShadow: `inset 0 0 0 1px ${statusHex(p.status)}33` }}>{titleCase(p.status)}</span>;
       default: return '—';
     }
   };
