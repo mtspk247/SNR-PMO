@@ -3,8 +3,13 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Icon, Spinner } from '@/components/ui';
 import { sb } from '@/lib/supabase';
-import { useActiveOrg } from '@/lib/store';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
+import { DataList } from '@/components/DataList';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { ViewControls, useViewPrefs } from '@/components/ViewControls';
+import Dropdown from '@/components/Dropdown';
+import { toast, toastError } from '@/lib/toast';
 
 // Honest, Claude-style integrations catalog. Kinds:
 //  - webhook : works TODAY — registers a webhook_endpoint the events bus delivers to
@@ -12,7 +17,6 @@ import { can } from '@/lib/authz';
 //  - link    : a real capability elsewhere in the app (deep-link).
 //  - import  : migrate your data in via the CSV importer (/import) — works today.
 //  - api     : connect via our public API + webhooks / Zapier / Make (/developer) — works today.
-//              (Native one-click OAuth for these is also rolling out via our connector engine.)
 type Kind = 'webhook' | 'link' | 'import' | 'api';
 type Item = {
   key: string; name: string; icon: string; category: string; kind: Kind;
@@ -74,24 +78,59 @@ const CATALOG: Item[] = [
   { key: 'freshdesk', name: 'Freshdesk', icon: 'ti-lifebuoy', category: 'Support', kind: 'api', blurb: 'Connect Freshdesk via Zapier/Make + your API key.' },
 ];
 
-type Endpoint = { id: string; url: string; label: string | null; format: string | null };
+const ICON_BY_NAME: Record<string, string> = Object.fromEntries(CATALOG.map((i) => [i.name, i.icon]));
+const KIND_PILL: Record<Kind, { label: string; cls: string }> = {
+  webhook: { label: 'Webhook', cls: 'pill-green' },
+  link: { label: 'Built-in', cls: 'pill-sky' },
+  import: { label: 'Migrate in', cls: 'pill-violet' },
+  api: { label: 'Via API', cls: 'pill-sky' },
+};
+
+type Endpoint = { id: string; url: string; label: string | null; format: string | null; events: string[] | null; created_at: string | null };
+
+const CAT_COLS: ColDef[] = [
+  { id: 'name', label: 'Integration', width: 240 },
+  { id: 'category', label: 'Category', width: 170 },
+  { id: 'type', label: 'Type', width: 130 },
+  { id: 'status', label: 'Status', width: 130 },
+  { id: 'action', label: '', width: 170 },
+];
+const CONN_COLS: ColDef[] = [
+  { id: 'integration', label: 'Integration', width: 210 },
+  { id: 'url', label: 'Endpoint URL', width: 340 },
+  { id: 'format', label: 'Format', width: 110 },
+  { id: 'events', label: 'Events', width: 150 },
+  { id: 'created', label: 'Connected', width: 130 },
+  { id: 'act', label: '', width: 130 },
+];
+const SORTS = [
+  { value: 'name', label: 'Sort: Name' },
+  { value: 'category', label: 'Sort: Category' },
+  { value: 'type', label: 'Sort: Type' },
+];
 
 export default function IntegrationsPage() {
   const org = useActiveOrg();
+  const user = useAuthStore((s) => s.user);
   const admin = can.manageIntegrations(org);
   const [eps, setEps] = useState<Endpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
+  const [sort, setSort] = useState('name');
   const [modal, setModal] = useState<Item | null>(null);
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
+  const vp = useViewPrefs(`snr-integrations-vp-${user?.id || 'anon'}`, { view: 'card' });
+  const catPrefs = useListPrefs('snr-integrations-catalog', CAT_COLS);
+  const connPrefs = useListPrefs('snr-integrations-connected', CONN_COLS);
 
   const load = () => {
     if (!org?.id) return;
     setLoading(true);
-    sb.from('webhook_endpoints').select('id, url, label, format').eq('org_id', org.id)
+    sb.from('webhook_endpoints').select('id, url, label, format, events, created_at').eq('org_id', org.id)
+      .order('created_at', { ascending: false })
       .then(({ data }) => { setEps((data as Endpoint[]) || []); setLoading(false); });
   };
   useEffect(load, [org?.id]);
@@ -101,7 +140,6 @@ export default function IntegrationsPage() {
   const liveCount = CATALOG.length;
 
   const categories = useMemo(() => Array.from(new Set(CATALOG.map((i) => i.category))), []);
-
   const catCounts = useMemo(() => {
     const counts: Record<string, number> = { All: CATALOG.length };
     categories.forEach((c) => { counts[c] = CATALOG.filter((i) => i.category === c).length; });
@@ -110,8 +148,10 @@ export default function IntegrationsPage() {
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return CATALOG.filter((i) => (cat === 'All' || i.category === cat) && (!needle || (i.name + ' ' + i.blurb).toLowerCase().includes(needle)));
-  }, [q, cat]);
+    const rows = CATALOG.filter((i) => (cat === 'All' || i.category === cat) && (!needle || (i.name + ' ' + i.blurb).toLowerCase().includes(needle)));
+    const by = sort === 'category' ? (i: Item) => i.category + i.name : sort === 'type' ? (i: Item) => i.kind + i.name : (i: Item) => i.name;
+    return [...rows].sort((a, b) => by(a).localeCompare(by(b)));
+  }, [q, cat, sort]);
 
   const groups = useMemo(() => {
     const g: Record<string, Item[]> = {};
@@ -127,21 +167,75 @@ export default function IntegrationsPage() {
     try {
       const { error } = await sb.from('webhook_endpoints').insert({ org_id: org.id, url: u, label: modal.name, format: modal.format || 'json', events: ['*'], active: true } as any);
       if (error) throw error;
+      const name = modal.name;
       setModal(null); load();
-    } catch (e: any) { setErr(e.message || 'Could not connect.'); } finally { setBusy(''); }
+      toast(`${name} connected`, 'success', 'It will receive workspace events.');
+    } catch (e: any) { setErr(e.message || 'Could not connect.'); toastError(e, 'Could not connect.'); } finally { setBusy(''); }
   };
 
-  const disconnect = async (it: Item) => {
-    if (!org || !confirm(`Disconnect ${it.name}?`)) return;
-    setBusy(it.key);
-    try { await sb.from('webhook_endpoints').delete().eq('org_id', org.id).eq('label', it.name); load(); } finally { setBusy(''); }
+  const disconnectEp = async (ep: Endpoint) => {
+    if (!org || !confirm(`Disconnect ${ep.label || 'this endpoint'}?`)) return;
+    setBusy(ep.id);
+    try {
+      const { error } = await sb.from('webhook_endpoints').delete().eq('id', ep.id);
+      if (error) throw error;
+      load();
+      toast(`${ep.label || 'Endpoint'} disconnected`, 'success');
+    } catch (e: any) { toastError(e, 'Could not disconnect.'); } finally { setBusy(''); }
   };
+  const disconnectItem = (it: Item) => { const ep = eps.find((e) => e.label === it.name); if (ep) disconnectEp(ep); };
 
   const allCats = ['All', ...categories];
 
+  // Per-kind action element (shared by card + list views).
+  const actionEl = (it: Item, full = true) => {
+    const cls = `btn ${full ? 'w-full justify-center ' : ''}text-xs`;
+    if (it.kind === 'webhook') {
+      return isConnected(it)
+        ? <button onClick={() => disconnectItem(it)} disabled={!admin || busy === it.key} className={cls}>{busy === it.key ? <Icon name="ti-loader-2" className="animate-spin" /> : 'Disconnect'}</button>
+        : <button onClick={() => { setErr(''); setUrl(''); setModal(it); }} disabled={!admin} className={`btn btn-primary ${full ? 'w-full justify-center ' : ''}text-xs ${!admin ? 'opacity-50 cursor-not-allowed' : ''}`}>Connect</button>;
+    }
+    if (it.kind === 'link') return <Link href={it.href || '#'} className={`btn btn-primary ${full ? 'w-full justify-center ' : ''}text-xs`}>{it.cta || 'Open'}</Link>;
+    if (it.kind === 'import') return <Link href="/import" className={`btn btn-primary ${full ? 'w-full justify-center ' : ''}text-xs`}><Icon name="ti-file-import" className="text-xs" />Import data</Link>;
+    return <Link href="/developer" className={cls}>Connect via API</Link>;
+  };
+  const statusPill = (it: Item) => it.kind === 'webhook'
+    ? <span className={`pill ${isConnected(it) ? 'pill-green' : 'pill-gray'}`}>{isConnected(it) ? 'Connected' : 'Available'}</span>
+    : <span className={`pill ${KIND_PILL[it.kind].cls}`}>{KIND_PILL[it.kind].label}</span>;
+
+  const catCell = (id: string, it: Item) => {
+    switch (id) {
+      case 'name': return <span className="inline-flex items-center gap-2 min-w-0"><span className="w-7 h-7 rounded-lg grid place-items-center shrink-0 bg-surface2 text-muted"><Icon name={it.icon} className="text-base" /></span><span className="font-medium text-content truncate">{it.name}</span></span>;
+      case 'category': return <span className="text-muted">{it.category}</span>;
+      case 'type': return <span className={`pill ${KIND_PILL[it.kind].cls}`}>{KIND_PILL[it.kind].label}</span>;
+      case 'status': return statusPill(it);
+      case 'action': return <span onClick={(e) => e.stopPropagation()} className="flex justify-end">{actionEl(it, false)}</span>;
+      default: return '—';
+    }
+  };
+
+  const connCell = (id: string, ep: Endpoint) => {
+    switch (id) {
+      case 'integration': return <span className="inline-flex items-center gap-2 min-w-0"><span className="w-7 h-7 rounded-lg grid place-items-center shrink-0 bg-accent/15 text-accentstrong"><Icon name={ICON_BY_NAME[ep.label || ''] || 'ti-webhook'} className="text-base" /></span><span className="font-medium text-content truncate">{ep.label || 'Endpoint'}</span></span>;
+      case 'url': return <span className="font-mono text-2xs text-muted truncate inline-block max-w-full align-middle" title={ep.url}>{ep.url}</span>;
+      case 'format': return <span className="pill pill-gray capitalize">{ep.format || 'json'}</span>;
+      case 'events': return <span className="text-muted">{!ep.events || ep.events.includes('*') ? 'All events' : `${ep.events.length} event${ep.events.length === 1 ? '' : 's'}`}</span>;
+      case 'created': return <span className="text-muted">{ep.created_at ? ep.created_at.slice(0, 10) : '—'}</span>;
+      case 'act': return <span onClick={(e) => e.stopPropagation()} className="flex justify-end"><button onClick={() => disconnectEp(ep)} disabled={!admin || busy === ep.id} className="btn text-xs">{busy === ep.id ? <Icon name="ti-loader-2" className="animate-spin" /> : 'Disconnect'}</button></span>;
+      default: return '—';
+    }
+  };
+
   return (
     <Layout flat title="Integrations">
-      <PageHeader title="Integrations" subtitle="Connect SNR-PMO to the tools your team already uses." help="connections" />
+      <PageHeader title="Integrations" subtitle="Connect SNR-PMO to the tools your team already uses." help="connections"
+        action={
+          <div className="flex items-center gap-2">
+            <Dropdown value={sort} onChange={setSort} width={190} items={SORTS}
+              trigger={<span className="btn h-9 cursor-pointer"><Icon name="ti-arrows-sort" className="text-sm" /><span className="hidden sm:inline">{SORTS.find((s) => s.value === sort)?.label}</span><Icon name="ti-chevron-down" className="text-2xs text-muted2" /></span>} />
+            <ViewControls prefs={vp} views={[{ id: 'card', icon: 'ti-layout-grid', label: 'Cards' }, { id: 'list', icon: 'ti-list', label: 'List' }]} />
+          </div>
+        } />
 
       {/* Stats bar */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
@@ -160,84 +254,57 @@ export default function IntegrationsPage() {
         </p>
       </div>
 
-      {/* Two-column layout: left rail + right grid */}
-      <div className="flex gap-6 items-start">
+      {/* Connected integrations table (real webhook endpoints) */}
+      {!loading && eps.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-xs uppercase tracking-wide text-muted font-semibold">Connected</p>
+            <span className="pill pill-green">{eps.length}</span>
+          </div>
+          <DataList rows={eps} rowKey={(e) => e.id} cols={CONN_COLS} nameCol="integration" prefs={connPrefs} cell={connCell} />
+        </div>
+      )}
 
-        {/* ── Left category rail (lg+); collapses to select on mobile ── */}
+      {/* Two-column layout: left rail + right content */}
+      <div className="flex gap-6 items-start">
+        {/* Left category rail (lg+) */}
         <aside className="hidden lg:flex flex-col gap-0.5 w-44 shrink-0 sticky top-20">
           <p className="text-2xs uppercase tracking-wide text-muted font-medium px-2 mb-2">Categories</p>
           {allCats.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCat(c)}
-              className={[
-                'flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-sm transition',
-                cat === c
-                  ? 'bg-accent/10 text-accentstrong font-medium'
-                  : 'text-muted hover:text-content hover:bg-surface2',
-              ].join(' ')}
-            >
+            <button key={c} onClick={() => setCat(c)}
+              className={['flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-sm transition', cat === c ? 'bg-accent/10 text-accentstrong font-medium' : 'text-muted hover:text-content hover:bg-surface2'].join(' ')}>
               <span className="truncate">{c}</span>
-              <span className={[
-                'text-2xs font-medium tabular-nums shrink-0',
-                cat === c ? 'text-accentstrong' : 'text-muted2',
-              ].join(' ')}>
-                {catCounts[c]}
-              </span>
+              <span className={['text-2xs font-medium tabular-nums shrink-0', cat === c ? 'text-accentstrong' : 'text-muted2'].join(' ')}>{catCounts[c]}</span>
             </button>
           ))}
         </aside>
 
-        {/* ── Right: search + mobile category selector + grid ── */}
+        {/* Right: search + mobile categories + grid/list */}
         <div className="flex-1 min-w-0">
-
-          {/* Toolbar */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-            {/* Search */}
             <div className="relative flex-1">
               <Icon name="ti-search" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 text-sm pointer-events-none" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search integrations…"
-                className="input w-full pl-9"
-              />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search integrations…" className="input w-full pl-9" />
             </div>
-
-            {/* Mobile category selector — flex-wrap, NO overflow-x */}
             <div className="flex flex-wrap gap-1.5 lg:hidden">
               {allCats.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setCat(c)}
-                  className={[
-                    'px-3 h-7 rounded-full text-xs font-medium whitespace-nowrap transition',
-                    cat === c ? 'bg-accent text-accentfg' : 'bg-surface2 text-muted hover:text-content',
-                  ].join(' ')}
-                >
-                  {c}
-                </button>
+                <button key={c} onClick={() => setCat(c)}
+                  className={['px-3 h-7 rounded-full text-xs font-medium whitespace-nowrap transition', cat === c ? 'bg-accent text-accentfg' : 'bg-surface2 text-muted hover:text-content'].join(' ')}>{c}</button>
               ))}
             </div>
           </div>
 
-          {/* Grid content */}
           {loading ? (
             <div className="flex items-center justify-center py-16"><Spinner /></div>
-          ) : groups.length === 0 ? (
+          ) : visible.length === 0 ? (
             <div className="card flex flex-col items-center justify-center py-16 text-center gap-3">
-              <span className="w-12 h-12 rounded-xl bg-surface2 grid place-items-center text-muted2">
-                <Icon name="ti-plug-x" className="text-xl" />
-              </span>
+              <span className="w-12 h-12 rounded-xl bg-surface2 grid place-items-center text-muted2"><Icon name="ti-plug-x" className="text-xl" /></span>
               <p className="text-sm font-medium text-content">No integrations match your search</p>
               <p className="text-xs text-muted">Try a different keyword or select a different category.</p>
-              <button
-                onClick={() => { setQ(''); setCat('All'); }}
-                className="btn mt-1"
-              >
-                Clear filters
-              </button>
+              <button onClick={() => { setQ(''); setCat('All'); }} className="btn mt-1">Clear filters</button>
             </div>
+          ) : vp.view === 'list' ? (
+            <DataList rows={visible} rowKey={(i) => i.key} cols={CAT_COLS} nameCol="name" prefs={catPrefs} cell={catCell} />
           ) : (
             groups.map(([c, list]) => (
               <div key={c} className="mb-8">
@@ -249,74 +316,18 @@ export default function IntegrationsPage() {
                   {list.map((it) => {
                     const on = it.kind === 'webhook' && isConnected(it);
                     return (
-                      <div
-                        key={it.key}
-                        className={[
-                          'card p-4 flex flex-col gap-3 transition',
-                          on ? 'ring-1 ring-accent/30' : '',
-                        ].join(' ')}
-                      >
-                        {/* Card header */}
+                      <div key={it.key} className={['card p-4 flex flex-col gap-3 transition', on ? 'ring-1 ring-accent/30' : ''].join(' ')}>
                         <div className="flex items-start gap-3">
-                          <span className={[
-                            'w-10 h-10 rounded-xl grid place-items-center shrink-0',
-                            on ? 'bg-accent/15 text-accentstrong' : 'bg-surface2 text-muted',
-                          ].join(' ')}>
+                          <span className={['w-10 h-10 rounded-xl grid place-items-center shrink-0', on ? 'bg-accent/15 text-accentstrong' : 'bg-surface2 text-muted'].join(' ')}>
                             <Icon name={it.icon} className="text-lg" />
                           </span>
                           <div className="min-w-0 flex-1 pt-0.5">
                             <p className="text-sm font-semibold text-content truncate leading-tight">{it.name}</p>
-                            <div className="mt-1.5">
-                              {it.kind === 'webhook' && (
-                                <span className={`pill ${on ? 'pill-green' : 'pill-gray'}`}>
-                                  {on ? 'Connected' : 'Available'}
-                                </span>
-                              )}
-                              {it.kind === 'link' && <span className="pill pill-sky">Available</span>}
-                              {it.kind === 'import' && <span className="pill pill-violet">Migrate in</span>}
-                              {it.kind === 'api' && <span className="pill pill-sky">Via API</span>}
-                            </div>
+                            <div className="mt-1.5">{statusPill(it)}</div>
                           </div>
                         </div>
-
-                        {/* Blurb */}
                         <p className="text-xs text-muted leading-relaxed line-clamp-2 flex-1">{it.blurb}</p>
-
-                        {/* Action */}
-                        <div>
-                          {it.kind === 'webhook' && (on ? (
-                            <button
-                              onClick={() => disconnect(it)}
-                              disabled={!admin || busy === it.key}
-                              className="btn w-full justify-center text-xs"
-                            >
-                              {busy === it.key ? <Icon name="ti-loader-2" className="animate-spin" /> : 'Disconnect'}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => { setErr(''); setUrl(''); setModal(it); }}
-                              disabled={!admin}
-                              className={`btn btn-primary w-full justify-center text-xs ${!admin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                              Connect
-                            </button>
-                          ))}
-                          {it.kind === 'link' && (
-                            <Link href={it.href || '#'} className="btn btn-primary w-full justify-center text-xs">
-                              {it.cta || 'Open'}
-                            </Link>
-                          )}
-                          {it.kind === 'import' && (
-                            <Link href="/import" className="btn btn-primary w-full justify-center text-xs">
-                              <Icon name="ti-file-import" className="text-xs" />Import data
-                            </Link>
-                          )}
-                          {it.kind === 'api' && (
-                            <Link href="/developer" className="btn w-full justify-center text-xs">
-                              Connect via API
-                            </Link>
-                          )}
-                        </div>
+                        <div>{actionEl(it)}</div>
                       </div>
                     );
                   })}
@@ -329,55 +340,33 @@ export default function IntegrationsPage() {
 
       {/* Connect modal */}
       {modal && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
-          onClick={() => setModal(null)}
-        >
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setModal(null)}>
           <div className="card p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            {/* Modal header */}
             <div className="flex items-center gap-3 mb-4">
-              <span className="w-10 h-10 rounded-xl grid place-items-center bg-accent/15 text-accentstrong shrink-0">
-                <Icon name={modal.icon} className="text-lg" />
-              </span>
+              <span className="w-10 h-10 rounded-xl grid place-items-center bg-accent/15 text-accentstrong shrink-0"><Icon name={modal.icon} className="text-lg" /></span>
               <div>
                 <p className="text-sm font-semibold text-content">Connect {modal.name}</p>
                 <p className="text-xs text-muted mt-0.5">Paste your incoming webhook URL below.</p>
               </div>
             </div>
-
-            {/* Help instructions */}
             {modal.help && (
               <div className="rounded-lg bg-surface2 border border-line px-3 py-2.5 mb-4">
                 <p className="text-xs text-muted leading-relaxed">{modal.help}</p>
               </div>
             )}
-
-            {/* Input */}
             <label className="label mb-1 block">Webhook URL</label>
-            <input
-              className="input w-full"
-              autoFocus
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://…"
-            />
-            <p className="text-xs text-muted mt-1.5 leading-relaxed">
-              We&apos;ll post here on workspace events. Fine-tune which events under Developer ▸ Webhooks.
-            </p>
-
+            <input className="input w-full" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+            <p className="text-xs text-muted mt-1.5 leading-relaxed">We&apos;ll post here on workspace events. Fine-tune which events under Developer ▸ Webhooks.</p>
             {err && (
               <div className="flex items-start gap-2 mt-3 p-2.5 rounded-lg bg-rose-50 border border-rose-200">
                 <Icon name="ti-alert-circle" className="text-sm text-rose-600 mt-0.5 shrink-0" />
                 <p className="text-xs text-rose-700">{err}</p>
               </div>
             )}
-
             <div className="flex justify-end gap-2 mt-5">
               <button className="btn" onClick={() => setModal(null)}>Cancel</button>
               <button className="btn btn-primary" onClick={save} disabled={busy === 'save'}>
-                {busy === 'save' ? (
-                  <span className="flex items-center gap-1.5"><Icon name="ti-loader-2" className="animate-spin text-sm" />Connecting…</span>
-                ) : 'Connect'}
+                {busy === 'save' ? <span className="flex items-center gap-1.5"><Icon name="ti-loader-2" className="animate-spin text-sm" />Connecting…</span> : 'Connect'}
               </button>
             </div>
           </div>

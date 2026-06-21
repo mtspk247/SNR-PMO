@@ -4,6 +4,7 @@ import { Icon } from '@/components/ui';
 import { getRecentSystemNotifications } from '@/lib/db';
 import { AppNotification } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/store';
+import { onToast, UiToast } from '@/lib/toast';
 
 const SEEN_KEY = 'snr_toast_seen';
 
@@ -17,6 +18,7 @@ export default function Toaster() {
   const me = useAuthStore((s) => s.user);
   const router = useRouter();
   const [toasts, setToasts] = useState<AppNotification[]>([]);
+  const [ui, setUi] = useState<UiToast[]>([]);
   const seen = useRef<Set<string>>(new Set());
   const since = useRef<string>('');
 
@@ -47,12 +49,18 @@ export default function Toaster() {
     return () => { active = false; clearInterval(t); };
   }, [me?.id]);
 
+  // Imperative app toasts (lib/toast) render in the same stack.
+  useEffect(() => onToast((t) => setUi((p) => [...p, t].slice(-4))), []);
+  const dismissUi = (id: string) => setUi((p) => p.filter((t) => t.id !== id));
   const dismiss = (id: string) => setToasts((p) => p.filter((t) => t.id !== id));
   const open = (n: AppNotification) => { dismiss(n.id); if (n.link) router.push(n.link); };
 
-  if (toasts.length === 0) return null;
+  if (toasts.length === 0 && ui.length === 0) return null;
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-[22rem] max-w-[calc(100vw-2rem)]">
+      {ui.map((t) => (
+        <UiToastCard key={t.id} t={t} onClose={() => dismissUi(t.id)} />
+      ))}
       {toasts.map((n) => (
         <ToastCard key={n.id} n={n} onClose={() => dismiss(n.id)} onOpen={() => open(n)} />
       ))}
@@ -81,6 +89,27 @@ function ToastCard({ n, onClose, onOpen }: { n: AppNotification; onClose: () => 
       <button onClick={onClose} aria-label="Dismiss" className="absolute top-2 right-2 h-6 w-6 grid place-items-center rounded-md text-muted2 hover:text-content hover:bg-surface2 transition">
         <Icon name="ti-x" className="text-sm" />
       </button>
+    </div>
+  );
+}
+
+const TONE: Record<UiToast['tone'], { icon: string; cls: string }> = {
+  success: { icon: 'ti-circle-check', cls: 'bg-emerald-500/10 text-emerald-600' },
+  error: { icon: 'ti-alert-triangle', cls: 'bg-rose-500/10 text-rose-500' },
+  info: { icon: 'ti-info-circle', cls: 'bg-accent/10 text-accentstrong' },
+};
+
+function UiToastCard({ t, onClose }: { t: UiToast; onClose: () => void }) {
+  useEffect(() => { const x = setTimeout(onClose, t.tone === 'error' ? 8000 : 5000); return () => clearTimeout(x); }, []);
+  const m = TONE[t.tone];
+  return (
+    <div role="status" className={`group relative flex gap-3 rounded-xl border bg-surface shadow-lg p-3.5 pr-9 animate-[modalPop_.18s_ease-out] ${t.tone === 'error' ? 'border-rose-500/40' : 'border-line'}`}>
+      <span className={`w-8 h-8 rounded-lg grid place-items-center shrink-0 ${m.cls}`}><Icon name={m.icon} className="text-base" /></span>
+      <div className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-content">{t.title}</span>
+        {t.body && <span className="block text-2xs text-muted mt-0.5">{t.body}</span>}
+      </div>
+      <button onClick={onClose} aria-label="Dismiss" className="absolute top-2 right-2 h-6 w-6 grid place-items-center rounded-md text-muted2 hover:text-content hover:bg-surface2 transition"><Icon name="ti-x" className="text-sm" /></button>
     </div>
   );
 }
