@@ -53,14 +53,14 @@ const Bars = ({ level }: { level: number }) => (
 );
 
 interface TaskForm {
-  name: string; description: string; project_id: string; assignee_id: string;
+  name: string; description: string; project_id: string; assignee_ids: string[];
   priority: string; status: string; due_date: string; estimated_hours: string;
 }
-const EMPTY_FORM: TaskForm = { name: '', description: '', project_id: '', assignee_id: '', priority: 'Medium', status: 'To Do', due_date: '', estimated_hours: '' };
+const EMPTY_FORM: TaskForm = { name: '', description: '', project_id: '', assignee_ids: [], priority: 'Medium', status: 'To Do', due_date: '', estimated_hours: '' };
 
 type GroupBy = 'none' | 'project' | 'priority' | 'status' | 'company';
 
-function BoardCardInner({ task, projectName, assigneeName, assigneeSrc, overdue }: { task: Task; projectName: string; assigneeName: string; assigneeSrc?: string; overdue: boolean }) {
+function BoardCardInner({ task, projectName, assignees, overdue }: { task: Task; projectName: string; assignees: { name: string; src?: string }[]; overdue: boolean }) {
   return (
     <>
       <p className="text-sm font-medium text-content truncate">{task.name}</p>
@@ -68,18 +68,18 @@ function BoardCardInner({ task, projectName, assigneeName, assigneeSrc, overdue 
       <div className="flex items-center gap-2 mt-2.5">
         <Pill label={task.priority} />
         {task.due_date && <span className={`text-2xs tnum ${overdue ? 'text-rose-500 font-medium' : 'text-muted2'}`}>{task.due_date}</span>}
-        {assigneeName && <span className="ml-auto shrink-0"><Avatar name={assigneeName} size={20} src={assigneeSrc} /></span>}
+        {assignees.length > 0 && <span className="ml-auto shrink-0 inline-flex items-center -space-x-1.5">{assignees.slice(0, 3).map((a, i) => <span key={i} title={a.name} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={a.name} size={20} src={a.src} /></span>)}{assignees.length > 3 && <span className="ml-1 text-2xs text-muted2">+{assignees.length - 3}</span>}</span>}
       </div>
     </>
   );
 }
 
-function BoardCard({ task, selected, projectName, assigneeName, assigneeSrc, overdue, onOpen }: { task: Task; selected: boolean; projectName: string; assigneeName: string; assigneeSrc?: string; overdue: boolean; onOpen: () => void }) {
+function BoardCard({ task, selected, projectName, assignees, overdue, onOpen }: { task: Task; selected: boolean; projectName: string; assignees: { name: string; src?: string }[]; overdue: boolean; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
   return (
     <button ref={setNodeRef} type="button" data-card="1" {...attributes} {...listeners} onClick={onOpen}
       className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selected ? 'border-accent' : ''} ${isDragging ? 'opacity-40' : ''}`}>
-      <BoardCardInner task={task} projectName={projectName} assigneeName={assigneeName} assigneeSrc={assigneeSrc} overdue={overdue} />
+      <BoardCardInner task={task} projectName={projectName} assignees={assignees} overdue={overdue} />
     </button>
   );
 }
@@ -154,6 +154,7 @@ export default function Tasks() {
 
   const userName = (id?: string | null) => users.find((u) => u.id === id)?.full_name || (id ? '—' : 'Unassigned');
   const userAvatar = (id?: string | null) => avatarSrc(users.find((u) => u.id === id)?.avatar_url);
+  const taskAssignees = (t: Task) => (t.assignee_ids && t.assignee_ids.length ? t.assignee_ids : (t.assignee_id ? [t.assignee_id] : [])).map((uid) => ({ name: userName(uid), src: userAvatar(uid) }));
   // Patch the RQ cache in place with the authoritative row db.ts returned —
   // same data flow as the old setTasks local state, no extra refetch.
   const setCache = (fn: (prev: Task[]) => Task[]) =>
@@ -266,7 +267,7 @@ export default function Tasks() {
   const toggleSelectAll = () => setSel(allSelected ? new Set() : new Set(selectableIds));
   const bulkAssignUser = (uid: string) => mutate(async () => {
     for (const id of Array.from(sel)) {
-      const u = await updateTask(id, { assignee_id: uid || null }); patchLocal(u);
+      const u = await updateTask(id, { assignee_ids: uid ? [uid] : [], assignee_id: uid || null }); patchLocal(u);
       if (uid && uid !== me?.id && activeOrg?.id) notify({ org_id: activeOrg.id, user_id: uid, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: u.name, link: '/tasks', entity_type: 'task', entity_id: id }).catch(() => {});
     }
     clearSel();
@@ -310,7 +311,7 @@ export default function Tasks() {
       name: t.name,
       description: t.description || '',
       project_id: t.project_id || '',
-      assignee_id: t.assignee_id || '',
+      assignee_ids: t.assignee_ids && t.assignee_ids.length ? t.assignee_ids : (t.assignee_id ? [t.assignee_id] : []),
       priority: t.priority || 'Medium',
       status: t.status || 'To Do',
       due_date: t.due_date || '',
@@ -332,27 +333,29 @@ export default function Tasks() {
           priority: form.priority,
           status: form.status,
           due_date: form.due_date || null,
-          assignee_id: form.assignee_id || null,
+          assignee_id: form.assignee_ids[0] || null,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : undefined,
         });
         // createTask doesn't accept description directly; patch it in if provided.
-        const final = form.description.trim()
-          ? await updateTask(t.id, { description: form.description.trim() })
-          : t;
+        const extra: Partial<Task> = {};
+        if (form.description.trim()) extra.description = form.description.trim();
+        if (form.assignee_ids.length > 1) extra.assignee_ids = form.assignee_ids;
+        const final = Object.keys(extra).length ? await updateTask(t.id, extra) : t;
         setCache((p) => [...p, final]);
         selectTask(final.id);
         setModal(null);
-        if (form.assignee_id && form.assignee_id !== me?.id) notify({ org_id: activeOrg.id, user_id: form.assignee_id, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: final.name, link: '/tasks', entity_type: 'task', entity_id: final.id }).catch(() => {});
+        form.assignee_ids.filter((x) => x !== me?.id).forEach((x) => notify({ org_id: activeOrg.id, user_id: x, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: final.name, link: '/tasks', entity_type: 'task', entity_id: final.id }).catch(() => {}));
       });
     } else if (modal.mode === 'edit' && modal.id) {
       const id = modal.id;
-      const prevAssignee = tasks.find((t) => t.id === id)?.assignee_id || null;
+      const _pt = tasks.find((t) => t.id === id); const prevAssignees = _pt?.assignee_ids && _pt.assignee_ids.length ? _pt.assignee_ids : (_pt?.assignee_id ? [_pt.assignee_id] : []);
       mutate(async () => {
         const updated = await updateTask(id, {
           name: form.name.trim(),
           description: form.description.trim() || null,
           project_id: form.project_id || null,
-          assignee_id: form.assignee_id || null,
+          assignee_ids: form.assignee_ids,
+          assignee_id: form.assignee_ids[0] || null,
           priority: form.priority,
           status: form.status,
           due_date: form.due_date || null,
@@ -360,9 +363,7 @@ export default function Tasks() {
         });
         patchLocal(updated);
         setModal(null);
-        if (form.assignee_id && form.assignee_id !== prevAssignee && form.assignee_id !== me?.id && updated.org_id) {
-          notify({ org_id: updated.org_id, user_id: form.assignee_id, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: updated.name, link: '/tasks', entity_type: 'task', entity_id: updated.id }).catch(() => {});
-        }
+        if (updated.org_id) form.assignee_ids.filter((x) => x !== me?.id && !prevAssignees.includes(x)).forEach((x) => notify({ org_id: updated.org_id as string, user_id: x, type: 'TASK_ASSIGNED', title: 'You were assigned a task', body: updated.name, link: '/tasks', entity_type: 'task', entity_id: updated.id }).catch(() => {}));
       });
     }
   };
@@ -570,7 +571,7 @@ export default function Tasks() {
                   onAdd={() => { setForm({ ...EMPTY_FORM, status: st }); setModal({ mode: 'create' }); }}>
                   {items.map((t) => (
                     <BoardCard key={t.id} task={t} selected={selectedId === t.id}
-                      projectName={t.projects?.name || ''} assigneeName={t.assignee_id ? userName(t.assignee_id) : ''} assigneeSrc={userAvatar(t.assignee_id)}
+                      projectName={t.projects?.name || ''} assignees={taskAssignees(t)}
                       overdue={isOverdue(t.due_date) && t.status !== 'Done' && t.status !== 'Cancelled'}
                       onOpen={() => selectTask(t.id)} />
                   ))}
@@ -583,7 +584,7 @@ export default function Tasks() {
         <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(.16,1,.3,1)' }}>
           {activeTask ? (
             <div className="card p-3 w-72 shadow-lg ring-2 ring-accent/50 rotate-1 cursor-grabbing">
-              <BoardCardInner task={activeTask} projectName={activeTask.projects?.name || ''} assigneeName={activeTask.assignee_id ? userName(activeTask.assignee_id) : ''} assigneeSrc={userAvatar(activeTask.assignee_id)} overdue={isOverdue(activeTask.due_date) && activeTask.status !== 'Done' && activeTask.status !== 'Cancelled'} />
+              <BoardCardInner task={activeTask} projectName={activeTask.projects?.name || ''} assignees={taskAssignees(activeTask)} overdue={isOverdue(activeTask.due_date) && activeTask.status !== 'Done' && activeTask.status !== 'Cancelled'} />
             </div>
           ) : null}
         </DragOverlay>
@@ -830,7 +831,7 @@ export default function Tasks() {
             <div className="space-y-3.5 mt-4">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Status"><Select value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={[...statuses.map(s => ({ value: s, label: titleCase(s) }))]} /></Field>
-                <Field label="Assignee"><Select value={form.assignee_id} onChange={(v) => setForm({ ...form, assignee_id: v })} options={[{ value: '', label: 'Unassigned' }, ...users.map(u => ({ value: u.id, label: u.full_name }))]} /></Field>
+                <Field label="Assignees"><Dropdown multiple search width={260} placeholder="Assign people…" values={form.assignee_ids} onToggle={(uid) => setForm({ ...form, assignee_ids: form.assignee_ids.includes(uid) ? form.assignee_ids.filter((x) => x !== uid) : [...form.assignee_ids, uid] })} items={users.map(u => ({ value: u.id, label: u.full_name }))} trigger={<span className="input flex items-center gap-1.5 cursor-pointer">{form.assignee_ids.length ? <span className="inline-flex items-center -space-x-1.5">{form.assignee_ids.slice(0, 4).map((uid) => <span key={uid} className="ring-2 ring-surface rounded-full inline-flex" title={userName(uid)}><Avatar name={userName(uid)} size={20} src={userAvatar(uid)} /></span>)}{form.assignee_ids.length > 4 && <span className="ml-1.5 text-2xs text-muted2">+{form.assignee_ids.length - 4}</span>}</span> : <span className="text-muted2 text-sm">Assign people…</span>}<Icon name="ti-chevron-down" className="ml-auto text-2xs text-muted2" /></span>} /></Field>
                 <Field label="Priority"><Select value={form.priority} onChange={(v) => setForm({ ...form, priority: v })} options={[...priorities.map((p) => ({ value: p, label: titleCase(p) }))]} /></Field>
                 <Field label="Due date"><input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" /></Field>
               </div>

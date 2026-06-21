@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, useRef, ReactNode } from 'react';
 import type { PointerEvent as RPointerEvent, CSSProperties } from 'react';
 import { Icon, Avatar, INLINE_SELECT_CLS } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
@@ -67,6 +67,7 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [inviting, setInviting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const meId = useAuthStore((st) => st.user?.id);
   const meOpt = meId ? options.find((o) => o.value === meId) : undefined;
   const sel = multi ? value.split(',').map((s) => s.trim()).filter(Boolean) : (value ? [value] : []);
@@ -82,7 +83,7 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
     <span className="relative inline-flex max-w-full" onClick={(e) => e.stopPropagation()}>
       <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center -mx-1 px-1 py-0.5 rounded transition max-w-full">
         {selOpts.length > 0
-          ? <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-1 py-0.5 hover:border-borderstrong transition">
+          ? <span className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-1.5 py-0.5 hover:border-borderstrong transition">
               {multi
                 ? <span className="inline-flex items-center -space-x-1.5">{selOpts.slice(0, 3).map((o) => <span key={o.value} title={o.label} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={20} /></span>)}{selOpts.length > 3 && <span className="ml-1.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}</span>
                 : <span title={selOpts[0].label} className="inline-flex"><Avatar name={selOpts[0].label} size={20} /></span>}
@@ -91,9 +92,10 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
       </button>
       {open && <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />}
       {open && (
-        <div className="absolute left-0 top-7 z-20 w-60 bg-surface border border-line rounded-lg shadow-lg p-1.5">
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={onInvite ? 'Search or enter email…' : 'Search people…'} className="input h-8 text-sm w-full mb-1" />
+        <div className="absolute left-0 top-7 z-20 w-72 bg-surface border border-line rounded-lg shadow-lg p-1.5">
+          <div className="relative mb-1.5"><Icon name="ti-search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted2 text-sm pointer-events-none" /><input ref={inputRef} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={onInvite ? 'Search or enter email…' : 'Search people…'} className="input h-8 text-sm w-full pl-8" /></div>
           <div className="max-h-56 overflow-auto">
+            {multi && <div className="px-2 pt-0.5 pb-1 text-2xs font-semibold uppercase tracking-wide text-muted2">Assignees</div>}
             {meOpt && !q && <button onClick={() => pick(meOpt.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${sel.includes(meOpt.value) ? 'bg-accent/5' : ''}`}><Avatar name={meOpt.label} size={22} /><span className="text-content font-medium">Me</span>{sel.includes(meOpt.value) && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}</button>}
             {!multi && <button onClick={() => { onSave(''); setOpen(false); }} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-x" className="text-2xs" /></span>Unassigned</button>}
             {(q ? list : list.filter((o) => o.value !== meId)).map((o) => { const on = sel.includes(o.value); return (
@@ -106,6 +108,7 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
                 <span className="grid place-items-center h-5 w-5 rounded-full bg-accent/15"><Icon name="ti-mail" className="text-2xs" /></span><span className="truncate">{inviting ? 'Inviting…' : `Invite ${q.trim()}`}</span>
               </button>
             )}
+            {onInvite && !isEmail && <button type="button" onClick={() => inputRef.current?.focus()} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full bg-surface2"><Icon name="ti-mail-plus" className="text-2xs" /></span>Invite people via email</button>}
             {list.length === 0 && !isEmail && <div className="px-2 py-2 text-sm text-muted2">No people found</div>}
           </div>
           {multi && <button onClick={() => setOpen(false)} className="w-full mt-1 pt-1 border-t border-line/60 text-2xs text-muted2 hover:text-content">Done</button>}
