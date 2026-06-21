@@ -48,6 +48,8 @@ export type ListViewProps<T extends { id: string }> = {
   onRowClick?: (r: T) => void;
   nameCol?: string;                       // primary/name column id (defaults to first col)
   onInvitePerson?: (email: string) => void | Promise<void>;  // invite-by-email from person cells
+  onRename?: (r: T, name: string) => void;                   // inline rename from the name cell
+  onAddSubtask?: (r: T) => void;                             // "+" add-subtask on the name cell
   onAddInGroup?: (groupValue: string) => void;
   orderKey?: string;                      // enables persisted drag-to-reorder of rows
   // ── bulk actions ────────────────────────────────────────
@@ -175,6 +177,8 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           orderKey={p.orderKey}
           nameCol={p.nameCol}
           onInvitePerson={p.onInvitePerson}
+          onRename={p.onRename}
+          onAddSubtask={p.onAddSubtask}
         />
       )}
     </>

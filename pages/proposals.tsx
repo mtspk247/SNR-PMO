@@ -238,8 +238,9 @@ export default function ProposalsPage() {
           groups={GROUPS}
           onAddInGroup={(g) => setEditor({ draft: { ...emptyDraft(), status: g as Proposal['status'] } })}
           editable={{ owner: { type: 'person' as const, options: users.map((u) => ({ value: u.id, label: u.full_name })) } }}
-          rawValue={(id, p) => (id === 'owner' ? (p.owner_id || '') : '')}
+          rawValue={(id, p) => (id === 'owner' ? (p.owner_id || '') : id === 'title' ? (p.title || '') : '')}
           onEdit={(p, id, v) => { if (id === 'owner') updateProposal(p.id, { owner_id: v || null } as any).then(load).catch((e: any) => alert(e.message)); }}
+          onRename={(p, v) => { updateProposal(p.id, { title: v } as any).then(load).catch((e: any) => alert(e.message)); }}
           onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
         />
       )}

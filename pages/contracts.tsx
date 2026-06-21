@@ -233,8 +233,9 @@ export default function ContractsPage() {
           groups={GROUPS}
           onAddInGroup={(g) => setEditor({ draft: { ...emptyDraft(), status: g as typeof STATUSES[number] } })}
           editable={{ owner: { type: 'person' as const, options: users.map((u) => ({ value: u.id, label: u.full_name })) } }}
-          rawValue={(id, c) => (id === 'owner' ? (c.owner_id || '') : '')}
+          rawValue={(id, c) => (id === 'owner' ? (c.owner_id || '') : id === 'title' ? (c.title || '') : '')}
           onEdit={(c, id, v) => { if (id === 'owner') updateContract(c.id, { owner_id: v || null } as any).then(load).catch((e: any) => alert(e.message)); }}
+          onRename={(c, v) => { updateContract(c.id, { title: v } as any).then(load).catch((e: any) => alert(e.message)); }}
           onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
         />
       )}

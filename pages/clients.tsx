@@ -226,6 +226,7 @@ export default function ClientsPage() {
         editable={editable}
         rawValue={rawValue}
         onEdit={onInlineEdit}
+        onRename={(c, v) => { updateClient(c.id, { name: v } as any).then(load).catch((e: any) => setErr(e.message)); }}
         onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
         onRowClick={(c) => setEditor({ mode: 'edit', draft: c })}
         onAddInGroup={(g) => setEditor({ mode: 'add', draft: { ...emptyDraft(), status: g as ClientStatus } })}

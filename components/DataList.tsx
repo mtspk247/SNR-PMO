@@ -14,6 +14,8 @@ import AddColumnForm from '@/components/AddColumnForm';
 
 const CF_PREFIX = 'cf:';
 const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
+// Pill class -> hex, for the name-cell status circle (slice E).
+const PILL_HEX: Record<string, string> = { 'pill-green': '#10b981', 'pill-amber': '#f59e0b', 'pill-blue': '#0ea5e9', 'pill-red': '#f43f5e', 'pill-rose': '#f43f5e', 'pill-gray': '#9ca3af', 'pill-violet': '#8b5cf6' };
 
 export type GroupMeta = { value: string; label: string; pill?: string };
 export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string }[]; multi?: boolean };
@@ -52,6 +54,10 @@ export type DataListProps<T> = {
   nameCol?: string;
   /** Invite-by-email handler for person/assignee cells (org-scoped, page-supplied). */
   onInvitePerson?: (email: string) => void | Promise<void>;
+  /** Inline rename from the name cell (hover pencil). Page persists via its update fn. */
+  onRename?: (r: T, name: string) => void;
+  /** Adds a "+" on the name cell to create a subtask/child (page-supplied). */
+  onAddSubtask?: (r: T) => void;
 };
 
 function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { value: string; label: string }[]; value: string; onSave: (v: string) => void; multi?: boolean; onInvite?: (email: string) => void | Promise<void> }) {
@@ -154,13 +160,14 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey, nameCol, onInvitePerson }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dropGroup, setDropGroup] = useState<string | null>(null);
   const [colDrag, setColDrag] = useState<string | null>(null);
   const [manualOrder, setManualOrder] = useState<string[]>([]);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const dragId = drag?.id || null;
 
   useEffect(() => {
@@ -307,13 +314,40 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
           const disp = isCf ? prefs.cf!.cell(cid, id) : cell(cid, r);
           const rv = isCf ? prefs.cf!.rawValue(cid, id) : (rawValue ? rawValue(cid, r) : undefined);
           const save = isCf ? (v: string) => prefs.cf!.onEdit(cid, id, v) : (onEdit ? (v: string) => onEdit(r, cid, v) : undefined);
-          // Name (primary) column opens the detail on click; every other cell is inline-edit on hover.
+          // Name (primary) column: status circle + name (click → detail) + hover rename / +subtask.
           if (cid === primaryId) {
+            let stCircle: ReactNode = null;
+            if (canGroupChange && groupOf && groups) {
+              const grp = groupOf(r);
+              const meta = groups.find((g) => g.value === grp);
+              const hex = (meta && PILL_HEX[meta.pill || '']) || '#9ca3af';
+              const stOpts = (editable && editable[groupBy] && editable[groupBy].options) || [];
+              stCircle = (
+                <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+                  <Dropdown value={grp} onChange={(v) => { if (v !== grp && onEdit) onEdit(r, groupBy, v); }} items={stOpts} width={200} search={stOpts.length > 8}
+                    trigger={<span title={grp} className="grid place-items-center h-4 w-4 rounded-full cursor-pointer hover:scale-110 transition" style={{ background: hex + '2a', boxShadow: `inset 0 0 0 1.5px ${hex}` }} />} />
+                </span>
+              );
+            }
             return (
               <td key={cid} data-col={cid}
-                onClick={onRowClick ? (e) => { e.stopPropagation(); onRowClick(r); } : undefined}
-                className={`px-4 py-2.5 text-sm align-middle ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'truncate'} ${onRowClick ? 'cursor-pointer' : ''}`}>
-                <span className={onRowClick ? 'hover:underline underline-offset-2' : ''}>{disp}</span>
+                className={`px-4 py-2.5 text-sm align-middle ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'overflow-hidden'}`}>
+                <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full group/name">
+                  {stCircle}
+                  {renaming === id ? (
+                    <input autoFocus defaultValue={rawValue ? rawValue(cid, r) : ''} onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { const v = (e.target as HTMLInputElement).value.trim(); setRenaming(null); if (v && onRename) onRename(r, v); } if (e.key === 'Escape') setRenaming(null); }}
+                      onBlur={(e) => { const v = e.target.value.trim(); setRenaming(null); if (v && onRename) onRename(r, v); }}
+                      className="input h-7 text-sm py-0 min-w-0 flex-1" />
+                  ) : (
+                    <>
+                      <span onClick={onRowClick ? (e) => { e.stopPropagation(); onRowClick(r); } : undefined}
+                        className={`truncate min-w-0 ${onRowClick ? 'cursor-pointer hover:underline underline-offset-2' : ''}`}>{disp}</span>
+                      {onRename && <button onClick={(e) => { e.stopPropagation(); setRenaming(id); }} title="Rename" className="opacity-0 group-hover/name:opacity-100 text-muted2 hover:text-content shrink-0 transition"><Icon name="ti-pencil" className="text-2xs" /></button>}
+                      {onAddSubtask && <button onClick={(e) => { e.stopPropagation(); onAddSubtask(r); }} title="Add subtask" className="opacity-0 group-hover/name:opacity-100 text-muted2 hover:text-accentstrong shrink-0 transition"><Icon name="ti-plus" className="text-2xs" /></button>}
+                    </>
+                  )}
+                </span>
               </td>
             );
           }
