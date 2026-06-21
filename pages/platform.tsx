@@ -957,7 +957,7 @@ function ActivityTab() {
           if (id === 'entity') return <span className="text-2xs text-muted2">{r.entity_type || ''}{r.entity_id ? ' · ' + String(r.entity_id).slice(0, 8) : ''}</span>;
           return null;
         };
-        return <DataList rows={filtered} rowKey={(r) => r.id} cols={ACTIVITY_COLS} prefs={activityPrefs} cell={activityCell} nameCol="when" onRowClick={(r) => setDetail(r)} />;
+        return <DataList rows={filtered} rowKey={(r) => String(r.id)} cols={ACTIVITY_COLS} prefs={activityPrefs} cell={activityCell} nameCol="when" onRowClick={(r) => setDetail(r)} />;
       })()}
       {detail && (
         <Modal open={!!detail} onClose={() => setDetail(null)} title="Event detail" icon="ti-activity" size="md">
