@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useListPrefs, ColDef } from '@/components/ListToolbar';
 import { DataList, GroupMeta } from '@/components/DataList';
 import Select from '@/components/Select';
@@ -10,7 +10,6 @@ import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
 import { listTenants, listPlans, listOrgInvites, createOrgInvite, setOrgInviteSource, revokeOrgInvite, platformAccounts, PlatformAccount, emailGetStatus, EmailStatus, adminImpersonateLink, setTenantReseller } from '@/lib/db';
 import { Plan, OrgInvite } from '@/lib/supabase';
-import { GroupHeader } from '@/components/GroupHeader';
 import Dropdown from '@/components/Dropdown';
 import TenantsOverview from '@/components/TenantsOverview';
 
@@ -35,6 +34,19 @@ const TENANT_COLS: ColDef[] = [
   { id: 'status', label: 'Status', width: 100 },
   { id: 'joined', label: 'Joined', width: 110 },
   { id: 'actions', label: '', width: 120 },
+];
+const INV_COLS: ColDef[] = [
+  { id: 'email', label: 'Email', locked: true, width: 220 },
+  { id: 'workspace', label: 'Workspace', width: 160 },
+  { id: 'plan', label: 'Plan', width: 100 },
+  { id: 'source', label: 'Source', width: 120 },
+  { id: 'status', label: 'Status', width: 110 },
+  { id: 'expires', label: 'Expires', width: 110 },
+  { id: 'actions', label: '', width: 160 },
+];
+const ORPHAN_COLS: ColDef[] = [
+  { id: 'person', label: 'Person', locked: true, width: 280 },
+  { id: 'signedup', label: 'Signed up', width: 180 },
 ];
 
 export default function TenantsPage() {
@@ -85,6 +97,8 @@ export default function TenantsPage() {
   }, [rows, q, fPlan, fType, fStatus]);
   const filtersOn = q.trim() !== '' || fPlan !== 'all' || fType !== 'all' || fStatus !== 'all';
   const tenantPrefs = useListPrefs('snrpmo.tenants.cols', TENANT_COLS, { canManage: false });
+  const invPrefs = useListPrefs('snrpmo.tenant-invites.cols', INV_COLS, { canManage: false });
+  const orphanPrefs = useListPrefs('snrpmo.tenant-orphans.cols', ORPHAN_COLS, { canManage: false });
 
   const copyLink = (link: string) => { try { navigator.clipboard?.writeText(link); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const submitInvite = async () => {
@@ -246,36 +260,27 @@ export default function TenantsPage() {
           <button className="btn btn-primary shrink-0" onClick={() => { setInvOpen(true); setInvLink(null); setInvErr(''); }}><Icon name="ti-mail-plus" />Invite tenant</button>
         </div>
         {invites.length === 0 ? <div className="p-6"><EmptyState icon="ti-mail" text="No invitations yet." /></div> : (
-          <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2/60 text-muted2 text-left text-2xs uppercase tracking-wider font-semibold">
-              <tr><th className="px-4 py-2.5">Email</th><th className="px-4 py-2.5">Workspace</th><th className="px-4 py-2.5">Plan</th><th className="px-4 py-2.5">Source</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Expires</th><th className="px-4 py-2.5"></th></tr>
-            </thead>
-            <tbody>
-              {[...invites.reduce((mm: Map<string, typeof invites>, iv) => { const k = iv.parent_org_id ? `${(rows || []).find((x: any) => x.org_id === iv.parent_org_id)?.org_name || 'Reseller'} · invitations` : 'Platform invitations'; if (!mm.has(k)) mm.set(k, [] as any); (mm.get(k) as any).push(iv); return mm; }, new Map()).entries()].map(([label, items]) => (
-                <Fragment key={label}>
-                  <GroupHeader label={label} count={(items as any).length} asTableRow colSpan={7} />
-                  {(items as any).map((iv: any) => (
-                <tr key={iv.id} className="border-t border-line hover:bg-surface2/60 transition-colors">
-                  <td className="px-4 py-3 text-content">{iv.email}</td>
-                  <td className="px-4 py-3 text-muted">{iv.org_name || '—'}</td>
-                  <td className="px-4 py-3"><span className="pill pill-gray">{iv.plan_key}</span></td>
-                  <td className="px-4 py-3 text-2xs text-muted2">{sourceLabel(iv.source)}</td>
-                  <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium ${iv.status === 'pending' ? 'bg-amber-500/10 text-amber-600' : iv.status === 'accepted' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-surface2 text-muted'}`}>{iv.status}</span></td>
-                  <td className="px-4 py-3 text-2xs text-muted2">{new Date(iv.expires_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    {iv.status === 'pending' && (
-                      <>
-                        <button className="btn-ghost text-2xs" onClick={() => copyLink(`${window.location.origin}/signup?token=${iv.token}`)}><Icon name="ti-link" />Copy link</button>
-                        <button className="btn-ghost text-2xs text-rose-600 ml-1" onClick={() => doRevoke(iv.id)}><Icon name="ti-x" />Revoke</button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-                  ))}
-                </Fragment>
-              ))}
-            </tbody>
-          </table></div>
+          (() => {
+            const invCell = (id: string, iv: any) => {
+              if (id === 'email') return <span className="text-content">{iv.email}</span>;
+              if (id === 'workspace') return <span className="text-muted">{iv.org_name || '—'}</span>;
+              if (id === 'plan') return <span className="pill pill-gray">{iv.plan_key}</span>;
+              if (id === 'source') return <span className="text-2xs text-muted2">{sourceLabel(iv.source)}</span>;
+              if (id === 'status') return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium ${iv.status === 'pending' ? 'bg-amber-500/10 text-amber-600' : iv.status === 'accepted' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-surface2 text-muted'}`}>{iv.status}</span>;
+              if (id === 'expires') return <span className="text-2xs text-muted2">{new Date(iv.expires_at).toLocaleDateString()}</span>;
+              if (id === 'actions') return iv.status === 'pending' ? (
+                <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                  <button className="btn-ghost text-2xs" onClick={() => copyLink(`${window.location.origin}/signup?token=${iv.token}`)}><Icon name="ti-link" />Copy link</button>
+                  <button className="btn-ghost text-2xs text-rose-600" onClick={() => doRevoke(iv.id)}><Icon name="ti-x" />Revoke</button>
+                </div>
+              ) : null;
+              return null;
+            };
+            const invGroupOf = (iv: any) => iv.parent_org_id ? `${(rows || []).find((x: any) => x.org_id === iv.parent_org_id)?.org_name || 'Reseller'} · invitations` : 'Platform invitations';
+            const invSeen: string[] = []; for (const iv of invites) { const k = invGroupOf(iv); if (!invSeen.includes(k)) invSeen.push(k); }
+            const invGroups = invSeen.map((v) => ({ value: v, label: v }));
+            return <DataList rows={invites as any[]} rowKey={(iv: any) => iv.id} cols={INV_COLS} prefs={invPrefs} cell={invCell} nameCol="email" groupBy="parent" groupOf={invGroupOf} groups={invGroups} />;
+          })()
         )}
       </div>
 
@@ -285,19 +290,14 @@ export default function TenantsPage() {
             <h3 className="text-sm font-semibold text-content">Accounts without a workspace</h3>
             <p className="text-2xs text-muted">{orphans.length} {orphans.length === 1 ? 'person has' : 'people have'} signed in but don&rsquo;t belong to any tenant yet.</p>
           </div>
-          <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2/60 text-muted2 text-left text-2xs uppercase tracking-wider font-semibold">
-              <tr><th className="px-4 py-2.5">Person</th><th className="px-4 py-2.5">Signed up</th></tr>
-            </thead>
-            <tbody>
-              {orphans.map((a) => (
-                <tr key={a.user_id} className="border-t border-line hover:bg-surface2/60 transition-colors">
-                  <td className="px-4 py-3"><span className="block font-medium text-content">{a.full_name || a.email}</span><span className="block text-2xs text-muted">{a.email}</span></td>
-                  <td className="px-4 py-3 text-2xs text-muted2">{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+          {(() => {
+            const orphanCell = (id: string, a: any) => {
+              if (id === 'person') return <span><span className="block font-medium text-content">{a.full_name || a.email}</span><span className="block text-2xs text-muted">{a.email}</span></span>;
+              if (id === 'signedup') return <span className="text-2xs text-muted2">{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</span>;
+              return null;
+            };
+            return <DataList rows={orphans as any[]} rowKey={(a: any) => a.user_id} cols={ORPHAN_COLS} prefs={orphanPrefs} cell={orphanCell} nameCol="person" />;
+          })()}
         </div>
       )}
       </>
