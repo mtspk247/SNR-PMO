@@ -164,6 +164,7 @@ export default function ApplicationsPage() {
       case 'job': return jobName(a.job_id);
       case 'email': return a.email || '';
       case 'stage': return a.stage;
+      case 'owner': return a.owner_id || '';
       case 'rating': return a.rating != null ? String(a.rating) : '';
       case 'owner': return userName(a.owner_id);
       default: return '';
@@ -175,6 +176,7 @@ export default function ApplicationsPage() {
   const editable: Record<string, EditSpec> = isAdmin ? {
     candidate: { type: 'text' },
     stage: { type: 'select', options: STAGES.map((s) => ({ value: s, label: cap(s) })) },
+    owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
   } : {};
 
   const rawValue = (id: string, a: Application) => {
@@ -186,7 +188,7 @@ export default function ApplicationsPage() {
   };
 
   const onInlineEdit = async (a: Application, id: string, value: string) => {
-    const field = id === 'candidate' ? 'candidate_name' : id;
+    const field = id === 'candidate' ? 'candidate_name' : id === 'owner' ? 'owner_id' : id;
     try { await updateApplication(a.id, { [field]: value || null } as any); load(); } catch (e: any) { setErr(e.message); }
   };
 

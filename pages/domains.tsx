@@ -228,6 +228,7 @@ export default function DomainsPage() {
     domain: { type: 'text' },
     registrar: { type: 'text' },
     status: { type: 'select', options: STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') })) },
+    owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
   };
 
   const rawValue = (id: string, d: Domain) => {
@@ -235,12 +236,14 @@ export default function DomainsPage() {
       case 'domain': return d.domain;
       case 'registrar': return d.registrar || '';
       case 'status': return d.status;
+      case 'owner': return d.owner_id || '';
       default: return '';
     }
   };
 
   const onInlineEdit = async (d: Domain, id: string, value: string) => {
-    try { await updateDomain(d.id, { [id]: value || null } as any); load(); }
+    const field = id === 'owner' ? 'owner_id' : id;
+    try { await updateDomain(d.id, { [field]: value || null } as any); load(); }
     catch (e: any) { setErr(e.message); }
   };
 

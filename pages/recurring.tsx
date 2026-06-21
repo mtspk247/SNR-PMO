@@ -159,6 +159,7 @@ export default function RecurringPage() {
     amount:   { type: 'number' },
     vendor:   { type: 'text' },
     status:   { type: 'select', options: STATUSES.map((s) => ({ value: s, label: titleCase(s) })) },
+    owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
   };
 
   const rawValue = (id: string, r: RecurringExpense) => {
@@ -168,13 +169,14 @@ export default function RecurringPage() {
       case 'amount':   return String(r.amount ?? 0);
       case 'vendor':   return r.vendor || '';
       case 'status':   return r.status;
+      case 'owner':    return r.owner_id || '';
       default:         return '';
     }
   };
 
   const onInlineEdit = async (r: RecurringExpense, id: string, value: string) => {
     const patch: Partial<RecurringExpense> =
-      id === 'amount' ? { amount: Number(value) || 0 } : { [id]: value || null } as any;
+      id === 'amount' ? { amount: Number(value) || 0 } : id === 'owner' ? ({ owner_id: value || null } as any) : ({ [id]: value || null } as any);
     try { await updateRecurringExpense(r.id, patch); load(); } catch (e: any) { setErr(e.message); }
   };
 

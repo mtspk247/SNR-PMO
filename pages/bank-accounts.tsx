@@ -227,15 +227,16 @@ export default function BankAccountsPage() {
     label: { type: 'text' },
     bank: { type: 'text' },
     type: { type: 'select', options: ACCOUNT_TYPES.map((t) => ({ value: t, label: cap(t) })) },
+    owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
   };
 
   const rawValue = (id: string, a: BankAccount) =>
     id === 'label' ? a.label :
     id === 'bank' ? (a.bank_name || '') :
-    id === 'type' ? (a.account_type || '') : '';
+    id === 'type' ? (a.account_type || '') : id === 'owner' ? (a.owner_id || '') : '';
 
   const onInlineEdit = async (a: BankAccount, id: string, value: string) => {
-    const field = id === 'bank' ? 'bank_name' : id === 'type' ? 'account_type' : id;
+    const field = id === 'bank' ? 'bank_name' : id === 'type' ? 'account_type' : id === 'owner' ? 'owner_id' : id;
     try { await updateBankAccount(a.id, { [field]: value || null } as any); load(); } catch (e: any) { setErr(e.message); }
   };
 

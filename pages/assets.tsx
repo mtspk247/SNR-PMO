@@ -124,6 +124,7 @@ export default function AssetsPage() {
       case 'revenue':  return Number(a.revenue) > 0 ? fmtMoney(a.revenue, a.currency) : '';
       case 'owner':    return nameOf(a.owner_id);
       case 'status':   return a.status;
+      case 'owner':    return a.owner_id || '';
       default:         return '';
     }
   };
@@ -132,6 +133,7 @@ export default function AssetsPage() {
     name:     { type: 'text' },
     category: { type: 'text' },
     status:   { type: 'select', options: STATUSES.map((st) => ({ value: st, label: lbl(st) })) },
+    owner: { type: 'person', options: users.map((u) => ({ value: u.id, label: u.full_name })) },
   };
 
   const rawValue = (id: string, a: Asset) => {
@@ -144,7 +146,8 @@ export default function AssetsPage() {
   };
 
   const onInlineEdit = async (a: Asset, id: string, value: string) => {
-    try { await updateAsset(a.id, { [id]: value || null } as any); load(); }
+    const field = id === 'owner' ? 'owner_id' : id;
+    try { await updateAsset(a.id, { [field]: value || null } as any); load(); }
     catch (e: any) { setErr(e.message); }
   };
 
