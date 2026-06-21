@@ -23,28 +23,38 @@ const SOURCES = [
 ];
 const sourceLabel = (s?: string | null) => SOURCES.find((x) => x.value === s)?.label || (s || '—');
 
+type TenantGroupBy = 'category' | 'industry' | 'plan' | 'status' | 'hierarchy' | 'none';
 type TenantGroup = { label: string; items: any[]; count?: number };
-function groupsFor(rows: any[], groupBy: 'hierarchy' | 'plan' | 'none'): TenantGroup[] {
-  if (groupBy === 'plan') {
-    const m = new Map<string, any[]>();
-    for (const t of rows) { const k = t.plan_name || t.plan_key || 'Free'; if (!m.has(k)) m.set(k, []); m.get(k)!.push(t); }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([label, items]) => ({ label, items }));
-  }
+const FALLBACK_GROUPS = new Set(['Uncategorized', 'No industry']);
+// Newest-joined first within every grouping (org created_at desc).
+const joinedDesc = (a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || ''));
+function groupsFor(rows: any[], groupBy: TenantGroupBy): TenantGroup[] {
+  const sorted = [...rows].sort(joinedDesc);
   if (groupBy === 'hierarchy') {
-    const resellers = rows.filter((r) => r.is_reseller);
+    const resellers = sorted.filter((r) => r.is_reseller);
     const byParent = new Map<string, any[]>();
-    for (const t of rows) if (t.parent_org_id) { if (!byParent.has(t.parent_org_id)) byParent.set(t.parent_org_id, []); byParent.get(t.parent_org_id)!.push(t); }
+    for (const t of sorted) if (t.parent_org_id) { if (!byParent.has(t.parent_org_id)) byParent.set(t.parent_org_id, []); byParent.get(t.parent_org_id)!.push(t); }
     const groups: TenantGroup[] = []; const claimed = new Set<string>();
     for (const rsl of resellers) {
       const subs = byParent.get(rsl.org_id) || [];
       groups.push({ label: rsl.org_name + ' · reseller', items: [rsl, ...subs], count: subs.length });
       claimed.add(rsl.org_id); subs.forEach((x) => claimed.add(x.org_id));
     }
-    const others = rows.filter((r) => !claimed.has(r.org_id));
+    const others = sorted.filter((r) => !claimed.has(r.org_id));
     if (others.length) groups.push({ label: 'Direct tenants', items: others });
     return groups;
   }
-  return [{ label: '', items: rows }];
+  if (groupBy === 'none') return [{ label: '', items: sorted }];
+  const keyOf = (t: any) =>
+    groupBy === 'plan' ? (t.plan_name || t.plan_key || 'Free')
+    : groupBy === 'category' ? (t.category || 'Uncategorized')
+    : groupBy === 'industry' ? (t.industry || 'No industry')
+    : (t.sub_status || 'free');
+  const m = new Map<string, any[]>();
+  for (const t of sorted) { const k = keyOf(t); if (!m.has(k)) m.set(k, []); m.get(k)!.push(t); }
+  return [...m.entries()]
+    .sort((a, b) => (FALLBACK_GROUPS.has(a[0]) ? 1 : 0) - (FALLBACK_GROUPS.has(b[0]) ? 1 : 0) || a[0].localeCompare(b[0]))
+    .map(([label, items]) => ({ label, items }));
 }
 
 export default function TenantsPage() {
@@ -63,7 +73,9 @@ export default function TenantsPage() {
   const [invSource, setInvSource] = useState('website');
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const [impMsg, setImpMsg] = useState('');
-  const [groupBy, setGroupBy] = useState<'hierarchy' | 'plan' | 'none'>('hierarchy');
+  const [groupBy, setGroupBy] = useState<TenantGroupBy>('category');
+  useEffect(() => { try { const v = localStorage.getItem('snr-tenants-groupby'); if (v) setGroupBy(v as TenantGroupBy); } catch { /* ignore */ } }, []);
+  useEffect(() => { try { localStorage.setItem('snr-tenants-groupby', groupBy); } catch { /* ignore */ } }, [groupBy]);
   // Filter-bar state (All tenants tab).
   const [q, setQ] = useState('');
   const [fPlan, setFPlan] = useState('all');
@@ -138,7 +150,7 @@ export default function TenantsPage() {
           <div className="w-40"><Select value={fType} onChange={(v) => setFType(v as any)} options={[{ value: 'all', label: 'All types' }, { value: 'direct', label: 'Direct' }, { value: 'reseller', label: 'Resellers' }, { value: 'sub', label: 'Sub-tenants' }]} /></div>
           <div className="w-36"><Select value={fStatus} onChange={(v) => setFStatus(v as any)} options={[{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'other', label: 'Other' }]} /></div>
           <div className="ml-auto flex items-center gap-1 text-2xs"><span className="text-muted mr-1">Group by:</span>
-            {([['hierarchy', 'Reseller'], ['plan', 'Plan'], ['none', 'None']] as const).map(([v, l]) => (
+            {([['category', 'Category'], ['industry', 'Industry'], ['plan', 'Plan'], ['status', 'Status'], ['hierarchy', 'Reseller'], ['none', 'None']] as const).map(([v, l]) => (
               <button key={v} onClick={() => setGroupBy(v)} className={`btn-ghost ${groupBy === v ? 'text-accentstrong font-medium' : ''}`}>{l}</button>
             ))}
           </div>
@@ -152,12 +164,12 @@ export default function TenantsPage() {
         ) : (
           <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-surface2/60 text-muted text-left text-2xs uppercase tracking-wider font-semibold sticky top-0 z-10">
-              <tr><th className="px-4 py-2.5 text-muted2">Organization</th><th className="px-4 py-2.5 text-muted2">Plan</th><th className="px-4 py-2.5 text-muted2">Members</th><th className="px-4 py-2.5 text-muted2">Seats</th><th className="px-4 py-2.5 text-muted2">Status</th><th className="px-4 py-2.5 text-muted2"></th></tr>
+              <tr><th className="px-4 py-2.5 text-muted2">Organization</th><th className="px-4 py-2.5 text-muted2">Plan</th><th className="px-4 py-2.5 text-muted2">Members</th><th className="px-4 py-2.5 text-muted2">Seats</th><th className="px-4 py-2.5 text-muted2">Status</th><th className="px-4 py-2.5 text-muted2">Joined</th><th className="px-4 py-2.5 text-muted2"></th></tr>
             </thead>
             <tbody>
               {groupsFor(filteredRows, groupBy).map((g) => (
                 <Fragment key={g.label || 'all'}>
-                  {g.label && <GroupHeader label={g.label} count={g.count ?? g.items.length} asTableRow colSpan={6} />}
+                  {g.label && <GroupHeader label={g.label} count={g.count ?? g.items.length} asTableRow colSpan={7} />}
                   {g.items.map((t) => (
                     <tr key={t.org_id} className="border-t border-line hover:bg-surface2/60 cursor-pointer transition-colors" style={t.is_reseller ? { background: 'rgb(139 92 246 / .06)' } : undefined} onClick={() => router.push(`/tenants/${t.org_id}`)}>
                       <td className="px-4 py-3"><span className="font-medium text-content">{t.parent_org_id ? '↳ ' : ''}{t.org_name}</span>{t.is_reseller && (() => { const n = (rows || []).filter((x: any) => x.parent_org_id === t.org_id).length; return <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-2xs font-medium text-violet-600 align-middle"><Icon name="ti-buildings" className="text-2xs" />{n} sub-tenant{n === 1 ? '' : 's'}</span>; })()}<span className="block text-2xs text-muted2">{t.slug}{t.parent_org_id ? ` · under ${(rows || []).find((x: any) => x.org_id === t.parent_org_id)?.org_name || 'reseller'}` : ''}</span></td>
@@ -165,6 +177,7 @@ export default function TenantsPage() {
                       <td className="px-4 py-3 text-muted tabular-nums">{t.member_count ?? '—'}</td>
                       <td className="px-4 py-3 text-muted tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</td>
                       <td className="px-4 py-3"><span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span></td>
+                      <td className="px-4 py-3 text-muted2 text-2xs whitespace-nowrap">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}</td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           {t.is_reseller && <span className="inline-flex items-center gap-1 rounded-full border border-violet-300/50 bg-violet-500/10 px-2 py-0.5 text-2xs font-medium text-violet-600"><Icon name="ti-building-community" className="text-2xs" />Reseller</span>}
