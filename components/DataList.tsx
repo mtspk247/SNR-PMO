@@ -207,6 +207,28 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const labelOf = (id: string) => (prefs.allCols || cols).find((c) => c.id === id)?.label;
   const selCol = !!selection;
+  const colW = (id: string, i: number) => prefs.widths[id] ?? (i === 0 ? 280 : 160);
+  const totalW = (rowDnD ? 28 : 0) + (selCol ? 36 : 0) + prefs.ordered.reduce((a, id, i) => a + colW(id, i), 0) + 36;
+  const startColResize = (e: RPointerEvent, id: string, i: number) => {
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX; const startW = colW(id, i);
+    const mv = (ev: PointerEvent) => prefs.setWidth(id, startW + (ev.clientX - startX));
+    const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  };
+  const autoFit = (id: string) => {
+    let max = 80;
+    document.querySelectorAll(`[data-col="${id}"]`).forEach((c) => { const w = (c as HTMLElement).scrollWidth; if (w > max) max = w; });
+    prefs.setWidth(id, Math.min(max + 28, 640));
+  };
+  const colGroup = (
+    <colgroup>
+      {rowDnD && <col style={{ width: 28 }} />}
+      {selCol && <col style={{ width: 36 }} />}
+      {prefs.ordered.map((id, i) => <col key={id} style={{ width: colW(id, i) }} />)}
+      <col style={{ width: 36 }} />
+    </colgroup>
+  );
 
   const headerRow = (selectAll: boolean) => (
     <tr className="border-b border-line text-muted2">
@@ -214,17 +236,19 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
       {selCol && (selectAll
         ? <th className="px-3 py-2 w-9"><HeadCheckbox checked={selection!.allSelected} indeterminate={selection!.someSelected} onChange={selection!.toggleAll} /></th>
         : <th className="px-3 py-2 w-9" />)}
-      {prefs.ordered.map((id) => (
-        <th key={id} draggable
+      {prefs.ordered.map((id, ci) => (
+        <th key={id} draggable data-col={id}
           onDragStart={(e) => { e.stopPropagation(); setColDrag(id); }}
           onDragOver={(e) => { e.preventDefault(); }}
           onDrop={(e) => { e.preventDefault(); if (colDrag) reorderCols(colDrag, id); setColDrag(null); }}
           onDragEnd={() => setColDrag(null)}
-          className={`group/col px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wider whitespace-nowrap cursor-grab select-none transition ${colDrag === id ? 'opacity-40' : 'hover:text-content'}`}>
-          <span className="inline-flex items-center gap-1">
-            <Icon name="ti-grip-vertical" className="text-2xs text-muted2 opacity-0 group-hover/col:opacity-60" />
-            {labelOf(id)}
+          className={`group/col relative px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wider whitespace-nowrap overflow-hidden cursor-grab select-none transition ${colDrag === id ? 'opacity-40' : 'hover:text-content'}`}>
+          <span className="inline-flex items-center gap-1 max-w-full">
+            <Icon name="ti-grip-vertical" className="text-2xs text-muted2 opacity-0 group-hover/col:opacity-60 shrink-0" />
+            <span className="truncate">{labelOf(id)}</span>
           </span>
+          <span onPointerDown={(e) => startColResize(e, id, ci)} onDoubleClick={() => autoFit(id)} onClick={(e) => e.stopPropagation()} title="Drag to resize · double-click to fit"
+            className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-accent/50 z-10" />
         </th>
       ))}
       <th className="px-2 py-2 w-9 text-left"><AddColHeader prefs={prefs} /></th>
@@ -254,7 +278,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
           const rv = isCf ? prefs.cf!.rawValue(cid, id) : (rawValue ? rawValue(cid, r) : undefined);
           const save = isCf ? (v: string) => prefs.cf!.onEdit(cid, id, v) : (onEdit ? (v: string) => onEdit(r, cid, v) : undefined);
           return (
-            <td key={cid} className="px-4 py-2.5 text-sm text-muted align-middle">
+            <td key={cid} data-col={cid} className={`px-4 py-2.5 text-sm text-muted align-middle ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'truncate'}`}>
               {ed && save && rv !== undefined
                 ? <EditableCell spec={ed} value={rv} display={disp} onSave={save} />
                 : disp}
@@ -268,7 +292,8 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
 
   const tableCard = (rs: T[]) => (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="text-sm" style={{ tableLayout: 'fixed', width: totalW }}>
+        {colGroup}
         <thead>{headerRow(true)}</thead>
         <tbody>{rs.map(dataRow)}</tbody>
       </table>

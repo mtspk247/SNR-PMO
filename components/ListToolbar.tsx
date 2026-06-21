@@ -20,6 +20,8 @@ export type ListPrefs = {
   ordered: string[]; // visible columns, in display order
   allCols: ColDef[]; // base + custom columns merged
   cf?: CustomColumnsApi; // custom-column api when a customEntity is supplied
+  widths: Record<string, number>; setWidth: (id: string, w: number) => void;
+  wrap: Record<string, boolean>; toggleWrap: (id: string) => void;
 };
 
 export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { entity?: string; orgId?: string; canManage?: boolean }): ListPrefs {
@@ -32,6 +34,8 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   const [visible, setVisible] = useState<Set<string>>(new Set(ids));
   const [order, setOrder] = useState<string[]>(ids);
   const [known, setKnown] = useState<Set<string>>(new Set(ids));
+  const [widths, setWidths] = useState<Record<string, number>>({});
+  const [wrap, setWrap] = useState<Record<string, boolean>>({});
   const loaded = useRef(false);
 
   useEffect(() => {
@@ -50,7 +54,9 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
           setVisible(vis);
         } else setVisible(new Set(ids));
         setFilters(v.filters && typeof v.filters === 'object' ? v.filters : {});
-      } else { setOrder(ids); setVisible(new Set(ids)); setKnown(new Set(ids)); setFilters({}); }
+        setWidths(v.widths && typeof v.widths === 'object' ? v.widths : {});
+        setWrap(v.wrap && typeof v.wrap === 'object' ? v.wrap : {});
+      } else { setOrder(ids); setVisible(new Set(ids)); setKnown(new Set(ids)); setFilters({}); setWidths({}); setWrap({}); }
     } catch { /* ignore */ }
     loaded.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,8 +84,10 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   const toggle = (id: string) => setVisible((pr) => { const n = new Set(pr); n.has(id) ? n.delete(id) : n.add(id); if (n.size === 0) n.add(id); return n; });
   const move = (id: string, dir: -1 | 1) => setOrder((pr) => { const i = pr.indexOf(id); const j = i + dir; if (i < 0 || j < 0 || j >= pr.length) return pr; const n = [...pr]; [n[i], n[j]] = [n[j], n[i]]; return n; });
   const setOrderArr = (idsArr: string[]) => setOrder(idsArr);
+  const setWidth = (id: string, w: number) => setWidths((pr) => ({ ...pr, [id]: Math.max(60, Math.round(w)) }));
+  const toggleWrap = (id: string) => setWrap((pr) => ({ ...pr, [id]: !pr[id] }));
   const ordered = order.filter((id) => visible.has(id) && ids.includes(id));
-  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: cfOpts?.entity ? cf : undefined };
+  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: cfOpts?.entity ? cf : undefined, widths, setWidth, wrap, toggleWrap };
 }
 
 export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children }:
@@ -139,6 +147,7 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
                 </label>
                 <button onClick={() => prefs.move(id, -1)} disabled={idx === 0} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-chevron-up" className="text-sm" /></button>
                 <button onClick={() => prefs.move(id, 1)} disabled={idx === prefs.order.length - 1} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-chevron-down" className="text-sm" /></button>
+                <button onClick={() => prefs.toggleWrap(id)} title={prefs.wrap[id] ? 'Text wrapping: on' : 'Text wrapping: off'} className={prefs.wrap[id] ? 'text-accentstrong' : 'text-muted2 hover:text-content'}><Icon name="ti-text-wrap" className="text-sm" /></button>
                 {prefs.cf?.customColIds.has(id) && <button onClick={() => prefs.cf!.removeColumn(id)} title="Delete column" className="text-muted2 hover:text-rose-500"><Icon name="ti-trash" className="text-sm" /></button>}
               </div>
             ); })}
