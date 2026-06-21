@@ -201,7 +201,7 @@ function WipeWorkspace({ org }: { org: { id: string; name: string } }) {
           ))}
         </div>
       )}
-      <label className="text-2xs text-muted">Type <span className="font-mono font-semibold text-content">{org.name}</span> to confirm</label>
+      <label className="block text-2xs text-muted mb-1">Type <span className="font-mono font-semibold text-content">{org.name}</span> to confirm</label>
       <input className="input mt-1 max-w-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder={org.name} />
       <div className="mt-2 flex items-center gap-3">
         <button className="btn btn-danger" disabled={wiping || name.trim() !== org.name} onClick={wipe}><Icon name="ti-trash-x" />{wiping ? 'Backing up & wiping…' : 'Back up & wipe data'}</button>

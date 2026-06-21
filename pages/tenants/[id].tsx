@@ -485,7 +485,7 @@ export default function TenantDetail() {
               ))}
             </div>
           )}
-          <label className="text-2xs text-muted">Type <span className="font-mono font-semibold text-content">{tenant.org_name}</span> to confirm</label>
+          <label className="block text-2xs text-muted mb-1">Type <span className="font-mono font-semibold text-content">{tenant.org_name}</span> to confirm</label>
           <input className="input mt-1 max-w-sm" value={wipeName} onChange={(e) => setWipeName(e.target.value)} placeholder={tenant.org_name} />
           <div className="mt-2"><button className="btn btn-danger" disabled={wiping || busy || !editMode || wipeName.trim() !== tenant.org_name} onClick={doWipe}>
             <Icon name="ti-trash-x" />{wiping ? 'Backing up & wiping…' : 'Back up & wipe tenant data'}
