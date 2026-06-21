@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Select from '@/components/Select';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -10,7 +10,9 @@ import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListT
 import { ViewControls, useViewPrefs, buildGroups } from '@/components/ViewControls';
 import { Modal, Field } from '@/components/Modal';
 import { useIdeas } from '@/lib/queries';
-import { createIdea, updateIdea, deleteIdea, setIdeaVote, convertIdeaToProject, IDEA_STATUSES, avatarSrc } from '@/lib/db';
+import { createIdea, updateIdea, deleteIdea, setIdeaVote, convertIdeaToProject, IDEA_STATUSES, avatarSrc, ensureTaskStatuses, TaskStatus } from '@/lib/db';
+import { titleCase } from '@/lib/format';
+import StatusManager from '@/components/StatusManager';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { Idea, IdeaStatus } from '@/lib/supabase';
@@ -45,11 +47,7 @@ const emptyForm = (): FormState => ({ title: '', pitch: '', status: 'idea' });
 
 const IDEA_COLS: ColDef[] = [{ id: 'votes', label: 'Votes', width: 104 }, { id: 'title', label: 'Title', locked: true, width: 380 }, { id: 'status', label: 'Status', width: 150 }, { id: 'project', label: 'Project', width: 200 }, { id: 'by', label: 'By', width: 190 }, { id: 'created', label: 'Created', width: 120 }];
 
-const GROUPS: GroupMeta[] = IDEA_STATUSES.map((st) => ({
-  value: st,
-  label: STATUS_LABEL[st],
-  pill: STATUS_PILL[st] || 'pill-gray',
-}));
+// GROUPS now built per-render from managed statuses (inside the component).
 
 
 export default function IdeasPage() {
@@ -57,6 +55,14 @@ export default function IdeasPage() {
   const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [istatuses, setIstatuses] = useState<TaskStatus[]>([]);
+  const [statusMgr, setStatusMgr] = useState(false);
+  useEffect(() => { if (org?.id) ensureTaskStatuses(org.id, 'idea').then(setIstatuses).catch(() => {}); }, [org?.id]);
+  const reloadIstatuses = () => { if (org?.id) ensureTaskStatuses(org.id, 'idea').then(setIstatuses).catch(() => {}); };
+  const statusNames: string[] = istatuses.length ? istatuses.map((s) => s.name) : [...IDEA_STATUSES];
+  const statusColor = (n: string) => istatuses.find((s) => s.name === n)?.color || STATUS_HEX[n as IdeaStatus] || '#9ca3af';
+  const statusLabel = (n: string) => STATUS_LABEL[n as IdeaStatus] || titleCase(n);
+  const GROUPS: GroupMeta[] = statusNames.map((st) => ({ value: st, label: statusLabel(st), pill: STATUS_PILL[st as IdeaStatus] || 'pill-gray' }));
 
   const { data: ideas = [], isLoading } = useIdeas();
 
@@ -84,7 +90,7 @@ export default function IdeasPage() {
   const inProgress = ideas.filter((i) => ['exploring', 'approved', 'building'].includes(i.status)).length;
   const shipped = ideas.filter((i) => i.status === 'shipped').length;
 
-  const FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...IDEA_STATUSES.map((x) => ({ value: x, label: STATUS_LABEL[x] }))] }];
+  const FILTERS: FilterDef[] = [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...statusNames.map((x) => ({ value: x, label: statusLabel(x) }))] }];
   const filtered = useMemo(() => {
     const term = lp.query.trim().toLowerCase();
     const sf = lp.filters.status;
@@ -97,8 +103,8 @@ export default function IdeasPage() {
 
   const pg = usePagination(filtered, 25);
   const gKey = (i: Idea) => vp.groupBy === 'status' ? i.status : vp.groupBy === 'project' ? (i.project?.name || 'No project') : vp.groupBy === 'by' ? (i.creator?.full_name || 'Unknown') : 'all';
-  const gLabel = (k: string) => vp.groupBy === 'status' ? (STATUS_LABEL[k as IdeaStatus] || k) : k;
-  const groups = vp.groupBy === 'none' ? [{ key: 'all', label: '', items: pg.pageItems }] : buildGroups(filtered, gKey, gLabel, vp.groupBy === 'status' ? [...IDEA_STATUSES] : undefined);
+  const gLabel = (k: string) => vp.groupBy === 'status' ? statusLabel(k) : k;
+  const groups = vp.groupBy === 'none' ? [{ key: 'all', label: '', items: pg.pageItems }] : buildGroups(filtered, gKey, gLabel, vp.groupBy === 'status' ? [...statusNames] : undefined);
 
   const rs = useRowSelection(filtered);
 
@@ -169,7 +175,7 @@ export default function IdeasPage() {
 
   // RBAC: only managers (owner/admin) inline-edit status; others see read-only colored pills.
   const editable: Record<string, EditSpec> | undefined = isAdmin ? {
-    status: { type: 'select', options: IDEA_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s], dot: STATUS_HEX[s] })) },
+    status: { type: 'select', options: statusNames.map((s) => ({ value: s, label: statusLabel(s), dot: statusColor(s) })), manage: () => setStatusMgr(true) },
   } : undefined;
 
   const rawValue = (id: string, idea: Idea) =>
@@ -243,7 +249,7 @@ export default function IdeasPage() {
           </div>
         );
       case 'status':
-        return <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>;
+        return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusColor(idea.status) + '1f', color: statusColor(idea.status), boxShadow: `inset 0 0 0 1px ${statusColor(idea.status)}33` }}>{statusLabel(idea.status)}</span>;
       case 'project':
         return idea.project?.name ? (idea.project_id ? <Link href={`/projects/${idea.project_id}`} onClick={(e) => e.stopPropagation()} className="text-content hover:text-accentstrong truncate inline-block max-w-full align-middle">{idea.project.name}</Link> : <span className="truncate inline-block max-w-full align-middle">{idea.project.name}</span>) : '—';
       case 'by':
@@ -290,7 +296,7 @@ export default function IdeasPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 mt-3">
-              <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>
+              <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusColor(idea.status) + '1f', color: statusColor(idea.status), boxShadow: `inset 0 0 0 1px ${statusColor(idea.status)}33` }}>{statusLabel(idea.status)}</span>
               {idea.project?.name && <span className="text-2xs text-muted2 truncate max-w-[8rem]">{idea.project.name}</span>}
               <span className="ml-auto text-2xs text-muted2 truncate">{idea.creator?.full_name || ''}</span>
             </div>
@@ -416,11 +422,12 @@ export default function IdeasPage() {
           )}
           {editing && (
             <Field label="Status" required>
-              <div className="w-full"><Select value={form.status} onChange={(v) => set({ status: v as IdeaStatus })} options={[...IDEA_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))]} /></div>
+              <div className="w-full"><Select value={form.status} onChange={(v) => set({ status: v as IdeaStatus })} options={[...statusNames.map((s) => ({ value: s, label: statusLabel(s) }))]} /></div>
             </Field>
           )}
         </div>
       </Modal>
+      {org?.id && <StatusManager open={statusMgr} onClose={() => setStatusMgr(false)} orgId={org.id} scope="idea" statuses={istatuses} onChanged={reloadIstatuses} />}
     </Layout>
   );
 }

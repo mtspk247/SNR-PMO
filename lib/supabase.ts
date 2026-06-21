@@ -427,7 +427,7 @@ export interface LedgerEntry {
 }
 
 // --- S3: Ideas ---
-export type IdeaStatus = 'idea' | 'exploring' | 'approved' | 'building' | 'shipped' | 'parked';
+export type IdeaStatus = 'idea' | 'exploring' | 'approved' | 'building' | 'shipped' | 'parked' | (string & {});
 export interface Idea {
   id: string; org_id: string;
   title: string; pitch?: string | null;
