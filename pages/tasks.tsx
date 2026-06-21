@@ -598,7 +598,9 @@ export default function Tasks() {
     switch (id) {
       case 'status':
         return (
-          <Select value={t.status} onChange={(v) => setStatus(t.id, v)} disabled={busy} options={[...statuses.map((s) => ({ value: s, label: titleCase(s) }))]} />
+          <span onClick={(e) => e.stopPropagation()} className="inline-flex">
+            <Select value={t.status} onChange={(v) => setStatus(t.id, v)} disabled={busy} options={[...statuses.map((s) => ({ value: s, label: titleCase(s) }))]} />
+          </span>
         );
       case 'assignee':
         return <div key={id} className="flex items-center min-w-0">{t.assignee_id ? <span title={userName(t.assignee_id)} className="inline-flex cursor-default"><Avatar name={userName(t.assignee_id)} size={22} src={userAvatar(t.assignee_id)} /></span> : <span className="text-muted2 text-2xs">—</span>}</div>;

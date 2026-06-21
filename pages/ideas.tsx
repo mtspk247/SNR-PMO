@@ -226,15 +226,15 @@ export default function IdeasPage() {
         );
       case 'title':
         return (
-          <>
+          <div className="min-w-0 max-w-[34rem]">
             <p className="font-medium text-content truncate">{idea.title}</p>
             {idea.pitch && <p className="text-2xs text-muted truncate mt-0.5">{idea.pitch}</p>}
-          </>
+          </div>
         );
       case 'status':
         return <span className={`pill ${STATUS_PILL[idea.status]}`}>{STATUS_LABEL[idea.status]}</span>;
       case 'project':
-        return idea.project?.name ? <span className="pill pill-gray">{idea.project.name}</span> : '—';
+        return idea.project?.name ? <span className="pill pill-gray truncate max-w-[10rem] inline-block align-middle">{idea.project.name}</span> : '—';
       case 'by':
         return idea.creator?.full_name || '—';
       case 'created':
