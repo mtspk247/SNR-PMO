@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { DataList } from '@/components/DataList';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
@@ -9,6 +11,46 @@ import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature
 import { Plan, Feature, PlanFeature, FEATURES } from '@/lib/supabase';
 import { ALL_ITEMS } from '@/lib/nav';
 import { formatPrice } from '@/lib/entitlements';
+
+// ── Module-level ColDef arrays for the DataList engine ─────────────────────
+const ERRORS_COLS: ColDef[] = [
+  { id: 'when', label: 'When', locked: true, width: 160 },
+  { id: 'level', label: 'Level', width: 90 },
+  { id: 'message', label: 'Message', width: 380 },
+  { id: 'path', label: 'Path', width: 160 },
+  { id: 'source', label: 'Source', width: 120 },
+  { id: 'actions', label: '', width: 100 },
+];
+const BACKUPS_COLS: ColDef[] = [
+  { id: 'created', label: 'Created', locked: true, width: 180 },
+  { id: 'type', label: 'Type', width: 90 },
+  { id: 'status', label: 'Status', width: 110 },
+  { id: 'size', label: 'Size', width: 90 },
+  { id: 'tablerows', label: 'Tables / rows', width: 140 },
+  { id: 'actions', label: '', width: 110 },
+];
+const OWNERS_COLS: ColDef[] = [
+  { id: 'owner', label: 'Owner', locked: true, width: 260 },
+  { id: 'role', label: 'Role', width: 130 },
+  { id: 'since', label: 'Since', width: 130 },
+  { id: 'actions', label: '', width: 110 },
+];
+const CAMPAIGNS_COLS: ColDef[] = [
+  { id: 'subject', label: 'Subject', locked: true, width: 260 },
+  { id: 'segment', label: 'Segment', width: 110 },
+  { id: 'status', label: 'Status', width: 100 },
+  { id: 'recipients', label: 'Recipients', width: 100 },
+  { id: 'opens', label: 'Opens', width: 90 },
+  { id: 'clicks', label: 'Clicks', width: 90 },
+  { id: 'when', label: 'When', width: 160 },
+];
+const ACTIVITY_COLS: ColDef[] = [
+  { id: 'when', label: 'When', locked: true, width: 160 },
+  { id: 'tenant', label: 'Tenant', width: 180 },
+  { id: 'who', label: 'Who', width: 150 },
+  { id: 'action', label: 'Action', width: 130 },
+  { id: 'entity', label: 'Entity', width: 180 },
+];
 
 type Tab = 'plans' | 'billing' | 'email' | 'assistant' | 'backups' | 'errors' | 'owners' | 'campaigns' | 'activity';
 
@@ -476,6 +518,7 @@ function ErrorsTab() {
   useEffect(() => { load().catch((e: any) => setMsg(e.message)); }, []);
   const last24 = rows.filter((r) => Date.now() - new Date(r.created_at).getTime() < 864e5).length;
   const unresolved = rows.filter((r) => !r.resolved).length;
+  const errorsPrefs = useListPrefs('snrpmo.platform-errors.cols', ERRORS_COLS, { canManage: false });
   const toggle = async (r: ErrorRow) => { try { await resolveError(r.id, !r.resolved); await load(); } catch (e: any) { alert(e.message); } };
   const clearAll = async () => { if (!confirm('Clear all logged errors?')) return; setBusy(true); try { await clearErrors(); await load(); } catch (e: any) { alert(e.message); } finally { setBusy(false); } };
   return (
@@ -491,24 +534,20 @@ function ErrorsTab() {
         {msg && <span className="text-2xs text-rose-600 w-full">{msg}</span>}
       </div>
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead className="bg-surface2 text-left text-2xs uppercase tracking-wide text-muted"><tr>
-            <th className="px-4 py-3 font-medium">When</th><th className="px-4 py-3 font-medium">Level</th><th className="px-4 py-3 font-medium">Message</th><th className="px-4 py-3 font-medium">Path</th><th className="px-4 py-3 font-medium">Source</th><th className="px-4 py-3"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className={`border-t border-line align-top ${r.resolved ? 'opacity-50' : ''}`}>
-                <td className="px-4 py-3 tabular-nums whitespace-nowrap text-2xs text-muted">{new Date(r.created_at).toLocaleString()}</td>
-                <td className="px-4 py-3"><span className={`pill ${r.level === 'error' ? 'pill-red' : 'pill-amber'}`}>{r.level}</span></td>
-                <td className="px-4 py-3 max-w-[28rem]"><p className="font-medium text-content break-words">{r.message}</p>{r.stack && <details className="mt-1"><summary className="text-2xs text-muted2 cursor-pointer">stack</summary><pre className="text-2xs text-muted whitespace-pre-wrap mt-1 max-h-40 overflow-y-auto">{r.stack}</pre></details>}</td>
-                <td className="px-4 py-3 text-2xs text-muted font-mono">{r.path || '—'}</td>
-                <td className="px-4 py-3 text-2xs text-muted">{r.source}</td>
-                <td className="px-4 py-3 text-right"><button className="btn btn-ghost h-7 px-2 text-xs" onClick={() => toggle(r)}>{r.resolved ? 'Reopen' : 'Resolve'}</button></td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted2">No errors logged — all clear.</td></tr>}
-          </tbody>
-        </table></div>
+        {rows.length === 0 ? (
+          <div className="p-8 text-sm text-center text-muted2">No errors logged — all clear.</div>
+        ) : (() => {
+          const errCell = (id: string, r: ErrorRow) => {
+            if (id === 'when') return <span className="tabular-nums whitespace-nowrap text-2xs text-muted">{new Date(r.created_at).toLocaleString()}</span>;
+            if (id === 'level') return <span className={`pill ${r.level === 'error' ? 'pill-red' : 'pill-amber'}`}>{r.level}</span>;
+            if (id === 'message') return <span className="max-w-[28rem] block"><p className="font-medium text-content break-words">{r.message}</p>{r.stack && <details className="mt-1"><summary className="text-2xs text-muted2 cursor-pointer">stack</summary><pre className="text-2xs text-muted whitespace-pre-wrap mt-1 max-h-40 overflow-y-auto">{r.stack}</pre></details>}</span>;
+            if (id === 'path') return <span className="text-2xs text-muted font-mono">{r.path || '—'}</span>;
+            if (id === 'source') return <span className="text-2xs text-muted">{r.source}</span>;
+            if (id === 'actions') return <div className="flex justify-end" onClick={(e) => e.stopPropagation()}><button className="btn btn-ghost h-7 px-2 text-xs" onClick={() => toggle(r)}>{r.resolved ? 'Reopen' : 'Resolve'}</button></div>;
+            return null;
+          };
+          return <DataList rows={rows} rowKey={(r) => r.id} cols={ERRORS_COLS} prefs={errorsPrefs} cell={errCell} nameCol="when" />;
+        })()}
       </div>
     </div>
   );
@@ -520,6 +559,7 @@ function BackupsTab() {
   const [enabled, setEnabled] = useState(false);
   const [frequency, setFrequency] = useState('weekly');
   const [retention, setRetention] = useState(10);
+  const backupsPrefs = useListPrefs('snrpmo.platform-backups.cols', BACKUPS_COLS, { canManage: false });
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [msg, setMsg] = useState('');
@@ -556,24 +596,20 @@ function BackupsTab() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead className="bg-surface2 text-left text-2xs uppercase tracking-wide text-muted"><tr>
-            <th className="px-4 py-3 font-medium">Created</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Size</th><th className="px-4 py-3 font-medium">Tables / rows</th><th className="px-4 py-3"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((b) => (
-              <tr key={b.id} className="border-t border-line hover:bg-surface2/50">
-                <td className="px-4 py-3 tabular-nums">{new Date(b.created_at).toLocaleString()}</td>
-                <td className="px-4 py-3 capitalize">{b.kind}</td>
-                <td className="px-4 py-3"><span className={`pill ${b.status === 'completed' ? 'pill-green' : b.status === 'failed' ? 'pill-red' : 'pill-amber'}`}>{b.status}</span></td>
-                <td className="px-4 py-3 tabular-nums">{fmtBytes(b.size_bytes)}</td>
-                <td className="px-4 py-3 tabular-nums text-muted">{b.table_count ?? '—'} / {b.row_count ?? '—'}</td>
-                <td className="px-4 py-3 text-right">{b.file_path && b.status === 'completed' ? <button className="btn btn-ghost h-7 px-2 text-xs" onClick={() => download(b.file_path!)}><Icon name="ti-download" />Download</button> : (b.note ? <span className="text-2xs text-rose-500 truncate max-w-[12rem] inline-block" title={b.note}>{b.note}</span> : null)}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted2">No backups yet — run one above.</td></tr>}
-          </tbody>
-        </table></div>
+        {rows.length === 0 ? (
+          <div className="p-8 text-sm text-center text-muted2">No backups yet — run one above.</div>
+        ) : (() => {
+          const backupCell = (id: string, b: BackupRow) => {
+            if (id === 'created') return <span className="tabular-nums">{new Date(b.created_at).toLocaleString()}</span>;
+            if (id === 'type') return <span className="capitalize">{b.kind}</span>;
+            if (id === 'status') return <span className={`pill ${b.status === 'completed' ? 'pill-green' : b.status === 'failed' ? 'pill-red' : 'pill-amber'}`}>{b.status}</span>;
+            if (id === 'size') return <span className="tabular-nums">{fmtBytes(b.size_bytes)}</span>;
+            if (id === 'tablerows') return <span className="tabular-nums text-muted">{b.table_count ?? '—'} / {b.row_count ?? '—'}</span>;
+            if (id === 'actions') return <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>{b.file_path && b.status === 'completed' ? <button className="btn btn-ghost h-7 px-2 text-xs" onClick={() => download(b.file_path!)}><Icon name="ti-download" />Download</button> : (b.note ? <span className="text-2xs text-rose-500 truncate max-w-[12rem] inline-block" title={b.note}>{b.note}</span> : null)}</div>;
+            return null;
+          };
+          return <DataList rows={rows} rowKey={(b) => b.id} cols={BACKUPS_COLS} prefs={backupsPrefs} cell={backupCell} nameCol="created" />;
+        })()}
       </div>
     </div>
   );
@@ -587,6 +623,7 @@ function OwnersTab() {
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
   const [pending, setPending] = useState<OwnerDeletionRequest[]>([]);
+  const ownersPrefs = useListPrefs('snrpmo.platform-owners.cols', OWNERS_COLS, { canManage: false });
   const [invites, setInvites] = useState<PlatformInvite[]>([]);
   const [invEmail, setInvEmail] = useState('');
   const [invBusy, setInvBusy] = useState(false);
@@ -742,33 +779,16 @@ function OwnersTab() {
         </div>
       )}
 
-      <div className="overflow-x-auto"><table className="w-full text-sm">
-        <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-          <tr>
-            <th className="px-4 py-3 font-medium">Owner</th>
-            <th className="px-4 py-3 font-medium">Role</th>
-            <th className="px-4 py-3 font-medium">Since</th>
-            <th className="px-4 py-3 font-medium text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.user_id} className="border-t border-line hover:bg-surface2/50">
-              <td className="px-4 py-3">
-                <span className="block font-medium text-content">{r.full_name || r.email}{r.is_self && <span className="text-2xs text-muted2"> (you)</span>}</span>
-                <span className="block text-2xs text-muted">{r.email}</span>
-              </td>
-              <td className="px-4 py-3">{r.is_primary ? <span className="pill pill-green">Primary owner</span> : <span className="pill pill-gray">Co-owner</span>}</td>
-              <td className="px-4 py-3 text-muted">{new Date(r.created_at).toLocaleDateString()}</td>
-              <td className="px-4 py-3 text-right">
-                {r.is_primary
-                  ? <span className="text-2xs text-muted2">Protected</span>
-                  : <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => remove(r)}><Icon name="ti-user-minus" className="text-sm" />Remove</button>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table></div>
+      {(() => {
+        const ownerCell = (id: string, r: PlatformAdminRow) => {
+          if (id === 'owner') return <span><span className="block font-medium text-content">{r.full_name || r.email}{r.is_self && <span className="text-2xs text-muted2"> (you)</span>}</span><span className="block text-2xs text-muted">{r.email}</span></span>;
+          if (id === 'role') return r.is_primary ? <span className="pill pill-green">Primary owner</span> : <span className="pill pill-gray">Co-owner</span>;
+          if (id === 'since') return <span className="text-muted">{new Date(r.created_at).toLocaleDateString()}</span>;
+          if (id === 'actions') return <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>{r.is_primary ? <span className="text-2xs text-muted2">Protected</span> : <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => remove(r)}><Icon name="ti-user-minus" className="text-sm" />Remove</button>}</div>;
+          return null;
+        };
+        return <DataList rows={rows} rowKey={(r) => r.user_id} cols={OWNERS_COLS} prefs={ownersPrefs} cell={ownerCell} nameCol="owner" />;
+      })()}
     </div>
   );
 }
@@ -783,6 +803,7 @@ function CampaignsTab() {
     { id: 'custom', label: 'Custom / CSV' },
   ];
   const [segment, setSegment] = useState('free');
+  const campaignsPrefs = useListPrefs('snrpmo.platform-campaigns.cols', CAMPAIGNS_COLS, { canManage: false });
   const [customEmails, setCustomEmails] = useState('');
   const customList = useMemo(() => Array.from(new Set(customEmails.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter((x) => x.includes('@') && x.length > 3))), [customEmails]);
   const [subject, setSubject] = useState('');
@@ -880,26 +901,19 @@ function CampaignsTab() {
 
       <div className="card overflow-hidden">
         <div className="px-4 py-3 border-b border-line"><h3 className="text-sm font-semibold text-content">Campaign history</h3></div>
-        {history.length === 0 ? <div className="p-6 text-sm text-muted">No campaigns yet.</div> : (
-          <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-              <tr><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Segment</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Recipients</th><th className="px-4 py-3">Opens</th><th className="px-4 py-3">Clicks</th><th className="px-4 py-3">When</th></tr>
-            </thead>
-            <tbody>
-              {history.map((c) => (
-                <tr key={c.id} className="border-t border-line hover:bg-surface2/50">
-                  <td className="px-4 py-3 text-content font-medium max-w-[18rem] truncate">{c.subject}</td>
-                  <td className="px-4 py-3 text-muted capitalize">{c.segment}</td>
-                  <td className="px-4 py-3"><span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'} capitalize`}>{c.status}</span></td>
-                  <td className="px-4 py-3 text-muted tabular-nums">{c.recipient_count}</td>
-                  <td className="px-4 py-3 text-muted tabular-nums">{c.opens}{c.recipient_count > 0 && c.status === 'sent' ? ` (${Math.round((c.opens / c.recipient_count) * 100)}%)` : ''}</td>
-                  <td className="px-4 py-3 text-muted tabular-nums">{c.clicks}</td>
-                  <td className="px-4 py-3 text-2xs text-muted2">{c.status === 'scheduled' && c.scheduled_for ? `⏱ ${new Date(c.scheduled_for).toLocaleString()}` : c.sent_at ? new Date(c.sent_at).toLocaleString() : new Date(c.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
-        )}
+        {history.length === 0 ? <div className="p-6 text-sm text-muted">No campaigns yet.</div> : (() => {
+          const campaignCell = (id: string, c: CampaignRow) => {
+            if (id === 'subject') return <span className="text-content font-medium max-w-[18rem] truncate block">{c.subject}</span>;
+            if (id === 'segment') return <span className="text-muted capitalize">{c.segment}</span>;
+            if (id === 'status') return <span className={`pill ${STATUS_PILL[c.status] || 'pill-gray'} capitalize`}>{c.status}</span>;
+            if (id === 'recipients') return <span className="text-muted tabular-nums">{c.recipient_count}</span>;
+            if (id === 'opens') return <span className="text-muted tabular-nums">{c.opens}{c.recipient_count > 0 && c.status === 'sent' ? ` (${Math.round((c.opens / c.recipient_count) * 100)}%)` : ''}</span>;
+            if (id === 'clicks') return <span className="text-muted tabular-nums">{c.clicks}</span>;
+            if (id === 'when') return <span className="text-2xs text-muted2">{c.status === 'scheduled' && c.scheduled_for ? `⏱ ${new Date(c.scheduled_for).toLocaleString()}` : c.sent_at ? new Date(c.sent_at).toLocaleString() : new Date(c.created_at).toLocaleDateString()}</span>;
+            return null;
+          };
+          return <DataList rows={history} rowKey={(c) => c.id} cols={CAMPAIGNS_COLS} prefs={campaignsPrefs} cell={campaignCell} nameCol="subject" />;
+        })()}
       </div>
     </div>
   );
@@ -922,6 +936,7 @@ function ActivityTab() {
   useEffect(() => { platformActivity(250, null).then(setRows).catch((e) => { setErr(e?.message || 'Failed to load activity'); setRows([]); }); }, []);
   const orgs = useMemo(() => Array.from(new Map((rows || []).filter((r) => r.org_id).map((r) => [r.org_id as string, r.org_name || (r.org_id as string)])).entries()), [rows]);
   const filtered = (rows || []).filter((r) => org === 'all' || r.org_id === org);
+  const activityPrefs = useListPrefs('snrpmo.platform-activity.cols', ACTIVITY_COLS, { canManage: false });
   if (rows === null) return <div className="card rounded-t-none p-6"><Spinner /></div>;
   return (
     <div className="card rounded-t-none p-5 sm:p-6 space-y-4">
@@ -933,24 +948,17 @@ function ActivityTab() {
         <div className="w-60"><Select value={org} onChange={setOrg} search placeholder="Filter by tenant…" options={[{ value: 'all', label: 'All tenants' }, ...orgs.map(([id, name]) => ({ value: id, label: name }))]} /></div>
       </div>
       {err && <p className="text-sm text-rose-600">{err}</p>}
-      {filtered.length === 0 ? <EmptyState icon="ti-activity" text="No activity recorded yet." /> : (
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead className="bg-surface2 text-muted text-left text-2xs uppercase tracking-wide">
-            <tr><th className="px-4 py-3 font-medium">When</th><th className="px-4 py-3 font-medium">Tenant</th><th className="px-4 py-3 font-medium">Who</th><th className="px-4 py-3 font-medium">Action</th><th className="px-4 py-3 font-medium">Entity</th></tr>
-          </thead>
-          <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} onClick={() => setDetail(r)} className="border-t border-line hover:bg-surface2/50 cursor-pointer">
-                <td className="px-4 py-3 text-2xs text-muted2 whitespace-nowrap">{new Date(r.ts).toLocaleString()}</td>
-                <td className="px-4 py-3 text-content">{r.org_name || '—'}</td>
-                <td className="px-4 py-3 text-muted">{r.username || '—'}</td>
-                <td className="px-4 py-3"><span className="pill pill-gray">{r.action}</span></td>
-                <td className="px-4 py-3 text-2xs text-muted2">{r.entity_type || ''}{r.entity_id ? ' · ' + String(r.entity_id).slice(0, 8) : ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
-      )}
+      {filtered.length === 0 ? <EmptyState icon="ti-activity" text="No activity recorded yet." /> : (() => {
+        const activityCell = (id: string, r: PlatformActivityRow) => {
+          if (id === 'when') return <span className="text-2xs text-muted2 whitespace-nowrap">{new Date(r.ts).toLocaleString()}</span>;
+          if (id === 'tenant') return <span className="text-content">{r.org_name || '—'}</span>;
+          if (id === 'who') return <span className="text-muted">{r.username || '—'}</span>;
+          if (id === 'action') return <span className="pill pill-gray">{r.action}</span>;
+          if (id === 'entity') return <span className="text-2xs text-muted2">{r.entity_type || ''}{r.entity_id ? ' · ' + String(r.entity_id).slice(0, 8) : ''}</span>;
+          return null;
+        };
+        return <DataList rows={filtered} rowKey={(r) => r.id} cols={ACTIVITY_COLS} prefs={activityPrefs} cell={activityCell} nameCol="when" onRowClick={(r) => setDetail(r)} />;
+      })()}
       {detail && (
         <Modal open={!!detail} onClose={() => setDetail(null)} title="Event detail" icon="ti-activity" size="md">
           <div className="space-y-3">
