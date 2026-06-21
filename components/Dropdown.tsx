@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui';
 
-export interface DropItem { value: string; label: string; icon?: string; dot?: string; }
+export interface DropItem { value: string; label: string; icon?: string; dot?: string; deactivated?: boolean; }
 
 /**
  * Smooth, consistent custom dropdown used app-wide instead of native <select>.
@@ -103,7 +103,7 @@ export default function Dropdown({
                     className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm text-left transition-colors ${active ? 'bg-accent/10 text-accentstrong font-medium' : 'text-content hover:bg-surface2'}`}>
                     {it.dot && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: it.dot }} />}
                     {it.icon && <Icon name={it.icon} className="text-base text-muted2 shrink-0" />}
-                    <span className="flex-1 truncate">{it.label}</span>
+                    <span className={`flex-1 truncate ${it.deactivated ? 'text-muted2' : ''}`}>{it.label}{it.deactivated ? ' (deactivated)' : ''}</span>
                     {active && <Icon name="ti-check" className="text-sm text-accentstrong shrink-0" />}
                   </button>
                 );

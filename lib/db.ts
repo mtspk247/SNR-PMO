@@ -171,8 +171,8 @@ export async function resetUserDashboard(orgId: string): Promise<void> {
 
 export async function getOrgUsers(orgId: string | null = activeOrgScope): Promise<OrgUser[]> {
   let q = orgId
-    ? sb.from('users').select('id, full_name, email, avatar_url, org_members!inner(org_id)').eq('org_members.org_id', orgId).order('full_name')
-    : sb.from('users').select('id, full_name, email, avatar_url').order('full_name');
+    ? sb.from('users').select('id, full_name, email, avatar_url, status, org_members!inner(org_id)').eq('org_members.org_id', orgId).order('full_name')
+    : sb.from('users').select('id, full_name, email, avatar_url, status').order('full_name');
   const { data, error } = await q;
   if (error) throw error;
   return (data as OrgUser[]) || [];

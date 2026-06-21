@@ -155,6 +155,7 @@ export default function Tasks() {
   const userName = (id?: string | null) => users.find((u) => u.id === id)?.full_name || (id ? '—' : 'Unassigned');
   const userAvatar = (id?: string | null) => avatarSrc(users.find((u) => u.id === id)?.avatar_url);
   const taskAssignees = (t: Task) => (t.assignee_ids && t.assignee_ids.length ? t.assignee_ids : (t.assignee_id ? [t.assignee_id] : [])).map((uid) => ({ name: userName(uid), src: userAvatar(uid) }));
+  const assigneeOpts = users.map((u) => ({ value: u.id, label: u.full_name, deactivated: u.status !== 'active' }));
   // Patch the RQ cache in place with the authoritative row db.ts returned —
   // same data flow as the old setTasks local state, no extra refetch.
   const setCache = (fn: (prev: Task[]) => Task[]) =>
@@ -439,7 +440,7 @@ export default function Tasks() {
             ))}
             <span className="-ml-1.5 first:ml-0">
               <Dropdown multiple search width={240} placeholder="Assign people…" values={assigneeIds} onToggle={toggleAssignee}
-                items={users.map((u) => ({ value: u.id, label: u.full_name }))}
+                items={assigneeOpts}
                 trigger={<span title="Assign" className="grid place-items-center h-7 w-7 rounded-full border border-dashed border-borderstrong bg-surface text-muted2 hover:border-accent hover:text-accentstrong ring-2 ring-surface cursor-pointer"><Icon name="ti-plus" className="text-sm" /></span>} />
             </span>
           </div>
@@ -488,7 +489,7 @@ export default function Tasks() {
               ))}
               <span className="-ml-1.5 first:ml-0">
                 <Dropdown multiple search width={240} placeholder="Add followers…" values={selected.followers || []} onToggle={toggleFollower}
-                  items={users.map((u) => ({ value: u.id, label: u.full_name }))}
+                  items={assigneeOpts}
                   trigger={<span title="Add follower" className="grid place-items-center h-6 w-6 rounded-full border border-dashed border-borderstrong bg-surface text-muted2 hover:border-accent hover:text-accentstrong ring-2 ring-surface cursor-pointer"><Icon name="ti-plus" className="text-xs" /></span>} />
               </span>
             </div>
@@ -616,7 +617,7 @@ export default function Tasks() {
   };
   const editable: Record<string, EditSpec> = {
     status: { type: 'select', options: statuses.map((s) => ({ value: s, label: titleCase(s), dot: statusColor(s) || '#9ca3af' })), manage: canDelete ? () => setStatusMgr(true) : undefined },
-    assignee: { type: 'person', multi: true, options: users.map((u) => ({ value: u.id, label: u.full_name })) },
+    assignee: { type: 'person', multi: true, options: assigneeOpts },
     priority: { type: 'select', options: priorities.map((pr) => ({ value: pr, label: titleCase(pr), dot: PRIORITY_DOT[pr] })) },
     due: { type: 'date' },
   };
@@ -831,7 +832,7 @@ export default function Tasks() {
             <div className="space-y-3.5 mt-4">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Status"><Select value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={[...statuses.map(s => ({ value: s, label: titleCase(s) }))]} /></Field>
-                <Field label="Assignees"><Dropdown multiple search width={260} placeholder="Assign people…" values={form.assignee_ids} onToggle={(uid) => setForm({ ...form, assignee_ids: form.assignee_ids.includes(uid) ? form.assignee_ids.filter((x) => x !== uid) : [...form.assignee_ids, uid] })} items={users.map(u => ({ value: u.id, label: u.full_name }))} trigger={<span className="input flex items-center gap-1.5 cursor-pointer">{form.assignee_ids.length ? <span className="inline-flex items-center -space-x-1.5">{form.assignee_ids.slice(0, 4).map((uid) => <span key={uid} className="ring-2 ring-surface rounded-full inline-flex" title={userName(uid)}><Avatar name={userName(uid)} size={20} src={userAvatar(uid)} /></span>)}{form.assignee_ids.length > 4 && <span className="ml-1.5 text-2xs text-muted2">+{form.assignee_ids.length - 4}</span>}</span> : <span className="text-muted2 text-sm">Assign people…</span>}<Icon name="ti-chevron-down" className="ml-auto text-2xs text-muted2" /></span>} /></Field>
+                <Field label="Assignees"><Dropdown multiple search width={260} placeholder="Assign people…" values={form.assignee_ids} onToggle={(uid) => setForm({ ...form, assignee_ids: form.assignee_ids.includes(uid) ? form.assignee_ids.filter((x) => x !== uid) : [...form.assignee_ids, uid] })} items={assigneeOpts} trigger={<span className="input flex items-center gap-1.5 cursor-pointer">{form.assignee_ids.length ? <span className="inline-flex items-center -space-x-1.5">{form.assignee_ids.slice(0, 4).map((uid) => <span key={uid} className="ring-2 ring-surface rounded-full inline-flex" title={userName(uid)}><Avatar name={userName(uid)} size={20} src={userAvatar(uid)} /></span>)}{form.assignee_ids.length > 4 && <span className="ml-1.5 text-2xs text-muted2">+{form.assignee_ids.length - 4}</span>}</span> : <span className="text-muted2 text-sm">Assign people…</span>}<Icon name="ti-chevron-down" className="ml-auto text-2xs text-muted2" /></span>} /></Field>
                 <Field label="Priority"><Select value={form.priority} onChange={(v) => setForm({ ...form, priority: v })} options={[...priorities.map((p) => ({ value: p, label: titleCase(p) }))]} /></Field>
                 <Field label="Due date"><input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="input" /></Field>
               </div>

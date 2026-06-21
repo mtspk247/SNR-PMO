@@ -169,6 +169,7 @@ export interface OrgUser {
   full_name: string;
   email: string;
   avatar_url?: string | null;
+  status?: string | null;
 }
 
 export interface Project {

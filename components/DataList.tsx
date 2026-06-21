@@ -19,7 +19,7 @@ const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
 const PILL_HEX: Record<string, string> = { 'pill-green': '#10b981', 'pill-amber': '#f59e0b', 'pill-blue': '#0ea5e9', 'pill-red': '#f43f5e', 'pill-rose': '#f43f5e', 'pill-gray': '#9ca3af', 'pill-violet': '#8b5cf6' };
 
 export type GroupMeta = { value: string; label: string; pill?: string };
-export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string }[]; multi?: boolean; manage?: () => void };
+export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string; deactivated?: boolean }[]; multi?: boolean; manage?: () => void };
 
 type Selection = {
   isSelected: (id: string) => boolean;
@@ -63,7 +63,7 @@ export type DataListProps<T> = {
   childrenOf?: (r: T) => T[];
 };
 
-function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { value: string; label: string }[]; value: string; onSave: (v: string) => void; multi?: boolean; onInvite?: (email: string) => void | Promise<void> }) {
+function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { value: string; label: string; deactivated?: boolean }[]; value: string; onSave: (v: string) => void; multi?: boolean; onInvite?: (email: string) => void | Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -100,7 +100,7 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
             {!multi && <button onClick={() => { onSave(''); setOpen(false); }} className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-x" className="text-2xs" /></span>Unassigned</button>}
             {(q ? list : list.filter((o) => o.value !== meId)).map((o) => { const on = sel.includes(o.value); return (
               <button key={o.value} onClick={() => pick(o.value)} className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-surface2 text-sm ${on ? 'bg-accent/5' : ''}`}>
-                <Avatar name={o.label} size={22} /><span className="truncate text-content">{o.label}</span>{on && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
+                <Avatar name={o.label} size={22} /><span className={`truncate ${o.deactivated ? 'text-muted2' : 'text-content'}`}>{o.label}{o.deactivated ? ' (deactivated)' : ''}</span>{on && <Icon name="ti-check" className="ml-auto text-accentstrong text-sm" />}
               </button>
             ); })}
             {onInvite && isEmail && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase()) && (
