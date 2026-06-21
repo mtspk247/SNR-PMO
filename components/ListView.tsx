@@ -5,6 +5,8 @@ import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
 import { Spinner, EmptyState, Icon } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
 import { Board } from '@/components/Board';
+import { useActiveOrg } from '@/lib/store';
+import { can } from '@/lib/authz';
 
 /**
  * ListView — the single, centralized shell for EVERY module list in the app.
@@ -68,6 +70,8 @@ const csvEsc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n
 
 export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
   const { rows, prefs, cols, selection: rs } = p;
+  const org = useActiveOrg();
+  const canExportAll = !!p.exportName && can.manageMembers(org);  // RBAC: export = admin (matches nav adminOnly)
   const canGroup = !!p.groupField && !!p.groupOf && !!p.groups;
   const [grouped, setGrouped] = useState<boolean>(canGroup ? (p.defaultGroup ?? true) : false);
   const groupBy = canGroup && grouped ? p.groupField!.value : 'none';
@@ -111,16 +115,17 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
     return arr;
   }, [rows, sortBy, sortDir, p.exportValue, p.rawValue]);
 
-  const doExport = () => {
+  const doExport = (scope: 'selected' | 'all' = 'selected') => {
     if (!p.exportName) return;
     const ids = prefs.ordered;
     const label = (id: string) => cols.find((c) => c.id === id)?.label || id;
     const val = (id: string, r: T) => (id.startsWith('cf:') && prefs.cf ? prefs.cf.exportValue(id, p.rowKey(r)) : (p.exportValue ? p.exportValue(id, r) : ''));
     const heads = ids.map(label);
-    const body = rs.selected.map((r) => ids.map((id) => val(id, r)));
+    const source = scope === 'all' ? (sorted || []) : rs.selected;
+    const body = source.map((r) => ids.map((id) => val(id, r)));
     const csv = heads.map(csvEsc).join(',') + '\n' + body.map((row) => row.map(csvEsc).join(',')).join('\n') + '\n';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    const a = document.createElement('a'); a.href = url; a.download = `${p.exportName}-selected.csv`; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement('a'); a.href = url; a.download = `${p.exportName}-${scope === 'all' ? 'export' : 'selected'}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
   const hasBulk = !!(p.exportName || p.bulkActions || (p.onDelete && p.canDelete));
@@ -129,6 +134,12 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
     <>
       <ListToolbar prefs={prefs} cols={cols} filters={p.filters} placeholder={p.searchPlaceholder || 'Search…'}
         rightControls={<>
+          {canExportAll && (
+            <button onClick={() => doExport('all')} title="Export all rows to CSV"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md border border-line bg-surface text-sm text-muted hover:text-content hover:border-borderstrong shrink-0 whitespace-nowrap">
+              <Icon name="ti-download" className="text-sm" /><span className="hidden md:inline">Export</span>
+            </button>
+          )}
           {canGroup && (
             <Dropdown value={grouped ? 'group' : 'none'} onChange={(v) => setGrouped(v === 'group')} width={190}
               items={[{ value: 'none', label: 'No grouping' }, { value: 'group', label: `Group: ${p.groupField!.label}` }]}
@@ -154,7 +165,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
 
       {hasBulk && (
         <BulkBar count={rs.count} onClear={rs.clear}>
-          {p.exportName && <button onClick={doExport} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>}
+          {p.exportName && <button onClick={() => doExport('selected')} className="btn h-8 text-xs"><Icon name="ti-download" className="text-xs" />Export</button>}
           {p.bulkActions?.(rs)}
           {p.onDelete && p.canDelete && <button onClick={() => p.onDelete!(rs)} disabled={p.busy} className="btn h-8 text-xs text-rose-600"><Icon name="ti-trash" className="text-xs" />Delete</button>}
         </BulkBar>

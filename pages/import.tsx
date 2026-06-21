@@ -200,7 +200,12 @@ export default function ImportPage() {
 
   return (
     <Layout flat title="Import data">
-      <PageHeader title="Import data" subtitle="Bring your projects, tasks, clients and deals over from any tool — export a CSV, map the columns, done." />
+      <PageHeader title="Import & Export" subtitle="Move data in and out — CSV in, CSV out. No lock-in." />
+
+      <div className="flex items-center gap-1 border-b border-line mb-5">
+        <Link href="/export" className="px-3.5 py-2 text-sm font-medium border-b-2 border-transparent text-muted hover:text-content -mb-px inline-flex items-center gap-1.5"><Icon name="ti-file-export" className="text-sm" />Export</Link>
+        <Link href="/import" className="px-3.5 py-2 text-sm font-medium border-b-2 border-accent text-content -mb-px inline-flex items-center gap-1.5"><Icon name="ti-file-import" className="text-sm" />Import</Link>
+      </div>
 
       {/* Step 1 — entity */}
       <div className="card p-5 mb-4">

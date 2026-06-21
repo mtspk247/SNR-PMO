@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Icon } from '@/components/ui';
 import { sb } from '@/lib/supabase';
@@ -53,7 +54,12 @@ export default function ExportPage() {
 
   return (
     <Layout flat title="Export data">
-      <PageHeader title="Export data" subtitle="Your data is yours. Download any of it as a clean CSV — for reports, backups, or moving on." />
+      <PageHeader title="Import & Export" subtitle="Move data in and out — CSV in, CSV out. No lock-in." />
+
+      <div className="flex items-center gap-1 border-b border-line mb-5">
+        <Link href="/export" className="px-3.5 py-2 text-sm font-medium border-b-2 border-accent text-content -mb-px inline-flex items-center gap-1.5"><Icon name="ti-file-export" className="text-sm" />Export</Link>
+        <Link href="/import" className="px-3.5 py-2 text-sm font-medium border-b-2 border-transparent text-muted hover:text-content -mb-px inline-flex items-center gap-1.5"><Icon name="ti-file-import" className="text-sm" />Import</Link>
+      </div>
 
       <div className="flex items-start gap-3 rounded-lg bg-accent/10 border border-accent/20 px-4 py-3 mb-5 max-w-3xl">
         <Icon name="ti-lock-open" className="text-base text-accentstrong mt-0.5 shrink-0" />
