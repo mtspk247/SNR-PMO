@@ -81,7 +81,7 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
         {selOpts.length > 0
           ? (multi
               ? <span className="inline-flex items-center -space-x-1.5">{selOpts.slice(0, 3).map((o) => <span key={o.value} title={o.label} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={20} /></span>)}{selOpts.length > 3 && <span className="ml-2.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}</span>
-              : <><Avatar name={selOpts[0].label} size={20} /><span className="text-sm text-content truncate max-w-[9rem]">{selOpts[0].label}</span></>)
+              : <span title={selOpts[0].label} className="inline-flex"><Avatar name={selOpts[0].label} size={20} /></span>)
           : <span className="inline-flex items-center gap-1 text-muted2"><span className="grid place-items-center h-5 w-5 rounded-full border border-dashed border-borderstrong"><Icon name="ti-plus" className="text-2xs" /></span></span>}
       </button>
       {open && <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />}
