@@ -114,7 +114,7 @@ export const HelpHint = ({ anchor, label, className = '' }: { anchor: string; la
 
 export const PageHeader = ({ title, subtitle, action, icon, badge, help }:
   { title: string; subtitle?: string; action?: React.ReactNode; icon?: string; badge?: React.ReactNode; help?: string }) => (
-  <div className="flex items-start justify-between gap-3 mb-5">
+  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-5">
     <div className="flex items-start gap-3 min-w-0">
       {icon && (
         <span className="w-10 h-10 shrink-0 rounded-xl grid place-items-center bg-accent/10 text-accentstrong ring-1 ring-inset ring-accent/15">

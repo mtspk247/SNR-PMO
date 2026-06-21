@@ -256,7 +256,7 @@ function BoardMock() {
     },
   ];
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {cols.map((c) => (
         <div key={c.name} className="rounded-xl bg-[#161616] border border-white/10 p-2.5">
           <div className="flex items-center justify-between mb-2 px-1">
@@ -349,7 +349,7 @@ function HrMock() {
   ];
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiCard label="Headcount" value="24" />
         <KpiCard label="On leave" value="2" tone="text-amber-400/80" />
         <KpiCard label="Payroll / mo" value="$28,500" tone="text-[#3ECF8E]" />

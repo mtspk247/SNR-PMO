@@ -154,7 +154,7 @@ export default function GuestsPage() {
 
       {guests === null ? <Spinner /> : (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
             <StatCard label="Guests" value={totals.total} icon="ti-users" />
             <StatCard label="Active" value={totals.active} hint="Signed in" hintTone="up" icon="ti-user-check" />
             <StatCard label="Pending" value={totals.pending} hint="Invite not yet accepted" icon="ti-user-exclamation" />

@@ -43,7 +43,7 @@ export default function RequestsPage() {
     <Layout flat title="Requests">
       <PageHeader title="Requests" subtitle="Guest requests and suggestions across your projects" icon="ti-inbox" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
-      <div className="grid grid-cols-3 gap-4 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
         <StatCard label="Open" value={openCount} icon="ti-inbox" />
         <StatCard label="Total" value={(rows || []).length} icon="ti-list" />
         <StatCard label="Approved" value={(rows || []).filter((r) => r.status === 'approved').length} icon="ti-check" hintTone="up" />
