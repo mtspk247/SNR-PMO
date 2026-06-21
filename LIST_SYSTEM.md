@@ -66,3 +66,13 @@ Reference = ClickUp List view (what.NGO screenshot). Honest status of EVERY elem
 - [ ] **CRM → Pipeline tab (deals)** — bespoke kanban + per-stage $ value sums in group headers. Full ListView = lose the $ rollups.
 - [ ] **Workload** — analytics AGGREGATION table (progress bars, Person/Team/Project rollups), not a record list. Not a natural ListView fit.
 DECISION NEEDED (don't silently delete features): force Ideas/Pipeline/Workload onto the standard list (losing Cards / $ stage-sums / analytics layout), OR keep their special views as-is. The standard record lists are now uniform.
+
+## ClickUp parity batch 2 (2026-06-21) — LIVE
+- [x] **Custom field types** (`3965e13`): "+ Add column" offers Text/Long text/Number/Money/Progress bar/Rating/Date/Checkbox/Dropdown/Labels/Website/Email/Phone + options input (Dropdown/Labels). Type-aware cell rendering. Shared AddColumnForm. DB CHECK relaxed (migration custom_field_types_expand).
+- [x] **Inline assignee/owner picker** (`f4e21ee` + `bedec40`): new 'person' inline-edit type — avatar + searchable people dropdown, set owner in-row. LIVE on 7 pages: Clients, Leads, Applications, Assets, Bank-accounts, Recurring, Domains.
+- [x] **Realtime drag** (`ce45a48`): pointer-based floating chip sticks to cursor, live drop highlight. Shared lists.
+- [x] **Borderless rows** on Tasks + Pipeline (`8fd0f99`).
+REMAINING:
+- [ ] Assignee picker on contracts/proposals/jobs/subscriptions (DataList-direct, need editable/rawValue/onEdit added).
+- [ ] Tasks + Pipeline: adopt shared grip-drag + in-header column drag-and-drop (bespoke row markup).
+- [ ] Subtasks (parent_id), saved views, more field types (Formula/Files/People/Relationship).
