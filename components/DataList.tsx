@@ -1,5 +1,5 @@
 import { useState, useEffect, ReactNode } from 'react';
-import type { PointerEvent as RPointerEvent } from 'react';
+import type { PointerEvent as RPointerEvent, CSSProperties } from 'react';
 import { Icon, Avatar, INLINE_SELECT_CLS } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
@@ -247,6 +247,14 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const selCol = !!selection;
   const colW = (id: string, i: number) => prefs.widths[id] ?? (i === 0 ? 280 : 160);
   const totalW = (rowDnD ? 28 : 0) + (selCol ? 36 : 0) + prefs.ordered.reduce((a, id, i) => a + colW(id, i), 0) + 36;
+  // Freeze / pin: the first `pinCount` data columns (plus grip/checkbox) stick to the left.
+  const pinCount = Math.min(prefs.pinned || 0, prefs.ordered.length);
+  const leadW = (rowDnD ? 28 : 0) + (selCol ? 36 : 0);
+  const dataLeft = (i: number) => leadW + prefs.ordered.slice(0, i).reduce((a, id, j) => a + colW(id, j), 0);
+  const pinSty = (i: number): CSSProperties => (i < pinCount ? { position: 'sticky', left: dataLeft(i), zIndex: 2 } : {});
+  const leadSty = (which: 'grip' | 'sel'): CSSProperties => (pinCount > 0 ? { position: 'sticky', left: which === 'grip' ? 0 : (rowDnD ? 28 : 0), zIndex: 2 } : {});
+  const pinCls = (i: number) => (i < pinCount ? 'bg-surface group-hover:bg-surface2' + (i === pinCount - 1 ? ' border-r border-line' : '') : '');
+  const leadCls = pinCount > 0 ? 'bg-surface group-hover:bg-surface2' : '';
   const startColResize = (e: RPointerEvent, id: string, i: number) => {
     e.preventDefault(); e.stopPropagation();
     const startX = e.clientX; const startW = colW(id, i);
@@ -270,17 +278,18 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
 
   const headerRow = (selectAll: boolean) => (
     <tr className="border-b border-line text-muted2">
-      {rowDnD && <th className="w-7" />}
+      {rowDnD && <th className={`w-7 ${leadCls}`} style={leadSty('grip')} />}
       {selCol && (selectAll
-        ? <th className="px-3 py-2 w-9"><HeadCheckbox checked={selection!.allSelected} indeterminate={selection!.someSelected} onChange={selection!.toggleAll} /></th>
-        : <th className="px-3 py-2 w-9" />)}
+        ? <th className={`px-3 py-2 w-9 ${leadCls}`} style={leadSty('sel')}><HeadCheckbox checked={selection!.allSelected} indeterminate={selection!.someSelected} onChange={selection!.toggleAll} /></th>
+        : <th className={`px-3 py-2 w-9 ${leadCls}`} style={leadSty('sel')} />)}
       {prefs.ordered.map((id, ci) => (
         <th key={id} draggable data-col={id}
           onDragStart={(e) => { e.stopPropagation(); setColDrag(id); }}
           onDragOver={(e) => { e.preventDefault(); }}
           onDrop={(e) => { e.preventDefault(); if (colDrag) reorderCols(colDrag, id); setColDrag(null); }}
           onDragEnd={() => setColDrag(null)}
-          className={`group/col relative px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wider whitespace-nowrap overflow-hidden cursor-grab select-none transition ${colDrag === id ? 'opacity-40' : 'hover:text-content'}`}>
+          style={pinSty(ci)}
+          className={`group/col relative px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wider whitespace-nowrap overflow-hidden cursor-grab select-none transition ${pinCls(ci)} ${colDrag === id ? 'opacity-40' : 'hover:text-content'}`}>
           <span className="inline-flex items-center gap-1 max-w-full">
             <Icon name="ti-grip-vertical" className="text-2xs text-muted2 opacity-0 group-hover/col:opacity-60 shrink-0" />
             <span className="truncate">{labelOf(id)}</span>
@@ -301,14 +310,14 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
       <tr key={id} data-rowid={id}
         className={`group relative transition border-b border-line/50 last:border-0 ${dragId === id ? 'opacity-50' : ''} ${dropHi ? 'bg-accent/10' : sel ? 'bg-accent/5' : 'hover:bg-surface2'}`}>
         {rowDnD && (
-          <td className="w-7 pl-1.5 pr-0 align-middle" onClick={(e) => e.stopPropagation()}>
+          <td className={`w-7 pl-1.5 pr-0 align-middle ${leadCls}`} style={leadSty('grip')} onClick={(e) => e.stopPropagation()}>
             <span onPointerDown={(e) => beginDrag(e, id)} title="Drag to reorder"
               style={{ touchAction: 'none' }}
               className="inline-flex cursor-grab active:cursor-grabbing text-muted2 opacity-0 group-hover:opacity-100 transition"><Icon name="ti-grip-vertical" className="text-sm" /></span>
           </td>
         )}
-        {selCol && <td className="px-3 py-2.5 w-9 align-middle" onClick={(e) => e.stopPropagation()}><RowCheckbox checked={sel} onChange={() => selection!.toggle(id)} /></td>}
-        {prefs.ordered.map((cid) => {
+        {selCol && <td className={`px-3 py-2.5 w-9 align-middle ${leadCls}`} style={leadSty('sel')} onClick={(e) => e.stopPropagation()}><RowCheckbox checked={sel} onChange={() => selection!.toggle(id)} /></td>}
+        {prefs.ordered.map((cid, ci) => {
           const isCf = isCustomCol(cid) && !!prefs.cf;
           const ed = isCf ? prefs.cf!.editable[cid] : editable?.[cid];
           const disp = isCf ? prefs.cf!.cell(cid, id) : cell(cid, r);
@@ -330,8 +339,8 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
               );
             }
             return (
-              <td key={cid} data-col={cid}
-                className={`px-4 py-2.5 text-sm align-middle ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'overflow-hidden'}`}>
+              <td key={cid} data-col={cid} style={pinSty(ci)}
+                className={`px-4 py-2.5 text-sm align-middle ${pinCls(ci)} ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'overflow-hidden'}`}>
                 <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full group/name">
                   {stCircle}
                   {renaming === id ? (
@@ -352,7 +361,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
             );
           }
           return (
-            <td key={cid} data-col={cid} className={`px-4 py-2.5 text-sm text-muted align-middle ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'truncate'}`}>
+            <td key={cid} data-col={cid} style={pinSty(ci)} className={`px-4 py-2.5 text-sm text-muted align-middle ${pinCls(ci)} ${prefs.wrap[cid] ? 'whitespace-normal break-words' : 'truncate'}`}>
               {ed && save && rv !== undefined
                 ? <EditableCell spec={ed} value={rv} display={disp} onSave={save} onInvite={onInvitePerson} />
                 : disp}

@@ -23,6 +23,7 @@ export type ListPrefs = {
   cf?: CustomColumnsApi; // custom-column api when a customEntity is supplied
   widths: Record<string, number>; setWidth: (id: string, w: number) => void;
   wrap: Record<string, boolean>; toggleWrap: (id: string) => void;
+  pinned: number; setPinned: (n: number) => void; // # of leading columns frozen (sticky-left)
 };
 
 export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { entity?: string; orgId?: string; canManage?: boolean }): ListPrefs {
@@ -37,6 +38,7 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   const [known, setKnown] = useState<Set<string>>(new Set(ids));
   const [widths, setWidths] = useState<Record<string, number>>({});
   const [wrap, setWrap] = useState<Record<string, boolean>>({});
+  const [pinned, setPinned] = useState(0);
   const loaded = useRef(false);
 
   useEffect(() => {
@@ -57,7 +59,8 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
         setFilters(v.filters && typeof v.filters === 'object' ? v.filters : {});
         setWidths(v.widths && typeof v.widths === 'object' ? v.widths : {});
         setWrap(v.wrap && typeof v.wrap === 'object' ? v.wrap : {});
-      } else { setOrder(ids); setVisible(new Set(ids)); setKnown(new Set(ids)); setFilters({}); setWidths({}); setWrap({}); }
+        setPinned(typeof v.pinned === 'number' ? v.pinned : 0);
+      } else { setOrder(ids); setVisible(new Set(ids)); setKnown(new Set(ids)); setFilters({}); setWidths({}); setWrap({}); setPinned(0); }
     } catch { /* ignore */ }
     loaded.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -76,8 +79,8 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
 
   useEffect(() => {
     if (!loaded.current) return;
-    try { localStorage.setItem(storageKey, JSON.stringify({ order, visible: [...visible], filters, known: [...known] })); } catch { /* ignore */ }
-  }, [storageKey, order, visible, filters, known]);
+    try { localStorage.setItem(storageKey, JSON.stringify({ order, visible: [...visible], filters, known: [...known], widths, wrap, pinned })); } catch { /* ignore */ }
+  }, [storageKey, order, visible, filters, known, widths, wrap, pinned]);
 
   const setFilter = (id: string, v: string) => setFilters((pr) => ({ ...pr, [id]: v }));
   const clearFilters = () => setFilters({});
@@ -88,7 +91,7 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   const setWidth = (id: string, w: number) => setWidths((pr) => ({ ...pr, [id]: Math.max(60, Math.round(w)) }));
   const toggleWrap = (id: string) => setWrap((pr) => ({ ...pr, [id]: !pr[id] }));
   const ordered = order.filter((id) => visible.has(id) && ids.includes(id));
-  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: cfOpts?.entity ? cf : undefined, widths, setWidth, wrap, toggleWrap };
+  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: cfOpts?.entity ? cf : undefined, widths, setWidth, wrap, toggleWrap, pinned, setPinned };
 }
 
 export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children }:
@@ -138,6 +141,14 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
         {cOpen && (
           <div className="absolute right-0 top-10 z-20 w-56 bg-surface border border-line rounded-lg shadow-lg p-1">
             <p className="px-2 py-1 text-2xs text-muted2">Drag to reorder · tick to show/hide</p>
+            <div className="flex items-center justify-between gap-2 px-2 py-1 mb-1 border-b border-line/60">
+              <span className="text-2xs text-muted2 inline-flex items-center gap-1"><Icon name="ti-pin" className="text-sm" />Freeze columns</span>
+              <span className="inline-flex items-center gap-1.5">
+                <button onClick={() => prefs.setPinned(Math.max(0, prefs.pinned - 1))} disabled={prefs.pinned <= 0} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-minus" className="text-sm" /></button>
+                <span className="text-xs tnum w-4 text-center">{prefs.pinned}</span>
+                <button onClick={() => prefs.setPinned(Math.min(prefs.ordered.length, prefs.pinned + 1))} disabled={prefs.pinned >= prefs.ordered.length} className="text-muted2 hover:text-content disabled:opacity-30"><Icon name="ti-plus" className="text-sm" /></button>
+              </span>
+            </div>
             {prefs.order.map((id, idx) => { const c = byId(id); if (!c) return null; return (
               <div key={id} draggable onDragStart={() => setDragId(id)} onDragEnd={() => setDragId(null)}
                 onDragOver={(e) => e.preventDefault()} onDrop={() => onDrop(id)}
