@@ -5,7 +5,7 @@ import type { AppProps } from 'next/app';
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { sb, FEATURES } from '@/lib/supabase';
-import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, isPlatformAdmin, ensurePersonalWorkspace, claimPendingInvite } from '@/lib/db';
+import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, isPlatformAdmin, ensurePersonalWorkspace, claimPendingInvite, touchLastLogin } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import { ErrorBoundary } from '@/components/ui';
@@ -60,6 +60,7 @@ export default function App({ Component, pageProps }: AppProps) {
         const user = await getCurrentUser();
         if (!active) return;
         if (!user) { clear(); return; }
+        if (typeof window !== 'undefined' && !sessionStorage.getItem('ll_touched')) { sessionStorage.setItem('ll_touched', '1'); touchLastLogin(); }
         let orgs = await getMyOrgs(user.id);
         // A signed-in user with no workspace: FIRST claim any pending invite (e.g. a reseller
         // sub-tenant) so they land in the right workspace instead of a throwaway personal one.

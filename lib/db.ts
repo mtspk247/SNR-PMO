@@ -44,6 +44,10 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   return (data as AppUser) ?? null;
 }
 
+export async function touchLastLogin(): Promise<void> {
+  try { await sb.rpc('touch_last_login'); } catch { /* non-critical */ }
+}
+
 export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // Must filter by user_id: the org_members SELECT policy lets a member see ALL
   // members of their org, so without this we'd get one row per co-member (and the
