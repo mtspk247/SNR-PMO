@@ -385,13 +385,14 @@ export const SECTIONS: Section[] = [
       { kind: 'bullets', items: [
         { text: 'Branded automatically — the portal inherits your workspace logo and colours (Settings > Branding); a reseller\'s custom domain shows their own brand.' },
         { text: 'Scoped by access — a guest sees only the projects they were invited to. Row-level security enforces this on the server, not just in the UI.' },
-        { text: 'Read-only — projects, their invoices (status, dates, totals, balance due) and the files you share with them, all in your brand, plus at-a-glance counts and total outstanding. Approvals are the next slice.' },
+        { text: 'In your brand: projects, their invoices (status, dates, totals, balance due), the files you share, plus at-a-glance counts and total outstanding. Clients can also approve or reject items you send for sign-off.' },
       ] },
       { kind: 'steps', items: [
         { title: 'Invite a client', body: 'People > Guests > invite by email, then choose their access level and which projects they can see. They receive a sign-in link.' },
         { title: 'They land on the portal', body: 'After signing in, guests are taken straight to /portal — their home — where they see their projects and invoices in your brand (it is also in the sidebar).' },
         { title: 'Control what they see', body: 'Adjust a guest\'s projects and permissions any time under People > Guests; changes apply immediately.' },
         { title: 'Share files', body: 'Open Drives, select a drive, and set its "Client portal" project — that drive\'s files then appear (read-only) in that project\'s clients\' portal. Leave it "Not shared" to keep a drive internal.' },
+        { title: 'Request a sign-off', body: 'On Approvals, choose Request client sign-off, pick the project and describe what needs approval. It appears in that project portal under Approvals for the client to approve or reject with an optional note; the decision shows back on Approvals.' },
       ] },
       { kind: 'callout', icon: 'ti-lock', text: 'The client portal is plan-gated (Pro and above). Guests never count against your seat limit.' },
     ],

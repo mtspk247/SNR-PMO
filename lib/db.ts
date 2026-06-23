@@ -923,6 +923,27 @@ export async function setDriveProject(id: string, projectId: string | null): Pro
 }
 export interface PortalFile { id: string; name: string; kind: string; mime_type: string | null; size_bytes: number; storage_path: string | null; created_at: string; drive_id: string; drive_name?: string | null; }
 // Files the current user can read (RLS-fenced). For a guest = files in project-linked drives they can access.
+export interface PortalApproval { id: string; org_id: string; project_id: string; title: string; body: string | null; status: 'pending' | 'approved' | 'rejected' | 'cancelled'; requested_by: string | null; decided_by: string | null; decided_at: string | null; decision_note: string | null; created_at: string; project_name?: string | null; }
+// Client sign-offs. RLS-filtered: staff see all in org; a guest sees those on projects they can access.
+export async function listPortalApprovals(orgId: string): Promise<PortalApproval[]> {
+  const { data, error } = await sb.from('portal_approvals').select('*, projects(name)').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []).map((r: any) => ({ id: r.id, org_id: r.org_id, project_id: r.project_id, title: r.title, body: r.body, status: r.status, requested_by: r.requested_by, decided_by: r.decided_by, decided_at: r.decided_at, decision_note: r.decision_note, created_at: r.created_at, project_name: r.projects?.name ?? null }));
+}
+// Staff create. Insert minimal (no RETURNING) to avoid the INSERT-RETURNING RLS gotcha.
+export async function createPortalApproval(p: { org_id: string; project_id: string; title: string; body?: string | null; requested_by: string }): Promise<void> {
+  const { error } = await sb.from('portal_approvals').insert({ org_id: p.org_id, project_id: p.project_id, title: p.title, body: p.body || null, requested_by: p.requested_by });
+  if (error) throw new Error(error.message);
+}
+// Client (or staff) decides. decided_by MUST be the caller app-user id (RLS WITH CHECK). No RETURNING.
+export async function decidePortalApproval(id: string, status: 'approved' | 'rejected', deciderId: string, note?: string | null): Promise<void> {
+  const { error } = await sb.from('portal_approvals').update({ status, decided_by: deciderId, decided_at: new Date().toISOString(), decision_note: note || null }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function cancelPortalApproval(id: string): Promise<void> {
+  const { error } = await sb.from('portal_approvals').update({ status: 'cancelled' }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
 export async function listPortalFiles(orgId: string): Promise<PortalFile[]> {
   const { data, error } = await sb.from('drive_files')
     .select('id,name,kind,mime_type,size_bytes,storage_path,created_at,drive_id, drives(name)')
