@@ -505,9 +505,13 @@ export default function Landing() {
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="SNR-PMO" />
         <meta property="og:url" content="https://snr-pmo.vercel.app/" />
+        <meta property="og:image" content="https://snr-pmo.vercel.app/og.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
         <meta property="og:title" content="SNR-PMO — the business OS with AI agents for your back office" />
         <meta property="og:description" content="Projects, CRM, HR & payroll and real accounting in one workspace — with approve-first AI agents that do the busywork. White-label and resell it as your own." />
-        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="https://snr-pmo.vercel.app/og.png" />
         <meta name="twitter:title" content="SNR-PMO — AI agents for your back office" />
         <meta name="twitter:description" content="The all-in-one business OS with approve-first AI agents. Projects, CRM, HR, real accounting — one workspace. White-label." />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(appLd) }} />
