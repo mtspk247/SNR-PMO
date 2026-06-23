@@ -12,8 +12,9 @@ import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS, RISK_COLOR, toolByKey } from '@/lib/agents';
 import {
   listAgents, listAgentActions, listAgentActionEvents, decideAgentAction, rollbackAgentAction,
-  AgentDefinition, AgentAction, AgentActionEvent,
+  AgentDefinition, AgentAction, AgentActionEvent, recordAgentExecution,
 } from '@/lib/db';
+import { executorFor } from '@/lib/agentExecutors';
 
 const STATUS_COLOR: Record<string, string> = {
   proposed: '#d97706', approved: '#0284c7', executing: '#0284c7', executed: '#16a34a',
@@ -91,15 +92,34 @@ export default function AgentApprovalsPage() {
     setSel(a); setNote(''); setEvents([]);
     try { setEvents(await listAgentActionEvents(a.id)); } catch { /* ignore */ }
   };
+  // Execution runs CLIENT-SIDE as the approver through db.ts fns -> RLS/RBAC enforced.
+  const runExecution = async (action: AgentAction) => {
+    const ex = executorFor(action.tool_key);
+    if (!ex || !org || !me) return;
+    const res = await ex.execute(action, { orgId: org.id, userId: me.id });
+    await recordAgentExecution(action.id, res.target_table, res.target_id, res.result, res.reversal, res.prior_state);
+  };
   const decide = async (decision: 'approved' | 'rejected') => {
     if (!sel || busy) return; setBusy(true); setErr('');
-    try { await decideAgentAction(sel.id, decision, note || undefined); setSel(null); load(); }
+    try {
+      await decideAgentAction(sel.id, decision, note || undefined);
+      if (decision === 'approved' && executorFor(sel.tool_key)) await runExecution(sel);
+      setSel(null); load();
+    } catch (e: any) { setErr(e.message); load(); } finally { setBusy(false); }
+  };
+  const executeNow = async () => {
+    if (!sel || busy) return; setBusy(true); setErr('');
+    try { await runExecution(sel); setSel(null); load(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
   const rollback = async () => {
     if (!sel || busy || !confirm('Roll back this executed action?')) return; setBusy(true); setErr('');
-    try { await rollbackAgentAction(sel.id, note || undefined); setSel(null); load(); }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+    try {
+      const ex = executorFor(sel.tool_key);
+      if (ex?.rollback && org && me) await ex.rollback(sel, { orgId: org.id, userId: me.id });
+      await rollbackAgentAction(sel.id, note || undefined);
+      setSel(null); load();
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
   if (!enabled) return (
@@ -156,8 +176,11 @@ export default function AgentApprovalsPage() {
             <button className="btn mr-auto" onClick={() => setSel(null)}>Close</button>
             {sel.status === 'proposed' && canApprove && (<>
               <button className="btn btn-danger" disabled={busy} onClick={() => decide('rejected')}>Reject</button>
-              <button className="btn btn-primary" disabled={busy} onClick={() => decide('approved')}>{busy ? 'Saving…' : 'Approve'}</button>
+              <button className="btn btn-primary" disabled={busy} onClick={() => decide('approved')}>{busy ? 'Working…' : (executorFor(sel.tool_key) ? 'Approve & run' : 'Approve')}</button>
             </>)}
+            {sel.status === 'approved' && canApprove && executorFor(sel.tool_key) && (
+              <button className="btn btn-primary" disabled={busy} onClick={executeNow}>{busy ? 'Running…' : 'Execute now'}</button>
+            )}
             {sel.status === 'executed' && sel.reversible && canApprove && (
               <button className="btn btn-danger" disabled={busy} onClick={rollback}><Icon name="ti-arrow-back-up" className="text-sm" />Roll back</button>
             )}
@@ -177,6 +200,7 @@ export default function AgentApprovalsPage() {
             <div>
               <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1">Tool</h4>
               <p className="text-sm">{selTool?.label || sel.tool_key}{selTool?.description ? <span className="block text-2xs text-muted">{selTool.description}</span> : null}</p>
+              {executorFor(sel.tool_key) ? <p className="text-2xs text-emerald-600 mt-1 inline-flex items-center gap-1"><Icon name="ti-bolt" className="text-xs" />On approval this runs automatically and can be rolled back.</p> : <p className="text-2xs text-muted mt-1">Draft only — approving records your sign-off; act on it manually.</p>}
             </div>
             <div>
               <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1">Payload</h4>

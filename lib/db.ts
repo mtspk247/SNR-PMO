@@ -3243,3 +3243,9 @@ export async function simulateAgentProposal(orgId: string, agentId: string, doma
   }
   await sb.rpc('agent_finish_run', { p_run: runId as string, p_status: 'awaiting_approval', p_tokens: 0, p_usd: 0, p_error: null });
 }
+// Domain executor calls this AFTER performing the real (RLS-enforced) write, to
+// record target + reversal so the action becomes executed + rollback-able.
+export async function recordAgentExecution(actionId: string, targetTable: string, targetId: string | null, result?: any, reversal?: any, priorState?: any): Promise<void> {
+  const { error } = await sb.rpc('agent_record_execution', { p_action: actionId, p_target_table: targetTable, p_target_id: targetId, p_result: result ?? {}, p_reversal: reversal ?? null, p_prior_state: priorState ?? null });
+  if (error) throw new Error(error.message);
+}
