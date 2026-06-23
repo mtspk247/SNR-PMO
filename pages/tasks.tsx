@@ -10,7 +10,7 @@ import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import StatusManager from '@/components/StatusManager';
 import { useListPrefs, ColDef } from '@/components/ListToolbar';
-import { DataList, EditSpec } from '@/components/DataList';
+import { DataList, EditSpec, GroupMeta } from '@/components/DataList';
 import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
 import { getOrgUsers, createTask, updateTask, deleteTask, notify, avatarSrc, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions, inviteMember } from '@/lib/db';
@@ -131,12 +131,10 @@ export default function Tasks() {
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([]);
   const [statusMgr, setStatusMgr] = useState(false);
   const [filterMenu, setFilterMenu] = useState(false);
-  const [dragGroup, setDragGroup] = useState<string | null>(null);
   const taskTabs = useModalTabs('overview');
   const [sort, setSort] = useState<'due' | 'priority' | 'name'>('priority');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(false);
   const [subInput, setSubInput] = useState('');
 
@@ -222,20 +220,6 @@ export default function Tasks() {
 
   const projCompany = useMemo(() => { const m = new Map<string, string>(); projects.forEach((p: any) => { if (p.company_id) m.set(p.id, p.company_id); }); return m; }, [projects]);
   const compName = useMemo(() => { const m = new Map<string, string>(); companies.forEach((c: any) => m.set(c.id, c.name)); return m; }, [companies]);
-  // Grouped view over the current page (header order: known rank lists, else A→Z).
-  const groupedPage = useMemo(() => {
-    if (groupBy === 'none') return null;
-    const keyOf = (t: Task) =>
-      groupBy === 'project' ? (t.projects?.name || 'No project') :
-      groupBy === 'company' ? (compName.get(projCompany.get(t.project_id || '') || '') || 'No company') :
-      groupBy === 'priority' ? (t.priority || 'None') : (t.status || 'None');
-    const m = new Map<string, Task[]>();
-    pg.pageItems.forEach((t) => { const k = keyOf(t); m.set(k, [...(m.get(k) || []), t]); });
-    const rank = groupBy === 'priority' ? priorities : groupBy === 'status' ? statuses : null;
-    return Array.from(m.entries()).sort(([a], [b]) =>
-      rank ? rank.indexOf(a) - rank.indexOf(b) : a.localeCompare(b));
-  }, [pg.pageItems, groupBy, projCompany, compName, priorities, statuses]);
-
   const selected = tasks.find((t) => t.id === selectedId) || null;
   const subtasks = useMemo(() => tasks.filter((t) => t.parent_task_id === selectedId), [tasks, selectedId]);
 
@@ -642,13 +626,17 @@ export default function Tasks() {
     setCache((pr) => [...pr, st]);
   });
   const selectionAdapter = { isSelected: (id: string) => sel.has(id), toggle: toggleSel, allSelected, someSelected: sel.size > 0 && !allSelected, toggleAll: toggleSelectAll };
-  const renderList = (rows: Task[], orderKey: string) => (
-    <DataList rows={rows} rowKey={(t) => t.id} cols={TASK_COLS} prefs={prefs} cell={cell} selection={selectionAdapter}
-      editable={editable} rawValue={rawValue} onEdit={onInlineEdit} onRowClick={(t) => selectTask(t.id)}
-      onRename={onRenameTask} onAddSubtask={onAddSubtaskRow} childrenOf={childrenOf}
-      onInvitePerson={canDelete ? (email) => { inviteMember(activeOrg!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
-      orderKey={orderKey} />
-  );
+  const keyOf = (t: Task) =>
+    groupBy === 'project' ? (t.projects?.name || 'No project') :
+    groupBy === 'company' ? (compName.get(projCompany.get(t.project_id || '') || '') || 'No company') :
+    groupBy === 'priority' ? (t.priority || 'None') : (t.status || 'None');
+  const taskGroups: GroupMeta[] = (() => {
+    if (groupBy === 'none') return [];
+    const keys = Array.from(new Set(pg.pageItems.map(keyOf)));
+    const rank = groupBy === 'priority' ? priorities : groupBy === 'status' ? statuses : null;
+    keys.sort((a, b) => (rank ? (rank.indexOf(a) - rank.indexOf(b)) : a.localeCompare(b)));
+    return keys.map((k) => ({ value: k, label: k, color: groupBy === 'status' ? statusColor(k) : groupBy === 'priority' ? PRIORITY_DOT[k] : undefined }));
+  })();
 
   return (
     <Layout title="Tasks">
@@ -744,39 +732,16 @@ export default function Tasks() {
             {view === 'board' ? <BoardView /> : (
             <div className="h-full overflow-auto">
               <div className="min-w-[960px]">
-              {filtered.length === 0 ? <EmptyState text="No tasks match" /> : groupedPage ? (
-                groupedPage.map(([label, items]) => {
-                  const gcol = collapsedGroups.has(label);
-                  return (
-                  <div key={label} className="mt-5 first:mt-1">
-                    <div draggable={groupBy === 'status' && taskStatuses.length > 0}
-                      onDragStart={() => setDragGroup(label)}
-                      onDragOver={(e) => { if (dragGroup && groupBy === 'status') e.preventDefault(); }}
-                      onDrop={() => { if (dragGroup) reorderStatuses(dragGroup, label); setDragGroup(null); }}
-                      onDragEnd={() => setDragGroup(null)}
-                      className={`px-1 py-2 mb-2 flex items-center gap-2.5 ${groupBy === 'status' && taskStatuses.length > 0 ? 'cursor-grab' : ''} ${dragGroup === label ? 'opacity-60' : ''}`}>
-                      <button onClick={() => setCollapsedGroups((pr) => { const n = new Set(pr); n.has(label) ? n.delete(label) : n.add(label); return n; })}
-                        className="shrink-0 text-muted2 hover:text-content" title={gcol ? 'Expand' : 'Collapse'}>
-                        <Icon name={gcol ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" />
-                      </button>
-                      {groupBy === 'status'
-                        ? <StatusBadge status={label} solid color={statusColor(label)} />
-                        : groupBy === 'priority'
-                        ? <StatusBadge status={label} solid color={PRIORITY_DOT[label]} />
-                        : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{label}</span>}
-                      <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
-                      {groupBy === 'status' && (
-                        <button onClick={() => { setForm({ ...EMPTY_FORM, status: label }); setModal({ mode: 'create' }); }}
-                          className="ml-auto inline-flex items-center gap-1 text-2xs text-muted2 hover:text-content transition">
-                          <Icon name="ti-plus" className="text-sm" />Add task
-                        </button>
-                      )}
-                    </div>
-                    {!gcol && renderList(items, 'snrpmo.tasks.roworder.' + label)}
-                  </div>
-                  );
-                })
-              ) : renderList(pg.pageItems, 'snrpmo.tasks.roworder.all')}
+              {filtered.length === 0 ? <EmptyState text="No tasks match" /> : (
+                <DataList rows={pg.pageItems} rowKey={(t) => t.id} cols={TASK_COLS} prefs={prefs} cell={cell} selection={selectionAdapter}
+                  editable={editable} rawValue={rawValue} onEdit={onInlineEdit} onRowClick={(t) => selectTask(t.id)}
+                  onRename={onRenameTask} onAddSubtask={onAddSubtaskRow} childrenOf={childrenOf}
+                  onInvitePerson={canDelete ? (email) => { inviteMember(activeOrg!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
+                  orderKey="snrpmo.tasks.roworder"
+                  groupBy={groupBy === 'none' ? 'none' : groupBy} groupOf={keyOf} groups={taskGroups}
+                  onAddInGroup={groupBy === 'status' ? (status) => { setForm({ ...EMPTY_FORM, status }); setModal({ mode: 'create' }); } : undefined}
+                  onReorderGroups={groupBy === 'status' && taskStatuses.length > 0 ? reorderStatuses : undefined} />
+              )}
               {filtered.length > 0 && (
                 <Pagination page={pg.page} pageCount={pg.pageCount} total={pg.total} start={pg.start} end={pg.end} onPage={pg.setPage} />
               )}

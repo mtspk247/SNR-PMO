@@ -50,6 +50,8 @@ export type DataListProps<T> = {
   onAddInGroup?: (groupValue: string) => void;
   /** Optional right-aligned aggregate rendered in each group header (e.g. a value sum). */
   groupAggregate?: (rows: T[]) => ReactNode;
+  /** When set, group headers become draggable to reorder the groups (e.g. status order). */
+  onReorderGroups?: (dragged: string, target: string) => void;
   /** When set, the grip handle reorders rows and persists the manual order per-user. */
   orderKey?: string;
   /** Primary/name column id — the only cell that opens the record detail on click.
@@ -202,8 +204,9 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, onReorderGroups, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [gDrag, setGDrag] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dropGroup, setDropGroup] = useState<string | null>(null);
@@ -459,7 +462,13 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
         return (
           <div key={g.value} data-group={g.value}
             className={`mt-5 first:mt-1 rounded-lg transition ${canGroupChange && dropGroup === g.value && dragId ? 'ring-2 ring-accent/40' : ''}`}>
-            <div className="px-1 py-2 mb-1 flex items-center gap-2.5">
+            <div
+              draggable={!!onReorderGroups}
+              onDragStart={onReorderGroups ? () => setGDrag(g.value) : undefined}
+              onDragOver={onReorderGroups ? (e) => { if (gDrag) e.preventDefault(); } : undefined}
+              onDrop={onReorderGroups ? () => { if (gDrag) onReorderGroups(gDrag, g.value); setGDrag(null); } : undefined}
+              onDragEnd={onReorderGroups ? () => setGDrag(null) : undefined}
+              className={`px-1 py-2 mb-1 flex items-center gap-2.5 ${onReorderGroups ? 'cursor-grab' : ''} ${gDrag === g.value ? 'opacity-60' : ''}`}>
               <button onClick={() => toggle(g.value)} className="shrink-0 text-muted2 hover:text-content transition" aria-expanded={!isC} title={isC ? 'Expand' : 'Collapse'}>
                 <Icon name={isC ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" />
               </button>
