@@ -68,7 +68,7 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
   const [q, setQ] = useState('');
   const [inviting, setInviting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
+  const btnRef = useRef<HTMLSpanElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; maxH: number } | null>(null);
   const meId = useAuthStore((st) => st.user?.id);
@@ -95,14 +95,28 @@ function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { 
   };
   const doInvite = async () => { if (!onInvite || !isEmail) return; setInviting(true); try { await onInvite(q.trim()); setQ(''); } finally { setInviting(false); } };
   return (
-    <span className="inline-flex max-w-full" onClick={(e) => e.stopPropagation()}>
-      <button ref={btnRef} onClick={() => setOpen((v) => !v)} className={`inline-flex items-center -mx-1 px-1 py-0.5 rounded-md transition max-w-full ${open ? 'ring-1 ring-accent bg-surface' : 'hover:bg-surface2'}`}>
-        {selOpts.length > 0
-          ? (multi
-              ? <span className="inline-flex items-center -space-x-1.5">{selOpts.slice(0, 3).map((o) => <span key={o.value} title={o.label} className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={22} /></span>)}{selOpts.length > 3 && <span className="ml-1.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}</span>
-              : <span title={selOpts[0].label} className="inline-flex"><Avatar name={selOpts[0].label} size={22} /></span>)
-          : <span className="grid place-items-center h-6 w-6 rounded-full border border-dashed border-borderstrong text-muted2 hover:border-accent hover:text-accentstrong"><Icon name="ti-plus" className="text-2xs" /></span>}
-      </button>
+    <span className="block w-full" onClick={(e) => e.stopPropagation()}>
+      <span ref={btnRef} role="button" tabIndex={0} onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}
+        className={`flex items-center gap-1 w-full min-h-[2.1rem] -my-2 py-2 cursor-pointer rounded-md transition ${open ? 'ring-1 ring-inset ring-accent bg-surface' : 'hover:bg-surface2'}`}>
+        {selOpts.length > 0 ? (
+          <span className="inline-flex items-center -space-x-1.5">
+            {selOpts.slice(0, multi ? 3 : 1).map((o) => (
+              <span key={o.value} className="group/av relative inline-flex" title={o.label}>
+                <span className="ring-2 ring-surface rounded-full inline-flex"><Avatar name={o.label} size={22} /></span>
+                <span role="button" tabIndex={-1} aria-label={`Remove ${o.label}`}
+                  onClick={(e) => { e.stopPropagation(); if (multi) onSave(sel.filter((x) => x !== o.value).join(',')); else onSave(''); }}
+                  className="absolute -top-1 -right-1 hidden group-hover/av:grid h-3.5 w-3.5 place-items-center rounded-full bg-rose-500 text-white ring-1 ring-surface text-[8px] cursor-pointer">
+                  <Icon name="ti-x" />
+                </span>
+              </span>
+            ))}
+            {multi && selOpts.length > 3 && <span className="ml-1.5 text-2xs text-muted2">+{selOpts.length - 3}</span>}
+          </span>
+        ) : (
+          <span className="grid place-items-center h-6 w-6 rounded-full border border-dashed border-borderstrong text-muted2 hover:border-accent hover:text-accentstrong"><Icon name="ti-plus" className="text-2xs" /></span>
+        )}
+      </span>
       {open && pos && (
         <div ref={menuRef} className="fixed z-[61]" style={{ top: pos.top, left: pos.left, width: W }}>
           <div className="bg-surface border border-line rounded-lg shadow-xl p-1.5">
