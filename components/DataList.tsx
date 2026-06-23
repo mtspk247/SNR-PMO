@@ -297,7 +297,8 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const primaryId = [nameCol, cols[0]?.id].find((x) => x && prefs.ordered.includes(x)) || prefs.ordered[0];
   const selCol = !!selection;
   const defW = (id: string) => (prefs.allCols || cols).find((c) => c.id === id)?.width;
-  const colW = (id: string, i: number) => prefs.widths[id] ?? defW(id) ?? (i === 0 ? 280 : 160);
+  const headMinW = (id: string) => { const l = (labelOf(id) || '').length; return Math.min(340, Math.max(64, l * 8 + 56)); };
+  const colW = (id: string, i: number) => Math.max(prefs.widths[id] ?? defW(id) ?? (i === 0 ? 280 : 160), headMinW(id));
   const totalW = (rowDnD ? 28 : 0) + (selCol ? 36 : 0) + prefs.ordered.reduce((a, id, i) => a + colW(id, i), 0) + 36;
   // Freeze / pin: the first `pinCount` data columns (plus grip/checkbox) stick to the left.
   const pinCount = Math.min(prefs.pinned || 0, prefs.ordered.length);

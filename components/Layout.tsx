@@ -103,6 +103,8 @@ export default function Layout({ title, children, flat = false }: { title: strin
 
   // Close the drawer whenever the route changes (mobile nav tap).
   useEffect(() => { setMobileOpen(false); }, [router.pathname]);
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => { const el = navRef.current; if (!el) return; try { const y = sessionStorage.getItem('snr.nav.scroll'); if (y != null) el.scrollTop = Number(y) || 0; } catch { /* ignore */ } }, []);
 
   // Auth guard straight from the Supabase session (avoids store-timing flicker).
   useEffect(() => {
@@ -213,7 +215,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
 
 
         {/* Categorized nav: top-level links + accordion menus (flat icon rail when collapsed) */}
-        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+        <nav ref={navRef} onScroll={(e) => { try { sessionStorage.setItem('snr.nav.scroll', String((e.currentTarget as HTMLElement).scrollTop)); } catch { /* ignore */ } }} className="flex-1 p-2 space-y-1 overflow-y-auto">
           {sections.map((s, idx) => {
             if (collapsed) {
               // Collapsed: every leaf as an icon, thin divider between sections.
