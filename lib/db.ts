@@ -3259,6 +3259,13 @@ export async function listAgentUsage(orgId: string): Promise<AgentUsage[]> {
   if (error) throw new Error(error.message); return (data as AgentUsage[]) || [];
 }
 
+// Accurate ROI rollup over ALL agent rows (server-side; not capped by the 200-row action fetch).
+export async function agentRoiSummary(orgId: string, days = 30): Promise<import('./agentRoi').AgentRoiSummary> {
+  const { data, error } = await sb.rpc('agent_roi_summary', { p_org: orgId, p_days: days });
+  if (error) throw new Error(error.message);
+  return data as import('./agentRoi').AgentRoiSummary;
+}
+
 // ---------------------------------------------------------------------------
 // 3.4 Metered agent billing -> reseller markup (the margin engine).
 // Usage (runs/tokens) accrues in agent_usage; rate cards turn it into money.

@@ -206,7 +206,7 @@ export default function AgentsPage() {
   return (
     <Layout flat title="Agents">
       <PageHeader help="agents" title="Agents" subtitle="Configure approve-first AI agents for your back office" icon="ti-robot"
-        action={<button className="btn btn-primary" onClick={() => { setEditor({ mode: 'add', draft: emptyDraft(), initial: JSON.stringify(emptyDraft()) }); setGrants(new Set()); }}><Icon name="ti-plus" />New agent</button>}
+        action={<div className="flex items-center gap-2"><button className="btn btn-sm" onClick={() => router.push('/agent-activity')}><Icon name="ti-chart-line" />Activity & ROI</button><button className="btn btn-primary" onClick={() => { setEditor({ mode: 'add', draft: emptyDraft(), initial: JSON.stringify(emptyDraft()) }); setGrants(new Set()); }}><Icon name="ti-plus" />New agent</button></div>}
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 

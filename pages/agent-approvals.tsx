@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { titleCase } from '@/lib/format';
 import Layout from '@/components/Layout';
 import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -139,7 +140,7 @@ export default function AgentApprovalsPage() {
 
   return (
     <Layout flat title="Agent approvals">
-      <PageHeader help="agents" title="Agent approvals" subtitle="Review, approve, and roll back actions proposed by your agents" icon="ti-checks" />
+      <PageHeader help="agents" title="Agent approvals" subtitle="Review, approve, and roll back actions proposed by your agents" icon="ti-checks" action={<Link href="/agent-activity" className="btn btn-sm"><Icon name="ti-chart-line" />Activity & ROI</Link>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {!canApprove && <p className="text-xs text-amber-600 mb-3">You can view the queue but need the <b>Approve agent actions</b> permission to approve, reject, or roll back.</p>}
 
