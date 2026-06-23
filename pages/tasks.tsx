@@ -761,6 +761,8 @@ export default function Tasks() {
                       </button>
                       {groupBy === 'status'
                         ? <StatusBadge status={label} solid color={statusColor(label)} />
+                        : groupBy === 'priority'
+                        ? <StatusBadge status={label} solid color={PRIORITY_DOT[label]} />
                         : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{label}</span>}
                       <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
                       {groupBy === 'status' && (

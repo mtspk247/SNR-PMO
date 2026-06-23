@@ -1,12 +1,12 @@
 import { ReactNode, useState } from 'react';
-import { Icon } from '@/components/ui';
+import { Icon, StatusBadge } from '@/components/ui';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import type { GroupMeta } from '@/components/DataList';
 
 // Shared kanban board for any list: one column per status group, draggable cards
 // (drop in another column -> onMove changes the status). Reuses the page's cell()
 // for card content. Rendered by ListView when the Board view is selected.
-export function Board<T>({ rows, rowKey, cols, prefs, cell, groups, groupOf, statusCol, onRowClick, onMove, onAddInGroup }: {
+export function Board<T>({ rows, rowKey, cols, prefs, cell, groups, groupOf, statusCol, onRowClick, onMove, onAddInGroup, groupAggregate }: {
   rows: T[];
   rowKey: (r: T) => string;
   cols: ColDef[];
@@ -18,6 +18,7 @@ export function Board<T>({ rows, rowKey, cols, prefs, cell, groups, groupOf, sta
   onRowClick?: (r: T) => void;
   onMove?: (r: T, groupValue: string) => void;
   onAddInGroup?: (groupValue: string) => void;
+  groupAggregate?: (rows: T[]) => ReactNode;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -40,9 +41,14 @@ export function Board<T>({ rows, rowKey, cols, prefs, cell, groups, groupOf, sta
             onDragOver={onMove ? (e) => { e.preventDefault(); if (over !== g.value) setOver(g.value); } : undefined}
             onDrop={onMove ? () => drop(g.value) : undefined}>
             <div className="flex items-center gap-2 px-1 py-2 mb-1">
-              {g.pill ? <span className={`pill ${g.pill}`}>{g.label}</span> : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{g.label}</span>}
+              {g.color ? <StatusBadge status={g.label} solid color={g.color} /> : g.pill ? <span className={`pill ${g.pill}`}>{g.label}</span> : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{g.label}</span>}
               <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
-              {onAddInGroup && <button onClick={() => onAddInGroup(g.value)} className="ml-auto text-muted2 hover:text-content transition" title="Add"><Icon name="ti-plus" className="text-sm" /></button>}
+              {(groupAggregate || onAddInGroup) && (
+                <span className="ml-auto flex items-center gap-2">
+                  {groupAggregate && <span className="text-2xs font-semibold tnum text-content">{groupAggregate(items)}</span>}
+                  {onAddInGroup && <button onClick={() => onAddInGroup(g.value)} className="text-muted2 hover:text-content transition" title="Add"><Icon name="ti-plus" className="text-sm" /></button>}
+                </span>
+              )}
             </div>
             <div className="space-y-2 min-h-[40px]">
               {items.map((r) => {

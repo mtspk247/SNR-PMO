@@ -53,6 +53,7 @@ export type ListViewProps<T extends { id: string }> = {
   onRename?: (r: T, name: string) => void;                   // inline rename from the name cell
   onAddSubtask?: (r: T) => void;                             // "+" add-subtask on the name cell
   onAddInGroup?: (groupValue: string) => void;
+  groupAggregate?: (rows: T[]) => ReactNode;
   orderKey?: string;                      // enables persisted drag-to-reorder of rows
   // ── bulk actions ────────────────────────────────────────
   exportName?: string;                    // set → shows "Export" (CSV of selected, visible cols)
@@ -186,6 +187,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           onRowClick={p.onRowClick}
           onMove={p.editable && p.editable[p.groupField!.value] && p.onEdit ? (r, target) => p.onEdit!(r, p.groupField!.value, target) : undefined}
           onAddInGroup={p.onAddInGroup}
+          groupAggregate={p.groupAggregate}
         />
       ) : rows.length === 0 ? (
         <div className="card p-8 border border-line/40"><EmptyState icon={p.emptyIcon || 'ti-list'} text={p.emptyText || 'Nothing here yet.'} /></div>
@@ -205,6 +207,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           rawValue={p.rawValue}
           onEdit={p.onEdit}
           onAddInGroup={p.onAddInGroup}
+          groupAggregate={p.groupAggregate}
           orderKey={p.orderKey}
           nameCol={p.nameCol}
           onInvitePerson={p.onInvitePerson}

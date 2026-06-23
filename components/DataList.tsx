@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, ReactNode } from 'react';
 import type { PointerEvent as RPointerEvent, CSSProperties } from 'react';
-import { Icon, Avatar, INLINE_SELECT_CLS } from '@/components/ui';
+import { Icon, Avatar, INLINE_SELECT_CLS, StatusBadge } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
@@ -18,7 +18,7 @@ const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
 // Pill class -> hex, for the name-cell status circle (slice E).
 const PILL_HEX: Record<string, string> = { 'pill-green': '#10b981', 'pill-amber': '#f59e0b', 'pill-blue': '#0ea5e9', 'pill-red': '#f43f5e', 'pill-rose': '#f43f5e', 'pill-gray': '#9ca3af', 'pill-violet': '#8b5cf6' };
 
-export type GroupMeta = { value: string; label: string; pill?: string };
+export type GroupMeta = { value: string; label: string; pill?: string; color?: string };
 export type EditSpec = { type: 'text' | 'number' | 'date' | 'select' | 'person'; options?: { value: string; label: string; dot?: string; deactivated?: boolean }[]; multi?: boolean; manage?: () => void };
 
 type Selection = {
@@ -48,6 +48,8 @@ export type DataListProps<T> = {
   onEdit?: (r: T, colId: string, value: string) => void;
   /** B3.2: per-group "+ Add" — create a record straight into that status group. */
   onAddInGroup?: (groupValue: string) => void;
+  /** Optional right-aligned aggregate rendered in each group header (e.g. a value sum). */
+  groupAggregate?: (rows: T[]) => ReactNode;
   /** When set, the grip handle reorders rows and persists the manual order per-user. */
   orderKey?: string;
   /** Primary/name column id — the only cell that opens the record detail on click.
@@ -200,7 +202,7 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -461,11 +463,18 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
               <button onClick={() => toggle(g.value)} className="shrink-0 text-muted2 hover:text-content transition" aria-expanded={!isC} title={isC ? 'Expand' : 'Collapse'}>
                 <Icon name={isC ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" />
               </button>
-              {g.pill
+              {g.color
+                ? <StatusBadge status={g.label} solid color={g.color} />
+                : g.pill
                 ? <span className={`pill ${g.pill}`}>{g.label}</span>
                 : <span className="text-2xs font-semibold uppercase tracking-wider text-muted">{g.label}</span>}
               <span className="text-2xs font-medium text-muted2 tnum">{gr.length}</span>
-              {onAddInGroup && <button onClick={(e) => { e.stopPropagation(); onAddInGroup(g.value); }} className="ml-auto inline-flex items-center gap-1 text-2xs text-muted2 hover:text-content transition"><Icon name="ti-plus" className="text-sm" />Add</button>}
+              {(groupAggregate || onAddInGroup) && (
+                <span className="ml-auto flex items-center gap-3">
+                  {groupAggregate && <span className="text-xs font-semibold tnum text-content">{groupAggregate(gr)}</span>}
+                  {onAddInGroup && <button onClick={(e) => { e.stopPropagation(); onAddInGroup(g.value); }} className="inline-flex items-center gap-1 text-2xs text-muted2 hover:text-content transition"><Icon name="ti-plus" className="text-sm" />Add</button>}
+                </span>
+              )}
             </div>
             {!isC && tableCard(gr)}
           </div>

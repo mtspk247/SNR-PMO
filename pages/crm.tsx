@@ -6,17 +6,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
-import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon, StatusBadge } from '@/components/ui';
+import { Pill, Spinner, PageHeader, Avatar, Icon, StatusBadge } from '@/components/ui';
 import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity, ensureTaskStatuses, TaskStatus, getOrgUsers, inviteMember } from '@/lib/db';
 import StatusManager from '@/components/StatusManager';
 import { Deal, Contact, Company, CrmActivity, OrgUser } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useDeals, useContacts, useCrmCompanies } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
-import { ListToolbar, useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
+import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { ListView } from '@/components/ListView';
 import { useRowSelection } from '@/components/RowSelection';
-import { GroupMeta, DataList, EditSpec } from '@/components/DataList';
+import { GroupMeta, EditSpec } from '@/components/DataList';
 import RefLink from '@/components/RefLink';
 
 const STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
@@ -33,9 +33,8 @@ const DEAL_COLS: ColDef[] = [
   { id: 'value', label: 'Value' },
   { id: 'stage', label: 'Stage' },
   { id: 'close', label: 'Expected close' },
-  { id: 'owner', label: 'Owner', width: 80 },
+  { id: 'owner', label: 'Owner', width: 100 },
 ];
-const STAGE_RANK: Record<string, number> = { Lead: 1, Qualified: 2, Proposal: 3, Negotiation: 4, Won: 5, Lost: 0 };
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 const ACT_KINDS = [
   { id: 'note', label: 'Note', icon: 'ti-note' },
@@ -63,14 +62,7 @@ export default function CRM() {
   const userName = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
   const ownerOpts = users.map((u) => ({ value: u.id, label: u.full_name, deactivated: u.status !== 'active' }));
 
-  const [query, setQuery] = useState('');
-  const [stageFilter, setStageFilter] = useState<Set<string>>(new Set());
-  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
   const [newDealStage, setNewDealStage] = useState('');
-  const [pipeView, setPipeView] = useState<'list' | 'board'>('list');
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-  const [sort, setSort] = useState<'value' | 'stage' | 'close'>('value');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
@@ -147,29 +139,22 @@ export default function CRM() {
   const pipelineValue = openDeals.reduce((a, d) => a + (d.value || 0), 0);
   const wonValue = deals.filter((d) => d.stage === 'Won').reduce((a, d) => a + (d.value || 0), 0);
 
-  const toggleStage = (s: string) => setStageFilter((prev) => {
-    const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n;
-  });
-
-  const filtered = useMemo(() => {
-    let r = deals.filter((d) =>
-      (!query || d.title.toLowerCase().includes(query.toLowerCase()) || (d.crm_companies?.name || '').toLowerCase().includes(query.toLowerCase())) &&
-      (stageFilter.size === 0 || stageFilter.has(d.stage)));
-    r = [...r].sort((a, b) =>
-      sort === 'close' ? (a.expected_close || '9999').localeCompare(b.expected_close || '9999') :
-      sort === 'stage' ? (STAGE_RANK[b.stage] || 0) - (STAGE_RANK[a.stage] || 0) :
-      (b.value || 0) - (a.value || 0));
-    return r;
-  }, [deals, query, stageFilter, sort]);
-
-  useEffect(() => { if (!selectedId && filtered.length) setSelectedId(filtered[0].id); }, [filtered, selectedId]);
-  const selected = filtered.find((d) => d.id === selectedId) || null;
   const maxValue = Math.max(1, ...deals.map((d) => d.value || 0));
   const selectDeal = (id: string) => { setSelectedId(id); setShowDetail(true); };
 
   // Contacts: search + status filter + customizable columns (deals are a pipeline board).
   const clp = useListPrefs(`snr-crm-contacts-view-${me?.id || 'anon'}`, CONTACT_COLS);
   const dlp = useListPrefs(`snr-crm-deals-view-${me?.id || 'anon'}`, DEAL_COLS);
+  const filtered = useMemo(() => {
+    const term = dlp.query.trim().toLowerCase();
+    if (!term) return deals;
+    return deals.filter((d) => d.title.toLowerCase().includes(term) || (d.crm_companies?.name || '').toLowerCase().includes(term));
+  }, [deals, dlp.query]);
+  const drs = useRowSelection(filtered);
+  const DEAL_GROUPS: GroupMeta[] = stageNames.map((sn) => ({ value: sn, label: sn, color: sColor(sn) || '#9ca3af' }));
+  useEffect(() => { if (!selectedId && filtered.length) setSelectedId(filtered[0].id); }, [filtered, selectedId]);
+  const selected = filtered.find((d) => d.id === selectedId) || null;
+  const handleDeleteDeals = async (sel: typeof drs) => { for (const d of sel.selected) { await deleteDeal(d.id); setDealsCache((p) => p.filter((x) => x.id !== d.id)); } };
   const CONTACT_FILTERS: FilterDef[] = useMemo(() => {
     const sts = Array.from(new Set(contacts.map((c) => c.status).filter(Boolean))) as string[];
     return [{ id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...sts.map((x) => ({ value: x, label: titleCase(x) }))] }];
@@ -213,11 +198,6 @@ export default function CRM() {
   };
 
   // ----- shared detail panel: sidebar on xl+, overlay drawer below -----
-  const moveDealStage = (id: string, stage: string) => {
-    setDealsCache((p) => p.map((x) => (x.id === id ? { ...x, stage } : x)));
-    updateDeal(id, { stage }).then((r) => setDealsCache((p) => p.map((x) => (x.id === r.id ? r : x)))).catch((e: any) => alert(e.message));
-  };
-
   const dealCell = (id: string, d: Deal) => {
     switch (id) {
       case 'name': return <span className="font-medium text-content">{d.title}</span>;
@@ -244,46 +224,6 @@ export default function CRM() {
     updateDeal(d.id, patch).then((r) => setDealsCache((pp) => pp.map((x) => (x.id === r.id ? r : x)))).catch((e: any) => alert(e.message));
   };
   const onRenameDeal = (d: Deal, name: string) => { if (name && name !== d.title) updateDeal(d.id, { title: name }).then((r) => setDealsCache((pp) => pp.map((x) => (x.id === r.id ? r : x)))).catch((e: any) => alert(e.message)); };
-  const renderDealList = (rows: Deal[], stage: string) => (
-    <DataList rows={rows} rowKey={(d) => d.id} cols={DEAL_COLS} prefs={dlp} cell={dealCell}
-      editable={dealEditable} rawValue={dealRawValue} onEdit={onDealEdit} onRowClick={(d) => selectDeal(d.id)}
-      onRename={onRenameDeal} orderKey={'snrpmo.deals.roworder.' + stage}
-      onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined} />
-  );
-
-  const BoardView = () => (
-    <div className="flex-1 min-w-0 overflow-x-auto pb-2">
-      <div className="flex gap-3 h-full">
-        {stageNames.map((stage) => {
-          const items = filtered.filter((d) => d.stage === stage);
-          return (
-            <div key={stage} onDragOver={(e) => { e.preventDefault(); setDragOverCol(stage); }} onDragLeave={() => setDragOverCol((c) => (c === stage ? null : c))}
-              onDrop={() => { if (dragId) { const d = deals.find((x) => x.id === dragId); if (d && d.stage !== stage) moveDealStage(dragId, stage); } setDragId(null); setDragOverCol(null); }}
-              className={`w-72 shrink-0 flex flex-col min-h-0 rounded p-1 transition ${dragOverCol === stage ? 'ring-2 ring-inset ring-accent/50 bg-accent/5' : ''}`}>
-              <div className="flex items-center gap-2 px-2 py-2">
-                <StatusBadge status={stage} color={sColor(stage)} />
-                <span className="text-2xs text-muted2">{items.length}</span>
-                <span className="ml-auto text-2xs font-medium tabular-nums text-content">{money(items.reduce((a, d) => a + (d.value || 0), 0))}</span>
-                <button onClick={() => { setNewDealStage(stage); setShowDeal(true); }} className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong" title="Add deal"><Icon name="ti-plus" className="text-sm" /></button>
-              </div>
-              <div className="space-y-2 overflow-y-auto px-1 pb-2">
-                {items.map((d) => (
-                  <div key={d.id} draggable onDragStart={() => setDragId(d.id)} onDragEnd={() => { setDragId(null); setDragOverCol(null); }} onClick={() => selectDeal(d.id)}
-                    className={`card card-interactive w-full text-left p-3 cursor-grab active:cursor-grabbing ${selectedId === d.id ? 'border-accent' : ''} ${dragId === d.id ? 'opacity-95 shadow-lg ring-2 ring-accent/50 scale-[1.03] rotate-1' : ''}`}>
-                    <p className="text-sm font-medium text-content truncate">{d.title}</p>
-                    <p className="text-2xs text-muted truncate">{d.crm_companies?.name || '—'}</p>
-                    <p className="text-sm font-semibold mt-1.5 tabular-nums">{money(d.value || 0)}</p>
-                  </div>
-                ))}
-                {items.length === 0 && <p className="text-2xs text-muted2 px-2 py-3 text-center">No deals</p>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   const DetailPanel = () => !selected ? (
     <div className="p-5 text-sm text-muted2">Select a deal</div>
   ) : (
@@ -400,47 +340,35 @@ export default function CRM() {
             <Summary icon="ti-trophy" tone="bg-emerald-500/10 text-emerald-600" label="Won" value={money(wonValue)} sub={`${deals.filter(d => d.stage === 'Won').length} closed won`} />
             <Summary icon="ti-chart-pie" tone="bg-violet-500/10 text-violet-600" label="Avg deal" value={money(deals.length ? Math.round(deals.reduce((a, d) => a + (d.value || 0), 0) / deals.length) : 0)} sub="across all stages" />
           </div>
-
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-surface flex-1 max-w-xs">
-              <Icon name="ti-search" className="text-muted2" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals or companies"
-                className="bg-transparent outline-none text-sm w-full text-content placeholder:text-muted2" />
-            </div>
-            <span className="text-2xs text-muted2 ml-2">Sort</span>
-            {(['value', 'stage', 'close'] as const).map((s) => (
-              <button key={s} onClick={() => setSort(s)}
-                className={`h-8 px-2.5 rounded-md text-xs capitalize ${sort === s ? 'bg-surface border border-line text-content' : 'text-muted'}`}>{s}</button>
-            ))}
-            <div className="flex items-center rounded-md border border-line overflow-hidden h-8 shrink-0 ml-auto">
-              {(['list', 'board'] as const).map((v) => (
-                <button key={v} onClick={() => setPipeView(v)} className={`h-full px-3 text-xs capitalize inline-flex items-center gap-1.5 transition ${pipeView === v ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}><Icon name={v === 'list' ? 'ti-list' : 'ti-layout-board'} className="text-sm" />{v}</button>
-              ))}
-            </div>
-          </div>
-
-          {pipeView === 'board' ? <BoardView /> : (
-            <div className="flex-1 min-w-0 overflow-y-auto">
-              {filtered.length === 0 ? <EmptyState text="No deals match" icon="ti-target" /> : stageNames.map((stage) => {
-                const items = filtered.filter((d) => d.stage === stage);
-                if (items.length === 0) return null;
-                const collapsed = collapsedStages.has(stage);
-                const total = items.reduce((a, d) => a + (d.value || 0), 0);
-                return (
-                  <div key={stage} className="mt-5 first:mt-1">
-                    <div className="px-1 py-2 mb-1 flex items-center gap-2.5">
-                      <button onClick={() => setCollapsedStages((pr) => { const n = new Set(pr); n.has(stage) ? n.delete(stage) : n.add(stage); return n; })} className="shrink-0 text-muted2 hover:text-content transition" title={collapsed ? 'Expand' : 'Collapse'}><Icon name={collapsed ? 'ti-chevron-right' : 'ti-chevron-down'} className="text-sm" /></button>
-                      <StatusBadge status={stage} solid color={sColor(stage)} />
-                      <span className="text-2xs font-medium text-muted2 tnum">{items.length}</span>
-                      <span className="ml-auto text-xs font-semibold tnum text-content">{money(total)}</span>
-                      <button onClick={() => { setNewDealStage(stage); setShowDeal(true); }} className="btn-ghost p-1 rounded text-muted2 hover:text-accentstrong" title={`Add deal to ${stage}`}><Icon name="ti-plus" /></button>
-                    </div>
-                    {!collapsed && renderDealList(items, stage)}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <ListView
+            rows={dealsLoading ? null : filtered}
+            rowKey={(d) => d.id}
+            cols={DEAL_COLS}
+            prefs={dlp}
+            searchPlaceholder="Search deals or companies"
+            selection={drs}
+            cell={dealCell}
+            editable={dealEditable}
+            rawValue={dealRawValue}
+            onEdit={onDealEdit}
+            exportName="crm-deals"
+            exportValue={dealRawValue}
+            groupField={{ value: 'stage', label: 'Stage' }}
+            groupOf={(d) => d.stage}
+            groups={DEAL_GROUPS}
+            groupAggregate={(rs) => money(rs.reduce((a, d) => a + (d.value || 0), 0))}
+            onAddInGroup={(stage) => { setNewDealStage(stage); setShowDeal(true); }}
+            orderKey="snrpmo.deals.roworder"
+            nameCol="name"
+            onRename={onRenameDeal}
+            onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}
+            onRowClick={(d) => selectDeal(d.id)}
+            onDelete={isAdmin ? handleDeleteDeals : undefined}
+            canDelete={isAdmin}
+            busy={busy}
+            emptyIcon="ti-target"
+            emptyText="No deals yet"
+          />
         </div>
       ) : (
         <ListView
