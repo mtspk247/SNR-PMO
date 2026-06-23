@@ -154,3 +154,15 @@ Recommended sequence for a new agency deployment. Each step builds on the last.
 - **Trigger-based audit**: the audit log is written by DB triggers, not application code. It cannot be bypassed by a misconfigured API call.
 - **White-label is CSS tokens**: branding changes write `--color-accent` and related custom properties. No per-tenant builds, no CDN invalidation.
 - **Payroll→ledger is a DB trigger**: the accounting entry is created inside the same transaction as the payroll status update. It is idempotent (`payroll_run_id` unique key) — re-processing a run does not double-post.
+
+
+## Developer API & webhooks
+
+Workspace-scoped REST API + signed outgoing webhooks, managed under **Developer**. Single source of help: `/docs#developer-api` (the in-app AI assistant grounds on it automatically).
+
+- **Auth**: create a key (Developer ▸ API keys) and send `Authorization: Bearer snrp_...`. Keys are workspace-scoped, read+write, revocable instantly. Every request can only touch the issuing workspace — the org id is applied server-side, never sent by the client.
+- **Base URL**: `https://dkjdtyzjdkumnpdyezbs.supabase.co/functions/v1/api-v1`
+- **Read**: `GET /api-v1/<resource>` (`?limit=` ≤200, `?offset=`), `GET /api-v1/<resource>/<id>`.
+- **Write**: `POST /api-v1/<resource>`, `PATCH`/`DELETE /api-v1/<resource>/<id>`. Only whitelisted columns accepted.
+- **Resources**: `tasks`, `projects`, `deals`, `contacts`, `accounts` (CRM companies), `companies` (workspace Company layer) are read+write; `invoices` read-only. `company_id` on deals/contacts references an **accounts** (crm_companies) record.
+- **Webhooks**: add an endpoint (Developer ▸ Webhooks), pick events or `*`. Each delivery carries `X-SNRPMO-Signature: sha256=` + HMAC-SHA256(rawBody, endpointSecret). Events: `task.created`, `project.created`, `deal.created`, `deal.stage_changed`, `deal.won`, `invoice.created`, `invoice.paid`, `client.created`. Slack/Teams/Discord endpoints receive formatted messages instead of raw JSON.

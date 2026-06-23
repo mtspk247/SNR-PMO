@@ -135,7 +135,7 @@ export default function DeveloperPage() {
 
   return (
     <Layout flat title="Developer">
-      <PageHeader title="Developer" subtitle="API keys and integration access for this workspace" icon="ti-code" />
+      <PageHeader title="Developer" subtitle="API keys and integration access for this workspace" icon="ti-code" help="developer-api" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
       <div className="card p-5 mb-5 max-w-4xl">
