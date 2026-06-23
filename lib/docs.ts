@@ -389,7 +389,7 @@ export const SECTIONS: Section[] = [
       ] },
       { kind: 'steps', items: [
         { title: 'Invite a client', body: 'People > Guests > invite by email, then choose their access level and which projects they can see. They receive a sign-in link.' },
-        { title: 'They open the portal', body: 'After signing in, the guest opens Client Portal from the sidebar (/portal) and sees their projects in your brand.' },
+        { title: 'They land on the portal', body: 'After signing in, guests are taken straight to /portal — their home — where they see their projects and invoices in your brand (it is also in the sidebar).' },
         { title: 'Control what they see', body: 'Adjust a guest\'s projects and permissions any time under People > Guests; changes apply immediately.' },
       ] },
       { kind: 'callout', icon: 'ti-lock', text: 'The client portal is plan-gated (Pro and above). Guests never count against your seat limit.' },

@@ -86,6 +86,13 @@ export default function Layout({ title, children, flat = false }: { title: strin
     }
   }, [activeOrg?.id, user?.id, activeOrg?.member_role]);
 
+  // Guests land on their branded /portal (their home), not the operator dashboard.
+  // Guarded by the portal feature so we never bounce them into an upsell screen.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (isGuest && hasFeature(activeOrg, 'portal') && router.pathname === '/dashboard') router.replace('/portal');
+  }, [isGuest, activeOrg?.id, router.pathname]);
+
   // Track the lg breakpoint so the rail only collapses on desktop; mobile is always full-width.
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
