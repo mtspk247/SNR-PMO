@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { titleCase } from '@/lib/format';
 import Layout from '@/components/Layout';
 import { PageHeader, EmptyState, StatCard, Icon, Spinner } from '@/components/ui';
@@ -37,6 +38,7 @@ const fileIcon = (f: PortalFile) => { const m = f.mime_type || ''; if (m.startsW
 
 export default function Portal() {
   const org = useActiveOrg();
+  const router = useRouter();
   const me = useAuthStore((s) => s.user);
   const { data: projects = [], isLoading: pLoading } = useProjects();
   const { data: tasks = [] } = useTasks();
@@ -144,6 +146,7 @@ export default function Portal() {
           <ListView rows={pLoading ? null : pShown} rowKey={(p) => p.id} cols={P_COLS} prefs={pPrefs} cell={pCell} selection={pRs}
             filters={P_FILTERS} searchPlaceholder="Search projects…"
             groupField={{ value: 'status', label: 'Status' }} groupOf={(p) => p.status} groups={P_GROUPS}
+            onRowClick={(p) => router.push('/portal/' + p.id)}
             exportName="my-projects" exportValue={pExport} emptyIcon="ti-folder" emptyText="No projects match your filters." />
         )
       )}
