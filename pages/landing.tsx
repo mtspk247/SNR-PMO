@@ -12,6 +12,7 @@ import Link from 'next/link';
 /* ---------------------------------- data --------------------------------- */
 
 const NAV_LINKS = [
+  { href: '#agents', label: 'AI Agents' },
   { href: '#features', label: 'Features' },
   { href: '#pricing', label: 'Pricing' },
   { href: '#faq', label: 'FAQ' },
@@ -81,6 +82,14 @@ const PRICING = [
 ];
 
 const FAQS = [
+  {
+    q: 'Do the AI agents act on their own?',
+    a: 'No. Agents propose actions; a person with the right permission approves them with one click. Money, payroll and any higher-risk action always require approval, every action is written to an audit trail, and executed actions can be rolled back in one click. You can optionally let only low-risk, reversible actions run automatically.',
+  },
+  {
+    q: 'Do I need my own AI key to use the agents?',
+    a: 'No. The built-in agents do real work with no AI key — create tasks, draft onboarding, categorize expenses and scan your data for actionable items. Adding your own provider key (Anthropic, OpenAI and others) unlocks free-form, natural-language requests on top.',
+  },
   {
     q: 'How is SNR-PMO actually all-in-one?',
     a: 'Projects, CRM, HR & payroll, and accounting share one database, one login and one bill. A deal closing can create a project; payroll posts to the ledger; time logged shows up in invoices and the P&L — no integrations to maintain, no data silos.',
@@ -370,6 +379,48 @@ function HrMock() {
 
 /* -------------------------------- sections -------------------------------- */
 
+function AgentMock() {
+  const rows = [
+    { t: 'Create task "Send Q2 report to Acme", due Fri', d: 'Tasks', risk: 'low', c: '#10b981' },
+    { t: 'Draft journal entry — AWS invoice $512.40 to Cloud Hosting', d: 'Accounting', risk: 'review', c: '#d97706' },
+    { t: 'Draft week-1 onboarding checklist for Jordan Lee', d: 'HR', risk: 'low', c: '#10b981' },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="Actions executed" value="142" sub="this month" />
+        <KpiCard label="Time saved" value="31 h" sub="hands-on work" tone="text-[#3ECF8E]" />
+        <KpiCard label="Value created" value="$1,410" sub="net of agent cost" tone="text-[#3ECF8E]" />
+        <KpiCard label="Reliability" value="98%" sub="approve-first" tone="text-[#3ECF8E]" />
+      </div>
+      <div className="rounded-xl border border-white/10 bg-[#161616] divide-y divide-white/5">
+        <div className="px-4 py-2.5 text-[11px] uppercase tracking-wide text-white/40 flex items-center justify-between">
+          <span>Proposed by your agents</span><span className="text-white/30">awaiting approval</span>
+        </div>
+        {rows.map((r) => (
+          <div key={r.t} className="px-4 py-3 flex items-center gap-3">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.c }} />
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] text-white/85 truncate">{r.t}</div>
+              <div className="text-[11px] text-white/40">{r.d}</div>
+            </div>
+            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: r.c + '22', color: r.c }}>{r.risk}</span>
+            <div className="shrink-0 hidden sm:flex items-center gap-1.5">
+              <span className="text-[11px] px-2 py-1 rounded-md bg-[#3ECF8E] text-[#0a0a0a] font-medium">Approve</span>
+              <span className="text-[11px] px-2 py-1 rounded-md border border-white/15 text-white/60">Reject</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-xl border border-white/10 bg-[#161616] px-4 py-3 flex items-center gap-2">
+        <span className="text-[#3ECF8E] font-mono text-[13px]">#task</span>
+        <span className="text-[13px] text-white/55 truncate">Send the Q2 report to Acme on Friday</span>
+        <span className="ml-auto text-[11px] text-white/30 hidden sm:inline">drafted for approval</span>
+      </div>
+    </div>
+  );
+}
+
 function FeatureRow({
   flip, eyebrow, title, bullets, children,
 }: { flip?: boolean; eyebrow: string; title: string; bullets: string[]; children: React.ReactNode }) {
@@ -418,10 +469,10 @@ export default function Landing() {
   return (
     <>
       <Head>
-        <title>SNR-PMO — One platform to replace ClickUp, your CRM, HRIS &amp; QuickBooks</title>
+        <title>SNR-PMO — The all-in-one business OS with AI agents for your back office</title>
         <meta
           name="description"
-          content="SNR-PMO is the all-in-one business OS: project management, CRM, HR & payroll, and real double-entry accounting in one workspace — one login, one bill. White-label and resell it as your own."
+          content="SNR-PMO runs projects, CRM, HR & payroll and real accounting in one workspace — and AI agents do the back-office busywork: drafting tasks, journal entries, onboarding and follow-ups. Every action is approve-first, audited and reversible. White-label and resell it as your own."
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
@@ -483,24 +534,24 @@ export default function Landing() {
           <div className="relative mx-auto max-w-7xl px-5 sm:px-8 pt-16 sm:pt-24 pb-10 text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-white/70">
               <span className="w-1.5 h-1.5 rounded-full bg-[#3ECF8E]" />
-              All-in-one business OS
+              All-in-one business OS · with AI agents
             </span>
 
             <h1 className="mt-6 mx-auto max-w-4xl text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05]">
-              Replace ClickUp, your CRM, your HRIS, and QuickBooks —{' '}
-              <span className="bg-gradient-to-r from-[#3ECF8E] to-[#10b981] bg-clip-text text-transparent">with one workspace.</span>
+              Run your back office with{' '}
+              <span className="bg-gradient-to-r from-[#3ECF8E] to-[#10b981] bg-clip-text text-transparent">AI agents you approve.</span>
             </h1>
 
             <p className="mt-6 mx-auto max-w-2xl text-lg text-white/55 leading-relaxed">
-              SNR-PMO runs projects, sales, people and the books in a single platform — for teams and agencies tired of stitching four tools together. One login. One bill.
+SNR-PMO runs projects, CRM, HR &amp; payroll and real accounting in one workspace — and AI agents do the busywork: drafting tasks, journal entries, onboarding and follow-ups. Every action is approve-first, audited and one-click reversible.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link href="/login?mode=signup" className="w-full sm:w-auto px-6 py-3 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
                 Start free
               </Link>
-              <a href="#product" className="w-full sm:w-auto px-6 py-3 rounded-lg border border-white/15 text-white/85 font-medium hover:bg-white/5 transition-colors">
-                See it in action
+              <a href="#agents" className="w-full sm:w-auto px-6 py-3 rounded-lg border border-white/15 text-white/85 font-medium hover:bg-white/5 transition-colors">
+                See the agents
               </a>
             </div>
 
@@ -511,6 +562,49 @@ export default function Landing() {
               <BrowserFrame title="app.snr-pmo.com/dashboard">
                 <DashboardMock />
               </BrowserFrame>
+            </div>
+          </div>
+        </section>
+
+        {/* ------------------------------ AGENTS ----------------------------- */}
+        <section id="agents" className="relative overflow-hidden border-y border-white/10 bg-[#0c0c0c]">
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+            <div className="absolute top-0 left-1/4 w-[600px] h-[400px] rounded-full bg-[#10b981]/8 blur-[130px]" />
+          </div>
+          <div className="relative mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28">
+            <div className="max-w-2xl">
+              <div className="text-xs font-semibold uppercase tracking-widest text-[#3ECF8E]">AI agents · the difference</div>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight">Agents that do the work — with you in control</h2>
+              <p className="mt-4 text-white/55 text-[15px] leading-relaxed">
+                Most &ldquo;AI&rdquo; tools just write marketing copy. SNR-PMO&rsquo;s agents do the <span className="text-white/80">operational</span> work across your back office — and never act without your say-so.
+              </p>
+            </div>
+
+            <div className="mt-12 grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+              <div className="order-2 lg:order-1">
+                <BrowserFrame title="app.snr-pmo.com/agent-activity">
+                  <AgentMock />
+                </BrowserFrame>
+              </div>
+              <div className="order-1 lg:order-2 space-y-6">
+                {[
+                  { t: 'Real back-office actions', d: 'Create & assign tasks, draft journal entries from bills, build onboarding checklists, triage tickets and move deals — across Projects, CRM, HR, Accounting and Support.' },
+                  { t: 'Approve-first, always', d: 'Agents propose; a person approves with one click. Money, payroll and anything risky always wait for you. Every action is audited and one-click reversible.' },
+                  { t: 'Type a command in chat', d: 'Drop #task, #onboard or #expense in any channel and the right agent drafts it for approval — and you can define your own #commands.' },
+                  { t: 'Measured, not hype', d: 'A live ROI dashboard shows actions executed, hours saved and dollar value created — net of agent cost. No black box.' },
+                ].map((f) => (
+                  <div key={f.t} className="flex gap-3.5">
+                    <span className="mt-0.5"><Check /></span>
+                    <div>
+                      <div className="text-[15px] font-semibold text-white">{f.t}</div>
+                      <div className="mt-1 text-[14px] text-white/55 leading-relaxed">{f.d}</div>
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-1">
+                  <a href="#product" className="text-sm font-medium text-[#3ECF8E] hover:text-[#10b981]">Explore the full platform &rarr;</a>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -773,8 +867,8 @@ export default function Landing() {
             <div className="absolute -bottom-40 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full bg-[#10b981]/15 blur-[130px]" />
           </div>
           <div className="relative mx-auto max-w-3xl px-5 sm:px-8 py-24 text-center">
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">Run your whole business in one place.</h2>
-            <p className="mt-5 text-white/55 text-lg">From projects to payroll to P&amp;L — one workspace, one login, one bill.</p>
+            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">Put your back office on autopilot.</h2>
+            <p className="mt-5 text-white/55 text-lg">Projects, CRM, HR and real accounting in one workspace — with AI agents on the busywork, approve-first. One login, one bill.</p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link href="/login?mode=signup" className="w-full sm:w-auto px-7 py-3.5 rounded-lg bg-[#3ECF8E] text-[#0a0a0a] font-semibold hover:bg-[#10b981] transition-colors shadow-xl shadow-[#10b981]/25">
                 Start free
@@ -803,6 +897,7 @@ export default function Landing() {
             <div>
               <div className="text-xs font-semibold uppercase tracking-widest text-white/40">Product</div>
               <ul className="mt-4 space-y-2.5 text-sm text-white/55">
+                <li><a href="#agents" className="hover:text-white transition-colors">AI Agents</a></li>
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
                 <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
