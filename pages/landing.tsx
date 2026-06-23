@@ -380,42 +380,65 @@ function HrMock() {
 /* -------------------------------- sections -------------------------------- */
 
 function AgentMock() {
-  const rows = [
-    { t: 'Create task "Send Q2 report to Acme", due Fri', d: 'Tasks', risk: 'low', c: '#10b981' },
-    { t: 'Draft journal entry — AWS invoice $512.40 to Cloud Hosting', d: 'Accounting', risk: 'review', c: '#d97706' },
-    { t: 'Draft week-1 onboarding checklist for Jordan Lee', d: 'HR', risk: 'low', c: '#10b981' },
-  ];
+  const SAMPLES: Record<string, { t: string; d: string; risk: string; c: string }> = {
+    task: { t: 'Create task "Send Q2 report to Acme", due Fri', d: 'Tasks', risk: 'low', c: '#10b981' },
+    expense: { t: 'Draft journal entry — Figma $144.00 → Software', d: 'Accounting', risk: 'review', c: '#d97706' },
+    onboard: { t: 'Draft week-1 onboarding checklist for Jordan Lee', d: 'HR', risk: 'low', c: '#10b981' },
+    followup: { t: 'Draft follow-up to Globex — no reply in 7 days', d: 'CRM', risk: 'low', c: '#10b981' },
+  };
+  const [queue, setQueue] = useState<{ id: number; t: string; d: string; risk: string; c: string }[]>([
+    { id: 1, ...SAMPLES.task }, { id: 2, ...SAMPLES.expense }, { id: 3, ...SAMPLES.onboard },
+  ]);
+  const [done, setDone] = useState(0);
+  const [last, setLast] = useState<string | null>(null);
+  const [nid, setNid] = useState(10);
+  const decide = (id: number, approve: boolean, t: string) => {
+    setQueue((q) => q.filter((x) => x.id !== id));
+    if (approve) { setDone((n) => n + 1); setLast(t); }
+  };
+  const send = (k: string) => { setQueue((q) => [{ id: nid, ...SAMPLES[k] }, ...q].slice(0, 6)); setNid((n) => n + 1); setLast(null); };
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="Actions executed" value="142" sub="this month" />
-        <KpiCard label="Time saved" value="31 h" sub="hands-on work" tone="text-[#3ECF8E]" />
-        <KpiCard label="Value created" value="$1,410" sub="net of agent cost" tone="text-[#3ECF8E]" />
+        <KpiCard label="Actions executed" value={String(142 + done)} sub={done ? `+${done} just now` : 'this month'} tone={done ? 'text-[#3ECF8E]' : undefined} />
+        <KpiCard label="Time saved" value={`${(31 + done * 0.4).toFixed(done ? 1 : 0)} h`} sub="hands-on work" tone="text-[#3ECF8E]" />
+        <KpiCard label="Value created" value={`$${(1410 + done * 30).toLocaleString()}`} sub="net of agent cost" tone="text-[#3ECF8E]" />
         <KpiCard label="Reliability" value="98%" sub="approve-first" tone="text-[#3ECF8E]" />
+      </div>
+      <div className="rounded-xl border border-white/10 bg-[#161616] px-3 py-2.5 flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] text-white/40">Try a command:</span>
+        {(['task', 'expense', 'onboard', 'followup'] as const).map((k) => (
+          <button key={k} type="button" onClick={() => send(k)} className="text-[12px] font-mono px-2 py-1 rounded-md border border-white/10 text-[#3ECF8E] hover:bg-[#3ECF8E]/10 transition-colors">#{k}</button>
+        ))}
       </div>
       <div className="rounded-xl border border-white/10 bg-[#161616] divide-y divide-white/5">
         <div className="px-4 py-2.5 text-[11px] uppercase tracking-wide text-white/40 flex items-center justify-between">
-          <span>Proposed by your agents</span><span className="text-white/30">awaiting approval</span>
+          <span>Proposed by your agents</span><span className="text-white/30">awaiting your approval</span>
         </div>
-        {rows.map((r) => (
-          <div key={r.t} className="px-4 py-3 flex items-center gap-3">
+        {queue.length === 0 && (
+          <div className="px-4 py-6 text-center text-[12px] text-white/40">All clear — send a command above and an agent proposes an action for you to approve.</div>
+        )}
+        {queue.map((r) => (
+          <div key={r.id} className="px-4 py-3 flex items-center gap-3">
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.c }} />
             <div className="min-w-0 flex-1">
               <div className="text-[13px] text-white/85 truncate">{r.t}</div>
               <div className="text-[11px] text-white/40">{r.d}</div>
             </div>
-            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: r.c + '22', color: r.c }}>{r.risk}</span>
-            <div className="shrink-0 hidden sm:flex items-center gap-1.5">
-              <span className="text-[11px] px-2 py-1 rounded-md bg-[#3ECF8E] text-[#0a0a0a] font-medium">Approve</span>
-              <span className="text-[11px] px-2 py-1 rounded-md border border-white/15 text-white/60">Reject</span>
+            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded hidden sm:inline" style={{ backgroundColor: r.c + '22', color: r.c }}>{r.risk}</span>
+            <div className="shrink-0 flex items-center gap-1.5">
+              <button type="button" onClick={() => decide(r.id, true, r.t)} className="text-[11px] px-2 py-1 rounded-md bg-[#3ECF8E] text-[#0a0a0a] font-medium hover:bg-[#10b981] transition-colors">Approve</button>
+              <button type="button" onClick={() => decide(r.id, false, r.t)} className="text-[11px] px-2 py-1 rounded-md border border-white/15 text-white/60 hover:bg-white/5 transition-colors">Reject</button>
             </div>
           </div>
         ))}
       </div>
-      <div className="rounded-xl border border-white/10 bg-[#161616] px-4 py-3 flex items-center gap-2">
-        <span className="text-[#3ECF8E] font-mono text-[13px]">#task</span>
-        <span className="text-[13px] text-white/55 truncate">Send the Q2 report to Acme on Friday</span>
-        <span className="ml-auto text-[11px] text-white/30 hidden sm:inline">drafted for approval</span>
+      <div className="rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-[12px] flex items-center gap-2">
+        {last ? (
+          <><span className="text-[#3ECF8E]">✓</span><span className="text-white/70 truncate">Done: {last}</span><span className="ml-auto text-white/30 hidden sm:inline">recorded · one-click reversible</span></>
+        ) : (
+          <><span className="text-[#3ECF8E] font-mono">#</span><span className="text-white/55">Click a command, then Approve — that is the whole loop. Agents never act without your click.</span></>
+        )}
       </div>
     </div>
   );
