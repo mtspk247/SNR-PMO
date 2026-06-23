@@ -6,7 +6,6 @@ import { PageHeader, Spinner, EmptyState, Icon, Tabs, HelpHint } from '@/compone
 import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
 import { getOrgProfile, saveOrgProfile, setOrgModule, getOrgFeatures, getOrgPlanFeatures } from '@/lib/db';
 import { FEATURES, MyOrg } from '@/lib/supabase';
-import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
 import OrgProfileForm from '@/components/OrgProfileForm';
