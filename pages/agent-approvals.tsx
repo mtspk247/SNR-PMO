@@ -192,6 +192,7 @@ export default function AgentApprovalsPage() {
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {chip(titleCase(sel.status.replace('_', ' ')), STATUS_COLOR[sel.status] || '#6b7280')}
                 {chip(sel.risk + ' risk', RISK_COLOR[sel.risk] || '#6b7280')}
+                {sel.decision_note && sel.decision_note.indexOf('Auto-approved') === 0 && chip('Auto', '#7c3aed')}
                 {chip(sel.reversible ? 'reversible' : 'not reversible', sel.reversible ? '#16a34a' : '#dc2626')}
                 <span className="text-xs text-muted inline-flex items-center gap-1"><Icon name={selDomain?.icon || 'ti-robot'} className="text-sm" />{selDomain?.label || sel.domain}</span>
                 <span className="text-xs text-muted">· {agentName(sel.agent_id)}</span>

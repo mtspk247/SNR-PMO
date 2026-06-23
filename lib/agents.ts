@@ -26,14 +26,14 @@ export const RISK_COLOR: Record<string, string> = { low: '#16a34a', medium: '#d9
 
 export type AgentToolDef = {
   key: string; label: string; domain: AgentDomainKey;
-  risk: RiskLevel; reversible: boolean; requires?: PermKey; description: string;
+  risk: RiskLevel; reversible: boolean; requires?: PermKey; description: string; noAuto?: boolean;
 };
 
 // Starter catalog. Executors arrive in Phase 3.2; the `requires` perm is enforced
 // at execution time (the action runs as the approving user through normal RLS).
 export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'draft_journal_entry', label: 'Draft a journal entry from a bill', domain: 'accounting', risk: 'high', reversible: true, requires: 'can_export_data', description: 'Reads a vendor bill and proposes a balanced ledger entry. Posting requires the approver to hold ledger write access.' },
-  { key: 'categorize_expense', label: 'Categorize an expense', domain: 'accounting', risk: 'low', reversible: true, description: 'Suggests a category / account for an uncategorized expense.' },
+  { key: 'categorize_expense', label: 'Categorize an expense', domain: 'accounting', risk: 'low', reversible: true, noAuto: true, description: 'Suggests a category / account for an uncategorized expense. Financial — always approve-first even in auto mode.' },
   { key: 'create_task', label: 'Create / assign a task', domain: 'tasks', risk: 'low', reversible: true, description: 'Drafts a task (title, assignee, due date) from a request.' },
   { key: 'summarize_project', label: 'Summarize a project', domain: 'tasks', risk: 'low', reversible: true, description: 'Generates a read-only status summary; produces no writes.' },
   { key: 'triage_task', label: 'Triage / reprioritize a task', domain: 'tasks', risk: 'low', reversible: true, requires: 'can_edit_all_projects', description: 'Proposes a priority / status change on a task.' },

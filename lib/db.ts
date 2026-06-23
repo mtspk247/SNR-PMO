@@ -3279,7 +3279,7 @@ export async function agentUsageCost(orgId: string, periodKind: 'day' | 'month' 
   return data as AgentUsageCost;
 }
 // Manual demo: exercise the propose -> approve -> rollback flow without an LLM key.
-export async function simulateAgentProposal(orgId: string, agentId: string, domain: string): Promise<void> {
+export async function simulateAgentProposal(orgId: string, agentId: string, domain: string): Promise<string> {
   const { data: runId, error: e1 } = await sb.rpc('agent_start_run', { p_org: orgId, p_agent: agentId, p_trigger: 'manual', p_input: {} });
   if (e1) throw new Error(e1.message);
   const samples = SAMPLE_PROPOSALS[domain] || SAMPLE_PROPOSALS.general;
@@ -3288,6 +3288,14 @@ export async function simulateAgentProposal(orgId: string, agentId: string, doma
     if (error) throw new Error(error.message);
   }
   await sb.rpc('agent_finish_run', { p_run: runId as string, p_status: 'awaiting_approval', p_tokens: 0, p_usd: 0, p_error: null });
+  return runId as string;
+}
+// Phase 3.5 graduated autonomy: auto-approve a low-risk reversible action with no human
+// click. The RPC hard-enforces the policy (auto_low_risk + enabled agent, low risk,
+// reversible); execution still runs client-side as the user (never a bypass).
+export async function autoApproveAgentAction(actionId: string): Promise<void> {
+  const { error } = await sb.rpc('agent_auto_approve', { p_action: actionId });
+  if (error) throw new Error(error.message);
 }
 // Domain executor calls this AFTER performing the real (RLS-enforced) write, to
 // record target + reversal so the action becomes executed + rollback-able.

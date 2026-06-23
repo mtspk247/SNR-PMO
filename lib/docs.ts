@@ -535,6 +535,7 @@ export const SECTIONS: Section[] = [
         { title: '4. Review the queue', body: 'Proposed actions appear under Agent approvals. Open one to see the exact change and audit trail, then Approve, Reject, or (after execution) Roll back.' },
       ] },
       { kind: 'callout', icon: 'ti-flask', text: 'No LLM key yet? Open an agent and click "Generate sample proposal" to see the approve \u2192 roll back flow on sample data. Connect a provider key under Console \u25b8 AI assistant to let agents propose real actions.' },
+      { kind: 'callout', icon: 'ti-bolt', text: 'Graduated autonomy: set an agent to "Auto low-risk" and its low-risk, reversible actions run automatically with no approval click \u2014 money, payroll and any medium or high-risk action still wait for a person. Every auto action is audited and one-click reversible, and cost ceilings still apply. Switch the agent back to Approve-first (or disable it) to stop auto-execution.' },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'Permissions: "Manage agents" lets a person create and configure agents; "Approve agent actions" lets them approve, reject and roll back. Owners and admins have both. Grant them on Roles.' },
     ],
   },

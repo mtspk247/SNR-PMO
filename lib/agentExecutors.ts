@@ -4,6 +4,7 @@
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
 import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, AgentAction } from './db';
+import { toolByKey } from './agents';
 
 export type ExecCtx = { orgId: string; userId: string };
 export type ExecResult = { target_table: string; target_id: string | null; result?: any; reversal?: any; prior_state?: any };
@@ -125,3 +126,13 @@ export const EXECUTORS: Record<string, Executor> = {
 };
 
 export const executorFor = (toolKey: string): Executor | undefined => EXECUTORS[toolKey];
+
+// Phase 3.5 graduated autonomy: an action may auto-execute (no human approval) ONLY
+// when the agent is in auto_low_risk mode AND the action is low-risk + reversible AND
+// the tool is not flagged noAuto (e.g. financial). The DB RPC re-enforces this.
+export function canAutoExecute(autonomyLevel: string | undefined, a: AgentAction): boolean {
+  if (autonomyLevel !== 'auto_low_risk') return false;
+  if (a.risk !== 'low' || !a.reversible) return false;
+  if (toolByKey(a.tool_key)?.noAuto) return false;
+  return !!EXECUTORS[a.tool_key];
+}

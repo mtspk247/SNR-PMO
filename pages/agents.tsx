@@ -11,9 +11,12 @@ import { useRowSelection } from '@/components/RowSelection';
 import { GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR, AGENT_TOOLS } from '@/lib/agents';
+import { executorFor, canAutoExecute } from '@/lib/agentExecutors';
+import { toast } from '@/lib/toast';
 import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool,
   listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost,
+  listAgentActions, recordAgentExecution, autoApproveAgentAction,
   AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost,
 } from '@/lib/db';
 
@@ -111,10 +114,34 @@ export default function AgentsPage() {
     catch (e: any) { setErr(e.message); setGrants((p) => { const n = new Set(p); has ? n.add(toolKey) : n.delete(toolKey); return n; }); }
   };
 
+  // Phase 3.5: after a run proposes, auto-execute the low-risk reversible actions of an
+  // auto_low_risk agent (no approval click). Each runs as the user via the executor (RLS),
+  // the auto-approve RPC re-enforces the policy, and everything stays audited + reversible.
+  const autoRunForRun = async (runId: string | undefined, draft: Draft): Promise<{ auto: number; failed: number }> => {
+    if (!org || !me || !runId || draft.autonomy_level !== 'auto_low_risk') return { auto: 0, failed: 0 };
+    let acts: any[] = [];
+    try { acts = await listAgentActions(org.id, 'proposed'); } catch { return { auto: 0, failed: 0 }; }
+    const eligible = acts.filter((a: any) => a.run_id === runId && canAutoExecute(draft.autonomy_level, a)).slice(0, 25);
+    let auto = 0, failed = 0;
+    for (const a of eligible) {
+      try {
+        await autoApproveAgentAction(a.id);
+        const ex = executorFor(a.tool_key);
+        if (ex) { const r = await ex.execute(a, { orgId: org.id, userId: me.id }); await recordAgentExecution(a.id, r.target_table, r.target_id, r.result, r.reversal, r.prior_state); auto++; }
+      } catch { failed++; }
+    }
+    return { auto, failed };
+  };
+
   const runSample = async () => {
     if (!org || !editor?.draft.id || busy) return;
     setBusy(true); setErr('');
-    try { await simulateAgentProposal(org.id, editor.draft.id, editor.draft.domain); setEditor(null); router.push('/agent-approvals'); }
+    try {
+      const runId = await simulateAgentProposal(org.id, editor.draft.id, editor.draft.domain);
+      const { auto } = await autoRunForRun(runId, editor.draft);
+      toast(auto > 0 ? (auto + ' low-risk action' + (auto === 1 ? '' : 's') + ' auto-executed') : 'Sample proposal ready for approval', auto > 0 ? 'success' : 'info');
+      setEditor(null); router.push('/agent-approvals');
+    }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
   const runAgent = async () => {
@@ -125,7 +152,7 @@ export default function AgentsPage() {
       const res = await runAgentProposer({ orgId: org.id, agentId: editor.draft.id, request: runReq.trim(), tools, brand: (org as any).name || '' });
       if (res.configured === false) setErr('Connect an LLM key under Console ▸ AI assistant to let agents propose real actions.');
       else if (res.error) setErr(res.error);
-      else if ((res.proposed || 0) > 0) { setEditor(null); router.push('/agent-approvals'); }
+      else if ((res.proposed || 0) > 0) { const { auto } = await autoRunForRun(res.run_id, editor.draft); if (auto > 0) toast(auto + ' low-risk action' + (auto === 1 ? '' : 's') + ' auto-executed', 'success'); setEditor(null); router.push('/agent-approvals'); }
       else setErr('The agent did not propose any actions for that request.');
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
@@ -210,6 +237,7 @@ export default function AgentsPage() {
             <Field label="Name" required><input className="input" autoFocus value={editor.draft.name} onChange={(e) => setD({ name: e.target.value })} placeholder="Accounting assistant" /></Field>
             <Field label="Domain"><Select value={editor.draft.domain} onChange={(v) => setD({ domain: v as AgentDomain })} options={AGENT_DOMAINS.map((d) => ({ value: d.key, label: d.label }))} /></Field>
             <Field label="Autonomy" className="sm:col-span-2"><Select value={editor.draft.autonomy_level} onChange={(v) => setD({ autonomy_level: v as AgentAutonomy })} options={Object.entries(AUTONOMY_LABELS).map(([k, l]) => ({ value: k, label: l }))} /></Field>
+            {editor.draft.autonomy_level === 'auto_low_risk' && <p className="text-2xs text-muted sm:col-span-2 -mt-1.5"><Icon name="ti-bolt" className="text-amber-500" /> Low-risk, reversible actions run automatically — no approval click. Money, payroll and any medium/high-risk action still wait for approval. Everything stays audited and one-click reversible.</p>}
             <Field label="Description" className="sm:col-span-2"><textarea className="input min-h-[64px] resize-y" value={editor.draft.description} onChange={(e) => setD({ description: e.target.value })} placeholder="What this agent helps with…" /></Field>
             <label className="flex items-center gap-2 text-sm sm:col-span-2 cursor-pointer"><input type="checkbox" className="accent-accent w-4 h-4" checked={editor.draft.enabled} onChange={(e) => setD({ enabled: e.target.checked })} />Enabled</label>
           </div>
