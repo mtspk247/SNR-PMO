@@ -3249,3 +3249,15 @@ export async function recordAgentExecution(actionId: string, targetTable: string
   const { error } = await sb.rpc('agent_record_execution', { p_action: actionId, p_target_table: targetTable, p_target_id: targetId, p_result: result ?? {}, p_reversal: reversal ?? null, p_prior_state: priorState ?? null });
   if (error) throw new Error(error.message);
 }
+// Invoke the LLM proposer edge fn (Phase 3.2). Returns {configured:false} when no
+// provider key is set. Errors from the fn (cost ceiling, provider, auth) come back
+// as { error }. Nothing executes here — it only writes proposals for approval.
+export async function runAgentProposer(p: { orgId: string; agentId: string; request: string; tools: { key: string; label: string; description: string; risk: string; reversible: boolean }[]; brand?: string }): Promise<{ configured?: boolean; proposed?: number; considered?: number; run_id?: string; error?: string }> {
+  const { data, error } = await sb.functions.invoke('agent-propose', { body: { org_id: p.orgId, agent_id: p.agentId, request: p.request, tools: p.tools, brand: p.brand || '' } });
+  if (error) {
+    let msg = (error as any).message || 'Agent run failed';
+    try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* ignore */ }
+    return { error: msg };
+  }
+  return (data || {}) as any;
+}

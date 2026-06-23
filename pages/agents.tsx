@@ -10,10 +10,10 @@ import { useListPrefs, ColDef } from '@/components/ListToolbar';
 import { useRowSelection } from '@/components/RowSelection';
 import { GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
-import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR } from '@/lib/agents';
+import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR, AGENT_TOOLS } from '@/lib/agents';
 import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool,
-  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal,
+  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer,
   AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage,
 } from '@/lib/db';
 
@@ -42,6 +42,7 @@ export default function AgentsPage() {
   const [limits, setLimits] = useState<AgentCostLimit[]>([]);
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft; initial: string } | null>(null);
   const [grants, setGrants] = useState<Set<string>>(new Set());
+  const [runReq, setRunReq] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const prefs = useListPrefs('snrpmo.agents.cols', COLS);
@@ -113,6 +114,18 @@ export default function AgentsPage() {
     setBusy(true); setErr('');
     try { await simulateAgentProposal(org.id, editor.draft.id, editor.draft.domain); setEditor(null); router.push('/agent-approvals'); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const runAgent = async () => {
+    if (!org || !editor?.draft.id || !runReq.trim() || busy) return;
+    setBusy(true); setErr('');
+    try {
+      const tools = AGENT_TOOLS.filter((t) => grants.has(t.key)).map((t) => ({ key: t.key, label: t.label, description: t.description, risk: t.risk, reversible: t.reversible }));
+      const res = await runAgentProposer({ orgId: org.id, agentId: editor.draft.id, request: runReq.trim(), tools, brand: (org as any).name || '' });
+      if (res.configured === false) setErr('Connect an LLM key under Console ▸ AI assistant to let agents propose real actions.');
+      else if (res.error) setErr(res.error);
+      else if ((res.proposed || 0) > 0) { setEditor(null); router.push('/agent-approvals'); }
+      else setErr('The agent did not propose any actions for that request.');
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
   // Org-wide cost ceiling editor (agent_id = null)
@@ -212,8 +225,16 @@ export default function AgentsPage() {
                   </label>
                 ))}
               </div>
-              <div className="mt-4 flex items-center justify-between rounded-md bg-surface2 p-3">
-                <span className="text-xs text-muted">Try the approve → rollback flow without an LLM key.</span>
+              <div className="mt-4">
+                <h3 className="text-sm font-semibold mb-1 inline-flex items-center gap-2"><Icon name="ti-sparkles" className="text-muted2" />Run the agent</h3>
+                <div className="flex items-center gap-2">
+                  <input className="input flex-1" value={runReq} onChange={(e) => setRunReq(e.target.value)} placeholder="Describe what you want the agent to do…" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runAgent(); } }} />
+                  <button className="btn btn-primary btn-sm" disabled={busy || !runReq.trim()} onClick={runAgent}>{busy ? 'Running…' : 'Run'}</button>
+                </div>
+                <p className="text-2xs text-muted mt-1">Needs an LLM key (Console ▸ AI assistant). Proposes actions for your approval — it never executes on its own.</p>
+              </div>
+              <div className="mt-3 flex items-center justify-between rounded-md bg-surface2 p-3">
+                <span className="text-xs text-muted">No key yet? Try the approve → rollback flow on sample data.</span>
                 <button className="btn btn-sm" disabled={busy} onClick={runSample}><Icon name="ti-player-play" className="text-sm" />Generate sample proposal</button>
               </div>
             </div>
