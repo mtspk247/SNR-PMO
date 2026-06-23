@@ -166,3 +166,11 @@ Workspace-scoped REST API + signed outgoing webhooks, managed under **Developer*
 - **Write**: `POST /api-v1/<resource>`, `PATCH`/`DELETE /api-v1/<resource>/<id>`. Only whitelisted columns accepted.
 - **Resources**: `tasks`, `projects`, `deals`, `contacts`, `accounts` (CRM companies), `companies` (workspace Company layer) are read+write; `invoices` read-only. `company_id` on deals/contacts references an **accounts** (crm_companies) record.
 - **Webhooks**: add an endpoint (Developer ▸ Webhooks), pick events or `*`. Each delivery carries `X-SNRPMO-Signature: sha256=` + HMAC-SHA256(rawBody, endpointSecret). Events: `task.created`, `project.created`, `deal.created`, `deal.stage_changed`, `deal.won`, `invoice.created`, `invoice.paid`, `client.created`. Slack/Teams/Discord endpoints receive formatted messages instead of raw JSON. Delivery is server-side (edge-fn dispatcher) with exponential-backoff retries (up to 6 attempts) recording the real HTTP status code per attempt.
+
+## AI Agents & approvals (Phase 3.1)
+Agents are approve-first AI workers for the back office (accounting, tasks, CRM, HR, support). An agent is a **scoped principal, never a bypass**: it can only do what the approving person could, through the same RLS/RBAC. Flow: the agent **proposes** a typed action → a person with **Approve agent actions** approves/rejects → a domain handler **executes** it through the normal write path → the action is recorded with a reversal so it can be **rolled back in one click**. Every step is written to an append-only audit trail. **Cost ceilings** (per-day/month run or dollar limits, org-wide or per agent) refuse runs once reached.
+
+- **Agents** page: create/configure agents, grant tools (each carries a risk level + reversibility), set the org cost ceiling, and "Generate sample proposal" to demo the flow without an LLM key.
+- **Agent approvals** page: the queue of proposed actions — review payload + audit, then Approve / Reject / Roll back.
+- **Permissions** (Roles): *Manage agents* (configure) and *Approve agent actions* (approve/reject/roll back); owners & admins hold both.
+- Real (LLM-driven) proposals require a provider key under **Console ▸ AI assistant**; until then the substrate, queue, audit, rollback and ceilings all work on manually-generated sample proposals.

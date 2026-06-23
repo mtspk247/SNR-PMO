@@ -1,0 +1,66 @@
+// lib/agents.ts — Phase 3.1 agent tool/permission registry (catalog only).
+// The DB stores grants by tool_key; domain executors (Phase 3.2) implement the
+// actual writes through existing RLS-safe paths. This file defines WHAT a manager
+// can grant + the risk / reversibility / required-RBAC each action carries.
+import type { PermKey } from './supabase';
+
+export type AgentDomainKey = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'general';
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+export const AGENT_DOMAINS: { key: AgentDomainKey; label: string; icon: string }[] = [
+  { key: 'accounting', label: 'Accounting', icon: 'ti-report-money' },
+  { key: 'tasks', label: 'Tasks & Projects', icon: 'ti-checkbox' },
+  { key: 'crm', label: 'CRM', icon: 'ti-users' },
+  { key: 'hr', label: 'HR / People', icon: 'ti-heart-handshake' },
+  { key: 'support', label: 'Support', icon: 'ti-lifebuoy' },
+  { key: 'general', label: 'General', icon: 'ti-robot' },
+];
+
+export const AUTONOMY_LABELS: Record<string, string> = {
+  draft_only: 'Draft only (proposes, never executes)',
+  approve_first: 'Approve-first (a human approves each action)',
+  auto_low_risk: 'Auto low-risk (reversible only; money / payroll / legal stay approve-first)',
+};
+
+export const RISK_COLOR: Record<string, string> = { low: '#16a34a', medium: '#d97706', high: '#dc2626' };
+
+export type AgentToolDef = {
+  key: string; label: string; domain: AgentDomainKey;
+  risk: RiskLevel; reversible: boolean; requires?: PermKey; description: string;
+};
+
+// Starter catalog. Executors arrive in Phase 3.2; the `requires` perm is enforced
+// at execution time (the action runs as the approving user through normal RLS).
+export const AGENT_TOOLS: AgentToolDef[] = [
+  { key: 'draft_journal_entry', label: 'Draft a journal entry from a bill', domain: 'accounting', risk: 'high', reversible: true, requires: 'can_export_data', description: 'Reads a vendor bill and proposes a balanced ledger entry. Posting requires the approver to hold ledger write access.' },
+  { key: 'categorize_expense', label: 'Categorize an expense', domain: 'accounting', risk: 'low', reversible: true, description: 'Suggests a category / account for an uncategorized expense.' },
+  { key: 'create_task', label: 'Create / assign a task', domain: 'tasks', risk: 'low', reversible: true, description: 'Drafts a task (title, assignee, due date) from a request.' },
+  { key: 'summarize_project', label: 'Summarize a project', domain: 'tasks', risk: 'low', reversible: true, description: 'Generates a read-only status summary; produces no writes.' },
+  { key: 'triage_task', label: 'Triage / reprioritize a task', domain: 'tasks', risk: 'low', reversible: true, requires: 'can_edit_all_projects', description: 'Proposes a priority / status change on a task.' },
+  { key: 'draft_followup', label: 'Draft a client follow-up', domain: 'crm', risk: 'low', reversible: true, description: 'Drafts a follow-up for a deal / contact; sending is a separate approved step.' },
+  { key: 'update_deal_stage', label: 'Update a deal stage', domain: 'crm', risk: 'medium', reversible: true, description: 'Proposes moving a deal to a new pipeline stage.' },
+  { key: 'draft_onboarding', label: 'Draft an onboarding plan', domain: 'hr', risk: 'low', reversible: true, description: 'Drafts onboarding tasks for a new hire.' },
+  { key: 'route_leave_request', label: 'Route a leave request', domain: 'hr', risk: 'medium', reversible: true, requires: 'can_approve_leaves', description: 'Proposes an approve / deny on a leave request; the decision still flows through the leave approval gate.' },
+  { key: 'triage_ticket', label: 'Triage a support ticket', domain: 'support', risk: 'low', reversible: true, description: 'Suggests an assignee / priority for a ticket.' },
+  { key: 'draft_reply', label: 'Draft a support reply', domain: 'support', risk: 'low', reversible: true, description: 'Drafts a reply for an agent to review and send.' },
+];
+
+export const toolsForDomain = (d: string) => AGENT_TOOLS.filter((t) => t.domain === d);
+export const toolByKey = (k: string) => AGENT_TOOLS.find((t) => t.key === k);
+
+// Sample proposals so the approval + rollback UX is demonstrable WITHOUT an LLM key.
+export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; risk?: RiskLevel; reversible?: boolean; payload?: any }[]> = {
+  accounting: [
+    { tool: 'draft_journal_entry', summary: 'Post vendor bill "AWS - May invoice" ($512.40) to Cloud Hosting expense', risk: 'high', payload: { vendor: 'AWS', amount: 512.40, account: 'Cloud Hosting' } },
+    { tool: 'categorize_expense', summary: 'Categorize "Figma subscription" ($45.00) as Software', risk: 'low', payload: { item: 'Figma', amount: 45, category: 'Software' } },
+  ],
+  tasks: [
+    { tool: 'create_task', summary: 'Create task "Send Q2 report to Acme", assign to the account owner, due Friday', risk: 'low', payload: { title: 'Send Q2 report to Acme', due: 'Friday' } },
+  ],
+  crm: [
+    { tool: 'draft_followup', summary: 'Draft a follow-up to "Globex" (no reply in 7 days on the proposal)', risk: 'low', payload: { deal: 'Globex' } },
+  ],
+  general: [
+    { tool: 'summarize_project', summary: 'Summarize this week of activity across active projects', risk: 'low', payload: {} },
+  ],
+};

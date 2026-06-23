@@ -1,5 +1,6 @@
 import { sb, activeOrgScope, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES } from './supabase';
 import { buildDemoPayload } from './demoSeed';
+import { SAMPLE_PROPOSALS } from './agents';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -37,7 +38,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   if (!sess.session) return null;
   const { data, error } = await sb
     .from('users')
-    .select('id, auth_user_id, username, email, full_name, role, department, feature_access, avatar_url')
+    .select('id, auth_user_id, username, email, full_name, role, department, feature_access, can_manage_agents, can_approve_agent_actions, avatar_url')
     .eq('auth_user_id', sess.session.user.id)
     .maybeSingle();
   if (error) throw error;
@@ -3141,4 +3142,104 @@ export async function askAssistant(p: { question: string; brand?: string; histor
   const { data, error } = await sb.functions.invoke('docs-assistant', { body: { question: p.question, brand: p.brand, history: p.history ?? [], grounding: p.grounding } });
   if (error) { let msg = error.message; try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* noop */ } throw new Error(msg); }
   return data as AssistantReply;
+}
+
+// ---------------------------------------------------------------------------
+// Agents (Phase 3.1 agentic-ops foundation) — substrate access layer.
+// Definitions/tool-grants/cost-limits are direct table writes (RLS-gated by the
+// agent caps); the action lifecycle (decide/rollback/propose/run) goes through
+// the SECURITY DEFINER RPCs so the scoped-principal + approve-first model holds.
+// ---------------------------------------------------------------------------
+export type AgentDomain = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'general';
+export type AgentAutonomy = 'draft_only' | 'approve_first' | 'auto_low_risk';
+export interface AgentDefinition { id: string; org_id: string; name: string; domain: AgentDomain; description: string | null; enabled: boolean; autonomy_level: AgentAutonomy; config: any; created_by: string | null; created_at: string; updated_at: string; }
+export type AgentActionStatus = 'proposed' | 'approved' | 'rejected' | 'executing' | 'executed' | 'failed' | 'rolled_back' | 'expired';
+export interface AgentAction { id: string; org_id: string; run_id: string | null; agent_id: string | null; tool_key: string; domain: string; summary: string; payload: any; risk: 'low' | 'medium' | 'high'; reversible: boolean; status: AgentActionStatus; target_table: string | null; target_id: string | null; result: any; reversal: any; prior_state: any; proposed_at: string; decided_by: string | null; decided_at: string | null; decision_note: string | null; executed_by: string | null; executed_at: string | null; rolled_back_by: string | null; rolled_back_at: string | null; expires_at: string | null; }
+export interface AgentRun { id: string; org_id: string; agent_id: string | null; initiated_by: string | null; trigger: string; input: any; status: string; error: string | null; cost_tokens: number; cost_usd: number; started_at: string | null; finished_at: string | null; created_at: string; }
+export interface AgentCostLimit { id: string; org_id: string; agent_id: string | null; period: 'day' | 'month'; max_runs: number | null; max_tokens: number | null; max_usd: number | null; enabled: boolean; created_at: string; updated_at: string; }
+export interface AgentUsage { id: string; org_id: string; agent_id: string | null; period_kind: 'day' | 'month'; period_start: string; runs: number; tokens: number; usd: number; updated_at: string; }
+export interface AgentActionEvent { id: number; org_id: string; action_id: string; event: string; actor: string | null; detail: any; at: string; }
+export interface AgentToolGrant { agent_id: string; org_id: string; tool_key: string; granted_by: string | null; granted_at: string; }
+
+export const listAgents = (orgId: string) => _list<AgentDefinition>('agent_definitions', orgId);
+export async function createAgent(row: { org_id: string; name: string; domain: AgentDomain; description?: string | null; autonomy_level?: AgentAutonomy; created_by?: string | null }): Promise<AgentDefinition[]> {
+  const { error } = await sb.from('agent_definitions').insert(row);
+  if (error) throw new Error(error.message);
+  return listAgents(row.org_id);
+}
+export async function updateAgent(id: string, patch: Partial<AgentDefinition>): Promise<void> {
+  const { error } = await sb.from('agent_definitions').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteAgent(id: string): Promise<void> {
+  const { error } = await sb.from('agent_definitions').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function listAgentTools(agentId: string): Promise<AgentToolGrant[]> {
+  const { data, error } = await sb.from('agent_tool_grants').select('*').eq('agent_id', agentId);
+  if (error) throw new Error(error.message); return (data as AgentToolGrant[]) || [];
+}
+export async function grantAgentTool(agentId: string, orgId: string, toolKey: string): Promise<void> {
+  const { error } = await sb.from('agent_tool_grants').insert({ agent_id: agentId, org_id: orgId, tool_key: toolKey });
+  if (error) throw new Error(error.message);
+}
+export async function revokeAgentTool(agentId: string, toolKey: string): Promise<void> {
+  const { error } = await sb.from('agent_tool_grants').delete().eq('agent_id', agentId).eq('tool_key', toolKey);
+  if (error) throw new Error(error.message);
+}
+export async function listAgentActions(orgId: string, status?: string): Promise<AgentAction[]> {
+  let qy = sb.from('agent_actions').select('*').eq('org_id', orgId).order('proposed_at', { ascending: false }).limit(200);
+  if (status) qy = qy.eq('status', status);
+  const { data, error } = await qy;
+  if (error) throw new Error(error.message); return (data as AgentAction[]) || [];
+}
+export async function listAgentActionEvents(actionId: string): Promise<AgentActionEvent[]> {
+  const { data, error } = await sb.from('agent_action_events').select('*').eq('action_id', actionId).order('at', { ascending: true });
+  if (error) throw new Error(error.message); return (data as AgentActionEvent[]) || [];
+}
+export async function decideAgentAction(actionId: string, decision: 'approved' | 'rejected', note?: string): Promise<void> {
+  const { error } = await sb.rpc('agent_decide_action', { p_action: actionId, p_decision: decision, p_note: note ?? null });
+  if (error) throw new Error(error.message);
+}
+export async function rollbackAgentAction(actionId: string, note?: string): Promise<void> {
+  const { error } = await sb.rpc('agent_record_rollback', { p_action: actionId, p_note: note ?? null });
+  if (error) throw new Error(error.message);
+}
+export async function listAgentRuns(orgId: string): Promise<AgentRun[]> {
+  const { data, error } = await sb.from('agent_runs').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(100);
+  if (error) throw new Error(error.message); return (data as AgentRun[]) || [];
+}
+export async function listAgentCostLimits(orgId: string): Promise<AgentCostLimit[]> {
+  const { data, error } = await sb.from('agent_cost_limits').select('*').eq('org_id', orgId);
+  if (error) throw new Error(error.message); return (data as AgentCostLimit[]) || [];
+}
+export async function setAgentCostLimit(p: { org_id: string; agent_id?: string | null; period: 'day' | 'month'; max_runs?: number | null; max_tokens?: number | null; max_usd?: number | null; enabled?: boolean }): Promise<void> {
+  const agentId = p.agent_id ?? null;
+  let sel = sb.from('agent_cost_limits').select('id').eq('org_id', p.org_id).eq('period', p.period);
+  sel = agentId === null ? sel.is('agent_id', null) : sel.eq('agent_id', agentId);
+  const { data: ex, error: e1 } = await sel.maybeSingle();
+  if (e1) throw new Error(e1.message);
+  const vals = { max_runs: p.max_runs ?? null, max_tokens: p.max_tokens ?? null, max_usd: p.max_usd ?? null, enabled: p.enabled ?? true, updated_at: new Date().toISOString() };
+  if (ex && (ex as any).id) {
+    const { error } = await sb.from('agent_cost_limits').update(vals).eq('id', (ex as any).id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await sb.from('agent_cost_limits').insert({ org_id: p.org_id, agent_id: agentId, period: p.period, ...vals });
+    if (error) throw new Error(error.message);
+  }
+}
+export async function listAgentUsage(orgId: string): Promise<AgentUsage[]> {
+  const { data, error } = await sb.from('agent_usage').select('*').eq('org_id', orgId);
+  if (error) throw new Error(error.message); return (data as AgentUsage[]) || [];
+}
+// Manual demo: exercise the propose -> approve -> rollback flow without an LLM key.
+export async function simulateAgentProposal(orgId: string, agentId: string, domain: string): Promise<void> {
+  const { data: runId, error: e1 } = await sb.rpc('agent_start_run', { p_org: orgId, p_agent: agentId, p_trigger: 'manual', p_input: {} });
+  if (e1) throw new Error(e1.message);
+  const samples = SAMPLE_PROPOSALS[domain] || SAMPLE_PROPOSALS.general;
+  for (const s of samples) {
+    const { error } = await sb.rpc('agent_propose_action', { p_org: orgId, p_run: runId as string, p_agent: agentId, p_tool: s.tool, p_domain: domain, p_summary: s.summary, p_payload: s.payload || {}, p_risk: s.risk || 'low', p_reversible: s.reversible ?? true });
+    if (error) throw new Error(error.message);
+  }
+  await sb.rpc('agent_finish_run', { p_run: runId as string, p_status: 'awaiting_approval', p_tokens: 0, p_usd: 0, p_error: null });
 }

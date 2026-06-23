@@ -516,6 +516,28 @@ export const SECTIONS: Section[] = [
       { kind: 'callout', icon: 'ti-settings', text: 'Platform operators: connect an LLM key under Console ▸ AI assistant to make answers conversational. Without a key the assistant still works and returns the most relevant guide section.' },
     ],
   },
+  {
+    id: 'agents',
+    title: 'AI Agents & approvals',
+    icon: 'ti-robot',
+    blocks: [
+      { kind: 'p', text: 'Agents are AI workers that operate your back office \u2014 accounting, tasks, CRM, HR, support \u2014 under human control. An agent never acts on its own: it proposes a typed action, a person approves it with one click, and every action is audited and reversible.' },
+      { kind: 'bullets', items: [
+        { text: 'Scoped, never a bypass', sub: ['An agent can only do what the approving person could do \u2014 every action runs through the same permissions and tenant isolation a human is subject to.'] },
+        { text: 'Approve-first by default', sub: ['Agents propose; a person with the Approve agent actions permission approves or rejects. Money, payroll and legal actions always stay approve-first.'] },
+        { text: 'Audited & reversible', sub: ['Every proposal, approval, execution and rollback is recorded in an append-only trail, and executed actions can be rolled back in one click.'] },
+        { text: 'Cost ceilings', sub: ['Set per-day or per-month run and dollar limits (org-wide or per agent). Agent runs are refused once a ceiling is reached.'] },
+      ] },
+      { kind: 'steps', items: [
+        { title: '1. Create an agent', body: 'Open Agents \u25b8 New agent. Give it a name, pick a domain (Accounting, Tasks, CRM, HR, Support) and an autonomy level \u2014 Approve-first is recommended.' },
+        { title: '2. Grant tools', body: 'Re-open the agent and tick the tools it may use. Each tool shows its risk level and whether it is reversible.' },
+        { title: '3. Set a cost ceiling', body: 'On the Agents page set an org-wide day/month limit on runs or dollars so an agent can never run away.' },
+        { title: '4. Review the queue', body: 'Proposed actions appear under Agent approvals. Open one to see the exact change and audit trail, then Approve, Reject, or (after execution) Roll back.' },
+      ] },
+      { kind: 'callout', icon: 'ti-flask', text: 'No LLM key yet? Open an agent and click "Generate sample proposal" to see the approve \u2192 roll back flow on sample data. Connect a provider key under Console \u25b8 AI assistant to let agents propose real actions.' },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Permissions: "Manage agents" lets a person create and configure agents; "Approve agent actions" lets them approve, reject and roll back. Owners and admins have both. Grant them on Roles.' },
+    ],
+  },
 ];
 // ---------------------------------------------------------------------------
 // Search + retrieval helpers (lexical — read the live text on every call, so

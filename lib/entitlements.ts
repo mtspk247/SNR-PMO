@@ -40,6 +40,8 @@ export const PERMISSION_LABELS: Record<PermKey, string> = {
   can_approve_leaves: 'Approve leaves',
   can_manage_users: 'Manage users & roles',
   can_export_data: 'Export data',
+  can_manage_agents: 'Manage agents',
+  can_approve_agent_actions: 'Approve agent actions',
 };
 
 // Per-user feature/form access from their assigned role. Empty/undefined = all

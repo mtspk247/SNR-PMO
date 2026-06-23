@@ -146,6 +146,10 @@ export const SECTIONS: NavSection[] = [
     { href: '/admin/support-agents', label: 'Support Agents', icon: 'ti-headset', platformOnly: true },
     { href: '/admin/support', label: 'Support Queue', icon: 'ti-list-check', platformOnly: true },
   ]},
+  { kind: 'menu', key: 'agents', label: 'Agents', icon: 'ti-robot', items: [
+    { href: '/agents', label: 'Agents', icon: 'ti-robot', feature: 'agents' },
+    { href: '/agent-approvals', label: 'Agent Approvals', icon: 'ti-checks', feature: 'agents' },
+  ]},
   { kind: 'link', item: { href: '/notes', label: 'Notes', icon: 'ti-notes' } },
   { kind: 'link', item: { href: '/trash', label: 'Trash', icon: 'ti-trash' } },
 ];

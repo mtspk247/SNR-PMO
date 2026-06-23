@@ -148,13 +148,16 @@ export interface AppUser {
   role: Role;
   department?: string;
   feature_access?: string[];   // role-template feature/form access; empty = all entitled
+  can_manage_agents?: boolean;
+  can_approve_agent_actions?: boolean;
   avatar_url?: string | null;
 }
 
 // Custom role templates — org-scoped reusable permission bundles + feature access.
 export type PermKey =
   | 'can_view_all_projects' | 'can_edit_all_projects' | 'can_approve_leaves'
-  | 'can_delete_tasks' | 'can_manage_users' | 'can_view_dashboard' | 'can_export_data';
+  | 'can_delete_tasks' | 'can_manage_users' | 'can_view_dashboard' | 'can_export_data'
+  | 'can_manage_agents' | 'can_approve_agent_actions';
 export interface RoleTemplate {
   id: string;
   org_id: string;
