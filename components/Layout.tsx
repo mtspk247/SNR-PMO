@@ -34,7 +34,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
   // then drop any item the active org's plan doesn't entitle (and empty menus).
   // W6: guests only see project-scoped surfaces
   const isGuest = activeOrg?.member_role === 'guest';
-  const GUEST_HREFS = ['/', '/projects', '/tasks', '/chat', '/calendar', '/docs'];
+  const GUEST_HREFS = ['/', '/projects', '/tasks', '/chat', '/calendar', '/docs', '/portal'];
   const guestOk = (href: string) => !isGuest || GUEST_HREFS.includes(href);
   const sections = [
     ...SECTIONS,

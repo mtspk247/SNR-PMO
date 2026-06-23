@@ -377,6 +377,25 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'client-portal',
+    title: 'Client portal',
+    icon: 'ti-layout-dashboard',
+    blocks: [
+      { kind: 'p', text: 'The client portal gives the people you invite as guests a clean, branded home at /portal — your logo and colours, none of the operator tools. They sign in and see only what they have been given access to.' },
+      { kind: 'bullets', items: [
+        { text: 'Branded automatically — the portal inherits your workspace logo and colours (Settings > Branding); a reseller\'s custom domain shows their own brand.' },
+        { text: 'Scoped by access — a guest sees only the projects they were invited to. Row-level security enforces this on the server, not just in the UI.' },
+        { text: 'Read-only (v1) — projects with status and dates, plus an at-a-glance count of open tasks. Invoices, files and approvals are the next slices.' },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Invite a client', body: 'People > Guests > invite by email, then choose their access level and which projects they can see. They receive a sign-in link.' },
+        { title: 'They open the portal', body: 'After signing in, the guest opens Client Portal from the sidebar (/portal) and sees their projects in your brand.' },
+        { title: 'Control what they see', body: 'Adjust a guest\'s projects and permissions any time under People > Guests; changes apply immediately.' },
+      ] },
+      { kind: 'callout', icon: 'ti-lock', text: 'The client portal is plan-gated (Pro and above). Guests never count against your seat limit.' },
+    ],
+  },
+  {
     id: 'playbook',
     title: 'Agency playbook',
     icon: 'ti-rocket',

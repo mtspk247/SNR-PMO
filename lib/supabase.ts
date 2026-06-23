@@ -110,6 +110,7 @@ export const FEATURES = [
   { key: 'reseller', label: 'Reseller (sub-tenants)' },
   { key: 'api', label: 'API & Webhooks' },
   { key: 'automations', label: 'Automations' },
+  { key: 'portal', label: 'Branded Client Portal' },
 ] as const;
 export type FeatureKey = typeof FEATURES[number]['key'];
 export type PricingModel = 'flat' | 'per_user' | 'white_label';

@@ -83,6 +83,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/companies', label: 'Companies', icon: 'ti-building', feature: 'companies', search: searchCompanies },
     { href: '/portfolios', label: 'Portfolios', icon: 'ti-stack-2', feature: 'portfolios', search: searchPortfolios },
     { href: '/projects', label: 'Projects', icon: 'ti-folder', feature: 'projects', search: searchProjects },
+    { href: '/portal', label: 'Client Portal', icon: 'ti-layout-dashboard', feature: 'portal' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox', feature: 'projects', search: searchTasks },
     { href: '/ideas', label: 'Ideas', icon: 'ti-bulb', feature: 'ideas', search: searchIdeas },
     { href: '/roadmap', label: 'Roadmap', icon: 'ti-timeline', feature: 'projects' },
