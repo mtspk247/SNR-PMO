@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateDeal, createLedgerEntry, deleteLedgerEntry, AgentAction } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, AgentAction } from './db';
 
 export type ExecCtx = { orgId: string; userId: string };
 export type ExecResult = { target_table: string; target_id: string | null; result?: any; reversal?: any; prior_state?: any };
@@ -57,6 +57,70 @@ export const EXECUTORS: Record<string, Executor> = {
       return { target_table: 'ledger_entries', target_id: e.id, result: { ledger_entry_id: e.id, amount }, reversal: { op: 'delete_ledger_entry' } };
     },
     rollback: async (a) => { if (a.target_id) await deleteLedgerEntry(a.target_id); },
+  },
+
+  // HR onboarding — CREATE pattern (batch). Demoable via the hr sample: creates a
+  // standard week-1 onboarding checklist as tasks. Reversible by deleting them all.
+  draft_onboarding: {
+    label: 'Create the onboarding tasks',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const who = String(p.employee || p.name || '').trim();
+      const items: string[] = Array.isArray(p.tasks) && p.tasks.length
+        ? p.tasks.map((x: any) => String(x))
+        : ['Send welcome note + ship equipment', 'Create accounts & grant access', 'Schedule week-1 1:1s & team intro', 'Assign first-week training', 'Add to payroll & benefits'];
+      const prefix = who ? ('Onboard ' + who + ': ') : 'Onboarding: ';
+      const ids: string[] = [];
+      for (const it of items.slice(0, 12)) {
+        const t = await createTask({ name: (prefix + it).slice(0, 200), org_id: ctx.orgId });
+        ids.push(t.id);
+      }
+      return { target_table: 'tasks', target_id: ids[0] || null, result: { task_ids: ids, count: ids.length }, reversal: { op: 'delete_tasks', ids } };
+    },
+    rollback: async (a) => { const ids: string[] = (a.reversal && a.reversal.ids) || (a.result && a.result.task_ids) || []; for (const id of ids) { try { await deleteTask(id); } catch { /* keep deleting the rest */ } } },
+  },
+  // Tasks triage — UPDATE pattern. Needs task_id (+ to_priority/to_status) from the
+  // proposer; from_* enable rollback. Reversible by restoring prior_state.
+  triage_task: {
+    label: 'Apply the task change',
+    execute: async (a) => {
+      const p = a.payload || {};
+      if (!p.task_id) throw new Error('triage_task needs task_id in the payload');
+      const patch: any = {};
+      if (p.to_priority) patch.priority = String(p.to_priority);
+      if (p.to_status) patch.status = String(p.to_status);
+      if (!Object.keys(patch).length) throw new Error('triage_task needs to_priority or to_status');
+      const t = await updateTask(p.task_id, patch);
+      return { target_table: 'tasks', target_id: t.id, result: patch, reversal: { op: 'restore_task' }, prior_state: { priority: p.from_priority ?? null, status: p.from_status ?? null } };
+    },
+    rollback: async (a) => { const ps = a.prior_state || {}; const patch: any = {}; if (ps.priority) patch.priority = String(ps.priority); if (ps.status) patch.status = String(ps.status); if (a.target_id && Object.keys(patch).length) await updateTask(a.target_id, patch); },
+  },
+  // Support triage — UPDATE pattern via the support RPCs (the approver must be support
+  // staff; support_assign/support_set_status enforce it). Needs ticket_id; from_* roll back.
+  triage_ticket: {
+    label: 'Apply the ticket triage',
+    execute: async (a) => {
+      const p = a.payload || {};
+      if (!p.ticket_id) throw new Error('triage_ticket needs ticket_id in the payload');
+      const prior: any = {}; const res: any = {};
+      if (p.assignee_id !== undefined) { await assignTicket(p.ticket_id, p.assignee_id || null); prior.assignee_id = p.from_assignee_id ?? null; res.assignee_id = p.assignee_id || null; }
+      if (p.to_status) { await setTicketStatus(p.ticket_id, String(p.to_status)); prior.status = p.from_status ?? null; res.status = String(p.to_status); }
+      if (!Object.keys(res).length) throw new Error('triage_ticket needs assignee_id or to_status');
+      return { target_table: 'support_tickets', target_id: String(p.ticket_id), result: res, reversal: { op: 'restore_ticket' }, prior_state: prior };
+    },
+    rollback: async (a) => { const ps = a.prior_state || {}; if (!a.target_id) return; if (ps.status) await setTicketStatus(a.target_id, String(ps.status)); if (Object.prototype.hasOwnProperty.call(ps, 'assignee_id')) await assignTicket(a.target_id, ps.assignee_id || null); },
+  },
+  // Accounting categorize — UPDATE pattern. Sets a category on an uncategorized ledger
+  // entry. Needs entry_id; from_category enables rollback.
+  categorize_expense: {
+    label: 'Set the category',
+    execute: async (a) => {
+      const p = a.payload || {};
+      if (!p.entry_id || !p.category) throw new Error('categorize_expense needs entry_id + category in the payload');
+      const e = await updateLedgerEntry(p.entry_id, { category: String(p.category).slice(0, 80) });
+      return { target_table: 'ledger_entries', target_id: e.id, result: { category: e.category }, reversal: { op: 'restore_category' }, prior_state: { category: p.from_category ?? null } };
+    },
+    rollback: async (a) => { const ps = a.prior_state || {}; if (a.target_id && ps.category) await updateLedgerEntry(a.target_id, { category: String(ps.category) }); },
   },
 };
 

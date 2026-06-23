@@ -52,13 +52,18 @@ export const toolByKey = (k: string) => AGENT_TOOLS.find((t) => t.key === k);
 export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; risk?: RiskLevel; reversible?: boolean; payload?: any }[]> = {
   accounting: [
     { tool: 'draft_journal_entry', summary: 'Post vendor bill "AWS - May invoice" ($512.40) to Cloud Hosting expense', risk: 'high', payload: { vendor: 'AWS', amount: 512.40, account: 'Cloud Hosting' } },
-    { tool: 'categorize_expense', summary: 'Categorize "Figma subscription" ($45.00) as Software', risk: 'low', payload: { item: 'Figma', amount: 45, category: 'Software' } },
   ],
   tasks: [
     { tool: 'create_task', summary: 'Create task "Send Q2 report to Acme", assign to the account owner, due Friday', risk: 'low', payload: { title: 'Send Q2 report to Acme', due: 'Friday' } },
   ],
   crm: [
     { tool: 'draft_followup', summary: 'Draft a follow-up to "Globex" (no reply in 7 days on the proposal)', risk: 'low', payload: { deal: 'Globex' } },
+  ],
+  hr: [
+    { tool: 'draft_onboarding', summary: 'Draft a week-1 onboarding checklist for new hire "Jordan Lee"', risk: 'low', payload: { employee: 'Jordan Lee' } },
+  ],
+  support: [
+    { tool: 'draft_reply', summary: 'Draft a reply to ticket "Login fails after password reset"', risk: 'low', payload: { ticket: 'Login fails after password reset' } },
   ],
   general: [
     { tool: 'summarize_project', summary: 'Summarize this week of activity across active projects', risk: 'low', payload: {} },
