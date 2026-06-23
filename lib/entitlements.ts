@@ -33,6 +33,7 @@ export function navVisible(org: MyOrg | null | undefined, key?: FeatureKey): boo
 
 // Role-template permission labels (used by /roles + /users).
 export const PERMISSION_LABELS: Record<PermKey, string> = {
+  can_manage_appraisals: 'Manage performance appraisals',
   can_view_dashboard: 'View dashboard',
   can_view_all_projects: 'View all projects',
   can_edit_all_projects: 'Edit all projects',

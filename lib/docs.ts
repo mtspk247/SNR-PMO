@@ -307,6 +307,20 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'appraisals',
+    title: 'Performance appraisals',
+    icon: 'ti-clipboard-check',
+    blocks: [
+      { kind: 'p', text: 'Run structured performance reviews. Open Appraisals (People \u25b8 Appraisals). Work is organised into cycles (e.g. \u201cH1 2026 Review\u201d); each employee gets one appraisal per cycle with a reviewer, an overall rating, and written feedback.' },
+      { kind: 'steps', items: [
+        { title: '1. Create a cycle', body: 'Click New cycle, give it a name and an optional period, and set it Active. Draft cycles are work-in-progress; Closed locks a finished round.' },
+        { title: '2. Add appraisals', body: 'With a cycle selected, click Add appraisal, pick the employee and reviewer, then set the status, an overall rating (0\u20135) and a summary. Group the list by status to see what is pending vs completed.' },
+        { title: '3. Track to completion', body: 'Move each appraisal Pending \u2192 Self review \u2192 In review \u2192 Completed. The KPI cards show how many are done and the cycle\u2019s average rating.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-check', text: 'Only owners, admins and people with the \u201cManage performance appraisals\u201d permission can create or edit appraisals. Employees can view their own appraisal (and reviewers theirs) but cannot edit. Turn the whole module on or off in Settings \u25b8 Modules.' },
+    ],
+  },
+  {
     id: 'admin',
     title: 'Administration',
     icon: 'ti-shield-cog',

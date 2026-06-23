@@ -135,6 +135,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/interviews', label: 'Interviews', icon: 'ti-calendar-event', feature: 'hr' },
     { href: '/offers', label: 'Offer letters', icon: 'ti-mail-check', feature: 'hr', search: searchOffers },
     { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr', search: searchPeople },
+    { href: '/appraisals', label: 'Appraisals', icon: 'ti-clipboard-check', feature: 'appraisals' },
     { href: '/training', label: 'Training & JDs', icon: 'ti-school', feature: 'hr' },
     { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock', feature: 'attendance' },

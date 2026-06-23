@@ -100,6 +100,7 @@ export const FEATURES = [
   { key: 'risk', label: 'Risk Analysis' },
   { key: 'financial', label: 'Financial Data' },
   { key: 'hr', label: 'HR / Onboarding' },
+  { key: 'appraisals', label: 'Performance Appraisals' },
   { key: 'integrations', label: 'Integrations' },
   { key: 'audit', label: 'Audit Log' },
   { key: 'white_label', label: 'White-label' },
@@ -150,6 +151,7 @@ export interface AppUser {
   feature_access?: string[];   // role-template feature/form access; empty = all entitled
   can_manage_agents?: boolean;
   can_approve_agent_actions?: boolean;
+  can_manage_appraisals?: boolean;
   avatar_url?: string | null;
 }
 
@@ -157,7 +159,7 @@ export interface AppUser {
 export type PermKey =
   | 'can_view_all_projects' | 'can_edit_all_projects' | 'can_approve_leaves'
   | 'can_delete_tasks' | 'can_manage_users' | 'can_view_dashboard' | 'can_export_data'
-  | 'can_manage_agents' | 'can_approve_agent_actions';
+  | 'can_manage_agents' | 'can_approve_agent_actions' | 'can_manage_appraisals';
 export interface RoleTemplate {
   id: string;
   org_id: string;
@@ -323,7 +325,7 @@ export interface AdminUser {
   role_template_id: string | null;
   can_view_all_projects: boolean; can_edit_all_projects: boolean;
   can_approve_leaves: boolean; can_delete_tasks: boolean;
-  can_manage_users: boolean; can_view_dashboard: boolean; can_export_data: boolean;
+  can_manage_users: boolean; can_view_dashboard: boolean; can_export_data: boolean; can_manage_appraisals: boolean;
   annual_balance: number; sick_balance: number; casual_balance: number;
   job_title?: string | null; avatar_url?: string | null; phone?: string | null; company_id?: string | null; last_login?: string | null; company?: { name: string } | null;
 }

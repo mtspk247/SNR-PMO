@@ -39,7 +39,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   if (!sess.session) return null;
   const { data, error } = await sb
     .from('users')
-    .select('id, auth_user_id, username, email, full_name, role, department, feature_access, can_manage_agents, can_approve_agent_actions, avatar_url')
+    .select('id, auth_user_id, username, email, full_name, role, department, feature_access, can_manage_agents, can_approve_agent_actions, can_manage_appraisals, avatar_url')
     .eq('auth_user_id', sess.session.user.id)
     .maybeSingle();
   if (error) throw error;
@@ -1353,7 +1353,7 @@ export async function logAudit(p: {
 }
 
 // ---- 2.7 Users admin / RBAC ----------------------------------------------
-const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, role_template_id, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, annual_balance, sick_balance, casual_balance, job_title, avatar_url, phone, company_id, last_login, company:companies!users_company_id_fkey(name)';
+const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, role_template_id, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, can_manage_appraisals, annual_balance, sick_balance, casual_balance, job_title, avatar_url, phone, company_id, last_login, company:companies!users_company_id_fkey(name)';
 export interface UserAffiliation { user_id: string; companies: string[]; projects: string[]; }
 export async function userAffiliations(orgId: string): Promise<UserAffiliation[]> {
   const { data, error } = await sb.rpc('user_affiliations', { p_org: orgId });
@@ -3414,4 +3414,63 @@ export async function runAgentProposer(p: { orgId: string; agentId: string; requ
     return { error: msg };
   }
   return (data || {}) as any;
+}
+
+
+// ── HR Appraisals / performance reviews ───────────────────────────────────────
+export interface AppraisalCycle {
+  id: string; org_id: string; name: string;
+  period_start: string | null; period_end: string | null;
+  status: 'draft' | 'active' | 'closed';
+  created_by: string | null; created_at: string;
+}
+export interface Appraisal {
+  id: string; org_id: string; cycle_id: string | null;
+  employee_id: string; reviewer_id: string | null;
+  status: 'pending' | 'self_review' | 'in_review' | 'completed';
+  overall_rating: number | null; summary: string | null;
+  ratings: Record<string, number>;
+  created_by: string | null; created_at: string; updated_at: string;
+  employee?: { full_name: string | null; avatar_url: string | null } | null;
+  reviewer?: { full_name: string | null; avatar_url: string | null } | null;
+}
+
+export async function getAppraisalCycles(orgId: string | null = activeOrgScope): Promise<AppraisalCycle[]> {
+  let q = sb.from('appraisal_cycles').select('*').order('created_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  const { data, error } = await q; if (error) throw error; return (data as AppraisalCycle[]) || [];
+}
+export async function createAppraisalCycle(p: { org_id: string; name: string; period_start?: string | null; period_end?: string | null; status?: AppraisalCycle['status'] }): Promise<AppraisalCycle> {
+  const { data, error } = await sb.from('appraisal_cycles')
+    .insert({ org_id: p.org_id, name: p.name, period_start: p.period_start || null, period_end: p.period_end || null, status: p.status || 'draft' })
+    .select('*').single();
+  if (error) throw error; return data as AppraisalCycle;
+}
+export async function updateAppraisalCycle(id: string, patch: Partial<Pick<AppraisalCycle, 'name' | 'period_start' | 'period_end' | 'status'>>): Promise<AppraisalCycle> {
+  const { data, error } = await sb.from('appraisal_cycles').update(patch).eq('id', id).select('*').single();
+  if (error) throw error; return data as AppraisalCycle;
+}
+export async function deleteAppraisalCycle(id: string): Promise<void> {
+  const { error } = await sb.from('appraisal_cycles').delete().eq('id', id); if (error) throw error;
+}
+
+const APPRAISAL_SEL = '*, employee:users!appraisals_employee_id_fkey(full_name, avatar_url), reviewer:users!appraisals_reviewer_id_fkey(full_name, avatar_url)';
+export async function getAppraisals(orgId: string | null = activeOrgScope, cycleId?: string | null): Promise<Appraisal[]> {
+  let q = sb.from('appraisals').select(APPRAISAL_SEL).order('created_at', { ascending: false });
+  if (orgId) q = q.eq('org_id', orgId);
+  if (cycleId) q = q.eq('cycle_id', cycleId);
+  const { data, error } = await q; if (error) throw error; return (data as Appraisal[]) || [];
+}
+export async function createAppraisal(p: { org_id: string; cycle_id: string; employee_id: string; reviewer_id?: string | null; status?: Appraisal['status']; overall_rating?: number | null; summary?: string | null }): Promise<Appraisal> {
+  const { data, error } = await sb.from('appraisals')
+    .insert({ org_id: p.org_id, cycle_id: p.cycle_id, employee_id: p.employee_id, reviewer_id: p.reviewer_id || null, status: p.status || 'pending', overall_rating: p.overall_rating ?? null, summary: p.summary || null })
+    .select(APPRAISAL_SEL).single();
+  if (error) throw error; return data as Appraisal;
+}
+export async function updateAppraisal(id: string, patch: Partial<Pick<Appraisal, 'status' | 'overall_rating' | 'summary' | 'reviewer_id'>> & { ratings?: Record<string, number> }): Promise<Appraisal> {
+  const { data, error } = await sb.from('appraisals').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).select(APPRAISAL_SEL).single();
+  if (error) throw error; return data as Appraisal;
+}
+export async function deleteAppraisal(id: string): Promise<void> {
+  const { error } = await sb.from('appraisals').delete().eq('id', id); if (error) throw error;
 }
