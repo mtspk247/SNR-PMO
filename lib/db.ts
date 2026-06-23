@@ -141,6 +141,14 @@ export async function setOrgTheme(orgId: string, skin: string): Promise<{ id: st
   if (error) throw new Error(error.message);
   return data as { id: string; theme_skin: string | null };
 }
+
+// Modular self-select: owner/admin turns a module on/off for THIS workspace (writes
+// org_feature_overrides). Enabling is server-gated to plan-granted features (never
+// escalates past billing); disabling is always allowed + reversible.
+export async function setOrgModule(orgId: string, feature: string, enabled: boolean): Promise<void> {
+  const { error } = await sb.rpc('org_set_module', { p_org: orgId, p_feature: feature, p_enabled: enabled });
+  if (error) throw new Error(error.message);
+}
 // Tenant toggle: let members pick their own skin (ungated column; owner/admin via org_update RLS).
 export async function setOrgAllowUserThemes(orgId: string, allow: boolean): Promise<void> {
   const { error } = await sb.from('organizations').update({ allow_user_themes: allow }).eq('id', orgId);

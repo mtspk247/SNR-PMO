@@ -125,6 +125,19 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'modules',
+    title: 'Modules (turn features on/off)',
+    icon: 'ti-apps',
+    blocks: [
+      { kind: 'p', text: 'SNR-PMO is modular — you choose which parts your workspace uses. Open Settings \u25b8 Modules to switch modules such as CRM, HR, Accounting, Time tracking, Support or the Client portal on or off for the whole workspace.' },
+      { kind: 'steps', items: [
+        { title: 'Turn a module off', body: 'Flip its toggle off. It disappears from the sidebar, search and menus for everyone in the workspace. Nothing is deleted — the data is only hidden — so you can switch the module back on any time and find everything exactly where you left it.' },
+        { title: 'Turn a module on', body: 'Flip its toggle on. You can enable any module your current plan includes. A greyed module with a lock and \u201cUpgrade to enable\u201d is not in your plan yet — enabling it requires an upgrade (Settings \u25b8 Billing). This keeps modules and billing in sync.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-check', text: 'Only an owner or admin can change modules, and self-select can never exceed your plan — it lets you simplify your workspace, not bypass billing. Core modules ask for confirmation before being hidden.' },
+    ],
+  },
+  {
     id: 'templates',
     title: 'Document templates',
     icon: 'ti-files',

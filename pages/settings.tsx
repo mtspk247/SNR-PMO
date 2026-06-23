@@ -2,9 +2,11 @@ import { titleCase } from '@/lib/format';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, Icon, Tabs, HelpHint } from '@/components/ui';
 import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
-import { getOrgProfile, saveOrgProfile } from '@/lib/db';
+import { getOrgProfile, saveOrgProfile, setOrgModule, getOrgFeatures, getOrgPlanFeatures } from '@/lib/db';
+import { FEATURES, MyOrg } from '@/lib/supabase';
+import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
 import OrgProfileForm from '@/components/OrgProfileForm';
@@ -211,15 +213,65 @@ function WipeWorkspace({ org }: { org: { id: string; name: string } }) {
   );
 }
 
+const CORE_MODULES = new Set(['projects']);
+const featureLabel = (key: string) => FEATURES.find((f) => f.key === key)?.label || key;
+
+function ModulesPanel({ org }: { org: MyOrg }) {
+  const patchOrg = useAuthStore((s) => s.patchOrg);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const eff = new Set(org.features || []);
+  const plan = new Set(org.planFeatures || []);
+  const toggle = async (key: string, on: boolean) => {
+    if (!on && CORE_MODULES.has(key) && typeof window !== 'undefined' && !window.confirm(`Hide ${featureLabel(key)}? Members won't see it until you re-enable it — your data is kept.`)) return;
+    setBusy(key); setMsg('');
+    try {
+      await setOrgModule(org.id, key, on);
+      const [features, planFeatures] = await Promise.all([getOrgFeatures(org.id), getOrgPlanFeatures(org.id)]);
+      patchOrg({ id: org.id, features, planFeatures });
+      setMsg(`${featureLabel(key)} ${on ? 'enabled' : 'hidden'}.`);
+    } catch (e: any) { setMsg(e?.message || 'Could not update the module.'); }
+    finally { setBusy(null); }
+  };
+  return (
+    <div className="max-w-3xl">
+      <div className="card p-5">
+        <h3 className="text-sm font-semibold text-content inline-flex items-center gap-2"><Icon name="ti-apps" className="text-muted2" />Modules<HelpHint anchor="modules" /></h3>
+        <p className="text-2xs text-muted mt-1 max-w-2xl">Choose which modules this workspace uses. Turning one off hides it everywhere (your data is kept — re-enable anytime). You can enable any module your plan includes; greyed ones need a plan upgrade.</p>
+        <div className="mt-4 grid sm:grid-cols-2 gap-2">
+          {FEATURES.map((f) => {
+            const inPlan = plan.has(f.key); const on = eff.has(f.key);
+            return (
+              <div key={f.key} className={`flex items-center justify-between gap-3 rounded-lg border border-line p-3 ${inPlan ? '' : 'opacity-60'}`}>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-content truncate">{f.label}</span>
+                  {!inPlan && <span className="block text-2xs text-amber-600">Upgrade to enable</span>}
+                </span>
+                {inPlan ? (
+                  <button type="button" disabled={busy === f.key} onClick={() => toggle(f.key, !on)} aria-pressed={on} title={on ? 'On' : 'Off'}
+                    className={`relative h-5 w-9 rounded-full transition shrink-0 ${on ? 'bg-accent' : 'bg-surface2 border border-line'} ${busy === f.key ? 'opacity-50' : ''}`}>
+                    <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[1.15rem]' : 'left-0.5'}`} />
+                  </button>
+                ) : <Icon name="ti-lock" className="text-muted2 shrink-0" />}
+              </div>
+            );
+          })}
+        </div>
+        {msg && <p className="text-2xs text-muted mt-3">{msg}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
   const meUser = useAuthStore((s) => s.user);
-  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger' | 'demo'>('business');
+  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger' | 'demo' | 'modules'>('business');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'lists', 'audit', 'danger', 'demo'].includes(t)) setTab(t as any); } }, [router.query.tab]);
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'lists', 'audit', 'danger', 'demo', 'modules'].includes(t)) setTab(t as any); } }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -344,6 +396,7 @@ export default function SettingsPage() {
           { key: 'business', label: 'Profile', icon: 'ti-id-badge-2' },
           { key: 'branding', label: 'Brand', icon: 'ti-palette' },
           { key: 'themes', label: 'Themes', icon: 'ti-color-swatch' },
+          { key: 'modules', label: 'Modules', icon: 'ti-apps' },
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
           { key: 'lists', label: 'Lists & options', icon: 'ti-list-details' },
           { key: 'audit', label: 'Audit log', icon: 'ti-history' },
@@ -367,6 +420,8 @@ export default function SettingsPage() {
       {admin && tab === 'lists' && org && (
         <div className="max-w-5xl"><ListsManager /></div>
       )}
+
+      {admin && tab === 'modules' && org && <ModulesPanel org={org} />}
 
       {admin && tab === 'demo' && org && (
         <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />
