@@ -14,7 +14,7 @@ import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR, AGENT_TOOLS
 import { executorFor, canAutoExecute } from '@/lib/agentExecutors';
 import { toast } from '@/lib/toast';
 import {
-  listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool,
+  listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
   listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost,
   listAgentActions, recordAgentExecution, autoApproveAgentAction,
   AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost,
@@ -46,6 +46,7 @@ export default function AgentsPage() {
   const [limits, setLimits] = useState<AgentCostLimit[]>([]);
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft; initial: string } | null>(null);
   const [grants, setGrants] = useState<Set<string>>(new Set());
+  const [seeding, setSeeding] = useState(false);
   const [runReq, setRunReq] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -112,6 +113,13 @@ export default function AgentsPage() {
     setGrants((p) => { const n = new Set(p); has ? n.delete(toolKey) : n.add(toolKey); return n; });
     try { has ? await revokeAgentTool(editor.draft.id, toolKey) : await grantAgentTool(editor.draft.id, org.id, toolKey); }
     catch (e: any) { setErr(e.message); setGrants((p) => { const n = new Set(p); has ? n.add(toolKey) : n.delete(toolKey); return n; }); }
+  };
+
+  const addStarters = async () => {
+    if (!org || !me || seeding) return;
+    setSeeding(true); setErr('');
+    try { const n = await seedStarterAgents(org.id, me.id); toast(n > 0 ? ('Added ' + n + ' starter agent' + (n === 1 ? '' : 's')) : 'Starter agents already added', n > 0 ? 'success' : 'info'); load(); }
+    catch (e: any) { setErr(e.message); } finally { setSeeding(false); }
   };
 
   // Phase 3.5: after a run proposes, auto-execute the low-risk reversible actions of an
@@ -202,6 +210,16 @@ export default function AgentsPage() {
           </div>
         </div>
       </div>
+
+      {agents && agents.length === 0 && canManage && (
+        <div className="card p-5 mb-4 flex flex-wrap items-center justify-between gap-3 border border-dashed border-line">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Icon name="ti-sparkles" className="text-accent" />Start with a ready-made agent team</h3>
+            <p className="text-2xs text-muted mt-0.5 max-w-2xl">Provision five back-office agents — Task Assistant, Onboarding Helper, Expense Categorizer, Support Triage and Pipeline Mover — pre-wired with the right tools. Try one instantly with &ldquo;Generate sample proposal&rdquo;; nothing runs until you ask.</p>
+          </div>
+          <button className="btn btn-primary whitespace-nowrap" disabled={seeding} onClick={addStarters}><Icon name="ti-wand" />{seeding ? 'Adding…' : 'Add starter agents'}</button>
+        </div>
+      )}
 
       <ListView
         rows={agents === null ? null : shown}

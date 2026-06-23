@@ -69,3 +69,14 @@ export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; r
     { tool: 'summarize_project', summary: 'Summarize this week of activity across active projects', risk: 'low', payload: {} },
   ],
 };
+
+// Phase 3.5+ activation: a curated starter pack so a new workspace experiences agents
+// immediately. Provisioned via db.seedStarterAgents through the normal RLS-safe paths;
+// nothing runs until the user triggers a run (sample or proposer).
+export const STARTER_AGENTS: { name: string; domain: AgentDomainKey; autonomy: string; description: string; tools: string[] }[] = [
+  { name: 'Task Assistant', domain: 'tasks', autonomy: 'auto_low_risk', description: 'Creates and triages tasks from requests. Low-risk, reversible actions run automatically.', tools: ['create_task', 'triage_task', 'summarize_project'] },
+  { name: 'Onboarding Helper', domain: 'hr', autonomy: 'auto_low_risk', description: 'Drafts a week-1 onboarding checklist for a new hire.', tools: ['draft_onboarding', 'create_task'] },
+  { name: 'Expense Categorizer', domain: 'accounting', autonomy: 'approve_first', description: 'Suggests categories for uncategorized expenses and drafts journal entries. Financial — you approve each one.', tools: ['categorize_expense', 'draft_journal_entry'] },
+  { name: 'Support Triage', domain: 'support', autonomy: 'approve_first', description: 'Suggests an assignee and priority for new tickets, and drafts replies for review.', tools: ['triage_ticket', 'draft_reply'] },
+  { name: 'Pipeline Mover', domain: 'crm', autonomy: 'approve_first', description: 'Proposes deal-stage moves and drafts client follow-ups.', tools: ['update_deal_stage', 'draft_followup'] },
+];

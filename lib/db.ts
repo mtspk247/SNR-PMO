@@ -1,6 +1,6 @@
 import { sb, activeOrgScope, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES } from './supabase';
 import { buildDemoPayload } from './demoSeed';
-import { SAMPLE_PROPOSALS } from './agents';
+import { SAMPLE_PROPOSALS, STARTER_AGENTS } from './agents';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -3166,6 +3166,31 @@ export async function createAgent(row: { org_id: string; name: string; domain: A
   const { error } = await sb.from('agent_definitions').insert(row);
   if (error) throw new Error(error.message);
   return listAgents(row.org_id);
+}
+
+// Activation: provision the curated STARTER_AGENTS pack. Idempotent (skips any whose
+// name already exists). Uses the same RLS-safe wrappers a human uses, so it only works
+// for a user who can manage agents. Returns the number of agents created.
+export async function seedStarterAgents(orgId: string, userId: string): Promise<number> {
+  const existing = await listAgents(orgId);
+  const have = new Set(existing.map((a) => a.name.trim().toLowerCase()));
+  let created = 0;
+  for (const sa of STARTER_AGENTS) {
+    if (have.has(sa.name.toLowerCase())) continue;
+    const list = await createAgent({ org_id: orgId, name: sa.name, domain: sa.domain as AgentDomain, description: sa.description, autonomy_level: sa.autonomy as AgentAutonomy, created_by: userId });
+    const made = list.find((a) => a.name.trim().toLowerCase() === sa.name.toLowerCase());
+    if (!made) continue;
+    for (const tool of sa.tools) { try { await grantAgentTool(made.id, orgId, tool); } catch { /* ignore dup grant */ } }
+    created++;
+  }
+  // Set a sensible starter ceiling only if the org has no org-wide day limit yet.
+  try {
+    const limits = await listAgentCostLimits(orgId);
+    if (!limits.some((l) => l.agent_id === null && l.period === 'day')) {
+      await setAgentCostLimit({ org_id: orgId, agent_id: null, period: 'day', max_runs: 50, enabled: true });
+    }
+  } catch { /* non-fatal */ }
+  return created;
 }
 export async function updateAgent(id: string, patch: Partial<AgentDefinition>): Promise<void> {
   const { error } = await sb.from('agent_definitions').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
