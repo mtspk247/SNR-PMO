@@ -3,9 +3,9 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
-import { toolByKey } from './agents';
+import { toolByKey, AGENT_TOOLS } from './agents';
 
 export type ExecCtx = { orgId: string; userId: string };
 export type ExecResult = { target_table: string; target_id: string | null; result?: any; reversal?: any; prior_state?: any };
@@ -146,33 +146,90 @@ export function canAutoExecute(autonomyLevel: string | undefined, a: AgentAction
 // allowed, it returns a hint and creates nothing. (Auto-run/override + NL 'prompt'
 // commands arrive in Slice 2.)
 // ---------------------------------------------------------------------------
-export type ChatCommandResult = { status: 'queued' | 'hint'; note: string };
+export type ChatCommandResult = { status: 'queued' | 'executed' | 'hint'; note: string };
+
+// Auto-run is allowed ONLY for low-risk, reversible, non-financial tool actions.
+export function chatAutoEligible(toolKey: string): boolean {
+  const t = toolByKey(toolKey);
+  return !!t && t.risk === 'low' && t.reversible === true && !t.noAuto && !!EXECUTORS[toolKey];
+}
 
 export async function dispatchChatCommand(
-  cmd: ChatCommand, args: string, ctx: { orgId: string; canManage: boolean; projectId: string | null },
+  cmd: ChatCommand, args: string,
+  ctx: { orgId: string; userId: string; canManage: boolean; canApprove: boolean; projectId: string | null; brand?: string },
 ): Promise<ChatCommandResult> {
-  if (cmd.kind !== 'tool' || !cmd.tool_key) {
-    return { status: 'hint', note: `"#${cmd.keyword}" is a custom-instruction command — that needs the AI proposer (coming soon).` };
+  // Resolve an enabled agent for this command's domain (prefer the same domain).
+  const pickAgent = async (needTool?: string): Promise<AgentDefinition | null> => {
+    let agents: AgentDefinition[] = [];
+    try { agents = (await listAgents(ctx.orgId)).filter((a) => a.enabled); } catch { return null; }
+    const ordered = [...agents.filter((a) => a.domain === cmd.domain), ...agents.filter((a) => a.domain !== cmd.domain)];
+    if (!needTool) return ordered[0] || null;
+    for (const a of ordered) {
+      try { const tools = await listAgentTools(a.id); if (tools.some((t) => t.tool_key === needTool)) return a; } catch { /* next */ }
+    }
+    return null;
+  };
+
+  // ----- Custom natural-language command (kind='prompt') -> LLM proposer -----
+  // The proposer is manage-gated and its output varies, so prompt commands are
+  // manager-only and ALWAYS go to approval (never auto).
+  if (cmd.kind === 'prompt') {
+    if (!ctx.canManage) return { status: 'hint', note: `"#${cmd.keyword}" runs an AI agent and is limited to agent managers.` };
+    const agent = await pickAgent();
+    if (!agent) return { status: 'hint', note: `No enabled agent to run "#${cmd.keyword}". Create one on the Agents page.` };
+    let granted: string[] = [];
+    try { granted = (await listAgentTools(agent.id)).map((t) => t.tool_key); } catch { /* none */ }
+    const tools = AGENT_TOOLS.filter((t) => granted.includes(t.key)).map((t) => ({ key: t.key, label: t.label, description: t.description, risk: t.risk, reversible: t.reversible }));
+    if (tools.length === 0) return { status: 'hint', note: `The agent for "#${cmd.keyword}" has no tools granted yet - add some on the Agents page.` };
+    const request = `${cmd.instruction || cmd.label}${args ? `: ${args}` : ''}`.slice(0, 1000);
+    let res: { configured?: boolean; proposed?: number; error?: string };
+    try { res = await runAgentProposer({ orgId: ctx.orgId, agentId: agent.id, request, tools, brand: ctx.brand || '' }); }
+    catch (e: any) { return { status: 'hint', note: e?.message || 'Could not run the command.' }; }
+    if (res.configured === false) return { status: 'hint', note: 'No AI key connected yet - set one under Console > AI assistant to use natural-language commands.' };
+    if (res.error) return { status: 'hint', note: `Could not run that: ${res.error}` };
+    if ((res.proposed || 0) > 0) return { status: 'queued', note: `Proposed ${res.proposed} action${res.proposed === 1 ? '' : 's'} for "#${cmd.keyword}" - review in Agent Approvals.` };
+    return { status: 'hint', note: `"#${cmd.keyword}" did not produce any actions for that input.` };
   }
-  if (cmd.who_can_use === 'managers' && !ctx.canManage) {
-    return { status: 'hint', note: `"#${cmd.keyword}" is restricted to agent managers.` };
-  }
+
+  // ----- Deterministic tool command (kind='tool') -----
+  if (!cmd.tool_key) return { status: 'hint', note: `"#${cmd.keyword}" is not fully configured.` };
+  if (cmd.who_can_use === 'managers' && !ctx.canManage) return { status: 'hint', note: `"#${cmd.keyword}" is restricted to agent managers.` };
   const built = buildToolPayload(cmd.tool_key, args, ctx.projectId);
   if ('error' in built) return { status: 'hint', note: built.error };
+  const agent = await pickAgent(cmd.tool_key);
+  if (!agent) return { status: 'hint', note: `No agent is set up to run "#${cmd.keyword}". Add the ${cmd.tool_key} tool to an enabled agent on the Agents page.` };
 
-  let agents: AgentDefinition[] = [];
-  try { agents = (await listAgents(ctx.orgId)).filter((a) => a.enabled); } catch { /* none */ }
-  const ordered = [...agents.filter((a) => a.domain === cmd.domain), ...agents.filter((a) => a.domain !== cmd.domain)];
-  let agentId: string | null = null;
-  for (const a of ordered) {
-    try { const tools = await listAgentTools(a.id); if (tools.some((t) => t.tool_key === cmd.tool_key)) { agentId = a.id; break; } } catch { /* try next */ }
-  }
-  if (!agentId) return { status: 'hint', note: `No agent is set up to run "#${cmd.keyword}". Add the ${cmd.tool_key} tool to an enabled agent on the Agents page.` };
-
-  await requestChatCommandAction({
-    orgId: ctx.orgId, agentId, toolKey: cmd.tool_key, domain: cmd.domain,
+  // Always create a PROPOSED action first (member-safe; approval-gated).
+  const actionId = await requestChatCommandAction({
+    orgId: ctx.orgId, agentId: agent.id, toolKey: cmd.tool_key, domain: cmd.domain,
     summary: built.summary, payload: built.payload, risk: built.risk, reversible: built.reversible,
     requireManage: cmd.who_can_use === 'managers',
   });
-  return { status: 'queued', note: `Queued for approval: ${built.summary} — review it in Agent Approvals.` };
+
+  // Admin auto-override: skip the human approval click ONLY for an auto-eligible
+  // (low-risk, reversible, non-financial) action AND only when the caller can
+  // approve. This is NOT a bypass: it records a real approval (decideAgentAction,
+  // approve-capped) then executes via the normal RLS-enforced executor, fully
+  // audited and one-click reversible. Anything else falls back to pending.
+  if (cmd.approval === 'auto' && chatAutoEligible(cmd.tool_key) && ctx.canApprove) {
+    const ex = executorFor(cmd.tool_key);
+    if (ex) {
+      try {
+        await decideAgentAction(actionId, 'approved', 'Auto-run (chat command policy)');
+        const a: AgentAction = {
+          id: actionId, org_id: ctx.orgId, run_id: null, agent_id: agent.id, tool_key: cmd.tool_key, domain: cmd.domain,
+          summary: built.summary, payload: built.payload, risk: built.risk, reversible: built.reversible, status: 'approved',
+          target_table: null, target_id: null, result: null, reversal: null, prior_state: null, proposed_at: '',
+          decided_by: null, decided_at: null, decision_note: null, executed_by: null, executed_at: null,
+          rolled_back_by: null, rolled_back_at: null, expires_at: null,
+        };
+        const r = await ex.execute(a, { orgId: ctx.orgId, userId: ctx.userId });
+        await recordAgentExecution(actionId, r.target_table, r.target_id, r.result, r.reversal, r.prior_state);
+        return { status: 'executed', note: `Done (auto-run, one-click reversible): ${built.summary}.` };
+      } catch {
+        return { status: 'queued', note: `Queued for approval: ${built.summary} (auto-run could not complete - review in Agent Approvals).` };
+      }
+    }
+  }
+  return { status: 'queued', note: `Queued for approval: ${built.summary} - review it in Agent Approvals.` };
 }

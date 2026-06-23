@@ -12,7 +12,7 @@ import { GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR, AGENT_TOOLS } from '@/lib/agents';
 import { ChatCommand, CHAT_TOOLABLE } from '@/lib/chatCommands';
-import { executorFor, canAutoExecute } from '@/lib/agentExecutors';
+import { executorFor, canAutoExecute, chatAutoEligible } from '@/lib/agentExecutors';
 import { SCANNABLE_DOMAINS } from '@/lib/agentScanner';
 import { toast } from '@/lib/toast';
 import {
@@ -54,7 +54,7 @@ export default function AgentsPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [commands, setCommands] = useState<ChatCommand[]>([]);
-  const [cmdEditor, setCmdEditor] = useState<{ mode: 'add' | 'edit'; id?: string; kw: string; label: string; tool_key: string; who: 'members' | 'managers' } | null>(null);
+  const [cmdEditor, setCmdEditor] = useState<{ mode: 'add' | 'edit'; id?: string; kw: string; label: string; kind: 'tool' | 'prompt'; tool_key: string; instruction: string; domain: string; who: 'members' | 'managers'; approval: 'always' | 'auto' } | null>(null);
   const prefs = useListPrefs('snrpmo.agents.cols', COLS);
 
   const load = () => {
@@ -72,9 +72,12 @@ export default function AgentsPage() {
   const toggleCmd = async (c: ChatCommand) => { try { await updateChatCommand(c.id, { enabled: !c.enabled }); setCommands((cs) => cs.map((x) => x.id === c.id ? { ...x, enabled: !x.enabled } : x)); } catch (e: any) { setErr(e.message); } };
   const removeCmd = async (c: ChatCommand) => { if (!confirm(`Delete #${c.keyword}?`)) return; try { await deleteChatCommand(c.id); setCommands((cs) => cs.filter((x) => x.id !== c.id)); } catch (e: any) { setErr(e.message); } };
   const saveCmd = async () => { if (!org || !cmdEditor || busy) return; const kw = cmdEditor.kw.trim(); if (!kw || !cmdEditor.label.trim()) return; setBusy(true); setErr(''); try {
-    const dom = AGENT_TOOLS.find((t) => t.key === cmdEditor.tool_key)?.domain || 'general';
-    if (cmdEditor.mode === 'edit' && cmdEditor.id) await updateChatCommand(cmdEditor.id, { keyword: kw, label: cmdEditor.label.trim(), tool_key: cmdEditor.tool_key, domain: dom, who_can_use: cmdEditor.who });
-    else await createChatCommand({ org_id: org.id, keyword: kw, label: cmdEditor.label.trim(), kind: 'tool', tool_key: cmdEditor.tool_key, domain: dom, who_can_use: cmdEditor.who, created_by: me?.id });
+    const isPrompt = cmdEditor.kind === 'prompt';
+    const dom = isPrompt ? (cmdEditor.domain || 'general') : (AGENT_TOOLS.find((t) => t.key === cmdEditor.tool_key)?.domain || 'general');
+    const approval = (!isPrompt && cmdEditor.approval === 'auto' && chatAutoEligible(cmdEditor.tool_key)) ? 'auto' : 'always';
+    const row: any = { keyword: kw, label: cmdEditor.label.trim(), kind: cmdEditor.kind, tool_key: isPrompt ? null : cmdEditor.tool_key, instruction: isPrompt ? cmdEditor.instruction.trim() : null, domain: dom, who_can_use: cmdEditor.who, approval };
+    if (cmdEditor.mode === 'edit' && cmdEditor.id) await updateChatCommand(cmdEditor.id, row);
+    else await createChatCommand({ org_id: org.id, ...row, created_by: me?.id });
     setCmdEditor(null); listChatCommands(org.id).then(setCommands);
   } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
@@ -278,7 +281,7 @@ export default function AgentsPage() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {commands.length === 0 && <button className="btn btn-sm" disabled={busy} onClick={loadBuiltins}><Icon name="ti-download" />Load built-ins</button>}
-              <button className="btn btn-primary btn-sm" onClick={() => setCmdEditor({ mode: 'add', kw: '', label: '', tool_key: 'create_task', who: 'members' })}><Icon name="ti-plus" />Add command</button>
+              <button className="btn btn-primary btn-sm" onClick={() => setCmdEditor({ mode: 'add', kw: '', label: '', kind: 'tool', tool_key: 'create_task', instruction: '', domain: 'general', who: 'members', approval: 'always' })}><Icon name="ti-plus" />Add command</button>
             </div>
           </div>
           {commands.length === 0 ? (
@@ -288,8 +291,8 @@ export default function AgentsPage() {
               {commands.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 rounded-md border border-line px-3 py-2">
                   <code className="text-xs font-semibold text-accentstrong shrink-0">#{c.keyword}</code>
-                  <button className="text-sm text-content truncate min-w-0 text-left hover:text-accentstrong" onClick={() => setCmdEditor({ mode: 'edit', id: c.id, kw: c.keyword, label: c.label, tool_key: c.tool_key || 'create_task', who: c.who_can_use })}>{c.label}</button>
-                  <span className="text-2xs text-muted2 shrink-0 hidden sm:inline">{toolLabel(c.tool_key)} · {c.who_can_use}{c.is_builtin ? ' · built-in' : ''}</span>
+                  <button className="text-sm text-content truncate min-w-0 text-left hover:text-accentstrong" onClick={() => setCmdEditor({ mode: 'edit', id: c.id, kw: c.keyword, label: c.label, kind: c.kind, tool_key: c.tool_key || 'create_task', instruction: c.instruction || '', domain: c.domain || 'general', who: c.who_can_use, approval: c.approval })}>{c.label}</button>
+                  <span className="text-2xs text-muted2 shrink-0 hidden sm:inline">{c.kind === 'prompt' ? 'instruction' : toolLabel(c.tool_key)} · {c.who_can_use}{c.approval === 'auto' ? ' · auto-run' : ''}{c.is_builtin ? ' · built-in' : ''}</span>
                   <div className="ml-auto flex items-center gap-2 shrink-0">
                     <label className="flex items-center gap-1 text-2xs text-muted cursor-pointer"><input type="checkbox" className="accent-accent w-3.5 h-3.5" checked={c.enabled} onChange={() => toggleCmd(c)} />on</label>
                     {!c.is_builtin && <button className="text-muted2 hover:text-rose-500" title="Delete" onClick={() => removeCmd(c)}><Icon name="ti-trash" className="text-sm" /></button>}
@@ -366,9 +369,26 @@ export default function AgentsPage() {
           <div className="space-y-3">
             <Field label="Keyword (no #)" required><div className="flex items-center"><span className="text-muted2 mr-1">#</span><input className="input" value={cmdEditor.kw} onChange={(e) => setCmdEditor({ ...cmdEditor, kw: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} placeholder="task" /></div></Field>
             <Field label="Label" required><input className="input" value={cmdEditor.label} onChange={(e) => setCmdEditor({ ...cmdEditor, label: e.target.value })} placeholder="Create a task" /></Field>
-            <Field label="Action (what the agent does)"><Select value={cmdEditor.tool_key} onChange={(v) => setCmdEditor({ ...cmdEditor, tool_key: v })} options={CHAT_TOOLABLE.map((k) => ({ value: k, label: toolLabel(k) }))} /></Field>
+            <Field label="Type">
+              <Select value={cmdEditor.kind} onChange={(v) => setCmdEditor({ ...cmdEditor, kind: v as 'tool' | 'prompt', approval: 'always' })} options={[{ value: 'tool', label: 'Action — a specific task the agent runs' }, { value: 'prompt', label: 'Custom instruction — AI (needs a key)' }]} />
+            </Field>
+            {cmdEditor.kind === 'tool' ? (
+              <Field label="Action (what the agent does)"><Select value={cmdEditor.tool_key} onChange={(v) => setCmdEditor({ ...cmdEditor, tool_key: v, approval: chatAutoEligible(v) ? cmdEditor.approval : 'always' })} options={CHAT_TOOLABLE.map((k) => ({ value: k, label: toolLabel(k) }))} /></Field>
+            ) : (
+              <>
+                <Field label="Instruction (what to tell the agent)"><textarea className="input min-h-[64px] resize-y" value={cmdEditor.instruction} onChange={(e) => setCmdEditor({ ...cmdEditor, instruction: e.target.value })} placeholder="Summarize this week's activity and list any blockers" /></Field>
+                <Field label="Handled by"><Select value={cmdEditor.domain} onChange={(v) => setCmdEditor({ ...cmdEditor, domain: v })} options={AGENT_DOMAINS.map((d) => ({ value: d.key, label: d.label }))} /></Field>
+              </>
+            )}
             <Field label="Who can use"><Select value={cmdEditor.who} onChange={(v) => setCmdEditor({ ...cmdEditor, who: v as 'members' | 'managers' })} options={[{ value: 'members', label: 'Any member (always queued for approval)' }, { value: 'managers', label: 'Agent managers only' }]} /></Field>
-            <p className="text-2xs text-muted inline-flex items-center gap-1"><Icon name="ti-shield-check" className="text-emerald-600" />Approval-gated — it proposes an action for review and never bypasses approval.</p>
+            {cmdEditor.kind === 'tool' && (
+              <label className={'flex items-start gap-2 text-sm rounded-md border p-2.5 border-line ' + (chatAutoEligible(cmdEditor.tool_key) ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed')}>
+                <input type="checkbox" className="accent-accent w-4 h-4 mt-0.5" disabled={!chatAutoEligible(cmdEditor.tool_key)} checked={cmdEditor.approval === 'auto'} onChange={(e) => { if (e.target.checked) { if (!confirm('Auto-run skips the human approval click for this command. Only low-risk, reversible, non-financial actions are eligible; every run is still audited and one-click reversible; and only approvers trigger it. Enable auto-run?')) return; setCmdEditor({ ...cmdEditor, approval: 'auto' }); } else setCmdEditor({ ...cmdEditor, approval: 'always' }); }} />
+                <span><span className="text-content font-medium">Auto-run (skip approval)</span><span className="block text-2xs text-muted">{chatAutoEligible(cmdEditor.tool_key) ? 'Low-risk + reversible: runs immediately for approvers, audited and one-click reversible. Members still queue for approval.' : 'Not available: money / higher-risk actions always require approval.'}</span></span>
+              </label>
+            )}
+            {cmdEditor.kind === 'prompt' && <p className="text-2xs text-muted">Custom-instruction commands run the AI proposer (needs a key under Console \u25b8 AI assistant) and are limited to agent managers. They always propose for approval.</p>}
+            <p className="text-2xs text-muted inline-flex items-center gap-1"><Icon name="ti-shield-check" className="text-emerald-600" />Approval-gated by default. Auto-run only skips the click for low-risk, reversible actions, and stays audited and reversible.</p>
           </div>
         </Modal>
       )}

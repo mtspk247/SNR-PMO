@@ -77,6 +77,7 @@ export function ChatThread({ channel }: { channel: string | null }) {
   const endRef = useRef<HTMLDivElement>(null);
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
   const canManage = isAdmin || !!me?.can_manage_agents;
+  const canApprove = isAdmin || !!me?.can_approve_agent_actions;
 
   // autocomplete state: '@' (people) or '#' (tasks/projects)
   const [people, setPeople] = useState<{ id: string; full_name: string }[]>([]);
@@ -137,12 +138,13 @@ export function ChatThread({ channel }: { channel: string | null }) {
     if (cmd) {
       setBusy(true);
       try {
-        const res = await dispatchChatCommand(cmd, pc!.args, { orgId: org.id, canManage, projectId: channel });
-        if (res.status === 'queued') {
+        const res = await dispatchChatCommand(cmd, pc!.args, { orgId: org.id, userId: me.id, canManage, canApprove, projectId: channel, brand: (org as any).name || '' });
+        if (res.status === 'hint') { alert(res.note); }
+        else {
           const tmsg = await sendChatMessage({ org_id: org.id, project_id: channel, sender_id: me.id, body: res.note });
           qc.setQueryData<ChatMessage[]>(qk.chat(org.id, channel), (p) => [...(p || []), tmsg]);
           setDraft('');
-        } else { alert(res.note); }
+        }
       } catch (e: any) { alert(e?.message || 'Command failed'); }
       finally { setBusy(false); }
       return;
