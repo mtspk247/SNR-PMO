@@ -104,7 +104,16 @@ export default function Layout({ title, children, flat = false }: { title: strin
   // Close the drawer whenever the route changes (mobile nav tap).
   useEffect(() => { setMobileOpen(false); }, [router.pathname]);
   const navRef = useRef<HTMLElement>(null);
-  useEffect(() => { const el = navRef.current; if (!el) return; try { const y = sessionStorage.getItem('snr.nav.scroll'); if (y != null) el.scrollTop = Number(y) || 0; } catch { /* ignore */ } }, []);
+  useEffect(() => {
+    // Layout remounts per page + the accordion re-expands the active menu after the
+    // first render, so restore scroll AFTER layout settles by scrolling the active
+    // item into view (robust to the height change). Double rAF = post-commit.
+    const t = requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = navRef.current?.querySelector('[data-nav-active="true"]') as HTMLElement | null;
+      el?.scrollIntoView({ block: 'nearest' });
+    }));
+    return () => cancelAnimationFrame(t);
+  }, []);
 
   // Auth guard straight from the Supabase session (avoids store-timing flicker).
   useEffect(() => {
@@ -134,7 +143,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
     const active = exact ? router.pathname === href : isActive(href);
     const locked = isUpsellLocked(activeOrg, feature);
     return (
-      <Link href={href} title={collapsed ? label : undefined}
+      <Link href={href} title={collapsed ? label : undefined} data-nav-active={active ? 'true' : undefined}
         className={`sb-item ${active ? 'sb-item-active' : ''} ${collapsed ? 'justify-center px-0' : ''} ${sub && !collapsed ? 'py-1.5' : ''}`}>
         <Icon name={icon} className={`shrink-0 ${sub && !collapsed ? 'text-sm' : 'text-base'}`} />
         {!collapsed && <span className="truncate flex-1">{label}</span>}
@@ -215,7 +224,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
 
 
         {/* Categorized nav: top-level links + accordion menus (flat icon rail when collapsed) */}
-        <nav ref={navRef} onScroll={(e) => { try { sessionStorage.setItem('snr.nav.scroll', String((e.currentTarget as HTMLElement).scrollTop)); } catch { /* ignore */ } }} className="flex-1 p-2 space-y-1 overflow-y-auto">
+        <nav ref={navRef} className="flex-1 p-2 space-y-1 overflow-y-auto">
           {sections.map((s, idx) => {
             if (collapsed) {
               // Collapsed: every leaf as an icon, thin divider between sections.
