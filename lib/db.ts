@@ -3356,6 +3356,39 @@ export async function runWorkScan(orgId: string, agent: { id: string; domain: st
   await sb.rpc('agent_finish_run', { p_run: runId as string, p_status: 'awaiting_approval', p_tokens: 0, p_usd: 0, p_error: null });
   return { runId: runId as string, count: proposals.length };
 }
+
+import { ChatCommand } from './chatCommands';
+
+// ---- Chat Commands registry (data-driven #keyword commands) ----
+// RLS: non-guest members read; agent-managers create/edit/delete.
+export async function listChatCommands(orgId: string): Promise<ChatCommand[]> {
+  const { data, error } = await sb.from('agent_chat_commands').select('*').eq('org_id', orgId).order('keyword');
+  if (error) throw new Error(error.message); return (data as ChatCommand[]) || [];
+}
+export async function seedBuiltinChatCommands(orgId: string): Promise<number> {
+  const { data, error } = await sb.rpc('seed_builtin_chat_commands', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as number) || 0;
+}
+export async function createChatCommand(row: { org_id: string; keyword: string; label: string; description?: string | null; kind?: string; tool_key?: string | null; domain?: string; instruction?: string | null; who_can_use?: string; approval?: string; enabled?: boolean; created_by?: string | null }): Promise<void> {
+  const { error } = await sb.from('agent_chat_commands').insert(row);
+  if (error) throw new Error(error.message);
+}
+export async function updateChatCommand(id: string, patch: Partial<ChatCommand>): Promise<void> {
+  const { error } = await sb.from('agent_chat_commands').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteChatCommand(id: string): Promise<void> {
+  const { error } = await sb.from('agent_chat_commands').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+// Member-safe dispatch: creates ONE proposed action (approval-gated; never executes/auto).
+export async function requestChatCommandAction(p: { orgId: string; agentId: string; toolKey: string; domain: string; summary: string; payload: any; risk: string; reversible: boolean; requireManage: boolean }): Promise<string> {
+  const { data, error } = await sb.rpc('agent_request_command_action', {
+    p_org: p.orgId, p_agent: p.agentId, p_tool: p.toolKey, p_domain: p.domain, p_summary: p.summary,
+    p_payload: p.payload ?? {}, p_risk: p.risk ?? 'low', p_reversible: p.reversible ?? true, p_require_manage: p.requireManage ?? false,
+  });
+  if (error) throw new Error(error.message); return data as string;
+}
 // Domain executor calls this AFTER performing the real (RLS-enforced) write, to
 // record target + reversal so the action becomes executed + rollback-able.
 export async function recordAgentExecution(actionId: string, targetTable: string, targetId: string | null, result?: any, reversal?: any, priorState?: any): Promise<void> {

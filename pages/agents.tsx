@@ -11,6 +11,7 @@ import { useRowSelection } from '@/components/RowSelection';
 import { GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR, AGENT_TOOLS } from '@/lib/agents';
+import { ChatCommand, CHAT_TOOLABLE } from '@/lib/chatCommands';
 import { executorFor, canAutoExecute } from '@/lib/agentExecutors';
 import { SCANNABLE_DOMAINS } from '@/lib/agentScanner';
 import { toast } from '@/lib/toast';
@@ -18,6 +19,7 @@ import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
   listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, runWorkScan,
   listAgentActions, recordAgentExecution, autoApproveAgentAction,
+  listChatCommands, createChatCommand, updateChatCommand, deleteChatCommand, seedBuiltinChatCommands,
   AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost,
 } from '@/lib/db';
 
@@ -51,6 +53,8 @@ export default function AgentsPage() {
   const [runReq, setRunReq] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [commands, setCommands] = useState<ChatCommand[]>([]);
+  const [cmdEditor, setCmdEditor] = useState<{ mode: 'add' | 'edit'; id?: string; kw: string; label: string; tool_key: string; who: 'members' | 'managers' } | null>(null);
   const prefs = useListPrefs('snrpmo.agents.cols', COLS);
 
   const load = () => {
@@ -59,8 +63,20 @@ export default function AgentsPage() {
     listAgentUsage(org.id).then(setUsage).catch(() => {});
     agentUsageCost(org.id).then(setCost).catch(() => {});
     listAgentCostLimits(org.id).then(setLimits).catch(() => {});
+    listChatCommands(org.id).then(setCommands).catch(() => {});
   };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
+
+  const toolLabel = (k: string | null) => AGENT_TOOLS.find((t) => t.key === k)?.label || k || '—';
+  const loadBuiltins = async () => { if (!org) return; setBusy(true); setErr(''); try { await seedBuiltinChatCommands(org.id); listChatCommands(org.id).then(setCommands); toast('Built-in commands added', 'success'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const toggleCmd = async (c: ChatCommand) => { try { await updateChatCommand(c.id, { enabled: !c.enabled }); setCommands((cs) => cs.map((x) => x.id === c.id ? { ...x, enabled: !x.enabled } : x)); } catch (e: any) { setErr(e.message); } };
+  const removeCmd = async (c: ChatCommand) => { if (!confirm(`Delete #${c.keyword}?`)) return; try { await deleteChatCommand(c.id); setCommands((cs) => cs.filter((x) => x.id !== c.id)); } catch (e: any) { setErr(e.message); } };
+  const saveCmd = async () => { if (!org || !cmdEditor || busy) return; const kw = cmdEditor.kw.trim(); if (!kw || !cmdEditor.label.trim()) return; setBusy(true); setErr(''); try {
+    const dom = AGENT_TOOLS.find((t) => t.key === cmdEditor.tool_key)?.domain || 'general';
+    if (cmdEditor.mode === 'edit' && cmdEditor.id) await updateChatCommand(cmdEditor.id, { keyword: kw, label: cmdEditor.label.trim(), tool_key: cmdEditor.tool_key, domain: dom, who_can_use: cmdEditor.who });
+    else await createChatCommand({ org_id: org.id, keyword: kw, label: cmdEditor.label.trim(), kind: 'tool', tool_key: cmdEditor.tool_key, domain: dom, who_can_use: cmdEditor.who, created_by: me?.id });
+    setCmdEditor(null); listChatCommands(org.id).then(setCommands);
+  } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
   const runsThisMonth = (agentId: string) =>
     usage.find((u) => u.agent_id === agentId && u.period_kind === 'month')?.runs ?? 0;
@@ -253,6 +269,38 @@ export default function AgentsPage() {
         emptyText="No agents yet. Create one to get started."
       />
 
+      {canManage && (
+        <div className="card p-5 mt-5">
+          <div className="flex items-center justify-between mb-3 gap-3">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-slash" className="text-muted2" />Chat commands</h3>
+              <p className="text-2xs text-muted mt-0.5 max-w-2xl">Type <code className="text-accentstrong">#keyword</code> in chat and an agent acts on it. Every command is <b>approval-gated</b> — it proposes an action for review (Auto low-risk agents run it; otherwise it queues in Agent Approvals). Members can use member-commands (always queued); managers configure them here.</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {commands.length === 0 && <button className="btn btn-sm" disabled={busy} onClick={loadBuiltins}><Icon name="ti-download" />Load built-ins</button>}
+              <button className="btn btn-primary btn-sm" onClick={() => setCmdEditor({ mode: 'add', kw: '', label: '', tool_key: 'create_task', who: 'members' })}><Icon name="ti-plus" />Add command</button>
+            </div>
+          </div>
+          {commands.length === 0 ? (
+            <p className="text-2xs text-muted">No commands yet — load the built-ins (#task, #onboard, #expense) or add your own.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {commands.map((c) => (
+                <div key={c.id} className="flex items-center gap-3 rounded-md border border-line px-3 py-2">
+                  <code className="text-xs font-semibold text-accentstrong shrink-0">#{c.keyword}</code>
+                  <button className="text-sm text-content truncate min-w-0 text-left hover:text-accentstrong" onClick={() => setCmdEditor({ mode: 'edit', id: c.id, kw: c.keyword, label: c.label, tool_key: c.tool_key || 'create_task', who: c.who_can_use })}>{c.label}</button>
+                  <span className="text-2xs text-muted2 shrink-0 hidden sm:inline">{toolLabel(c.tool_key)} · {c.who_can_use}{c.is_builtin ? ' · built-in' : ''}</span>
+                  <div className="ml-auto flex items-center gap-2 shrink-0">
+                    <label className="flex items-center gap-1 text-2xs text-muted cursor-pointer"><input type="checkbox" className="accent-accent w-3.5 h-3.5" checked={c.enabled} onChange={() => toggleCmd(c)} />on</label>
+                    {!c.is_builtin && <button className="text-muted2 hover:text-rose-500" title="Delete" onClick={() => removeCmd(c)}><Icon name="ti-trash" className="text-sm" /></button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {editor && (
         <Modal open onClose={() => setEditor(null)} dirty={JSON.stringify({ ...editor.draft }) !== editor.initial && editor.mode === 'add'} size="lg" icon="ti-robot"
           title={editor.mode === 'edit' ? 'Edit agent' : 'New agent'} onSubmit={save}
@@ -309,6 +357,19 @@ export default function AgentsPage() {
           ) : (
             <p className="mt-3 text-2xs text-muted">Save the agent first, then re-open it to grant tools and generate a sample proposal.</p>
           )}
+        </Modal>
+      )}
+
+      {cmdEditor && (
+        <Modal open onClose={() => setCmdEditor(null)} size="sm" icon="ti-slash" title={cmdEditor.mode === 'add' ? 'Add chat command' : 'Edit chat command'} onSubmit={saveCmd}
+          footer={<><button className="btn" onClick={() => setCmdEditor(null)}>Cancel</button><button className="btn btn-primary" disabled={busy || !cmdEditor.kw.trim() || !cmdEditor.label.trim()} onClick={saveCmd}>{busy ? 'Saving…' : 'Save'}</button></>}>
+          <div className="space-y-3">
+            <Field label="Keyword (no #)" required><div className="flex items-center"><span className="text-muted2 mr-1">#</span><input className="input" value={cmdEditor.kw} onChange={(e) => setCmdEditor({ ...cmdEditor, kw: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} placeholder="task" /></div></Field>
+            <Field label="Label" required><input className="input" value={cmdEditor.label} onChange={(e) => setCmdEditor({ ...cmdEditor, label: e.target.value })} placeholder="Create a task" /></Field>
+            <Field label="Action (what the agent does)"><Select value={cmdEditor.tool_key} onChange={(v) => setCmdEditor({ ...cmdEditor, tool_key: v })} options={CHAT_TOOLABLE.map((k) => ({ value: k, label: toolLabel(k) }))} /></Field>
+            <Field label="Who can use"><Select value={cmdEditor.who} onChange={(v) => setCmdEditor({ ...cmdEditor, who: v as 'members' | 'managers' })} options={[{ value: 'members', label: 'Any member (always queued for approval)' }, { value: 'managers', label: 'Agent managers only' }]} /></Field>
+            <p className="text-2xs text-muted inline-flex items-center gap-1"><Icon name="ti-shield-check" className="text-emerald-600" />Approval-gated — it proposes an action for review and never bypasses approval.</p>
+          </div>
         </Modal>
       )}
 

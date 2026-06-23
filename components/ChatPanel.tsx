@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon, Spinner, Avatar, EmptyState } from '@/components/ui';
 import { useChatMessages, useProjects, useTeams } from '@/lib/queries';
-import { sendChatMessage, deleteChatMessage, getOrgUsers, getTasks, notify, createReminder } from '@/lib/db';
+import { sendChatMessage, deleteChatMessage, getOrgUsers, getTasks, notify, createReminder, listChatCommands } from '@/lib/db';
+import { dispatchChatCommand } from '@/lib/agentExecutors';
+import { parseCommandLine, ChatCommand } from '@/lib/chatCommands';
 import { qk } from '@/lib/queryKeys';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { ChatMessage } from '@/lib/supabase';
@@ -70,16 +72,18 @@ export function ChatThread({ channel }: { channel: string | null }) {
   const qc = useQueryClient();
   const { data: messages = [], isLoading } = useChatMessages(channel);
   const [draft, setDraft] = useState('');
+  const [commands, setCommands] = useState<ChatCommand[]>([]);
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const canManage = isAdmin || !!me?.can_manage_agents;
 
   // autocomplete state: '@' (people) or '#' (tasks/projects)
   const [people, setPeople] = useState<{ id: string; full_name: string }[]>([]);
   const [entities, setEntities] = useState<{ id: string; name: string; kind: 'task' | 'project' }[]>([]);
   const { data: chProjects = [] } = useProjects();
   const { data: chTeams = [] } = useTeams();
-  useEffect(() => { getOrgUsers().then((u: any[]) => setPeople(u)).catch(() => {}); }, [org?.id]);
+  useEffect(() => { getOrgUsers().then((u: any[]) => setPeople(u)).catch(() => {}); if (org?.id) listChatCommands(org.id).then(setCommands).catch(() => {}); }, [org?.id]);
   useEffect(() => {
     getTasks().then((ts: any[]) => setEntities([
       ...chProjects.map((p: any) => ({ id: p.id, name: p.name, kind: 'project' as const })),
@@ -88,6 +92,7 @@ export function ChatThread({ channel }: { channel: string | null }) {
   }, [org?.id, chProjects.length]);
 
   const trigger = useMemo(() => {
+    if (/^[#/]/.test(draft)) { const pc0 = parseCommandLine(draft); if (pc0 && commands.some((c) => c.enabled && c.keyword === pc0.keyword)) return null; } // a registered #command, not entity autocomplete
     const m = draft.match(/(^|\s)([@#])([\w][\w .-]{0,30})?$/);
     if (!m) return null;
     return { sym: m[2] as '@' | '#', q: (m[3] || '').toLowerCase(), start: draft.length - ((m[3] || '').length + 1) };
@@ -123,6 +128,22 @@ export function ChatThread({ channel }: { channel: string | null }) {
         await createReminder({ org_id: org.id, user_id: me.id, note: rem.note, remind_at: rem.at.toISOString(), entity_type: 'chat', entity_id: channel || undefined });
         setDraft(''); alert(`Reminder set for ${rem.at.toLocaleString()}`);
       } catch (e: any) { alert(e?.message || 'Failed'); }
+      finally { setBusy(false); }
+      return;
+    }
+    // Chat command (#keyword) — routes through an agent, ALWAYS to approval (never bypasses).
+    const pc = parseCommandLine(body);
+    const cmd = pc && /^[#/]/.test(body) ? commands.find((c) => c.enabled && c.keyword === pc.keyword) : undefined;
+    if (cmd) {
+      setBusy(true);
+      try {
+        const res = await dispatchChatCommand(cmd, pc!.args, { orgId: org.id, canManage, projectId: channel });
+        if (res.status === 'queued') {
+          const tmsg = await sendChatMessage({ org_id: org.id, project_id: channel, sender_id: me.id, body: res.note });
+          qc.setQueryData<ChatMessage[]>(qk.chat(org.id, channel), (p) => [...(p || []), tmsg]);
+          setDraft('');
+        } else { alert(res.note); }
+      } catch (e: any) { alert(e?.message || 'Command failed'); }
       finally { setBusy(false); }
       return;
     }
@@ -214,7 +235,7 @@ export function ChatThread({ channel }: { channel: string | null }) {
         <div className="flex items-end gap-2">
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={1}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Write a message…  @mention · #task/project · /remind 2h note"
+            placeholder="Message...  #command (e.g. #task), @mention, /remind 2h"
             className="input h-auto min-h-[2.25rem] max-h-32 py-2 resize-none flex-1" />
           <button onClick={send} disabled={busy || !draft.trim()} className="btn btn-primary px-3 shrink-0" title="Send">
             <Icon name="ti-send" className="text-base" />

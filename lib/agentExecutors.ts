@@ -3,7 +3,8 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, AgentAction } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction } from './db';
+import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey } from './agents';
 
 export type ExecCtx = { orgId: string; userId: string };
@@ -22,7 +23,7 @@ export const EXECUTORS: Record<string, Executor> = {
       const p = a.payload || {};
       const due = typeof p.due === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.due) ? p.due : null;
       const name = String(p.title || a.summary || 'New task').slice(0, 200);
-      const t = await createTask({ name, org_id: ctx.orgId, due_date: due });
+      const t = await createTask({ name, org_id: ctx.orgId, project_id: p.project_id ?? null, due_date: due });
       return { target_table: 'tasks', target_id: t.id, result: { task_id: t.id, name: t.name }, reversal: { op: 'delete_task' } };
     },
     rollback: async (a) => { if (a.target_id) await deleteTask(a.target_id); },
@@ -135,4 +136,43 @@ export function canAutoExecute(autonomyLevel: string | undefined, a: AgentAction
   if (a.risk !== 'low' || !a.reversible) return false;
   if (toolByKey(a.tool_key)?.noAuto) return false;
   return !!EXECUTORS[a.tool_key];
+}
+
+// ---------------------------------------------------------------------------
+// Chat Commands dispatch (Slice 1). A "#keyword <args>" message routes through an
+// enabled agent and ALWAYS creates a PROPOSED action (approval-gated) via the
+// member-safe agent_request_command_action RPC — it never executes or auto-approves
+// here. Honours per-command RBAC. If no agent can run the tool, or the user isn't
+// allowed, it returns a hint and creates nothing. (Auto-run/override + NL 'prompt'
+// commands arrive in Slice 2.)
+// ---------------------------------------------------------------------------
+export type ChatCommandResult = { status: 'queued' | 'hint'; note: string };
+
+export async function dispatchChatCommand(
+  cmd: ChatCommand, args: string, ctx: { orgId: string; canManage: boolean; projectId: string | null },
+): Promise<ChatCommandResult> {
+  if (cmd.kind !== 'tool' || !cmd.tool_key) {
+    return { status: 'hint', note: `"#${cmd.keyword}" is a custom-instruction command — that needs the AI proposer (coming soon).` };
+  }
+  if (cmd.who_can_use === 'managers' && !ctx.canManage) {
+    return { status: 'hint', note: `"#${cmd.keyword}" is restricted to agent managers.` };
+  }
+  const built = buildToolPayload(cmd.tool_key, args, ctx.projectId);
+  if ('error' in built) return { status: 'hint', note: built.error };
+
+  let agents: AgentDefinition[] = [];
+  try { agents = (await listAgents(ctx.orgId)).filter((a) => a.enabled); } catch { /* none */ }
+  const ordered = [...agents.filter((a) => a.domain === cmd.domain), ...agents.filter((a) => a.domain !== cmd.domain)];
+  let agentId: string | null = null;
+  for (const a of ordered) {
+    try { const tools = await listAgentTools(a.id); if (tools.some((t) => t.tool_key === cmd.tool_key)) { agentId = a.id; break; } } catch { /* try next */ }
+  }
+  if (!agentId) return { status: 'hint', note: `No agent is set up to run "#${cmd.keyword}". Add the ${cmd.tool_key} tool to an enabled agent on the Agents page.` };
+
+  await requestChatCommandAction({
+    orgId: ctx.orgId, agentId, toolKey: cmd.tool_key, domain: cmd.domain,
+    summary: built.summary, payload: built.payload, risk: built.risk, reversible: built.reversible,
+    requireManage: cmd.who_can_use === 'managers',
+  });
+  return { status: 'queued', note: `Queued for approval: ${built.summary} — review it in Agent Approvals.` };
 }

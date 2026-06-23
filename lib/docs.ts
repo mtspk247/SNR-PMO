@@ -211,7 +211,7 @@ export const SECTIONS: Section[] = [
           ['Projects', 'Core delivery unit. Detail page: Tasks, Risks, Financials, Ledger, Discussion.'],
           ['Tasks', 'Subtasks, followers, @mention comments, color tags, checklists, time tracking, recurring schedules, reminders, and team assignment. Assignable across project members.'],
           ['Ideas', 'Pitch board with voting. Managers can convert a winning idea directly into a Project.'],
-          ['Chat', 'Org-wide General channel + auto-created per-project channel. @mention people, #link tasks/projects, /remind. 12 s polling, no external dependency.'],
+          ['Chat', 'Org-wide General channel + auto-created per-project channel. @mention people, #link tasks/projects, /remind, and #commands — type #task, #onboard or #expense (or custom admin-defined commands) and an agent proposes the action for your approval (configure them on the Agents page; approve-first is never bypassed). 12 s polling, no external dependency.'],
           ['Calendar', 'Month grid of task due-dates and approved/pending leave. Click any item to jump to it.'],
           ['Roadmap', 'Gantt timeline of projects grouped by portfolio, with progress overlay, today line, and an Unscheduled bucket for undated projects.'],
         ],
@@ -541,6 +541,7 @@ export const SECTIONS: Section[] = [
       { kind: 'callout', icon: 'ti-bolt', text: 'Graduated autonomy: set an agent to "Auto low-risk" and its low-risk, reversible actions run automatically with no approval click \u2014 money, payroll and any medium or high-risk action still wait for a person. Every auto action is audited and one-click reversible, and cost ceilings still apply. Switch the agent back to Approve-first (or disable it) to stop auto-execution.' },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'Permissions: "Manage agents" lets a person create and configure agents; "Approve agent actions" lets them approve, reject and roll back. Owners and admins have both. Grant them on Roles.' },
       { kind: 'callout', icon: 'ti-chart-line', text: 'Activity & ROI: the Agents \u25b8 Activity & ROI page measures what your agents are worth \u2014 actions executed, estimated hands-on time saved, the dollar value created (at a blended hourly rate you set) net of metered agent cost, and a reliability score (how few executed actions were rolled back), broken down by domain over a 7/30/90-day window. Read-only; visible to agent managers and approvers.' },
+      { kind: 'callout', icon: 'ti-slash', text: 'Chat commands: type #task, #onboard or #expense (or your own) in any chat channel and an agent acts on it. Manage them on the Agents page (Chat commands) — add a custom #keyword mapped to an action, set who can use it (any member vs agent-managers), enable/disable. Every command is approval-gated: it proposes an action that appears in Agent Approvals, or runs automatically only if the agent is Auto low-risk. Members can use member-commands (always queued for approval); only managers configure them.' },
     ],
   },
   {
