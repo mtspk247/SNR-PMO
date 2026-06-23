@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Layout from '@/components/Layout';
-import { PageHeader, EmptyState, StatCard } from '@/components/ui';
+import { PageHeader, EmptyState, StatCard, Icon, Spinner } from '@/components/ui';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useProjects, useTasks } from '@/lib/queries';
 import { Project } from '@/lib/supabase';
-import { listInvoices, Invoice } from '@/lib/db';
+import { listInvoices, Invoice, listPortalFiles, PortalFile, driveFileUrl } from '@/lib/db';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection } from '@/components/RowSelection';
 import { GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 
-// Branded, read-only client portal. Guests are RLS-fenced to their own projects
-// (and, via the guest invoice policy, the invoices for those projects). The page
-// only renders what the server returns — no client-side trust.
+// Branded, read-only client portal. Guests are RLS-fenced to their own projects, the
+// invoices on those projects, and files in drives linked to those projects.
 const P_COLS: ColDef[] = [
   { id: 'name', label: 'Project', locked: true },
   { id: 'status', label: 'Status' },
@@ -37,6 +36,8 @@ const pPill = (s: string) => P_STATUS_PILL[(s || '').toLowerCase()] || 'pill-gra
 const iPill = (s: string) => I_STATUS_PILL[(s || '').toLowerCase()] || 'pill-gray';
 const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
 const money = (cur: string | null | undefined, n: number | null | undefined) => `${cur || ''} ${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
+const fmtBytes = (n: number) => { if (!n) return '0 B'; const u = ['B', 'KB', 'MB', 'GB', 'TB']; const i = Math.floor(Math.log(n) / Math.log(1024)); return `${(n / Math.pow(1024, i)).toFixed(i ? 1 : 0)} ${u[i]}`; };
+const fileIcon = (f: PortalFile) => { const m = f.mime_type || ''; if (m.startsWith('image/')) return 'ti-photo'; if (m.includes('pdf')) return 'ti-file-type-pdf'; if (m.includes('zip') || m.includes('compressed')) return 'ti-file-zip'; return 'ti-file'; };
 
 export default function Portal() {
   const org = useActiveOrg();
@@ -44,12 +45,14 @@ export default function Portal() {
   const { data: projects = [], isLoading: pLoading } = useProjects();
   const { data: tasks = [] } = useTasks();
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
-  const [tab, setTab] = useState<'projects' | 'invoices'>('projects');
+  const [files, setFiles] = useState<PortalFile[] | null>(null);
+  const [tab, setTab] = useState<'projects' | 'invoices' | 'files'>('projects');
 
   useEffect(() => {
     if (!org?.id) return;
-    setInvoices(null);
+    setInvoices(null); setFiles(null);
     listInvoices(org.id).then(setInvoices).catch(() => setInvoices([]));
+    listPortalFiles(org.id).then(setFiles).catch(() => setFiles([]));
   }, [org?.id]);
 
   // projects
@@ -92,6 +95,11 @@ export default function Portal() {
   };
   const iExport = (id: string, v: Invoice) => id === 'number' ? v.invoice_number : id === 'status' ? (v.status || '') : id === 'issued' ? (v.issue_date || '') : id === 'due' ? (v.due_date || '') : id === 'total' ? String(v.total || 0) : id === 'balance' ? String(bal(v)) : '';
 
+  const download = async (f: PortalFile) => {
+    if (!f.storage_path) return;
+    try { const url = await driveFileUrl(f.storage_path); window.open(url, '_blank', 'noopener'); } catch (_e) { /* ignore */ }
+  };
+
   const kpis = useMemo(() => ({
     projects: projects.length,
     open: tasks.filter((t) => !DONE.includes((t.status || '').toLowerCase())).length,
@@ -99,6 +107,9 @@ export default function Portal() {
   }), [projects, tasks, iAll]);
   const outCur = iAll[0]?.currency || '';
   const firstName = me?.full_name ? me.full_name.split(' ')[0] : '';
+  const TABS: { id: 'projects' | 'invoices' | 'files'; label: string }[] = [
+    { id: 'projects', label: 'Projects' }, { id: 'invoices', label: 'Invoices' }, { id: 'files', label: 'Files' },
+  ];
 
   return (
     <Layout flat title="Portal">
@@ -110,13 +121,14 @@ export default function Portal() {
         <StatCard label="Outstanding" value={money(outCur, kpis.outstanding)} icon="ti-cash" />
       </div>
       <div className="flex gap-1 mb-4 border-b border-line">
-        {(['projects', 'invoices'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={'px-3 py-2 text-sm font-medium -mb-px border-b-2 ' + (tab === t ? 'border-accent text-content' : 'border-transparent text-muted hover:text-content')}>
-            {t === 'projects' ? 'Projects' : 'Invoices'}
+        {TABS.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} className={'px-3 py-2 text-sm font-medium -mb-px border-b-2 ' + (tab === t.id ? 'border-accent text-content' : 'border-transparent text-muted hover:text-content')}>
+            {t.label}
           </button>
         ))}
       </div>
-      {tab === 'projects' ? (
+
+      {tab === 'projects' && (
         !pLoading && projects.length === 0 ? (
           <EmptyState icon="ti-folder" title="No projects yet" text="Projects shared with you will appear here." />
         ) : (
@@ -125,7 +137,9 @@ export default function Portal() {
             groupField={{ value: 'status', label: 'Status' }} groupOf={(p) => p.status} groups={P_GROUPS}
             exportName="my-projects" exportValue={pExport} emptyIcon="ti-folder" emptyText="No projects match your filters." />
         )
-      ) : (
+      )}
+
+      {tab === 'invoices' && (
         invoices !== null && iAll.length === 0 ? (
           <EmptyState icon="ti-file-invoice" title="No invoices yet" text="Invoices for your projects will appear here." />
         ) : (
@@ -133,6 +147,23 @@ export default function Portal() {
             filters={I_FILTERS} searchPlaceholder="Search invoices…"
             groupField={{ value: 'status', label: 'Status' }} groupOf={(v) => v.status} groups={I_GROUPS}
             exportName="my-invoices" exportValue={iExport} emptyIcon="ti-file-invoice" emptyText="No invoices match your filters." />
+        )
+      )}
+
+      {tab === 'files' && (
+        files === null ? <div className="p-8"><Spinner /></div> :
+        files.length === 0 ? <EmptyState icon="ti-file" title="No files yet" text="Files shared on your projects will appear here." /> : (
+          <div className="card divide-y divide-line overflow-hidden">
+            {files.map((f) => (
+              <div key={f.id} className="group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50">
+                <Icon name={fileIcon(f)} className="text-muted" />
+                <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => download(f)}>{f.name}</button>
+                {f.drive_name && <span className="text-2xs text-muted2 hidden sm:inline truncate max-w-[10rem]">{f.drive_name}</span>}
+                <span className="text-2xs text-muted2 shrink-0 tabular-nums">{fmtBytes(f.size_bytes)}</span>
+                <button onClick={() => download(f)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Download"><Icon name="ti-download" className="text-sm" /></button>
+              </div>
+            ))}
+          </div>
         )
       )}
     </Layout>

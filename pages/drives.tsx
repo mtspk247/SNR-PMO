@@ -7,8 +7,11 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
+  getProjects, setDriveProject,
   Drive, DriveFolder, DriveFile,
 } from '@/lib/db';
+import { Project } from '@/lib/supabase';
+import Select from '@/components/Select';
 
 const fmtBytes = (n: number) => {
   if (!n) return '0 B';
@@ -25,6 +28,8 @@ export default function DrivesPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'drives');
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const [drives, setDrives] = useState<Drive[] | null>(null);
   const [active, setActive] = useState<Drive | null>(null);
@@ -40,6 +45,7 @@ export default function DrivesPage() {
   const fileInput = useRef<HTMLInputElement>(null);
 
   const currentFolderId = path.length ? path[path.length - 1].id : null;
+  useEffect(() => { if (org?.id && enabled) getProjects(org.id).then(setProjects).catch(() => {}); }, [org?.id, enabled]);
 
   const loadUsage = () => { if (org) Promise.all([getDriveUsage(org.id), tenantLimit(org.id, 'storage_mb')]).then(([u, l]) => setUsage({ used: u, limitMb: l })).catch(() => {}); };
   const loadDrives = () => { if (!org) return; listDrives(org.id).then((d) => { setDrives(d); if (!active && d.length) selectDrive(d[0]); }).catch((e) => { setErr(e.message); setDrives([]); }); };
@@ -103,6 +109,7 @@ export default function DrivesPage() {
               <div key={d.id} className={`group flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer ${active?.id === d.id ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'}`} onClick={() => selectDrive(d)}>
                 <Icon name="ti-folders" className="text-sm shrink-0" />
                 <span className="text-sm truncate flex-1">{d.name}</span>
+                {d.project_id && <Icon name="ti-users" className="text-2xs text-accentstrong shrink-0" title="Shared with client portal" />}
                 <button onClick={(e) => { e.stopPropagation(); delDrive(d); }} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500" title="Delete drive"><Icon name="ti-trash" className="text-xs" /></button>
               </div>
             ))}
@@ -121,6 +128,14 @@ export default function DrivesPage() {
                       </span>
                     ))}
                   </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-1.5 mr-1">
+                      <span className="text-2xs text-muted2 hidden sm:inline">Client portal:</span>
+                      <Select width={210} value={active?.project_id || ''}
+                        onChange={(v) => { if (!active) return; const did = active.id; const pid = v || null; setDriveProject(did, pid).then(() => { setActive((a) => (a ? { ...a, project_id: pid } : a)); setDrives((ds) => (ds || []).map((x) => (x.id === did ? { ...x, project_id: pid } : x))); }).catch((e) => setErr(e.message)); }}
+                        options={[{ value: '', label: 'Not shared' }, ...projects.map((pr) => ({ value: pr.id, label: pr.name }))]} />
+                    </div>
+                  )}
                   <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
                   <button className="btn btn-primary h-8 py-0" disabled={busy} onClick={() => fileInput.current?.click()}><Icon name="ti-upload" className="text-sm" />Upload</button>
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onUpload(e.target.files)} />

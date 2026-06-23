@@ -857,7 +857,7 @@ export async function setTenantLimitOverride(orgId: string, key: string, value: 
 }
 
 // ---- Drives (F2) ----
-export interface Drive { id: string; org_id: string; name: string; description: string | null; created_by: string | null; created_at: string; }
+export interface Drive { id: string; org_id: string; name: string; description: string | null; project_id: string | null; created_by: string | null; created_at: string; }
 export interface DriveFolder { id: string; org_id: string; drive_id: string; parent_id: string | null; name: string; created_at: string; }
 export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; created_at: string; }
 
@@ -913,6 +913,22 @@ export async function uploadDriveFile(p: { org_id: string; drive_id: string; fol
 export async function driveFileUrl(path: string): Promise<string> {
   const { data, error } = await sb.storage.from('drives').createSignedUrl(path, 3600);
   if (error) throw new Error(error.message); return data.signedUrl;
+}
+
+// Link a drive to a project (or null) — a project-linked drive becomes visible in that
+// project's client portal (guest RLS fences reads via can_access_project).
+export async function setDriveProject(id: string, projectId: string | null): Promise<void> {
+  const { error } = await sb.from('drives').update({ project_id: projectId }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export interface PortalFile { id: string; name: string; kind: string; mime_type: string | null; size_bytes: number; storage_path: string | null; created_at: string; drive_id: string; drive_name?: string | null; }
+// Files the current user can read (RLS-fenced). For a guest = files in project-linked drives they can access.
+export async function listPortalFiles(orgId: string): Promise<PortalFile[]> {
+  const { data, error } = await sb.from('drive_files')
+    .select('id,name,kind,mime_type,size_bytes,storage_path,created_at,drive_id, drives(name)')
+    .eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []).map((r: any) => ({ id: r.id, name: r.name, kind: r.kind, mime_type: r.mime_type, size_bytes: r.size_bytes, storage_path: r.storage_path, created_at: r.created_at, drive_id: r.drive_id, drive_name: r.drives?.name ?? null }));
 }
 export async function deleteDriveFile(file: DriveFile): Promise<void> {
   if (file.storage_path) { await sb.storage.from('drives').remove([file.storage_path]); }
