@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '@/components/ui';
+import { displayName } from '@/lib/format';
 import { getRecentActivity, ActivityItem } from '@/lib/db';
 import { useActiveOrg } from '@/lib/store';
 
 const VERB: Record<string, string> = { INSERT: 'created', UPDATE: 'updated', DELETE: 'deleted' };
 const niceEntity = (t: string | null) => (t || 'item').replace(/_/g, ' ');
-const firstName = (u: string | null) => (u || 'Someone').trim().split(/\s+/)[0];
 
 function hrefFor(a: ActivityItem): string | null {
   const t = a.entity_type, id = a.entity_id;
@@ -94,13 +94,13 @@ export default function ActivityTicker() {
           <span className="text-2xs text-muted2 italic">No recent activity</span>
         ) : (
           <button onClick={() => href && router.push(href)} disabled={!href}
-            title={cur ? `${firstName(cur.username)} ${VERB[cur.action] || (cur.action || '').toLowerCase()} ${niceEntity(cur.entity_type)} · ${new Date(cur.ts).toLocaleString()}` : ''}
+            title={cur ? `${cur.username || 'Someone'} ${VERB[cur.action] || (cur.action || '').toLowerCase()} ${niceEntity(cur.entity_type)} · ${new Date(cur.ts).toLocaleString()}` : ''}
             className={`block max-w-full text-2xs text-left ${href ? 'text-content hover:text-accentstrong cursor-pointer' : 'text-content cursor-default'}`}>
             <span key={idx} className="inline-block max-w-full align-bottom" style={{ animation: 'ticker-in 0.35s ease-out' }}>
               <span ref={textRef} key={`${idx}:${scroll}`}
                 className={`inline-block whitespace-nowrap will-change-transform ${scroll > 0 ? 'group-hover:[animation-play-state:paused]' : ''}`}
                 style={scroll > 0 ? ({ animation: `ticker-reveal ${Math.min(3.4, Math.max(1.8, scroll / 45))}s linear`, '--ticker-tx': `-${scroll}px` } as any) : undefined}>
-                <span className="font-semibold">{firstName(cur?.username ?? null)}</span>{' '}
+                <span className="font-semibold">{displayName(cur?.username ?? null) || 'Someone'}</span>{' '}
                 <span className="text-muted">{VERB[cur?.action || ''] || (cur?.action || '').toLowerCase()}</span>{' '}
                 <span className="font-medium">{niceEntity(cur?.entity_type ?? null)}</span>
                 <span className="text-muted2"> · {new Date(cur!.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>

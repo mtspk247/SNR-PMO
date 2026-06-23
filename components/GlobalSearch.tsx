@@ -36,6 +36,7 @@ export default function GlobalSearch() {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopOpen, setDesktopOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const mInputRef = useRef<HTMLInputElement>(null);
@@ -63,14 +64,14 @@ export default function GlobalSearch() {
   // Outside-click closes menus + results.
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) { setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); }
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) { setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); if (!inputRef.current?.value?.trim()) setDesktopOpen(false); }
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
   const focusSearch = () => {
-    if (window.matchMedia('(min-width: 640px)').matches) { setResultsOpen(true); setTimeout(() => inputRef.current?.focus(), 0); }
+    if (window.matchMedia('(min-width: 640px)').matches) { setDesktopOpen(true); setResultsOpen(true); setTimeout(() => inputRef.current?.focus(), 0); }
     else { setMobileOpen(true); setResultsOpen(true); setTimeout(() => mInputRef.current?.focus(), 0); }
   };
 
@@ -86,13 +87,13 @@ export default function GlobalSearch() {
     return () => clearTimeout(t);
   }, [q, effectiveMods]);
 
-  const go = (h?: Hit) => { if (!h) return; setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); setQ(''); router.push(h.href); };
+  const go = (h?: Hit) => { if (!h) return; setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); setDesktopOpen(false); setQ(''); router.push(h.href); };
 
   const onInputKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, hits.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); go(hits[active]); }
-    else if (e.key === 'Escape') { setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); }
+    else if (e.key === 'Escape') { setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); if (!q.trim()) setDesktopOpen(false); }
   };
 
   const scopeMenu = (
@@ -176,11 +177,20 @@ export default function GlobalSearch() {
 
   return (
     <div ref={wrapRef} className="contents">
-      {/* Desktop inline search */}
-      <div className="relative hidden sm:block w-64 lg:w-80">
-        {bar(false)}
-        {scopeOpen && scopeMenu}
-        {resultsOpen && results}
+      {/* Desktop: collapses to a search icon; click / "/" / Cmd-K expands the bar in place. */}
+      <div className="relative hidden sm:block">
+        {desktopOpen ? (
+          <div className="w-64 lg:w-80" style={{ animation: 'modalFade .12s ease-out' }}>
+            {bar(false)}
+            {scopeOpen && scopeMenu}
+            {resultsOpen && results}
+          </div>
+        ) : (
+          <button onClick={() => { setDesktopOpen(true); setResultsOpen(true); setTimeout(() => inputRef.current?.focus(), 0); }} aria-label="Search" title="Search ( / )"
+            className="h-9 w-9 grid place-items-center rounded-lg border border-line text-muted hover:text-content hover:bg-surface2 transition">
+            <Icon name="ti-search" className="text-base" />
+          </button>
+        )}
       </div>
 
       {/* Mobile: icon → inline drop-down bar under the header (not a modal) */}
