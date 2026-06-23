@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, Icon, Tabs, HelpHint } from '@/components/ui';
 import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -11,9 +11,11 @@ import {
   snapshotList, snapshotCapture, snapshotDelete,
   resellerConnectOnboard, resellerConnectStatus,
   resellerListPrices, resellerSetPrice,
+  resellerGetAgentRate, resellerSetAgentRate, resellerAgentMargin,
   resellerGetSelfSignup, resellerSetSelfSignup, inviteMember,
   ResellerOrg, ResellerBilling,
   WorkspaceSnapshot, ResellerConnectStatus, ResellerPlanPrice, SelfSignupConfig,
+  ResellerAgentRate, ResellerAgentMargin,
   updateOrgSettings,
 } from '@/lib/db';
 
@@ -52,6 +54,12 @@ export default function ResellerPage() {
   const [pBusy, setPBusy] = useState(false);
   const [pMsg, setPMsg] = useState('');
 
+  // AI agent metered pricing (retail) + margin
+  const [agentRate, setAgentRate] = useState<ResellerAgentRate | null>(null);
+  const [margin, setMargin] = useState<ResellerAgentMargin | null>(null);
+  const [arRun, setArRun] = useState(''); const [arTok, setArTok] = useState('');
+  const [arBusy, setArBusy] = useState(false); const [arMsg, setArMsg] = useState('');
+
   // Self-signup
   const [ss, setSs] = useState<SelfSignupConfig | null>(null);
   const [ssBusy, setSsBusy] = useState(false);
@@ -66,6 +74,8 @@ export default function ResellerPage() {
     snapshotList(org.id).then(setSnaps).catch(() => {});
     resellerConnectStatus(org.id).then(setConnect).catch(() => {});
     resellerListPrices(org.id).then(setPrices).catch(() => {});
+    resellerGetAgentRate(org.id).then((r) => { setAgentRate(r); if (r) { setArRun(String(r.price_per_run)); setArTok(String(r.price_per_1k_tokens)); } }).catch(() => {});
+    resellerAgentMargin(org.id).then(setMargin).catch(() => {});
     resellerGetSelfSignup(org.id).then(setSs).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
@@ -145,6 +155,20 @@ export default function ResellerPage() {
     } catch (e: any) { setPMsg(e.message || 'Failed'); } finally { setPBusy(false); }
   };
 
+  const saveAgentRate = async () => {
+    if (!org) return;
+    const run = parseFloat(arRun || '0'); const tok = parseFloat(arTok || '0');
+    if (!(run >= 0) || !(tok >= 0)) { setArMsg('Enter valid amounts'); return; }
+    setArBusy(true); setArMsg('');
+    try {
+      await resellerSetAgentRate(org.id, run, tok);
+      setArMsg('Agent rates saved');
+      resellerGetAgentRate(org.id).then(setAgentRate).catch(() => {});
+      resellerAgentMargin(org.id).then(setMargin).catch(() => {});
+      setTimeout(() => setArMsg(''), 2500);
+    } catch (e: any) { setArMsg(e.message || 'Failed'); } finally { setArBusy(false); }
+  };
+
   return (
     <Layout flat title="Reseller">
       <PageHeader help="reselling"
@@ -167,6 +191,7 @@ export default function ResellerPage() {
 
       {/* ── Pricing tab ── */}
       {tab === 'plans' && (
+        <>
         <div className="card overflow-hidden mb-6">
           <div className="px-4 py-3 border-b border-line">
             <h3 className="text-sm font-semibold">Sub-tenant pricing</h3>
@@ -201,6 +226,62 @@ export default function ResellerPage() {
             )}
           </div>
         </div>
+
+        {/* AI agent metered pricing (retail) */}
+        <div className="card overflow-hidden mb-6">
+          <div className="px-4 py-3 border-b border-line">
+            <div className="flex items-center gap-1.5"><h3 className="text-sm font-semibold">AI agent pricing (metered)</h3><HelpHint anchor="agent-billing" /></div>
+            <p className="text-2xs text-muted">Resell AI agents at your own markup. Set what you charge clients per agent run and per 1,000 tokens; the platform&rsquo;s wholesale rate is your cost and you keep the difference. Leave at 0 to pass through at cost.</p>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <label className="text-2xs text-muted block mb-1">Price / run (USD)</label>
+                <input className="input w-28" type="number" min="0" step="0.001" placeholder="0.00" value={arRun} onChange={(e) => setArRun(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-2xs text-muted block mb-1">Price / 1k tokens (USD)</label>
+                <input className="input w-32" type="number" min="0" step="0.001" placeholder="0.00" value={arTok} onChange={(e) => setArTok(e.target.value)} />
+              </div>
+              <button className="btn btn-primary" disabled={arBusy} onClick={saveAgentRate}>{arBusy ? 'Saving…' : 'Save agent rates'}</button>
+            </div>
+            {arMsg && <p className="text-2xs text-accentstrong">{arMsg}</p>}
+            {margin && (
+              <p className="text-2xs text-muted">Your wholesale cost from the platform: <span className="tabular-nums">${margin.per_run_wholesale}/run &middot; ${margin.per_1k_wholesale}/1k tokens</span>. You bill clients at your rates above; margin is the difference.</p>
+            )}
+          </div>
+        </div>
+
+        {/* AI agent margin this month */}
+        <div className="card overflow-hidden mb-6">
+          <div className="px-4 py-3 border-b border-line">
+            <h3 className="text-sm font-semibold">AI agent margin &mdash; this month</h3>
+            <p className="text-2xs text-muted">What your sub-tenants&rsquo; agent usage earns you: retail (what you bill them) minus wholesale (what the platform bills you).</p>
+          </div>
+          <div className="p-4 space-y-3">
+            {!margin || margin.total_runs === 0 ? (
+              <p className="text-2xs text-muted2">No agent usage from your sub-tenants yet this month. Once their agents run, your margin shows here.</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-line p-3"><p className="text-2xs uppercase tracking-wide text-muted2">You bill (retail)</p><p className="text-lg font-semibold tabular-nums">${margin.total_retail.toFixed(2)}</p></div>
+                  <div className="rounded-lg border border-line p-3"><p className="text-2xs uppercase tracking-wide text-muted2">Your cost (wholesale)</p><p className="text-lg font-semibold tabular-nums">${margin.total_wholesale.toFixed(2)}</p></div>
+                  <div className="rounded-lg border border-line p-3 bg-emerald-500/5"><p className="text-2xs uppercase tracking-wide text-muted2">Your margin</p><p className="text-lg font-semibold tabular-nums text-accentstrong">${margin.total_margin.toFixed(2)}</p></div>
+                </div>
+                <ul className="divide-y divide-line border border-line rounded-lg">
+                  {margin.subs.filter((su) => su.runs > 0 || su.tokens > 0).map((su) => (
+                    <li key={su.org_id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                      <span className="truncate font-medium text-content flex-1">{su.name}</span>
+                      <span className="text-2xs text-muted tabular-nums">{su.runs} runs &middot; {(su.tokens / 1000).toFixed(0)}k tok</span>
+                      <span className="tabular-nums text-accentstrong w-20 text-right">+${su.margin.toFixed(2)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </div>
+        </>
       )}
 
       {/* ── Snapshots tab ── */}

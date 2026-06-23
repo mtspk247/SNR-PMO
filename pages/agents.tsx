@@ -13,8 +13,8 @@ import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR, AGENT_TOOLS } from '@/lib/agents';
 import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool,
-  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer,
-  AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage,
+  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost,
+  AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost,
 } from '@/lib/db';
 
 const COLS: ColDef[] = [
@@ -39,6 +39,7 @@ export default function AgentsPage() {
 
   const [agents, setAgents] = useState<AgentDefinition[] | null>(null);
   const [usage, setUsage] = useState<AgentUsage[]>([]);
+  const [cost, setCost] = useState<AgentUsageCost | null>(null);
   const [limits, setLimits] = useState<AgentCostLimit[]>([]);
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft; initial: string } | null>(null);
   const [grants, setGrants] = useState<Set<string>>(new Set());
@@ -51,6 +52,7 @@ export default function AgentsPage() {
     if (!org) return;
     listAgents(org.id).then(setAgents).catch((e) => { setErr(e.message); setAgents([]); });
     listAgentUsage(org.id).then(setUsage).catch(() => {});
+    agentUsageCost(org.id).then(setCost).catch(() => {});
     listAgentCostLimits(org.id).then(setLimits).catch(() => {});
   };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
@@ -160,10 +162,11 @@ export default function AgentsPage() {
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
         <StatCard label="Agents" value={String(kpis.total)} icon="ti-robot" />
         <StatCard label="Enabled" value={String(kpis.enabled)} icon="ti-circle-check" />
         <StatCard label="Runs this month" value={String(kpis.runs)} icon="ti-activity" />
+        <StatCard label="Est. cost this month" value={cost ? `$${cost.amount.toFixed(2)}` : '—'} hint={cost ? `${cost.source === 'reseller' ? 'Reseller rate' : 'Plan rate'}: $${cost.per_run}/run · $${cost.per_1k_tokens}/1k` : 'metered agent usage'} icon="ti-coin" />
         <div className="card p-4">
           <div className="flex items-center justify-between mb-1"><span className="text-2xs uppercase tracking-wide text-muted2">Org cost ceiling</span><Icon name="ti-shield-dollar" className="text-muted2" /></div>
           <div className="flex items-center gap-2 text-xs">

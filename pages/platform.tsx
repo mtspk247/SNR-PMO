@@ -4,10 +4,10 @@ import { DataList } from '@/components/DataList';
 import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, Icon, EmptyState } from '@/components/ui';
+import { PageHeader, Spinner, Icon, EmptyState, HelpHint } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow, assistantGetStatus, assistantSetConfig, AssistantStatus } from '@/lib/db';
+import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow, assistantGetStatus, assistantSetConfig, AssistantStatus, platformAgentBillingGet, platformAgentBillingSet, platformAgentRevenue, PlatformAgentRevenue } from '@/lib/db';
 import { Plan, Feature, PlanFeature, FEATURES } from '@/lib/supabase';
 import { ALL_ITEMS } from '@/lib/nav';
 import { formatPrice } from '@/lib/entitlements';
@@ -215,6 +215,10 @@ function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promis
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [prices, setPrices] = useState<Record<string, string>>({});
+  const [agEnabled, setAgEnabled] = useState(false);
+  const [agRun, setAgRun] = useState(''); const [agTok, setAgTok] = useState(''); const [agCur, setAgCur] = useState('usd');
+  const [agRev, setAgRev] = useState<PlatformAgentRevenue | null>(null);
+  const [agBusy, setAgBusy] = useState(false); const [agMsg, setAgMsg] = useState('');
 
   const loadStatus = async () => {
     setLoading(true);
@@ -227,6 +231,10 @@ function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promis
   };
   useEffect(() => { loadStatus(); /* eslint-disable-next-line */ }, []);
   useEffect(() => { setPrices(Object.fromEntries(plans.map((p) => [p.id, p.stripe_price_id || '']))); }, [plans]);
+  useEffect(() => {
+    platformAgentBillingGet().then((r) => { setAgEnabled(r.enabled); setAgRun(String(r.per_run)); setAgTok(String(r.per_1k_tokens)); setAgCur(r.currency || 'usd'); }).catch(() => {});
+    platformAgentRevenue('month').then(setAgRev).catch(() => {});
+  }, []);
 
   const saveConfig = async () => {
     setSaving(true); setErr(''); setMsg('');
@@ -243,6 +251,15 @@ function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promis
     setErr(''); setMsg('');
     try { await billingSetPlanPrice(planId, prices[planId] || ''); setMsg('Price ID saved.'); await onReload(); }
     catch (e: any) { setErr(e?.message || 'Failed to save price'); }
+  };
+
+  const saveAgentBilling = async () => {
+    setAgBusy(true); setAgMsg(''); setErr('');
+    try {
+      await platformAgentBillingSet({ enabled: agEnabled, perRun: parseFloat(agRun || '0'), per1kTokens: parseFloat(agTok || '0'), currency: agCur });
+      setAgMsg('Saved. Wholesale agent rates updated.');
+      platformAgentRevenue('month').then(setAgRev).catch(() => {});
+    } catch (e: any) { setAgMsg(e?.message || 'Save failed'); } finally { setAgBusy(false); }
   };
 
   if (loading) return <div className="card rounded-t-none p-6"><Spinner /></div>;
@@ -303,6 +320,45 @@ function BillingTab({ plans, onReload }: { plans: Plan[]; onReload: () => Promis
             <button className="btn btn-ghost border border-line" onClick={() => savePrice(p.id)}>Save</button>
           </div>
         ))}
+      </div>
+
+      {/* AI agent metered billing (wholesale) */}
+      <div className="space-y-4 max-w-xl border-t border-line pt-6">
+        <div className="flex items-center gap-1.5"><h3 className="text-sm font-semibold text-content">AI agent billing (metered)</h3><HelpHint anchor="agent-billing" /></div>
+        <p className="text-2xs text-muted">Charge tenants for AI agent usage on top of their plan. Set the wholesale rate per agent run and per 1,000 tokens; resellers mark this up for their own sub-tenants and keep the margin. Usage (runs and tokens) is metered automatically.</p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={agEnabled} onChange={(e) => setAgEnabled(e.target.checked)} />
+          Enable metered agent billing
+        </label>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-2xs text-muted block mb-1">Wholesale / run (USD)</label>
+            <input className="input w-32" type="number" min="0" step="0.001" placeholder="0.00" value={agRun} onChange={(e) => setAgRun(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-2xs text-muted block mb-1">Wholesale / 1k tokens (USD)</label>
+            <input className="input w-32" type="number" min="0" step="0.001" placeholder="0.00" value={agTok} onChange={(e) => setAgTok(e.target.value)} />
+          </div>
+        </div>
+        <button className="btn btn-primary" disabled={agBusy} onClick={saveAgentBilling}>{agBusy ? 'Saving…' : 'Save agent rates'}</button>
+        {agMsg && <p className="text-2xs text-emerald-600">{agMsg}</p>}
+        {agRev && (
+          <div className="rounded-lg border border-line p-3 mt-2">
+            <div className="flex items-center justify-between"><span className="text-2xs uppercase tracking-wide text-muted2">Agent revenue — this month (wholesale)</span><span className="text-base font-semibold tabular-nums">${agRev.total_revenue.toFixed(2)}</span></div>
+            <p className="text-2xs text-muted mt-1">{agRev.total_runs} runs · {(agRev.total_tokens / 1000).toFixed(0)}k tokens across all tenants · LLM cost ${agRev.total_cogs.toFixed(2)}.</p>
+            {agRev.orgs.length > 0 && (
+              <ul className="divide-y divide-line border border-line rounded-lg mt-2">
+                {agRev.orgs.slice(0, 5).map((o) => (
+                  <li key={o.org_id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs">
+                    <span className="truncate text-content flex-1">{o.name}</span>
+                    <span className="text-2xs text-muted tabular-nums">{o.runs} runs</span>
+                    <span className="tabular-nums w-16 text-right">${o.revenue.toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

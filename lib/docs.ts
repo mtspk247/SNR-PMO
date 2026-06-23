@@ -538,6 +538,27 @@ export const SECTIONS: Section[] = [
       { kind: 'callout', icon: 'ti-shield-lock', text: 'Permissions: "Manage agents" lets a person create and configure agents; "Approve agent actions" lets them approve, reject and roll back. Owners and admins have both. Grant them on Roles.' },
     ],
   },
+  {
+    id: 'agent-billing',
+    title: 'Agent billing & reseller margin',
+    icon: 'ti-coin',
+    blocks: [
+      { kind: 'p', text: 'AI agent usage is metered automatically — every agent run and the tokens it consumes are counted per workspace, per day and per month. Metered billing turns that usage into revenue: the platform sets a wholesale rate, and resellers mark it up for their own sub-tenants and keep the margin.' },
+      { kind: 'bullets', items: [
+        { text: 'Two metered units', sub: ['Price per agent run and price per 1,000 tokens. Set either or both; leave a unit at 0 to not charge for it.'] },
+        { text: 'Wholesale vs. retail', sub: ['The platform bills every workspace (and every reseller) at the wholesale rate. A reseller sets its own retail rate for its sub-tenants. Margin = retail minus wholesale.'] },
+        { text: 'Metered automatically', sub: ['Usage accrues as agents run — nothing to track by hand. Cost ceilings still cap spend independently of billing.'] },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Platform: set wholesale rates', body: 'Console ▸ Billing ▸ AI agent billing. Enable metered billing and set the wholesale price per run and per 1,000 tokens. The Agent revenue panel shows this month’s wholesale total across all tenants.' },
+        { title: 'Reseller: set your retail rates', body: 'Reseller ▸ Plans & features ▸ AI agent pricing. Set what you charge your clients per run and per 1,000 tokens; your wholesale cost is shown for reference.' },
+        { title: 'Reseller: watch your margin', body: 'The AI agent margin card sums your sub-tenants’ usage this month: retail (what you bill them) minus wholesale (what the platform bills you) is your margin, with a per-client breakdown.' },
+        { title: 'Tenant: see your cost', body: 'The Agents page shows an estimated agent cost for the current month at whatever rate applies to you — your reseller’s rate if you are a sub-tenant, otherwise the platform rate.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Only platform admins set wholesale rates; only a reseller’s owner or admin sets that reseller’s retail rates. A sub-tenant sees its own cost but never another tenant’s usage or a reseller’s internal margin.' },
+      { kind: 'callout', icon: 'ti-coin', text: 'Cost ceilings (on the Agents page) and metered billing are independent: ceilings stop runaway spend; billing prices the usage that does happen.' },
+    ],
+  },
 ];
 // ---------------------------------------------------------------------------
 // Search + retrieval helpers (lexical — read the live text on every call, so

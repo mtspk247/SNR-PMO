@@ -3232,6 +3232,52 @@ export async function listAgentUsage(orgId: string): Promise<AgentUsage[]> {
   const { data, error } = await sb.from('agent_usage').select('*').eq('org_id', orgId);
   if (error) throw new Error(error.message); return (data as AgentUsage[]) || [];
 }
+
+// ---------------------------------------------------------------------------
+// 3.4 Metered agent billing -> reseller markup (the margin engine).
+// Usage (runs/tokens) accrues in agent_usage; rate cards turn it into money.
+// Platform sets WHOLESALE rates; resellers set RETAIL rates for their sub-tenants.
+// Margin = retail - wholesale. Compute/visibility only; Stripe charge wiring = 3.4b.
+// ---------------------------------------------------------------------------
+export interface AgentBillingRates { enabled: boolean; per_run: number; per_1k_tokens: number; currency: string; }
+export interface ResellerAgentRate { reseller_org_id: string; price_per_run: number; price_per_1k_tokens: number; currency: string; active: boolean; }
+export interface AgentUsageCost { period_kind: 'day' | 'month'; period_start: string; runs: number; tokens: number; cogs_usd: number; per_run: number; per_1k_tokens: number; currency: string; source: 'platform' | 'reseller'; amount: number; }
+export interface ResellerAgentMarginSub { org_id: string; name: string; runs: number; tokens: number; wholesale: number; retail: number; margin: number; }
+export interface ResellerAgentMargin { period_kind: 'day' | 'month'; period_start: string; currency: string; per_run_wholesale: number; per_1k_wholesale: number; per_run_retail: number; per_1k_retail: number; total_runs: number; total_tokens: number; total_wholesale: number; total_retail: number; total_margin: number; subs: ResellerAgentMarginSub[]; }
+export interface PlatformAgentRevenueOrg { org_id: string; name: string; runs: number; tokens: number; cogs: number; revenue: number; }
+export interface PlatformAgentRevenue { period_kind: 'day' | 'month'; period_start: string; currency: string; per_run: number; per_1k_tokens: number; total_runs: number; total_tokens: number; total_revenue: number; total_cogs: number; orgs: PlatformAgentRevenueOrg[]; }
+
+// Platform wholesale rate card (platform-admin; never returns the Stripe secret).
+export async function platformAgentBillingGet(): Promise<AgentBillingRates> {
+  const { data, error } = await sb.rpc('platform_agent_billing_get'); if (error) throw new Error(error.message);
+  return (data as AgentBillingRates) || { enabled: false, per_run: 0, per_1k_tokens: 0, currency: 'usd' };
+}
+export async function platformAgentBillingSet(p: { enabled: boolean; perRun: number; per1kTokens: number; currency?: string }): Promise<void> {
+  const { error } = await sb.rpc('platform_agent_billing_set', { p_enabled: p.enabled, p_per_run: p.perRun, p_per_1k_tokens: p.per1kTokens, p_currency: p.currency ?? 'usd' });
+  if (error) throw new Error(error.message);
+}
+export async function platformAgentRevenue(periodKind: 'day' | 'month' = 'month'): Promise<PlatformAgentRevenue> {
+  const { data, error } = await sb.rpc('platform_agent_revenue', { p_period_kind: periodKind }); if (error) throw new Error(error.message);
+  return data as PlatformAgentRevenue;
+}
+// Reseller retail rate card (direct table under RLS — owner/admin of the reseller).
+export async function resellerGetAgentRate(reseller: string): Promise<ResellerAgentRate | null> {
+  const { data, error } = await sb.from('reseller_agent_rates').select('reseller_org_id, price_per_run, price_per_1k_tokens, currency, active').eq('reseller_org_id', reseller).maybeSingle();
+  if (error) throw new Error(error.message); return (data as ResellerAgentRate) || null;
+}
+export async function resellerSetAgentRate(reseller: string, perRun: number, per1kTokens: number, currency = 'usd'): Promise<void> {
+  const { error } = await sb.from('reseller_agent_rates').upsert({ reseller_org_id: reseller, price_per_run: perRun, price_per_1k_tokens: per1kTokens, currency, active: true }, { onConflict: 'reseller_org_id' });
+  if (error) throw new Error(error.message);
+}
+export async function resellerAgentMargin(reseller: string, periodKind: 'day' | 'month' = 'month'): Promise<ResellerAgentMargin> {
+  const { data, error } = await sb.rpc('reseller_agent_margin', { p_reseller: reseller, p_period_kind: periodKind }); if (error) throw new Error(error.message);
+  return data as ResellerAgentMargin;
+}
+// Per-org usage + cost at the applicable rate (reseller retail if sub-tenant, else platform wholesale).
+export async function agentUsageCost(orgId: string, periodKind: 'day' | 'month' = 'month'): Promise<AgentUsageCost> {
+  const { data, error } = await sb.rpc('agent_usage_cost', { p_org: orgId, p_period_kind: periodKind }); if (error) throw new Error(error.message);
+  return data as AgentUsageCost;
+}
 // Manual demo: exercise the propose -> approve -> rollback flow without an LLM key.
 export async function simulateAgentProposal(orgId: string, agentId: string, domain: string): Promise<void> {
   const { data: runId, error: e1 } = await sb.rpc('agent_start_run', { p_org: orgId, p_agent: agentId, p_trigger: 'manual', p_input: {} });
