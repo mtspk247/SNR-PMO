@@ -488,6 +488,8 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function Landing() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const appLd = { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'SNR-PMO', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: 'All-in-one business OS - projects, CRM, HR & payroll and real double-entry accounting in one workspace, with approve-first AI agents that run the back office. White-label and resell.', offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' } };
+  const faqLd = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: FAQS.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) };
 
   return (
     <>
@@ -498,6 +500,18 @@ export default function Landing() {
           content="SNR-PMO runs projects, CRM, HR & payroll and real accounting in one workspace — and AI agents do the back-office busywork: drafting tasks, journal entries, onboarding and follow-ups. Every action is approve-first, audited and reversible. White-label and resell it as your own."
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="canonical" href="https://snr-pmo.vercel.app/" />
+        <meta name="theme-color" content="#0a0a0a" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="SNR-PMO" />
+        <meta property="og:url" content="https://snr-pmo.vercel.app/" />
+        <meta property="og:title" content="SNR-PMO — the business OS with AI agents for your back office" />
+        <meta property="og:description" content="Projects, CRM, HR & payroll and real accounting in one workspace — with approve-first AI agents that do the busywork. White-label and resell it as your own." />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="SNR-PMO — AI agents for your back office" />
+        <meta name="twitter:description" content="The all-in-one business OS with approve-first AI agents. Projects, CRM, HR, real accounting — one workspace. White-label." />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(appLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
       </Head>
 
       <div className="min-h-screen bg-[#0a0a0a] text-white font-sans antialiased selection:bg-[#10b981]/30">
@@ -819,6 +833,30 @@ SNR-PMO runs projects, CRM, HR &amp; payroll and real accounting in one workspac
         </section>
 
         {/* ------------------------------ PRICING ---------------------------- */}
+        {/* ------------------------------ TRUST ------------------------------ */}
+        <section className="mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28 border-t border-white/10">
+          <div className="text-center max-w-2xl mx-auto">
+            <div className="text-xs font-semibold uppercase tracking-widest text-[#3ECF8E]">Built to be trusted</div>
+            <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight">Real operations need real guardrails</h2>
+            <p className="mt-3 text-white/50">No black boxes. Your data stays yours, every agent action is reviewable, and the books are real.</p>
+          </div>
+          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { t: 'Tenant isolation by default', d: 'Every workspace is fenced at the database level with row-level security — one organization can never see another tenant\'s data.' },
+              { t: 'Approve-first, fully audited', d: 'Agents propose; a person approves. Every action is written to an append-only audit trail and is one-click reversible. Money and payroll always wait for you.' },
+              { t: 'Real double-entry accounting', d: 'A genuine general ledger — debits, credits, trial balance and P&L. Invoices and payroll post real journal entries, not a faked summary.' },
+              { t: 'Your data, no lock-in', d: 'Org-scoped REST API, event webhooks and CSV export. Take your data with you anytime — nothing is held hostage.' },
+              { t: 'White-label & reseller-ready', d: 'Your brand, logo and custom domain, with unlimited client sub-accounts billed from a reseller console.' },
+              { t: 'Granular roles & permissions', d: 'Role-based access control across every module, plus audit logs and SSO/SAML on Enterprise.' },
+            ].map((f) => (
+              <div key={f.t} className="rounded-2xl border border-white/10 bg-[#101010] p-6">
+                <div className="text-[15px] font-semibold text-white">{f.t}</div>
+                <div className="mt-2 text-[14px] text-white/55 leading-relaxed">{f.d}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section id="pricing" className="mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28">
           <div className="text-center max-w-2xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Simple pricing for the whole stack</h2>
