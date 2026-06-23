@@ -1,6 +1,7 @@
 import { sb, activeOrgScope, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES } from './supabase';
 import { buildDemoPayload } from './demoSeed';
 import { SAMPLE_PROPOSALS, STARTER_AGENTS } from './agents';
+import { scanForWork } from './agentScanner';
 
 // ---------------------------------------------------------------------------
 // Auth (Supabase Auth)
@@ -3321,6 +3322,32 @@ export async function simulateAgentProposal(orgId: string, agentId: string, doma
 export async function autoApproveAgentAction(actionId: string): Promise<void> {
   const { error } = await sb.rpc('agent_auto_approve', { p_action: actionId });
   if (error) throw new Error(error.message);
+}
+
+// Deterministic "Find work" scan (Phase 3.5+): reads the workspace's REAL records and
+// proposes concrete actions with REAL target ids — so the executors run WITHOUT an LLM
+// key. Writes through the same approve-first RPCs as the LLM proposer. Dedupes against
+// already-pending proposals so a re-scan doesn't spam the queue.
+export async function runWorkScan(orgId: string, agent: { id: string; domain: string }): Promise<{ runId: string | null; count: number }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const [tasks, deals, ledger, pending] = await Promise.all([
+    agent.domain === 'tasks' ? getTasks(orgId) : Promise.resolve([] as Task[]),
+    agent.domain === 'crm' ? getDeals(orgId) : Promise.resolve([] as Deal[]),
+    agent.domain === 'accounting' ? getLedgerEntries(orgId) : Promise.resolve([] as LedgerEntry[]),
+    listAgentActions(orgId, 'proposed').catch(() => [] as AgentAction[]),
+  ]);
+  const seen = new Set(pending.map((a) => a.payload?.entry_id || a.payload?.task_id || a.payload?.deal_id).filter(Boolean));
+  const proposals = scanForWork(agent.domain, { tasks, deals, ledger, today })
+    .filter((p) => { const tid = p.payload.entry_id || p.payload.task_id || p.payload.deal_id; return !tid || !seen.has(tid); });
+  if (proposals.length === 0) return { runId: null, count: 0 };
+  const { data: runId, error: e1 } = await sb.rpc('agent_start_run', { p_org: orgId, p_agent: agent.id, p_trigger: 'manual', p_input: { kind: 'work_scan' } });
+  if (e1) throw new Error(e1.message);
+  for (const p of proposals) {
+    const { error } = await sb.rpc('agent_propose_action', { p_org: orgId, p_run: runId as string, p_agent: agent.id, p_tool: p.tool, p_domain: agent.domain, p_summary: p.summary, p_payload: p.payload, p_risk: p.risk, p_reversible: p.reversible });
+    if (error) throw new Error(error.message);
+  }
+  await sb.rpc('agent_finish_run', { p_run: runId as string, p_status: 'awaiting_approval', p_tokens: 0, p_usd: 0, p_error: null });
+  return { runId: runId as string, count: proposals.length };
 }
 // Domain executor calls this AFTER performing the real (RLS-enforced) write, to
 // record target + reversal so the action becomes executed + rollback-able.

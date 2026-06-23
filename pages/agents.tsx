@@ -12,10 +12,11 @@ import { GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR, AGENT_TOOLS } from '@/lib/agents';
 import { executorFor, canAutoExecute } from '@/lib/agentExecutors';
+import { SCANNABLE_DOMAINS } from '@/lib/agentScanner';
 import { toast } from '@/lib/toast';
 import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
-  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost,
+  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, runWorkScan,
   listAgentActions, recordAgentExecution, autoApproveAgentAction,
   AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost,
 } from '@/lib/db';
@@ -152,6 +153,18 @@ export default function AgentsPage() {
     }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
+  const findWork = async () => {
+    if (!org || !editor?.draft.id || busy) return;
+    setBusy(true); setErr('');
+    try {
+      const { runId, count } = await runWorkScan(org.id, { id: editor.draft.id, domain: editor.draft.domain });
+      if (count === 0) { toast('No actionable work found in this domain right now', 'info'); return; }
+      const { auto } = await autoRunForRun(runId || undefined, editor.draft);
+      toast('Found ' + count + ' item' + (count === 1 ? '' : 's') + (auto > 0 ? (', ' + auto + ' auto-executed') : '') + ' \u2014 review in approvals', 'success');
+      setEditor(null); router.push('/agent-approvals');
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
   const runAgent = async () => {
     if (!org || !editor?.draft.id || !runReq.trim() || busy) return;
     setBusy(true); setErr('');
@@ -282,6 +295,12 @@ export default function AgentsPage() {
                 </div>
                 <p className="text-2xs text-muted mt-1">Needs an LLM key (Console ▸ AI assistant). Proposes actions for your approval — it never executes on its own.</p>
               </div>
+              {SCANNABLE_DOMAINS.includes(editor.draft.domain) && (
+                <div className="mt-3 flex items-center justify-between rounded-md bg-surface2 p-3 gap-3">
+                  <span className="text-xs text-muted">No key needed — scan your real {editor.draft.domain === 'accounting' ? 'expenses' : editor.draft.domain === 'tasks' ? 'tasks' : 'deals'} for actionable work.</span>
+                  <button className="btn btn-primary btn-sm whitespace-nowrap" disabled={busy} onClick={findWork}><Icon name="ti-radar" className="text-sm" />{busy ? 'Scanning…' : 'Find work in my data'}</button>
+                </div>
+              )}
               <div className="mt-3 flex items-center justify-between rounded-md bg-surface2 p-3">
                 <span className="text-xs text-muted">No key yet? Try the approve → rollback flow on sample data.</span>
                 <button className="btn btn-sm" disabled={busy} onClick={runSample}><Icon name="ti-player-play" className="text-sm" />Generate sample proposal</button>
