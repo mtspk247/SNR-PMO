@@ -7,9 +7,9 @@ import Layout from '@/components/Layout';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { Pill, Spinner, EmptyState, PageHeader, Avatar, Icon, StatusBadge } from '@/components/ui';
-import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity, ensureTaskStatuses, TaskStatus } from '@/lib/db';
+import { createDeal, createContact, createCrmCompany, advanceDealStage, updateDeal, deleteDeal, deleteContact, getDealActivities, createActivity, deleteActivity, ensureTaskStatuses, TaskStatus, getOrgUsers, inviteMember } from '@/lib/db';
 import StatusManager from '@/components/StatusManager';
-import { Deal, Contact, Company, CrmActivity } from '@/lib/supabase';
+import { Deal, Contact, Company, CrmActivity, OrgUser } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { useDeals, useContacts, useCrmCompanies } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
@@ -33,6 +33,7 @@ const DEAL_COLS: ColDef[] = [
   { id: 'value', label: 'Value' },
   { id: 'stage', label: 'Stage' },
   { id: 'close', label: 'Expected close' },
+  { id: 'owner', label: 'Owner', width: 80 },
 ];
 const STAGE_RANK: Record<string, number> = { Lead: 1, Qualified: 2, Proposal: 3, Negotiation: 4, Won: 5, Lost: 0 };
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
@@ -57,6 +58,10 @@ export default function CRM() {
   const loading = dealsLoading || contactsLoading || companiesLoading;
 
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+  const [users, setUsers] = useState<OrgUser[]>([]);
+  useEffect(() => { if (org?.id) getOrgUsers(org.id).then(setUsers).catch(() => {}); }, [org?.id]);
+  const userName = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || '—';
+  const ownerOpts = users.map((u) => ({ value: u.id, label: u.full_name, deactivated: u.status !== 'active' }));
 
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Set<string>>(new Set());
@@ -220,6 +225,7 @@ export default function CRM() {
       case 'value': return <span className="inline-flex items-center gap-2 min-w-0"><span className="tabular-nums text-content shrink-0">{money(d.value || 0)}</span><span className="h-1 rounded-full bg-surface2 w-16 overflow-hidden hidden sm:inline-block align-middle"><span className="h-full rounded-full bg-accent block" style={{ width: `${Math.min(100, ((d.value || 0) / maxValue) * 100)}%` }} /></span></span>;
       case 'stage': return <StatusBadge status={d.stage} color={sColor(d.stage)} />;
       case 'close': return <span className="text-muted2 tnum">{d.expected_close || '—'}</span>;
+      case 'owner': return d.owner_id ? <span className="inline-flex" title={userName(d.owner_id)}><Avatar name={userName(d.owner_id)} size={20} /></span> : <span className="text-muted2">—</span>;
       default: return <span className="text-muted2">—</span>;
     }
   };
@@ -227,12 +233,13 @@ export default function CRM() {
     stage: { type: 'select', options: stageNames.map((s) => ({ value: s, label: s, dot: sColor(s) || '#9ca3af' })), manage: isAdmin ? () => setStatusMgr(true) : undefined },
     value: { type: 'number' },
     close: { type: 'date' },
+    owner: { type: 'person', options: ownerOpts },
   };
   const dealRawValue = (id: string, d: Deal) =>
     id === 'name' ? d.title : id === 'company' ? (d.crm_companies?.name || '') : id === 'value' ? String(d.value || 0)
-    : id === 'stage' ? d.stage : id === 'close' ? (d.expected_close || '') : '';
+    : id === 'stage' ? d.stage : id === 'close' ? (d.expected_close || '') : id === 'owner' ? (d.owner_id || '') : '';
   const onDealEdit = (d: Deal, id: string, value: string) => {
-    const patch: any = id === 'stage' ? { stage: value } : id === 'value' ? { value: Number(value) || 0 } : id === 'close' ? { expected_close: value || null } : null;
+    const patch: any = id === 'stage' ? { stage: value } : id === 'value' ? { value: Number(value) || 0 } : id === 'close' ? { expected_close: value || null } : id === 'owner' ? { owner_id: value || null } : null;
     if (!patch) return;
     updateDeal(d.id, patch).then((r) => setDealsCache((pp) => pp.map((x) => (x.id === r.id ? r : x)))).catch((e: any) => alert(e.message));
   };
@@ -240,7 +247,8 @@ export default function CRM() {
   const renderDealList = (rows: Deal[], stage: string) => (
     <DataList rows={rows} rowKey={(d) => d.id} cols={DEAL_COLS} prefs={dlp} cell={dealCell}
       editable={dealEditable} rawValue={dealRawValue} onEdit={onDealEdit} onRowClick={(d) => selectDeal(d.id)}
-      onRename={onRenameDeal} orderKey={'snrpmo.deals.roworder.' + stage} />
+      onRename={onRenameDeal} orderKey={'snrpmo.deals.roworder.' + stage}
+      onInvitePerson={isAdmin ? (email) => { inviteMember(org!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined} />
   );
 
   const BoardView = () => (
