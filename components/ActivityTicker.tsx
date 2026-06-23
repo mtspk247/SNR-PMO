@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '@/components/ui';
 import { getRecentActivity, ActivityItem } from '@/lib/db';
@@ -26,11 +26,13 @@ export default function ActivityTicker() {
   const router = useRouter();
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [idx, setIdx] = useState(0);
-  const [vis, setVis] = useState(true);
   const [paused, setPaused] = useState(false);
   const [stopped, setStopped] = useState(false);
   const [hovered, setHovered] = useState(false);
   const idxRef = useRef(0);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [scroll, setScroll] = useState(0);
 
   useEffect(() => {
     try { setPaused(localStorage.getItem('act_paused') === '1'); setStopped(localStorage.getItem('act_stopped') === '1'); } catch { /* ignore */ }
@@ -48,15 +50,22 @@ export default function ActivityTicker() {
     return () => { alive = false; clearInterval(t); };
   }, [org?.id, stopped]);
 
-  // Rotate with a quick fade.
+  // Rotate (each item slides up in; long items reveal-scroll horizontally — see render).
   useEffect(() => {
     if (stopped || paused || hovered || items.length === 0) return;
-    const t = setInterval(() => {
-      setVis(false);
-      setTimeout(() => { idxRef.current = (idxRef.current + 1) % Math.max(items.length, 1); setIdx(idxRef.current); setVis(true); }, 200);
-    }, 3500);
+    const t = setInterval(() => { idxRef.current = (idxRef.current + 1) % Math.max(items.length, 1); setIdx(idxRef.current); }, 4000);
     return () => clearInterval(t);
   }, [items.length, paused, stopped, hovered]);
+  // Measure horizontal overflow of the current line → drives the reveal-scroll distance.
+  useLayoutEffect(() => {
+    const ov = (textRef.current?.scrollWidth || 0) - (boxRef.current?.clientWidth || 0);
+    setScroll(ov > 6 ? ov + 12 : 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, items]);
+  useEffect(() => {
+    const onR = () => { const ov = (textRef.current?.scrollWidth || 0) - (boxRef.current?.clientWidth || 0); setScroll(ov > 6 ? ov + 12 : 0); };
+    window.addEventListener('resize', onR); return () => window.removeEventListener('resize', onR);
+  }, []);
 
   const setP = (v: boolean) => { setPaused(v); try { localStorage.setItem('act_paused', v ? '1' : '0'); } catch { /* ignore */ } };
   const setS = (v: boolean) => { setStopped(v); try { localStorage.setItem('act_stopped', v ? '1' : '0'); } catch { /* ignore */ } };
@@ -80,17 +89,23 @@ export default function ActivityTicker() {
         <span className="text-2xs font-medium uppercase tracking-wide text-muted2">Live</span>
       </span>
       <span className="h-3.5 w-px bg-line shrink-0" />
-      <div className="min-w-0 flex-1 overflow-hidden">
+      <div ref={boxRef} className="min-w-0 flex-1 overflow-hidden">
         {items.length === 0 ? (
           <span className="text-2xs text-muted2 italic">No recent activity</span>
         ) : (
           <button onClick={() => href && router.push(href)} disabled={!href}
             title={cur ? `${firstName(cur.username)} ${VERB[cur.action] || (cur.action || '').toLowerCase()} ${niceEntity(cur.entity_type)} · ${new Date(cur.ts).toLocaleString()}` : ''}
-            className={`block truncate text-2xs transition-opacity duration-200 ${vis ? 'opacity-100' : 'opacity-0'} ${href ? 'text-content hover:text-accentstrong cursor-pointer' : 'text-content cursor-default'}`}>
-            <span className="font-semibold">{firstName(cur?.username ?? null)}</span>{' '}
-            <span className="text-muted">{VERB[cur?.action || ''] || (cur?.action || '').toLowerCase()}</span>{' '}
-            <span className="font-medium">{niceEntity(cur?.entity_type ?? null)}</span>
-            <span className="text-muted2"> · {new Date(cur!.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            className={`block max-w-full text-2xs text-left ${href ? 'text-content hover:text-accentstrong cursor-pointer' : 'text-content cursor-default'}`}>
+            <span key={idx} className="inline-block max-w-full align-bottom" style={{ animation: 'ticker-in 0.35s ease-out' }}>
+              <span ref={textRef} key={`${idx}:${scroll}`}
+                className={`inline-block whitespace-nowrap will-change-transform ${scroll > 0 ? 'group-hover:[animation-play-state:paused]' : ''}`}
+                style={scroll > 0 ? ({ animation: `ticker-reveal ${Math.min(3.4, Math.max(1.8, scroll / 45))}s linear`, '--ticker-tx': `-${scroll}px` } as any) : undefined}>
+                <span className="font-semibold">{firstName(cur?.username ?? null)}</span>{' '}
+                <span className="text-muted">{VERB[cur?.action || ''] || (cur?.action || '').toLowerCase()}</span>{' '}
+                <span className="font-medium">{niceEntity(cur?.entity_type ?? null)}</span>
+                <span className="text-muted2"> · {new Date(cur!.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </span>
+            </span>
           </button>
         )}
       </div>

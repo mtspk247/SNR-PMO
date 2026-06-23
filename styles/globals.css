@@ -254,6 +254,8 @@ html[data-skin="midnight"][data-theme="dark"] body  { background: radial-gradien
 .dash-cell > .card > :first-child { flex: 0 0 auto; }
 
 @keyframes flashPulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+@keyframes ticker-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ticker-reveal { 0%, 16% { transform: translateX(0); } 84%, 100% { transform: translateX(var(--ticker-tx, 0px)); } }
 .animate-flash { animation: flashPulse 1.5s ease-in-out infinite; }
 
 /* Rich-text document body (templates editor + preview) */
