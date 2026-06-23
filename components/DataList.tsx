@@ -52,6 +52,10 @@ export type DataListProps<T> = {
   groupAggregate?: (rows: T[]) => ReactNode;
   /** When set, group headers become draggable to reorder the groups (e.g. status order). */
   onReorderGroups?: (dragged: string, target: string) => void;
+  /** Opt-in: allow dragging a ROW between groups to change its group field (e.g. status).
+   *  OFF by default so grouping never implicitly mutates data on a stray drag — change the
+   *  field via the inline cell dropdown or the board instead. */
+  dragRegroup?: boolean;
   /** When set, the grip handle reorders rows and persists the manual order per-user. */
   orderKey?: string;
   /** Primary/name column id — the only cell that opens the record detail on click.
@@ -204,7 +208,7 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, onReorderGroups, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, onReorderGroups, dragRegroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [gDrag, setGDrag] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
@@ -223,7 +227,7 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   }, [orderKey]);
   const persistOrder = (ids: string[]) => { setManualOrder(ids); if (orderKey) { try { localStorage.setItem(orderKey, JSON.stringify(ids)); } catch { /* ignore */ } } };
 
-  const canGroupChange = !!(groupBy && groupBy !== 'none' && groupOf && groups && editable && editable[groupBy] && onEdit);
+  const canGroupChange = !!(dragRegroup && groupBy && groupBy !== 'none' && groupOf && groups && editable && editable[groupBy] && onEdit);
   const rowDnD = !!orderKey || canGroupChange;
 
   const orderedRows = (() => {
