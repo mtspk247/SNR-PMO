@@ -373,6 +373,7 @@ export const SECTIONS: Section[] = [
         ['client.created', 'A client is created'],
       ] },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'Verify every delivery: the X-SNRPMO-Signature header is "sha256=" followed by the HMAC-SHA256 of the raw body using your endpoint secret. Recompute it and compare before trusting the payload. Slack, Teams and Discord endpoints receive a pre-formatted message instead of raw JSON.' },
+      { kind: 'callout', icon: 'ti-refresh', text: 'Reliable delivery: a server-side dispatcher POSTs each event and records the real HTTP status. Failed or timed-out deliveries retry automatically with exponential backoff (up to 6 attempts); return any 2xx to acknowledge. Delivery status + attempts are visible under Developer > Webhooks.' },
     ],
   },
   {
