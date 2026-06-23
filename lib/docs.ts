@@ -385,7 +385,7 @@ export const SECTIONS: Section[] = [
       { kind: 'bullets', items: [
         { text: 'Branded automatically — the portal inherits your workspace logo and colours (Settings > Branding); a reseller\'s custom domain shows their own brand.' },
         { text: 'Scoped by access — a guest sees only the projects they were invited to. Row-level security enforces this on the server, not just in the UI.' },
-        { text: 'Read-only (v1) — projects with status and dates, plus an at-a-glance count of open tasks. Invoices, files and approvals are the next slices.' },
+        { text: 'Read-only — projects and their invoices (status, dates, totals and balance due) in your brand, plus at-a-glance counts and total outstanding. Files and approvals are the next slices.' },
       ] },
       { kind: 'steps', items: [
         { title: 'Invite a client', body: 'People > Guests > invite by email, then choose their access level and which projects they can see. They receive a sign-in link.' },
