@@ -69,6 +69,10 @@ export type DataListProps<T> = {
   onAddSubtask?: (r: T) => void;
   /** Returns a row's child rows (subtasks) → enables expand/collapse nesting. */
   childrenOf?: (r: T) => T[];
+  /** Click-to-sort (wired by ListView): active column + direction + handler. */
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
+  onSort?: (colId: string) => void;
 };
 
 function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { value: string; label: string; deactivated?: boolean }[]; value: string; onSave: (v: string) => void; multi?: boolean; onInvite?: (email: string) => void | Promise<void> }) {
@@ -200,7 +204,7 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
         className="inline-flex items-center justify-center h-6 w-6 rounded text-muted2 hover:text-content hover:bg-surface2"><Icon name="ti-plus" className="text-sm" /></button>
       {open && <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpen(false); }} aria-hidden />}
       {open && (
-        <div className="absolute right-0 top-8 z-20 w-60 bg-surface border border-line rounded-lg shadow-lg p-2">
+        <div className="absolute right-0 top-8 z-20 w-72 bg-surface border border-line rounded-lg shadow-lg p-2">
           <AddColumnForm cf={prefs.cf!} onDone={() => setOpen(false)} />
         </div>
       )}
@@ -208,7 +212,7 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, onReorderGroups, dragRegroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, onReorderGroups, dragRegroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf, sortBy, sortDir, onSort }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [gDrag, setGDrag] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
@@ -343,9 +347,10 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
           onDragEnd={() => setColDrag(null)}
           style={pinSty(ci)}
           className={`group/col relative px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wider whitespace-nowrap overflow-hidden cursor-grab select-none transition ${pinCls(ci)} ${colDrag === id ? 'opacity-40' : 'hover:text-content'}`}>
-          <span className="inline-flex items-center gap-1 max-w-full">
+          <span onClick={(e) => { if (onSort) { e.stopPropagation(); onSort(id); } }} className={`inline-flex items-center gap-1 max-w-full ${onSort ? 'cursor-pointer' : ''}`}>
             <Icon name="ti-grip-vertical" className="text-2xs text-muted2 opacity-0 group-hover/col:opacity-60 shrink-0" />
             <span className="truncate">{labelOf(id)}</span>
+            {sortBy === id && <Icon name={sortDir === 'desc' ? 'ti-arrow-narrow-down' : 'ti-arrow-narrow-up'} className="text-2xs text-accentstrong shrink-0" />}
           </span>
           <span onPointerDown={(e) => startColResize(e, id, ci)} onDoubleClick={() => autoFit(id)} onClick={(e) => e.stopPropagation()} title="Drag to resize · double-click to fit"
             className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-accent/50 z-10" />

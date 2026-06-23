@@ -213,6 +213,9 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
           onInvitePerson={p.onInvitePerson}
           onRename={p.onRename}
           onAddSubtask={p.onAddSubtask}
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onSort={(id) => { if (id === sortBy) setSortDir((d) => d === 'asc' ? 'desc' : 'asc'); else { setSortBy(id); setSortDir('asc'); } }}
         />
       )}
     </>

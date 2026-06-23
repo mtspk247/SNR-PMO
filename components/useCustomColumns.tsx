@@ -13,20 +13,23 @@ export const isCustomCol = (id: string) => id.startsWith(PREFIX);
 const fmtMoney = (n: number) => '$' + (isNaN(n) ? 0 : n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 // ClickUp-style field types offered by "+ Add column".
-export const CUSTOM_FIELD_TYPES: { value: string; label: string; icon: string }[] = [
-  { value: 'text', label: 'Text', icon: 'ti-cursor-text' },
-  { value: 'textarea', label: 'Long text', icon: 'ti-align-left' },
-  { value: 'number', label: 'Number', icon: 'ti-123' },
-  { value: 'currency', label: 'Money', icon: 'ti-currency-dollar' },
-  { value: 'progress', label: 'Progress bar', icon: 'ti-progress' },
-  { value: 'rating', label: 'Rating', icon: 'ti-star' },
-  { value: 'date', label: 'Date', icon: 'ti-calendar' },
-  { value: 'checkbox', label: 'Checkbox', icon: 'ti-checkbox' },
-  { value: 'dropdown', label: 'Dropdown', icon: 'ti-list-check' },
-  { value: 'multiselect', label: 'Labels', icon: 'ti-tags' },
-  { value: 'url', label: 'Website', icon: 'ti-link' },
-  { value: 'email', label: 'Email', icon: 'ti-mail' },
-  { value: 'phone', label: 'Phone', icon: 'ti-phone' },
+export const CUSTOM_FIELD_TYPES: { value: string; label: string; icon: string; group: string }[] = [
+  { value: 'text', label: 'Text', icon: 'ti-cursor-text', group: 'Basic' },
+  { value: 'textarea', label: 'Long text', icon: 'ti-align-left', group: 'Basic' },
+  { value: 'date', label: 'Date', icon: 'ti-calendar', group: 'Basic' },
+  { value: 'checkbox', label: 'Checkbox', icon: 'ti-checkbox', group: 'Basic' },
+  { value: 'number', label: 'Number', icon: 'ti-123', group: 'Numeric' },
+  { value: 'currency', label: 'Money', icon: 'ti-currency-dollar', group: 'Numeric' },
+  { value: 'percent', label: 'Percent', icon: 'ti-percentage', group: 'Numeric' },
+  { value: 'progress', label: 'Progress bar', icon: 'ti-progress', group: 'Numeric' },
+  { value: 'rating', label: 'Rating', icon: 'ti-star', group: 'Numeric' },
+  { value: 'duration', label: 'Duration (hrs)', icon: 'ti-clock-hour-4', group: 'Numeric' },
+  { value: 'dropdown', label: 'Dropdown', icon: 'ti-list-check', group: 'Choice' },
+  { value: 'multiselect', label: 'Labels', icon: 'ti-tags', group: 'Choice' },
+  { value: 'url', label: 'Website', icon: 'ti-link', group: 'Contact' },
+  { value: 'email', label: 'Email', icon: 'ti-mail', group: 'Contact' },
+  { value: 'phone', label: 'Phone', icon: 'ti-phone', group: 'Contact' },
+  { value: 'location', label: 'Location', icon: 'ti-map-pin', group: 'Contact' },
 ];
 export const NEEDS_OPTIONS = new Set(['dropdown', 'multiselect']);
 
@@ -48,6 +51,8 @@ const specFor = (d: CustomFieldDef): EditSpec => {
     case 'number':
     case 'currency':
     case 'progress':
+    case 'percent':
+    case 'duration':
     case 'rating': return { type: 'number' };
     case 'date': return { type: 'date' };
     default: return { type: 'text' };
@@ -87,6 +92,9 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
     if (!v) return <span className="text-muted2">—</span>;
     switch (t) {
       case 'currency': return <span className="text-sm tabular-nums text-content">{fmtMoney(Number(v) || 0)}</span>;
+      case 'percent': { const n = clampNum(v, 100); return <span className="text-sm tabular-nums text-content">{n}%</span>; }
+      case 'duration': return <span className="text-sm tabular-nums text-content">{Number(v) || 0}h</span>;
+      case 'location': return <span className="inline-flex items-center gap-1 text-sm text-content"><Icon name="ti-map-pin" className="text-xs text-muted2" />{v}</span>;
       case 'progress': { const n = clampNum(v, 100); return <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-16 rounded-full bg-surface2 overflow-hidden inline-block align-middle"><span className="h-full bg-accent inline-block" style={{ width: `${n}%` }} /></span><span className="text-2xs text-muted2 tabular-nums">{n}%</span></span>; }
       case 'rating': { const n = clampNum(v, 5); return <span className="inline-flex">{[1, 2, 3, 4, 5].map((i) => <Icon key={i} name={i <= n ? 'ti-star-filled' : 'ti-star'} className={`text-xs ${i <= n ? 'text-amber-400' : 'text-muted2'}`} />)}</span>; }
       case 'url': return <a href={/^https?:\/\//.test(v) ? v : `https://${v}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-sm text-accentstrong hover:underline truncate inline-block max-w-[12rem] align-middle">{v}</a>;
