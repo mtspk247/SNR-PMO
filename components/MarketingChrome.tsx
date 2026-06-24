@@ -13,6 +13,7 @@ export function MktHeader() {
     { href: '/#agents', label: 'AI Agents' },
     { href: '/#compare', label: 'Compare' },
     { href: '/vs', label: 'vs Others' },
+    { href: '/savings', label: 'Savings' },
     { href: '/#pricing', label: 'Pricing' },
   ];
   return (

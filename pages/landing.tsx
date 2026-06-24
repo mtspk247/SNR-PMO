@@ -1018,7 +1018,7 @@ SNR-PMO runs projects, CRM, HR &amp; payroll and real accounting in one workspac
               <a href="/vs/clickup" className="underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-[#3ECF8E] transition-colors">vs ClickUp</a><span className="text-white/20">&middot;</span>
               <a href="/vs/odoo" className="underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-[#3ECF8E] transition-colors">vs Odoo</a><span className="text-white/20">&middot;</span>
               <a href="/vs/hubspot" className="underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-[#3ECF8E] transition-colors">vs HubSpot</a>
-              <a href="/alternatives" className="ml-1 text-[#3ECF8E] hover:underline">compare all 8 &rarr;</a>
+              <a href="/alternatives" className="ml-1 text-[#3ECF8E] hover:underline">compare all 8 &rarr;</a><span className="text-white/20">&middot;</span><a href="/savings" className="text-[#3ECF8E] hover:underline">savings calculator</a>
             </div>
             <div className="mt-8"><a href="/login?mode=signup" className="inline-flex items-center justify-center rounded-lg bg-[#3ECF8E] px-6 py-3 text-sm font-semibold text-[#0a0a0a] hover:bg-[#10b981] transition-colors">See it for yourself &mdash; start free &rarr;</a></div>
           </div>
