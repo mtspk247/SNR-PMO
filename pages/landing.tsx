@@ -1012,6 +1012,14 @@ SNR-PMO runs projects, CRM, HR &amp; payroll and real accounting in one workspac
               <span className="inline-flex items-center gap-1.5"><span className="text-white/30">&mdash;</span> not offered</span>
             </div>
             <p className="mt-5 text-[11px] text-white/30 leading-relaxed max-w-3xl">Based on each product&rsquo;s primary positioning and publicly documented capabilities as of June 2026; capabilities and plans change. Product names are trademarks of their respective owners and imply no affiliation.</p>
+            <div className="mt-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-white/55">
+              <span className="text-white/40">Full head-to-head:</span>
+              <a href="/vs/gohighlevel" className="underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-[#3ECF8E] transition-colors">vs GoHighLevel</a><span className="text-white/20">&middot;</span>
+              <a href="/vs/clickup" className="underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-[#3ECF8E] transition-colors">vs ClickUp</a><span className="text-white/20">&middot;</span>
+              <a href="/vs/odoo" className="underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-[#3ECF8E] transition-colors">vs Odoo</a><span className="text-white/20">&middot;</span>
+              <a href="/vs/hubspot" className="underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-[#3ECF8E] transition-colors">vs HubSpot</a>
+              <a href="/vs" className="ml-1 text-[#3ECF8E] hover:underline">all comparisons &rarr;</a>
+            </div>
             <div className="mt-8"><a href="/login?mode=signup" className="inline-flex items-center justify-center rounded-lg bg-[#3ECF8E] px-6 py-3 text-sm font-semibold text-[#0a0a0a] hover:bg-[#10b981] transition-colors">See it for yourself &mdash; start free &rarr;</a></div>
           </div>
         </section>
