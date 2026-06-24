@@ -32,7 +32,7 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
   const full = useMemo(() => buildDemoPayload(industry || null), [industry]);
   const maxOf = (key: string): number => key === '__tasks'
     ? Math.max(0, ...full.projects.map((p) => p.tasks.length))
-    : (Array.isArray((full as Record<string, unknown>)[key]) ? ((full as Record<string, unknown[]>)[key]).length : 0);
+    : (((full as unknown as Record<string, unknown[]>)[key])?.length ?? 0);
 
   const defaults = useMemo(() => {
     const d: Record<string, number> = {};
