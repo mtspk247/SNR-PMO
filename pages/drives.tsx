@@ -23,6 +23,9 @@ const fileIcon = (f: DriveFile) => {
   if (m.startsWith('image/')) return 'ti-photo'; if (m.includes('pdf')) return 'ti-file-type-pdf';
   if (m.includes('zip') || m.includes('compressed')) return 'ti-file-zip'; return 'ti-file';
 };
+const isImage = (f: DriveFile) => (f.mime_type || '').startsWith('image/');
+const isPdf = (f: DriveFile) => (f.mime_type || '').includes('pdf');
+const dtHasFiles = (e: React.DragEvent) => { try { return Array.from(e.dataTransfer.types || []).includes('Files'); } catch { return false; } };
 
 export default function DrivesPage() {
   const org = useActiveOrg();
@@ -44,6 +47,9 @@ export default function DrivesPage() {
   const [newFolder, setNewFolder] = useState('');
   const [showFolder, setShowFolder] = useState(false);
   const [moving, setMoving] = useState<{ kind: 'folder' | 'file'; id: string; name: string; parent: string | null } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; type: 'image' | 'pdf'; url: string } | null>(null);
+  const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
+  const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const currentFolderId = path.length ? path[path.length - 1].id : null;
@@ -56,7 +62,7 @@ export default function DrivesPage() {
   const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); listFolders(d.id).then(setFolders).catch(() => {}); };
   useEffect(() => { if (active) { setFiles(null); listFiles(active.id, currentFolderId).then(setFiles).catch(() => setFiles([])); } /* eslint-disable-next-line */ }, [active?.id, currentFolderId]);
 
-  // ---- Tree helpers (built from the flat folder list already loaded for the drive) ----
+  // ---- Tree helpers ----
   const childrenOf = (pid: string | null) => folders.filter((f) => f.parent_id === pid);
   const folderById = useMemo(() => { const m: Record<string, DriveFolder> = {}; folders.forEach((f) => (m[f.id] = f)); return m; }, [folders]);
   const pathTo = (folderId: string | null): { id: string | null; name: string }[] => {
@@ -91,18 +97,31 @@ export default function DrivesPage() {
     try { await createFolder({ org_id: org.id, drive_id: active.id, parent_id: currentFolderId, name: newFolder.trim(), created_by: me.id }); setNewFolder(''); setShowFolder(false); refreshHere(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
-  const onUpload = async (list: FileList | null) => {
+  // Upload one or more files into a specific folder (or the drive root).
+  const uploadFilesTo = async (folderId: string | null, list: FileList | null) => {
     if (!org || !me || !active || !list || !list.length) return;
     setBusy(true); setErr('');
-    try { for (const file of Array.from(list)) await uploadDriveFile({ org_id: org.id, drive_id: active.id, folder_id: currentFolderId, file, created_by: me.id }); refreshHere(); }
+    try { for (const file of Array.from(list)) await uploadDriveFile({ org_id: org.id, drive_id: active.id, folder_id: folderId, file, created_by: me.id }); if (folderId) setExpanded((e) => ({ ...e, [folderId]: true })); refreshHere(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); if (fileInput.current) fileInput.current.value = ''; }
+  };
+  const onUpload = (list: FileList | null) => uploadFilesTo(currentFolderId, list);
+
+  // Click a file: preview images/PDFs in-browser, otherwise download.
+  const openFile = async (f: DriveFile) => {
+    if (!f.storage_path) return;
+    try {
+      const url = await driveFileUrl(f.storage_path);
+      if (isImage(f)) setPreview({ name: f.name, type: 'image', url });
+      else if (isPdf(f)) setPreview({ name: f.name, type: 'pdf', url });
+      else window.open(url, '_blank');
+    } catch (e: any) { setErr(e.message); }
   };
   const download = async (f: DriveFile) => { if (!f.storage_path) return; try { const url = await driveFileUrl(f.storage_path); window.open(url, '_blank'); } catch (e: any) { setErr(e.message); } };
   const delFile = async (f: DriveFile) => { if (!confirm(`Delete "${f.name}"?`)) return; setBusy(true); try { await deleteDriveFile(f); refreshHere(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const delFolder = async (f: DriveFolder) => { if (!confirm(`Delete folder "${f.name}" and everything in it?`)) return; setBusy(true); try { await deleteFolder(f.id); refreshHere(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const delDrive = async (d: Drive) => { if (!confirm(`Delete drive "${d.name}" and all its contents?`)) return; setBusy(true); try { await deleteDrive(d.id); const left = (drives || []).filter((x) => x.id !== d.id); setDrives(left); setActive(null); setFiles(null); if (left.length) selectDrive(left[0]); loadUsage(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
 
-  // ---- Move (drag-free, RBAC/RLS-enforced server-side) ----
+  // ---- Move (picker + drag-and-drop), RBAC/RLS-enforced server-side ----
   const invalidDest = useMemo(() => {
     if (!moving || moving.kind !== 'folder') return new Set<string>();
     const d = descendantIds(moving.id); d.add(moving.id); return d;
@@ -120,17 +139,42 @@ export default function DrivesPage() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
+  // Drag-and-drop move: drop the dragged item onto a destination folder (null = root).
+  const dragMoveTo = async (destId: string | null) => {
+    const it = dragRef.current; dragRef.current = null; setOver(null);
+    if (!it) return;
+    if (it.kind === 'folder') { if (destId === it.id) return; if (destId && descendantIds(it.id).has(destId)) return; }
+    if (destId === it.parent) return; // already there
+    setBusy(true); setErr('');
+    try { if (it.kind === 'folder') await moveFolder(it.id, destId); else await moveFile(it.id, destId); if (destId) setExpanded((e) => ({ ...e, [destId]: true })); refreshHere(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const startDrag = (item: { kind: 'folder' | 'file'; id: string; parent: string | null }) => (e: React.DragEvent) => { dragRef.current = item; try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.id); } catch { /* noop */ } };
+  const endDrag = () => { dragRef.current = null; setOver(null); };
+  const overIf = (key: string) => (e: React.DragEvent) => { if (dragRef.current || dtHasFiles(e)) { e.preventDefault(); setOver(key); } };
+  // Drop onto a folder: internal move OR upload OS files into that folder.
+  const dropOnFolder = (folderId: string) => (e: React.DragEvent) => {
+    if (dragRef.current) { e.preventDefault(); e.stopPropagation(); dragMoveTo(folderId); }
+    else if (dtHasFiles(e)) { e.preventDefault(); e.stopPropagation(); setOver(null); uploadFilesTo(folderId, e.dataTransfer.files); }
+  };
+  // Drop on the open pane: internal move to current folder OR upload OS files here.
+  const dropOnPane = (e: React.DragEvent) => {
+    if (dragRef.current) { e.preventDefault(); dragMoveTo(currentFolderId); }
+    else if (dtHasFiles(e)) { e.preventDefault(); setOver(null); uploadFilesTo(currentFolderId, e.dataTransfer.files); }
+  };
+
   if (!enabled) return <Layout flat title="Drives"><EmptyState icon="ti-cloud-off" title="Drives not in your plan" text="Upgrade your plan to use cloud storage." /></Layout>;
 
   const limitBytes = usage.limitMb != null ? usage.limitMb * 1024 * 1024 : null;
   const pct = limitBytes ? Math.min(100, Math.round((usage.used / limitBytes) * 100)) : 0;
 
-  // Recursive folder tree for the left navigation pane.
   const renderTree = (parentId: string | null, depth: number) => childrenOf(parentId).map((f) => {
     const kids = childrenOf(f.id); const open = !!expanded[f.id]; const cur = currentFolderId === f.id;
     return (
       <div key={f.id}>
-        <div className={`group flex items-center gap-1 rounded-md pr-1 ${cur ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'}`} style={{ paddingLeft: depth * 12 + 2 }}>
+        <div draggable={canEdit(f.created_by)} onDragStart={startDrag({ kind: 'folder', id: f.id, parent: f.parent_id })} onDragEnd={endDrag}
+          onDragOver={overIf(f.id)} onDragLeave={() => setOver((o) => (o === f.id ? null : o))} onDrop={dropOnFolder(f.id)}
+          className={`group flex items-center gap-1 rounded-md pr-1 ${cur ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'} ${over === f.id ? 'ring-2 ring-accent' : ''}`} style={{ paddingLeft: depth * 12 + 2 }}>
           <button onClick={() => setExpanded((e) => ({ ...e, [f.id]: !open }))} className={`w-4 h-6 grid place-items-center text-muted2 shrink-0 ${kids.length ? '' : 'invisible'}`} title={open ? 'Collapse' : 'Expand'}>
             <Icon name={open ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-2xs" />
           </button>
@@ -142,7 +186,6 @@ export default function DrivesPage() {
     );
   });
 
-  // Recursive destination list for the Move modal (self + descendants disabled for folder moves).
   const renderMoveTargets = (parentId: string | null, depth: number): any[] => childrenOf(parentId).flatMap((f) => {
     const bad = invalidDest.has(f.id); const isParent = moving?.parent === f.id;
     return [
@@ -158,7 +201,7 @@ export default function DrivesPage() {
 
   return (
     <Layout flat title="Drives">
-      <PageHeader title="Drives" subtitle="Your team’s cloud storage — drives, folders, and files" icon="ti-cloud" help="drives"
+      <PageHeader title="Drives" subtitle="Your team’s cloud storage — drag to move, drop files to upload" icon="ti-cloud" help="drives"
         action={<button className="btn btn-primary" onClick={() => setNewDrive({ name: '', description: '' })}><Icon name="ti-plus" />New drive</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
@@ -172,7 +215,6 @@ export default function DrivesPage() {
 
       {drives === null ? <Spinner /> : (
         <div className="grid lg:grid-cols-[16rem_1fr] gap-4">
-          {/* Drives list */}
           <div className="card p-2 h-max">
             <p className="text-2xs uppercase tracking-wide text-muted2 px-2 py-1.5">Drives</p>
             {drives.length === 0 ? <p className="text-2xs text-muted2 px-2 py-2">No drives yet.</p> : drives.map((d) => (
@@ -185,18 +227,23 @@ export default function DrivesPage() {
             ))}
           </div>
 
-          {/* Contents */}
           <div className="card overflow-hidden">
             {!active ? <div className="p-8"><EmptyState icon="ti-folders" text="Select or create a drive." /></div> : (
               <>
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-line flex-wrap">
                   <div className="flex items-center gap-1 text-sm mr-auto min-w-0 flex-wrap">
-                    {path.map((c, i) => (
-                      <span key={i} className="inline-flex items-center gap-1">
-                        {i > 0 && <Icon name="ti-chevron-right" className="text-2xs text-muted2" />}
-                        <button onClick={() => setPath((p) => p.slice(0, i + 1))} className={`truncate max-w-[12rem] ${i === path.length - 1 ? 'font-medium text-content' : 'text-muted hover:text-content'}`}>{c.name}</button>
-                      </span>
-                    ))}
+                    {path.map((c, i) => {
+                      const key = c.id === null ? '__root__' : c.id;
+                      return (
+                        <span key={i} className="inline-flex items-center gap-1">
+                          {i > 0 && <Icon name="ti-chevron-right" className="text-2xs text-muted2" />}
+                          <button onClick={() => setPath((p) => p.slice(0, i + 1))}
+                            onDragOver={overIf(key)} onDragLeave={() => setOver((o) => (o === key ? null : o))}
+                            onDrop={(e) => { if (dragRef.current) { e.preventDefault(); dragMoveTo(c.id); } }}
+                            className={`truncate max-w-[12rem] rounded px-1 ${i === path.length - 1 ? 'font-medium text-content' : 'text-muted hover:text-content'} ${over === key ? 'ring-2 ring-accent' : ''}`}>{c.name}</button>
+                        </span>
+                      );
+                    })}
                   </div>
                   {isAdmin && (
                     <div className="flex items-center gap-1.5 mr-1">
@@ -212,9 +259,9 @@ export default function DrivesPage() {
                 </div>
 
                 <div className="grid md:grid-cols-[14rem_1fr]">
-                  {/* Folder tree */}
                   <div className="border-b md:border-b-0 md:border-r border-line p-2 overflow-auto md:max-h-[calc(100vh-15rem)]">
-                    <button onClick={() => navTo(null)} className={`w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm ${currentFolderId === null ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'}`}>
+                    <button onClick={() => navTo(null)} onDragOver={overIf('__root__')} onDragLeave={() => setOver((o) => (o === '__root__' ? null : o))} onDrop={(e) => { if (dragRef.current) { e.preventDefault(); dragMoveTo(null); } }}
+                      className={`w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm ${currentFolderId === null ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'} ${over === '__root__' ? 'ring-2 ring-accent' : ''}`}>
                       <Icon name="ti-folders" className="text-sm shrink-0" />
                       <span className="truncate flex-1 text-left font-medium">{active.name}</span>
                     </button>
@@ -222,14 +269,16 @@ export default function DrivesPage() {
                     {folders.length === 0 && <p className="text-2xs text-muted2 px-2 py-2">No folders yet.</p>}
                   </div>
 
-                  {/* Current-folder listing */}
-                  <div>
+                  <div onDragOver={(e) => { if (dragRef.current || dtHasFiles(e)) { e.preventDefault(); setOver('__pane__'); } }} onDragLeave={() => setOver((o) => (o === '__pane__' ? null : o))} onDrop={dropOnPane}
+                    className={over === '__pane__' ? 'bg-accent/5 ring-2 ring-inset ring-accent/40' : ''}>
                     {files === null ? <div className="p-8"><Spinner /></div> : (childFolders.length === 0 && files.length === 0) ? (
-                      <div className="p-10"><EmptyState icon="ti-folder-open" text="This folder is empty — upload a file or create a folder." /></div>
+                      <div className="p-10"><EmptyState icon="ti-folder-open" text="This folder is empty — drop files here to upload, or create a folder." /></div>
                     ) : (
                       <div className="divide-y divide-line">
                         {childFolders.map((f) => (
-                          <div key={f.id} className="group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50">
+                          <div key={f.id} draggable={canEdit(f.created_by)} onDragStart={startDrag({ kind: 'folder', id: f.id, parent: f.parent_id })} onDragEnd={endDrag}
+                            onDragOver={overIf(f.id)} onDragLeave={() => setOver((o) => (o === f.id ? null : o))} onDrop={dropOnFolder(f.id)}
+                            className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50 ${over === f.id ? 'ring-2 ring-inset ring-accent' : ''}`}>
                             <Icon name="ti-folder" className="text-amber-500" />
                             <button className="text-sm text-content font-medium truncate flex-1 text-left hover:text-accentstrong" onClick={() => navTo(f.id)}>{f.name}</button>
                             {canEdit(f.created_by) && <button onClick={() => setMoving({ kind: 'folder', id: f.id, name: f.name, parent: f.parent_id })} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Move"><Icon name="ti-arrows-move" className="text-sm" /></button>}
@@ -237,9 +286,10 @@ export default function DrivesPage() {
                           </div>
                         ))}
                         {files.map((f) => (
-                          <div key={f.id} className="group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50">
+                          <div key={f.id} draggable={canEdit(f.created_by)} onDragStart={startDrag({ kind: 'file', id: f.id, parent: f.folder_id })} onDragEnd={endDrag}
+                            className="group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50">
                             <Icon name={fileIcon(f)} className="text-muted" />
-                            <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => download(f)}>{f.name}</button>
+                            <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => openFile(f)}>{f.name}</button>
                             <span className="text-2xs text-muted2 shrink-0 tabular-nums">{fmtBytes(f.size_bytes)}</span>
                             <button onClick={() => download(f)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Download"><Icon name="ti-download" className="text-sm" /></button>
                             {canEdit(f.created_by) && <button onClick={() => setMoving({ kind: 'file', id: f.id, name: f.name, parent: f.folder_id })} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Move"><Icon name="ti-arrows-move" className="text-sm" /></button>}
@@ -272,7 +322,7 @@ export default function DrivesPage() {
       {moving && (
         <Modal open onClose={() => setMoving(null)} title={`Move “${moving.name}”`} icon="ti-arrows-move" size="sm"
           footer={<button className="btn" onClick={() => setMoving(null)}>Cancel</button>}>
-          <p className="text-2xs text-muted2 mb-2">Pick a destination folder{moving.kind === 'folder' ? ' (a folder can’t move into itself)' : ''}.</p>
+          <p className="text-2xs text-muted2 mb-2">Pick a destination folder{moving.kind === 'folder' ? ' (a folder can’t move into itself)' : ''}. Tip: you can also drag rows to move them.</p>
           <div className="max-h-72 overflow-auto rounded-lg border border-line divide-y divide-line">
             <button disabled={busy || moving.parent === null} onClick={() => doMove(null)}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface2 disabled:opacity-40 disabled:cursor-not-allowed text-left">
@@ -282,6 +332,14 @@ export default function DrivesPage() {
             </button>
             {renderMoveTargets(null, 0)}
           </div>
+        </Modal>
+      )}
+      {preview && (
+        <Modal open onClose={() => setPreview(null)} size="lg" icon={preview.type === 'pdf' ? 'ti-file-type-pdf' : 'ti-photo'} title={preview.name}
+          footer={<><a className="btn" href={preview.url} target="_blank" rel="noreferrer"><Icon name="ti-external-link" className="text-sm" />Open original</a><button className="btn" onClick={() => setPreview(null)}>Close</button></>}>
+          {preview.type === 'image'
+            ? <img src={preview.url} alt={preview.name} className="max-h-[70vh] mx-auto rounded-lg" />
+            : <iframe src={preview.url} className="w-full h-[70vh] rounded-lg border border-line" title={preview.name} />}
         </Modal>
       )}
     </Layout>
