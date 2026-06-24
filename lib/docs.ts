@@ -571,6 +571,7 @@ export const SECTIONS: Section[] = [
         { title: 'Generate values', body: 'Each cell shows a \u2728 Generate button. Click it and AI fills that cell from the row\u2019s contents; use \u21bb to regenerate. The result is saved like any other field, so you can sort, group, filter and export by it.' },
       ] },
       { kind: 'callout', icon: 'ti-key', text: 'AI fields use your connected AI key (Console \u25b8 AI assistant). Without a key the column still exists but Generate will ask you to connect one. An AI field only reads the row and writes its own cell \u2014 it never changes other data.' },
+      { kind: 'callout', icon: 'ti-link', text: 'Another column type is Relationship \u2014 link each row to a record from another module (Projects, Clients, Deals, Contacts or Tasks). Add it from the same \u201c+\u201d \u25b8 Connect \u25b8 Relationship, choose the module, then pick the linked record inline in the cell. It shows the record\u2019s name and links to it.' },
     ],
   },
   {

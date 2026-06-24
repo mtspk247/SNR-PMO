@@ -732,6 +732,30 @@ export async function getMyManagerId(userId: string): Promise<string | null> {
   const { data, error } = await sb.from('users').select('reports_to').eq('id', userId).maybeSingle();
   if (error) return null; return ((data as { reports_to?: string | null } | null)?.reports_to) ?? null;
 }
+
+// --- Relationship custom-field: linkable target entities + their pickable rows ---
+export const RELATION_ENTITIES: { value: string; label: string }[] = [
+  { value: 'projects', label: 'Projects' },
+  { value: 'clients', label: 'Clients' },
+  { value: 'deals', label: 'Deals' },
+  { value: 'contacts', label: 'Contacts' },
+  { value: 'tasks', label: 'Tasks' },
+];
+const RELATION_SOURCES: Record<string, { table: string; label: string }> = {
+  projects: { table: 'projects', label: 'name' },
+  clients: { table: 'clients', label: 'name' },
+  deals: { table: 'crm_deals', label: 'title' },
+  contacts: { table: 'crm_contacts', label: 'full_name' },
+  tasks: { table: 'tasks', label: 'name' },
+};
+// Pickable rows for a relationship field's target entity (RLS-scoped to the user's org).
+export async function getRelationOptions(orgId: string, entity: string): Promise<{ id: string; label: string }[]> {
+  const src = RELATION_SOURCES[entity];
+  if (!src) return [];
+  const { data, error } = await (sb as any).from(src.table).select(`id, ${src.label}`).eq('org_id', orgId).limit(500);
+  if (error) return [];
+  return (((data as any[]) || [])).map((r) => ({ id: r.id as string, label: (r[src.label] as string) || '(untitled)' }));
+}
 export async function checkOut(row: Attendance): Promise<Attendance> {
   const out = new Date();
   const hours = row.check_in

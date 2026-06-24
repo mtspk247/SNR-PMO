@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui';
 import { CUSTOM_FIELD_TYPES, NEEDS_OPTIONS, AI_TRANSFORMS } from '@/components/useCustomColumns';
 import type { CustomColumnsApi } from '@/components/useCustomColumns';
 import OptionsEditor, { OptionsValue } from '@/components/OptionsEditor';
+import { RELATION_ENTITIES } from '@/lib/db';
 
 // "+ Add column" → a searchable, grouped field-type palette (ClickUp "Fields" panel):
 // pick a type from the list, name it (+ colored options for choice fields), Add.
@@ -15,13 +16,14 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
   const [aiT, setAiT] = useState('summarize');
   const [aiP, setAiP] = useState('');
   const [busy, setBusy] = useState(false);
+  const [relEntity, setRelEntity] = useState('projects');
 
   const sel = ty ? CUSTOM_FIELD_TYPES.find((t) => t.value === ty) : null;
   const needsOpts = !!ty && NEEDS_OPTIONS.has(ty);
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const matched = CUSTOM_FIELD_TYPES.filter((t) => !ql || t.label.toLowerCase().includes(ql) || t.value.includes(ql));
-    return ['Basic', 'Numeric', 'Choice', 'Contact', 'AI']
+    return ['Basic', 'Numeric', 'Choice', 'Contact', 'Connect', 'AI']
       .map((g) => ({ g, items: matched.filter((t) => t.group === g) }))
       .filter((x) => x.items.length);
   }, [q]);
@@ -35,6 +37,7 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
       if (aiT === 'custom' && aiP.trim()) meta.ai_prompt = aiP.trim();
       if (aiT === 'categorize') { options = opts.options.map((s) => s.trim()).filter(Boolean); options.forEach((o) => { if (opts.meta[o]) meta![o] = opts.meta[o]; }); }
     } else if (needsOpts) { options = opts.options.map((s) => s.trim()).filter(Boolean); meta = {}; options.forEach((o) => { if (opts.meta[o]) meta![o] = opts.meta[o]; }); }
+    else if (ty === 'relationship') { meta = { relation_entity: relEntity }; }
     try { await cf.addColumn(n, ty, options, meta); if (onDone) onDone(); }
     finally { setBusy(false); }
   };
@@ -68,6 +71,15 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
       <button onClick={() => setTy(null)} className="inline-flex items-center gap-1 text-2xs text-muted hover:text-content"><Icon name="ti-chevron-left" className="text-xs" />All fields</button>
       <div className="flex items-center gap-2 px-0.5"><Icon name={sel?.icon || 'ti-plus'} className="text-base text-accentstrong" /><span className="text-sm font-medium text-content">{sel?.label}</span></div>
       <input autoFocus value={nm} onChange={(e) => setNm(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !needsOpts) submit(); }} placeholder="Field name" className="input h-8 text-sm w-full" />
+      {ty === 'relationship' && (
+        <div>
+          <p className="text-2xs text-muted2 mb-1">Link to records from…</p>
+          <select value={relEntity} onChange={(e) => setRelEntity(e.target.value)} className="input h-8 text-sm w-full">
+            {RELATION_ENTITIES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <p className="text-[10px] text-muted2 mt-1 inline-flex items-center gap-1"><Icon name="ti-info-circle" className="text-xs" />Each cell links one record from {RELATION_ENTITIES.find((o) => o.value === relEntity)?.label || 'the module'}; pick it inline.</p>
+        </div>
+      )}
       {ty === 'ai' && (
         <div className="space-y-2">
           <div>

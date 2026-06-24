@@ -4,7 +4,7 @@ import type { ColDef } from '@/components/ListToolbar';
 import type { EditSpec } from '@/components/DataList';
 import {
   getCustomFieldDefs, createCustomFieldDef, updateCustomFieldDef, deleteCustomFieldDef,
-  getCustomFieldValuesByType, upsertCustomFieldValue, computeAiField,
+  getCustomFieldValuesByType, upsertCustomFieldValue, computeAiField, getRelationOptions,
 } from '@/lib/db';
 import { CustomFieldDef, CustomEntityType } from '@/lib/supabase';
 
@@ -31,6 +31,7 @@ export const CUSTOM_FIELD_TYPES: { value: string; label: string; icon: string; g
   { value: 'phone', label: 'Phone', icon: 'ti-phone', group: 'Contact' },
   { value: 'location', label: 'Location', icon: 'ti-map-pin', group: 'Contact' },
   { value: 'ai', label: 'AI field', icon: 'ti-sparkles', group: 'AI' },
+  { value: 'relationship', label: 'Relationship', icon: 'ti-link', group: 'Connect' },
 ];
 export const AI_TRANSFORMS: { value: string; label: string; hint: string }[] = [
   { value: 'summarize', label: 'Summarize', hint: 'One-line summary of the record' },
@@ -48,6 +49,11 @@ const optColor = (d: CustomFieldDef, v: string) => (d.option_meta && d.option_me
 const colorPill = (text: string, color: string, key?: string): ReactNode => (
   <span key={key} className="inline-flex items-center rounded-md px-2.5 py-0.5 text-2xs font-medium max-w-full truncate align-middle" style={{ backgroundColor: color + '1f', color, boxShadow: `inset 0 0 0 1px ${color}33` }}>{text}</span>
 );
+
+// Relationship cell → link to the target module (deep link for tasks; list page otherwise).
+const REL_HREF: Record<string, (id: string) => string> = {
+  tasks: (id) => `/tasks?task=${id}`, projects: () => '/projects', clients: () => '/clients', deals: () => '/crm', contacts: () => '/crm',
+};
 
 const specFor = (d: CustomFieldDef): EditSpec => {
   switch (d.field_type) {
@@ -73,6 +79,8 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
   const [vals, setVals] = useState<Record<string, Record<string, string>>>({});
   const [aiBusy, setAiBusy] = useState<Set<string>>(new Set());
   const aiTextRef = useRef<(id: string) => string>(() => '');
+  const [relList, setRelList] = useState<Record<string, { id: string; label: string }[]>>({});
+  const [relMap, setRelMap] = useState<Record<string, Record<string, string>>>({});
 
   const reload = useCallback(() => {
     if (!orgId) { setDefs([]); setVals({}); return; }
@@ -86,11 +94,32 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
 
   useEffect(() => { reload(); }, [reload]);
 
+  const relKey = defs.filter((d) => d.field_type === 'relationship').map((d) => d.option_meta?.relation_entity || '').filter(Boolean).sort().join(',');
+  useEffect(() => {
+    if (!orgId || !relKey) return;
+    const entities = relKey.split(',').filter((e, i, a) => a.indexOf(e) === i);
+    let active = true;
+    Promise.all(entities.map((e) => getRelationOptions(orgId, e).then((rows) => [e, rows] as const))).then((pairs) => {
+      if (!active) return;
+      const list: Record<string, { id: string; label: string }[]> = {};
+      const map: Record<string, Record<string, string>> = {};
+      pairs.forEach(([e, rows]) => { list[e] = rows; const m: Record<string, string> = {}; rows.forEach((r) => { m[r.id] = r.label; }); map[e] = m; });
+      setRelList(list); setRelMap(map);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [orgId, relKey]);
+
   const cols: ColDef[] = defs.map((d) => ({ id: PREFIX + d.id, label: d.name }));
   const defById: Record<string, CustomFieldDef> = {};
   defs.forEach((d) => { defById[PREFIX + d.id] = d; });
   const editable: Record<string, EditSpec> = {};
-  defs.forEach((d) => { if (d.field_type !== 'ai') editable[PREFIX + d.id] = specFor(d); });
+  defs.forEach((d) => {
+    if (d.field_type === 'ai') return;
+    if (d.field_type === 'relationship') {
+      const ent = d.option_meta?.relation_entity || '';
+      editable[PREFIX + d.id] = { type: 'select', options: [{ value: '', label: '—' }, ...((relList[ent] || []).map((o) => ({ value: o.id, label: o.label })))] };
+    } else { editable[PREFIX + d.id] = specFor(d); }
+  });
 
   const rawValue = (colId: string, entityId: string) => vals[entityId]?.[colId.slice(PREFIX.length)] ?? '';
   const cell = (colId: string, entityId: string): ReactNode => {
@@ -132,6 +161,13 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
       case 'dropdown': return colorPill(v, optColor(d, v));
       case 'multiselect':
       case 'labels': return <span className="inline-flex flex-wrap gap-1">{v.split(',').map((s) => s.trim()).filter(Boolean).map((s) => colorPill(s, optColor(d, s), s))}</span>;
+      case 'relationship': {
+        const ent = d?.option_meta?.relation_entity || '';
+        const label = (relMap[ent] && relMap[ent][v]) || 'Linked record';
+        const mk = REL_HREF[ent];
+        const pill = colorPill(label, '#6366F1');
+        return mk ? <a href={mk(v)} onClick={(e) => e.stopPropagation()} className="hover:opacity-80">{pill}</a> : pill;
+      }
       default: return <span className="text-sm text-muted">{v}</span>;
     }
   };
