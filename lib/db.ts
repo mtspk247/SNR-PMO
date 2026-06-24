@@ -103,6 +103,20 @@ export async function seedDemoData(orgId: string, industry: string | null): Prom
   return (data || {}) as Record<string, number>;
 }
 
+// One canonical "bring a workspace to life" action used by EVERY entry point (first-run
+// wizard, Settings ▸ Demo data, operator/reseller demos): base demo data + sample smart
+// columns + (plan-gated) a starter AI-agent team + chat commands. Composes the individually
+// tested, reversible seeders so the alive experience is identical everywhere. Every step
+// after the base seed is non-fatal, so a partial failure never blocks the workspace.
+export async function seedFullDemo(orgId: string, opts: { industry?: string | null; withAgents?: boolean; userId?: string | null } = {}): Promise<Record<string, number>> {
+  const counts = await seedDemoData(orgId, opts.industry ?? null);
+  try { await seedDemoSmartColumns(orgId); } catch { /* non-fatal */ }
+  if (opts.withAgents && opts.userId) {
+    try { await seedStarterAgents(orgId, opts.userId); await seedBuiltinChatCommands(orgId); } catch { /* non-fatal */ }
+  }
+  return counts;
+}
+
 // Seed/remove the demo "smart columns" (relationship + multi-link + rollup + formula) on Clients,
 // so a workspace SHOWS the advanced custom-field depth alive. Reversible + idempotent (owner-gated RPC).
 export async function seedDemoSmartColumns(orgId: string): Promise<{ status?: string; clients?: number; columns?: number }> {

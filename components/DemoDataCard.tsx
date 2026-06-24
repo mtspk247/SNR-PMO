@@ -2,11 +2,16 @@ import { useState } from 'react';
 import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
 import { INDUSTRIES, withCurrent } from '@/lib/taxonomy';
-import { seedDemoData, seedDemoSmartColumns, unseedDemoSmartColumns } from '@/lib/db';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { hasFeature } from '@/lib/entitlements';
+import { seedFullDemo, seedDemoSmartColumns, unseedDemoSmartColumns } from '@/lib/db';
 
 // Self-serve, industry-specific demo data generator (owner-gated by the RPC).
 // Additive — clearing data lives in the Danger zone (tenant_wipe_data).
 export default function DemoDataCard({ orgId, defaultIndustry }: { orgId: string; defaultIndustry?: string | null }) {
+  const activeOrg = useActiveOrg();
+  const me = useAuthStore((s) => s.user);
+  const withAgents = !!activeOrg && activeOrg.id === orgId && hasFeature(activeOrg, 'agents');
   const [industry, setIndustry] = useState(defaultIndustry || '');
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -28,7 +33,7 @@ export default function DemoDataCard({ orgId, defaultIndustry }: { orgId: string
 
   const run = async () => {
     setBusy(true); setErr(''); setDone(null);
-    try { setDone(await seedDemoData(orgId, industry || null)); setConfirm(false); }
+    try { setDone(await seedFullDemo(orgId, { industry, withAgents, userId: me?.id })); setConfirm(false); }
     catch (e: any) { setErr(e.message || 'Seed failed'); }
     finally { setBusy(false); }
   };
@@ -39,7 +44,7 @@ export default function DemoDataCard({ orgId, defaultIndustry }: { orgId: string
         <span className="w-10 h-10 shrink-0 rounded-xl grid place-items-center bg-accent/10 text-accentstrong ring-1 ring-inset ring-accent/15"><Icon name="ti-sparkles" className="text-xl" /></span>
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-content">Demo data</h3>
-          <p className="text-2xs text-muted mt-0.5">Populate this workspace with realistic, industry-specific sample data across every module your plan includes — projects &amp; tasks, CRM, companies, teams, ideas, products, invoices, support tickets, risk register and ledger. Only modules your plan enables are populated. Great for trials and demos. This adds data — to clear everything, use the Danger zone.</p>
+          <p className="text-2xs text-muted mt-0.5">Populate this workspace with realistic, industry-specific sample data across every module your plan includes — projects &amp; tasks, CRM, companies, teams, ideas, products, invoices, support tickets, risk register and ledger. Only modules your plan enables are populated—and on plans with Agents it also sets up a starter AI-agent team and chat commands. Great for trials and demos. This adds data — to clear everything, use the Danger zone.</p>
         </div>
       </div>
       <div className="mt-4 grid sm:grid-cols-2 gap-4">

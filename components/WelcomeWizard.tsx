@@ -6,7 +6,7 @@ import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { hasFeature } from '@/lib/entitlements';
-import { saveOnboarding, getOrgOptions, seedDemoData, seedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands } from '@/lib/db';
+import { saveOnboarding, getOrgOptions, seedFullDemo } from '@/lib/db';
 
 const TEAM = ['Just me', '2–10', '11–50', '50+'];
 const INDUSTRY = ['Agency', 'SaaS / Software', 'Consulting', 'E-commerce', 'Construction / Real estate', 'Healthcare', 'Education', 'Other'];
@@ -56,13 +56,8 @@ export default function WelcomeWizard() {
       if (seedSample) {
         // Bring the workspace to life so the trial matches the landing-page promise.
         // Reuses the SAME tested, reversible seeders as Settings > Demo data (removable anytime).
-        setSetupMsg('Setting up your workspace...');
-        try { await seedDemoData(org.id, industry || null); } catch { /* non-fatal */ }
-        try { await seedDemoSmartColumns(org.id); } catch { /* non-fatal */ }
-        if (agentsOn && me?.id) {
-          setSetupMsg('Activating your AI agents...');
-          try { await seedStarterAgents(org.id, me.id); await seedBuiltinChatCommands(org.id); } catch { /* non-fatal */ }
-        }
+        setSetupMsg(agentsOn ? 'Setting up your workspace + AI agents...' : 'Setting up your workspace...');
+        try { await seedFullDemo(org.id, { industry, withAgents: agentsOn, userId: me?.id }); } catch { /* non-fatal */ }
         // Hard reload so every dashboard widget refetches the now-populated workspace.
         if (typeof window !== 'undefined') { window.location.assign('/dashboard'); return; }
       }
