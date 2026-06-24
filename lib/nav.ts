@@ -124,6 +124,7 @@ export const SECTIONS: NavSection[] = [
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
     { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm', search: searchDeals },
     { href: '/leads', label: 'Leads', icon: 'ti-filter', feature: 'crm', search: searchLeads },
+    { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms' },
     { href: '/clients', label: 'Clients', icon: 'ti-friends', feature: 'crm', search: searchClients },
     { href: '/proposals', label: 'Proposals', icon: 'ti-file-description', feature: 'crm', search: searchProposals },
     { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm', search: searchContracts },

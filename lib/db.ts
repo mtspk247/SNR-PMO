@@ -1082,6 +1082,30 @@ export async function moveFile(id: string, folderId: string | null): Promise<voi
   const { error } = await sb.from('drive_files').update({ folder_id: folderId }).eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ---- Forms (F2) — builder + submissions ----
+export interface FormField { key: string; label: string; type: string; required?: boolean; options?: string[]; placeholder?: string; }
+export interface FormDef { id: string; org_id: string; name: string; slug: string; status: 'draft' | 'published' | 'archived'; fields: FormField[]; settings: Record<string, any>; submit_count: number; created_by: string | null; created_at: string; updated_at: string; }
+export interface FormSubmissionRow { id: string; form_id: string; org_id: string; data: Record<string, any>; lead_id: string | null; source: string | null; created_at: string; }
+
+export async function listForms(orgId: string): Promise<FormDef[]> {
+  const { data, error } = await sb.from('forms').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as FormDef[]) || [];
+}
+export async function createForm(p: { org_id: string; name: string; slug: string; status?: string; fields?: FormField[]; settings?: Record<string, any>; created_by: string }): Promise<FormDef> {
+  const { data, error } = await sb.from('forms').insert({ org_id: p.org_id, name: p.name, slug: p.slug, status: p.status || 'draft', fields: p.fields || [], settings: p.settings || {}, created_by: p.created_by }).select('*').single();
+  if (error) throw new Error(error.message); return data as FormDef;
+}
+export async function updateForm(id: string, patch: Partial<Pick<FormDef, 'name' | 'status' | 'fields' | 'settings' | 'slug'>>): Promise<void> {
+  const { error } = await sb.from('forms').update(patch).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteForm(id: string): Promise<void> {
+  const { error } = await sb.from('forms').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listFormSubmissions(formId: string): Promise<FormSubmissionRow[]> {
+  const { data, error } = await sb.from('form_submissions').select('*').eq('form_id', formId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as FormSubmissionRow[]) || [];
+}
 export interface PortalFile { id: string; name: string; kind: string; mime_type: string | null; size_bytes: number; storage_path: string | null; created_at: string; drive_id: string; drive_name?: string | null; }
 // Files the current user can read (RLS-fenced). For a guest = files in project-linked drives they can access.
 export interface PortalApproval { id: string; org_id: string; project_id: string; title: string; body: string | null; status: 'pending' | 'approved' | 'rejected' | 'cancelled'; requested_by: string | null; decided_by: string | null; decided_at: string | null; decision_note: string | null; created_at: string; project_name?: string | null; }

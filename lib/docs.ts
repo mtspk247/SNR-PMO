@@ -441,6 +441,27 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'forms',
+    title: 'Forms & lead capture',
+    icon: 'ti-forms',
+    blocks: [
+      { kind: 'p', text: 'Forms let you build a branded form once and collect responses from anywhere — a public link you can share, or an embed you drop onto any website. Every submission is saved and automatically creates a lead in your CRM, and can trigger automations. Find it under CRM > Forms.' },
+      { kind: 'bullets', items: [
+        { text: 'A simple builder — add fields (short text, paragraph, email, phone, name, dropdown, checkbox), mark any as required, and reorder them. Email, phone and name fields are mapped onto the new lead automatically.' },
+        { text: 'Hosted page + embed — a published form gets its own public page (a link you can share) and a copy-paste iframe embed for external sites. Drafts stay private until you publish.' },
+        { text: 'Straight into your CRM — each response is stored under the form with a timestamp and creates a Lead (source "form:<name>"), so your pipeline fills itself.' },
+        { text: 'Fires automations — a submission raises a "form.submitted" event, so an automation rule can notify an owner, create a task, and more (see Automations).' },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Build the form', body: 'CRM > Forms > New form. Name it, add your fields, then set the submit-button label and a success message (or a redirect URL).' },
+        { title: 'Publish it', body: 'Set the status to Published and Save. Open it again to copy its public link or the iframe embed code from the Share & embed panel.' },
+        { title: 'Share or embed', body: 'Send the public link, or paste the embed snippet into your website. Anyone can fill it in — no login required.' },
+        { title: 'Work the leads', body: 'Responses appear under the form (click the submissions count) and as new Leads in CRM > Leads. Choose the new-lead status in the form settings.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: the public page exposes only the fields of a published form — never your data. Submissions are write-only from the public side (created through a controlled server function) and only your staff can read them. Editing or deleting a form is limited to its creator or a workspace owner/admin. Forms is plan-gated.' },
+    ],
+  },
+  {
     id: 'client-portal',
     title: 'Client portal',
     icon: 'ti-layout-dashboard',

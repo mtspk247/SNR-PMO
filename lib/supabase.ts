@@ -115,6 +115,7 @@ export const FEATURES = [
   { key: 'reseller', label: 'Reseller (sub-tenants)' },
   { key: 'api', label: 'API & Webhooks' },
   { key: 'automations', label: 'Automations' },
+  { key: 'forms', label: 'Forms' },
   { key: 'portal', label: 'Branded Client Portal' },
   { key: 'agents', label: 'AI Agents' },
 ] as const;
