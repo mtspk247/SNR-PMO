@@ -3474,3 +3474,11 @@ export async function updateAppraisal(id: string, patch: Partial<Pick<Appraisal,
 export async function deleteAppraisal(id: string): Promise<void> {
   const { error } = await sb.from('appraisals').delete().eq('id', id); if (error) throw error;
 }
+
+// AI custom fields — compute a cell value from a record's text via the key-gated
+// ai-field edge fn (reuses the shared assistant_config key; no business writes there).
+export async function computeAiField(p: { text: string; transform: string; categories?: string[]; instruction?: string }): Promise<{ configured?: boolean; value?: string; error?: string }> {
+  const { data, error } = await sb.functions.invoke('ai-field', { body: { text: p.text, transform: p.transform, categories: p.categories || [], instruction: p.instruction || '' } });
+  if (error) { let msg = (error as any).message || 'AI field failed'; try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* ignore */ } return { error: msg }; }
+  return (data || {}) as any;
+}

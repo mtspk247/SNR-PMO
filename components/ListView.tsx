@@ -69,8 +69,25 @@ export type ListViewProps<T extends { id: string }> = {
 
 const csvEsc = (v: any) => { const x = v == null ? '' : String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
 
+function aiRowText(r: any): string {
+  if (!r || typeof r !== 'object') return '';
+  const skip = /(^id$|_id$|_at$|avatar|url|color|theme|password|token|secret)/i;
+  const parts: string[] = [];
+  for (const [k, val] of Object.entries(r)) {
+    if (skip.test(k)) continue;
+    if (typeof val === 'string' && val.trim()) parts.push(k.replace(/_/g, ' ') + ': ' + val);
+    else if (typeof val === 'number') parts.push(k.replace(/_/g, ' ') + ': ' + val);
+  }
+  return parts.join('. ').slice(0, 3000);
+}
+
 export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
   const { rows, prefs, cols, selection: rs } = p;
+  useEffect(() => {
+    if (!prefs.cf?.setAiText) return;
+    const byId = new Map<string, T>(); (rows || []).forEach((r) => byId.set(p.rowKey(r), r));
+    prefs.cf.setAiText((id) => { const r = byId.get(id); return r ? aiRowText(r) : ''; });
+  }, [rows, prefs.cf]);
   const org = useActiveOrg();
   const canExportAll = !!p.exportName && can.manageMembers(org);  // RBAC: export = admin (matches nav adminOnly)
   const canGroup = !!p.groupField && !!p.groupOf && !!p.groups;

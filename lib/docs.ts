@@ -544,6 +544,19 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'ai-fields',
+    title: 'AI fields (smart columns)',
+    icon: 'ti-sparkles',
+    blocks: [
+      { kind: 'p', text: 'Every list lets you add custom columns via the \u201c+\u201d at the end of the column row. One column type is an AI field: instead of you typing the value, AI reads the row and fills the cell on demand \u2014 the same idea as ClickUp\u2019s AI fields.' },
+      { kind: 'steps', items: [
+        { title: 'Add an AI field', body: 'Click \u201c+\u201d on any list \u25b8 choose AI field \u25b8 name it \u25b8 pick what AI should put there: Summarize (a one-line summary), Categorize (choose one of your categories), Sentiment (Positive/Neutral/Negative), or a Custom prompt you write.' },
+        { title: 'Generate values', body: 'Each cell shows a \u2728 Generate button. Click it and AI fills that cell from the row\u2019s contents; use \u21bb to regenerate. The result is saved like any other field, so you can sort, group, filter and export by it.' },
+      ] },
+      { kind: 'callout', icon: 'ti-key', text: 'AI fields use your connected AI key (Console \u25b8 AI assistant). Without a key the column still exists but Generate will ask you to connect one. An AI field only reads the row and writes its own cell \u2014 it never changes other data.' },
+    ],
+  },
+  {
     id: 'agents',
     title: 'AI Agents & approvals',
     icon: 'ti-robot',

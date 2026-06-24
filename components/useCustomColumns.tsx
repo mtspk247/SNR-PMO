@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState, ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { Icon } from '@/components/ui';
 import type { ColDef } from '@/components/ListToolbar';
 import type { EditSpec } from '@/components/DataList';
 import {
   getCustomFieldDefs, createCustomFieldDef, updateCustomFieldDef, deleteCustomFieldDef,
-  getCustomFieldValuesByType, upsertCustomFieldValue,
+  getCustomFieldValuesByType, upsertCustomFieldValue, computeAiField,
 } from '@/lib/db';
 import { CustomFieldDef, CustomEntityType } from '@/lib/supabase';
 
@@ -30,6 +30,13 @@ export const CUSTOM_FIELD_TYPES: { value: string; label: string; icon: string; g
   { value: 'email', label: 'Email', icon: 'ti-mail', group: 'Contact' },
   { value: 'phone', label: 'Phone', icon: 'ti-phone', group: 'Contact' },
   { value: 'location', label: 'Location', icon: 'ti-map-pin', group: 'Contact' },
+  { value: 'ai', label: 'AI field', icon: 'ti-sparkles', group: 'AI' },
+];
+export const AI_TRANSFORMS: { value: string; label: string; hint: string }[] = [
+  { value: 'summarize', label: 'Summarize', hint: 'One-line summary of the record' },
+  { value: 'categorize', label: 'Categorize', hint: 'Pick one of your categories' },
+  { value: 'sentiment', label: 'Sentiment', hint: 'Positive / Neutral / Negative' },
+  { value: 'custom', label: 'Custom prompt', hint: 'Your own instruction' },
 ];
 export const NEEDS_OPTIONS = new Set(['dropdown', 'multiselect']);
 
@@ -64,6 +71,8 @@ const clampNum = (v: string, max: number) => { const n = Number(v); return isNaN
 export function useCustomColumns(orgId: string | undefined, entityType: CustomEntityType, canManage: boolean) {
   const [defs, setDefs] = useState<CustomFieldDef[]>([]);
   const [vals, setVals] = useState<Record<string, Record<string, string>>>({});
+  const [aiBusy, setAiBusy] = useState<Set<string>>(new Set());
+  const aiTextRef = useRef<(id: string) => string>(() => '');
 
   const reload = useCallback(() => {
     if (!orgId) { setDefs([]); setVals({}); return; }
@@ -81,7 +90,7 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
   const defById: Record<string, CustomFieldDef> = {};
   defs.forEach((d) => { defById[PREFIX + d.id] = d; });
   const editable: Record<string, EditSpec> = {};
-  defs.forEach((d) => { editable[PREFIX + d.id] = specFor(d); });
+  defs.forEach((d) => { if (d.field_type !== 'ai') editable[PREFIX + d.id] = specFor(d); });
 
   const rawValue = (colId: string, entityId: string) => vals[entityId]?.[colId.slice(PREFIX.length)] ?? '';
   const cell = (colId: string, entityId: string): ReactNode => {
@@ -89,6 +98,26 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
     const t = d ? d.field_type : 'text';
     const v = rawValue(colId, entityId);
     if (t === 'checkbox') return v === 'true' ? <Icon name="ti-square-check-filled" className="text-sm text-accentstrong" /> : <span className="text-muted2">—</span>;
+    if (t === 'ai') {
+      const key = colId + ':' + entityId;
+      const cfg = (d?.option_meta || {}) as Record<string, string>;
+      const gen = async (e: any) => {
+        e.stopPropagation();
+        if (!orgId || !d) return;
+        const text = (aiTextRef.current(entityId) || Object.entries(vals[entityId] || {}).filter(([fid, val]) => fid !== d.id && val).map(([, val]) => val).join('. ')).trim();
+        if (!text) { if (typeof window !== 'undefined') window.alert('Nothing to read for this row yet.'); return; }
+        setAiBusy((p2) => new Set(p2).add(key));
+        try {
+          const res = await computeAiField({ text, transform: cfg['ai_transform'] || 'summarize', categories: d.options || [], instruction: cfg['ai_prompt'] || '' });
+          if (res.configured === false) { if (typeof window !== 'undefined') window.alert('Connect an AI key first in Console \u25b8 AI assistant.'); }
+          else if (res.error) { if (typeof window !== 'undefined') window.alert('AI field: ' + res.error); }
+          else if (orgId) { const nv = res.value || ''; setVals((p2) => ({ ...p2, [entityId]: { ...(p2[entityId] || {}), [d.id]: nv } })); upsertCustomFieldValue({ org_id: orgId, entity_type: entityType, entity_id: entityId, field_id: d.id, value: nv || null }).catch(() => reload()); }
+        } finally { setAiBusy((p2) => { const n = new Set(p2); n.delete(key); return n; }); }
+      };
+      if (aiBusy.has(key)) return <span className="inline-flex items-center gap-1 text-2xs text-muted2"><Icon name="ti-loader-2" className="animate-spin text-xs" />Generating\u2026</span>;
+      if (!v) return canManage ? <button onClick={gen} className="inline-flex items-center gap-1 text-2xs font-medium text-violet-500 hover:text-violet-600"><Icon name="ti-sparkles" className="text-xs" />Generate</button> : <span className="text-muted2">—</span>;
+      return <span className="inline-flex items-center gap-1 max-w-full"><Icon name="ti-sparkles" className="text-[11px] text-violet-400 shrink-0" /><span className="text-sm text-content truncate max-w-[16rem] align-middle">{v}</span>{canManage && <button onClick={gen} title="Regenerate" className="shrink-0 text-muted2 hover:text-content"><Icon name="ti-refresh" className="text-2xs" /></button>}</span>;
+    }
     if (!v) return <span className="text-muted2">—</span>;
     switch (t) {
       case 'currency': return <span className="text-sm tabular-nums text-content">{fmtMoney(Number(v) || 0)}</span>;
@@ -130,7 +159,7 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
   const customColIds = new Set(cols.map((c) => c.id));
   const exportValue = (colId: string, entityId: string) => rawValue(colId, entityId);
 
-  return { cols, editable, rawValue, cell, onEdit, addColumn, updateColumnOptions, removeColumn, customColIds, canManage, exportValue, defs, reload };
+  return { cols, editable, rawValue, cell, onEdit, addColumn, updateColumnOptions, removeColumn, customColIds, canManage, exportValue, defs, reload, setAiText: (fn: (id: string) => string) => { aiTextRef.current = fn; } };
 }
 
 export type CustomColumnsApi = ReturnType<typeof useCustomColumns>;
