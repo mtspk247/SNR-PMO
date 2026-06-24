@@ -1,5 +1,5 @@
 import { sb, activeOrgScope, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES, FabEntry } from './supabase';
-import { buildDemoPayload } from './demoSeed';
+import { buildDemoPayload, DemoPayload } from './demoSeed';
 import { SAMPLE_PROPOSALS, STARTER_AGENTS } from './agents';
 import { scanForWork } from './agentScanner';
 
@@ -99,6 +99,13 @@ export async function updateOrgSettings(
 // ---- #8 Self-serve industry demo seed ----
 export async function seedDemoData(orgId: string, industry: string | null): Promise<Record<string, number>> {
   const { data, error } = await sb.rpc('tenant_seed_demo', { p_org: orgId, p_payload: buildDemoPayload(industry) });
+  if (error) throw new Error(error.message);
+  return (data || {}) as Record<string, number>;
+}
+
+// Seed from a pre-built (typically trimmed/selected) payload — powers the granular seeding tree.
+export async function seedDemoCustom(orgId: string, payload: DemoPayload): Promise<Record<string, number>> {
+  const { data, error } = await sb.rpc('tenant_seed_demo', { p_org: orgId, p_payload: payload });
   if (error) throw new Error(error.message);
   return (data || {}) as Record<string, number>;
 }

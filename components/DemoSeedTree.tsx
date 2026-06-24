@@ -1,0 +1,151 @@
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Icon } from '@/components/ui';
+import Select from '@/components/Select';
+import { INDUSTRIES, withCurrent } from '@/lib/taxonomy';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { hasFeature } from '@/lib/entitlements';
+import { buildDemoPayload, trimDemoPayload } from '@/lib/demoSeed';
+import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands } from '@/lib/db';
+
+type Leaf = { key: string; label: string };
+const GROUPS: { group: string; icon: string; items: Leaf[] }[] = [
+  { group: 'Projects & work', icon: 'ti-layout-kanban', items: [{ key: 'projects', label: 'Projects' }, { key: '__tasks', label: 'Tasks / project' }] },
+  { group: 'CRM & sales', icon: 'ti-users', items: [{ key: 'clients', label: 'Clients' }, { key: 'deals', label: 'Deals' }] },
+  { group: 'Accounting', icon: 'ti-calculator', items: [{ key: 'invoices', label: 'Invoices' }, { key: 'products', label: 'Products' }, { key: 'ledger', label: 'Ledger entries' }] },
+  { group: 'Support', icon: 'ti-lifebuoy', items: [{ key: 'support', label: 'Tickets' }] },
+  { group: 'Planning', icon: 'ti-bulb', items: [{ key: 'ideas', label: 'Ideas' }, { key: 'risks', label: 'Risks' }] },
+  { group: 'People', icon: 'ti-users-group', items: [{ key: 'teams', label: 'Teams' }] },
+  { group: 'Automation', icon: 'ti-bolt', items: [{ key: 'automations', label: 'Automations' }, { key: 'templates', label: 'Templates' }] },
+];
+
+// Granular, reversible demo seeder: a module -> area tree with per-area counts. Builds the full
+// industry payload, then trims it to the selection client-side and feeds the existing
+// tenant_seed_demo RPC. Reuses the smart-columns + starter-agents seeders. Reversible via the
+// Danger zone wipe (which takes an automatic restore point).
+export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string; defaultIndustry?: string | null }) {
+  const activeOrg = useActiveOrg();
+  const me = useAuthStore((s) => s.user);
+  const agentsAvail = !!activeOrg && activeOrg.id === orgId && hasFeature(activeOrg, 'agents');
+
+  const [industry, setIndustry] = useState(defaultIndustry || '');
+  const full = useMemo(() => buildDemoPayload(industry || null), [industry]);
+  const maxOf = (key: string): number => key === '__tasks'
+    ? Math.max(0, ...full.projects.map((p) => p.tasks.length))
+    : (Array.isArray((full as Record<string, unknown>)[key]) ? ((full as Record<string, unknown[]>)[key]).length : 0);
+
+  const defaults = useMemo(() => {
+    const d: Record<string, number> = {};
+    GROUPS.forEach((g) => g.items.forEach((it) => { d[it.key] = maxOf(it.key); }));
+    return d;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [full]);
+  const [sel, setSel] = useState<Record<string, number>>({});
+  const cur = (key: string) => (sel[key] ?? defaults[key] ?? 0);
+
+  const [withSmart, setWithSmart] = useState(true);
+  const [withAgents, setWithAgents] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [done, setDone] = useState<Record<string, number> | null>(null);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const setKey = (key: string, n: number) => { setDone(null); setSel((s) => ({ ...s, [key]: Math.max(0, Math.min(isNaN(n) ? 0 : n, maxOf(key))) })); };
+  const toggleKey = (key: string, on: boolean) => setKey(key, on ? maxOf(key) : 0);
+  const toggleGroup = (items: Leaf[], on: boolean) => { setDone(null); setSel((s) => { const n = { ...s }; items.forEach((it) => { n[it.key] = on ? maxOf(it.key) : 0; }); return n; }); };
+
+  const totalRecords = GROUPS.reduce((sum, g) => sum + g.items.filter((it) => it.key !== '__tasks').reduce((a, it) => a + cur(it.key), 0), 0);
+
+  const run = async () => {
+    setBusy('seed'); setErr(''); setDone(null); setMsg('');
+    try {
+      const selection: Record<string, number> = {};
+      GROUPS.forEach((g) => g.items.forEach((it) => { if (it.key !== '__tasks') selection[it.key] = cur(it.key); }));
+      const payload = trimDemoPayload(full, selection, cur('__tasks'));
+      const counts = await seedDemoCustom(orgId, payload);
+      if (withSmart) { try { await seedDemoSmartColumns(orgId); } catch { /* non-fatal */ } }
+      if (withAgents && agentsAvail && me?.id) { try { await seedStarterAgents(orgId, me.id); await seedBuiltinChatCommands(orgId); } catch { /* non-fatal */ } }
+      setDone(counts);
+    } catch (e: unknown) { setErr((e as Error).message || 'Seeding failed'); }
+    finally { setBusy(''); }
+  };
+  const removeSmart = async () => {
+    setBusy('rm'); setMsg(''); setErr('');
+    try { const r = await unseedDemoSmartColumns(orgId); setMsg(`Removed ${r.removed ?? 0} sample columns.`); }
+    catch (e: unknown) { setErr((e as Error).message || 'Failed'); } finally { setBusy(''); }
+  };
+
+  return (
+    <div className="card p-6 max-w-3xl">
+      <div className="flex items-start gap-3">
+        <span className="w-10 h-10 shrink-0 rounded-xl grid place-items-center bg-accent/10 text-accentstrong ring-1 ring-inset ring-accent/15"><Icon name="ti-binary-tree" className="text-xl" /></span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-content">Demo data</h3>
+          <p className="text-2xs text-muted mt-0.5">Populate this workspace with realistic, industry-specific sample data &mdash; pick exactly which modules and how many records. Only modules your plan enables are seeded live. Companies &amp; portfolios are always included as the foundation other records link to.</p>
+        </div>
+      </div>
+
+      <div className="mt-4 max-w-xs">
+        <span className="block text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Industry flavor</span>
+        <Select search placeholder="Generic (any industry)" value={industry} options={withCurrent(INDUSTRIES, industry)} onChange={(v) => { setIndustry(v); setSel({}); setDone(null); }} />
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {GROUPS.map((g) => {
+          const allOn = g.items.every((it) => cur(it.key) > 0);
+          const someOn = g.items.some((it) => cur(it.key) > 0);
+          return (
+            <div key={g.group} className="rounded-xl border border-line p-3">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input type="checkbox" className="accent-accent" checked={allOn} ref={(el) => { if (el) el.indeterminate = someOn && !allOn; }} onChange={(e) => toggleGroup(g.items, e.target.checked)} />
+                <Icon name={g.icon} className="text-base text-accentstrong" />
+                <span className="text-sm font-medium text-content">{g.group}</span>
+              </label>
+              <div className="mt-2 pl-7 grid sm:grid-cols-2 gap-x-6 gap-y-2">
+                {g.items.map((it) => {
+                  const max = maxOf(it.key); const on = cur(it.key) > 0;
+                  return (
+                    <div key={it.key} className="flex items-center gap-2">
+                      <input type="checkbox" className="accent-accent" checked={on} onChange={(e) => toggleKey(it.key, e.target.checked)} />
+                      <span className={`text-sm flex-1 ${on ? 'text-content' : 'text-muted2'}`}>{it.label}</span>
+                      <input type="number" min={0} max={max} value={cur(it.key)} onChange={(e) => setKey(it.key, parseInt(e.target.value, 10))} className="input h-8 w-16 text-sm text-right" title={`Up to ${max}`} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <label className="flex items-center gap-2.5 cursor-pointer text-sm text-content">
+            <input type="checkbox" className="accent-accent" checked={withSmart} onChange={(e) => setWithSmart(e.target.checked)} />
+            <Icon name="ti-table-options" className="text-base text-muted" />Also add sample smart columns on Clients (relationship / rollup / formula)
+          </label>
+          <button className="text-2xs text-muted2 hover:text-rose-600 shrink-0" disabled={!!busy} onClick={removeSmart}>{busy === 'rm' ? 'Removing…' : 'Remove'}</button>
+        </div>
+        {agentsAvail && (
+          <label className="flex items-center gap-2.5 cursor-pointer text-sm text-content">
+            <input type="checkbox" className="accent-accent" checked={withAgents} onChange={(e) => setWithAgents(e.target.checked)} />
+            <Icon name="ti-robot" className="text-base text-muted" />Also set up a starter AI-agent team + chat commands
+          </label>
+        )}
+      </div>
+
+      {err && <p className="text-sm text-rose-600 mt-3">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600 mt-3 inline-flex items-center gap-1"><Icon name="ti-check" />{msg}</p>}
+      {done && (
+        <p className="text-sm text-emerald-600 mt-3 inline-flex items-center gap-1 flex-wrap">
+          <Icon name="ti-check" />Added {Object.entries(done).filter(([, v]) => (v as number) > 0).map(([k, v]) => `${v} ${k}`).join(', ') || 'sample data'}.
+        </p>
+      )}
+
+      <div className="mt-4 flex items-center gap-3 flex-wrap">
+        <button className="btn btn-primary" disabled={!!busy || totalRecords === 0} onClick={run}>{busy === 'seed' ? 'Generating…' : (<><Icon name="ti-wand" />Generate {totalRecords} records</>)}</button>
+        <span className="text-2xs text-muted">Adds data only. To clear everything (with an automatic restore point), use the <Link href="/settings?tab=danger" className="underline">Danger zone</Link>.</span>
+      </div>
+    </div>
+  );
+}

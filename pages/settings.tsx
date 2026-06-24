@@ -9,7 +9,7 @@ import { FEATURES, MyOrg, FabCustomShortcut } from '@/lib/supabase';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
 import OrgProfileForm from '@/components/OrgProfileForm';
-import DemoDataCard from '@/components/DemoDataCard';
+import DemoSeedTree from '@/components/DemoSeedTree';
 import ListsManager from '@/components/ListsManager';
 import BusinessSetup from '@/components/BusinessSetup';
 import { PRESET_AVATARS, presetColor } from '@/lib/avatars';
@@ -453,7 +453,7 @@ export default function SettingsPage() {
       {admin && tab === 'modules' && org && <ModulesPanel org={org} />}
 
       {admin && tab === 'demo' && org && (
-        <DemoDataCard orgId={org.id} defaultIndustry={org.onboarding?.industry} />
+        <DemoSeedTree orgId={org.id} defaultIndustry={org.onboarding?.industry} />
       )}
 
       {admin && tab === 'business' && org && (

@@ -340,3 +340,38 @@ export function buildDemoPayload(industry: string | null | undefined): DemoPaylo
 
   return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates };
 }
+
+
+// Granular seeding: trim a full payload to a per-area selection (key -> count; 0 = exclude).
+// Companies & portfolios are FOUNDATION (always kept) so cross-reference indices stay valid;
+// project-linked refs in ledger/invoices/ideas are clamped to the trimmed project list.
+export function trimDemoPayload(full: DemoPayload, sel: Record<string, number>, tasksPerProject?: number): DemoPayload {
+  const take = <T,>(key: string, arr: T[]): T[] => {
+    const n = sel[key];
+    if (n === undefined) return arr;
+    return n <= 0 ? [] : arr.slice(0, n);
+  };
+  let projects = take('projects', full.projects);
+  if (tasksPerProject !== undefined) {
+    const t = tasksPerProject;
+    projects = projects.map((p) => ({ ...p, tasks: t <= 0 ? [] : p.tasks.slice(0, t) }));
+  }
+  const projLen = projects.length;
+  const clampProj = (idx?: number) => (idx !== undefined && idx < projLen ? idx : undefined);
+  return {
+    clients: take('clients', full.clients),
+    projects,
+    companies: full.companies,
+    portfolios: full.portfolios,
+    deals: take('deals', full.deals),
+    ledger: take('ledger', full.ledger).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
+    teams: take('teams', full.teams),
+    ideas: take('ideas', full.ideas).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
+    products: take('products', full.products),
+    invoices: take('invoices', full.invoices).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
+    support: take('support', full.support),
+    risks: take('risks', full.risks),
+    automations: take('automations', full.automations),
+    templates: take('templates', full.templates),
+  };
+}
