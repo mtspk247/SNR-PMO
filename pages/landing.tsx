@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: '#agents', label: 'AI Agents' },
   { href: '#roi', label: 'ROI' },
   { href: '#features', label: 'Features' },
+  { href: '#compare', label: 'Compare' },
   { href: '#pricing', label: 'Pricing' },
   { href: '#faq', label: 'FAQ' },
 ];
@@ -214,6 +215,60 @@ function RoiCalculator() {
       </div>
       <p className="mt-4 text-[11px] text-white/35 leading-relaxed">Assumes ~{Math.round(ROI_BLENDED_MIN)} min of manual work saved per automated action &mdash; the same conservative per-task model the in-product ROI dashboard uses. Approve-first, so you stay in control.</p>
       <a href="/login?mode=signup" className="mt-5 inline-flex w-full items-center justify-center rounded-lg bg-[#3ECF8E] px-4 py-2.5 text-sm font-semibold text-[#0a0a0a] hover:bg-[#10b981] transition-colors">Start free &mdash; see your real numbers &rarr;</a>
+    </div>
+  );
+}
+
+function CompareMark({ v }: { v: string }) {
+  if (v === 'y') return (
+    <svg viewBox="0 0 20 20" fill="none" className="inline w-4 h-4 text-[#3ECF8E]" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-label="Yes"><path d="M4 10l4 4 8-9" /></svg>
+  );
+  if (v === 'p') return <span className="text-[11px] font-medium text-amber-400/90" aria-label="Partial">Partial</span>;
+  return <span className="text-white/25" aria-label="No">&mdash;</span>;
+}
+
+function CompareTable() {
+  const COLS = [
+    { n: 'SNR-PMO', s: 'All-in-one + agents', hi: true },
+    { n: 'GoHighLevel', s: 'Agency front-office', hi: false },
+    { n: 'ClickUp', s: 'Project management', hi: false },
+    { n: 'Odoo', s: 'ERP suite', hi: false },
+    { n: 'HubSpot', s: 'Marketing CRM', hi: false },
+  ];
+  const ROWS: { c: string; v: string[] }[] = [
+    { c: 'Projects & PMO (task to portfolio)', v: ['y', 'n', 'y', 'y', 'n'] },
+    { c: 'CRM & sales pipeline', v: ['y', 'y', 'p', 'y', 'y'] },
+    { c: 'HR & payroll', v: ['y', 'n', 'n', 'y', 'n'] },
+    { c: 'Real double-entry accounting', v: ['y', 'n', 'n', 'y', 'n'] },
+    { c: 'Approve-first AI agents (back office)', v: ['y', 'n', 'n', 'n', 'n'] },
+    { c: 'White-label & resell (multi-tenant)', v: ['y', 'y', 'p', 'p', 'n'] },
+    { c: 'One product, one bill', v: ['y', 'p', 'n', 'y', 'n'] },
+  ];
+  return (
+    <div className="mt-12 overflow-x-auto">
+      <table className="w-full min-w-[700px] border-collapse text-left">
+        <thead>
+          <tr>
+            <th className="w-[32%] p-3 align-bottom"></th>
+            {COLS.map((c) => (
+              <th key={c.n} className={`p-3 text-center align-bottom ${c.hi ? 'bg-[#3ECF8E]/10 rounded-t-xl' : ''}`}>
+                <div className={`text-sm font-bold ${c.hi ? 'text-[#3ECF8E]' : 'text-white'}`}>{c.n}</div>
+                <div className="mt-0.5 text-[10px] font-normal text-white/40">{c.s}</div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {ROWS.map((r, ri) => (
+            <tr key={r.c} className="border-t border-white/10">
+              <td className="p-3 text-[13px] text-white/75">{r.c}</td>
+              {r.v.map((val, i) => (
+                <td key={i} className={`p-3 text-center ${COLS[i].hi ? 'bg-[#3ECF8E]/10' : ''} ${COLS[i].hi && ri === ROWS.length - 1 ? 'rounded-b-xl' : ''}`}><CompareMark v={val} /></td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -939,6 +994,25 @@ SNR-PMO runs projects, CRM, HR &amp; payroll and real accounting in one workspac
                 <div className="mt-2 text-[14px] text-white/55 leading-relaxed">{f.d}</div>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* ----------------------------- COMPARE ----------------------------- */}
+        <section id="compare" className="relative overflow-hidden border-y border-white/10 bg-[#0c0c0c]">
+          <div className="relative mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28">
+            <div className="max-w-2xl">
+              <div className="text-xs font-semibold uppercase tracking-widest text-[#3ECF8E]">SNR-PMO vs the alternatives</div>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight">One product where others cover a slice</h2>
+              <p className="mt-4 text-white/55 text-[15px] leading-relaxed">Each of these is strong at one thing. SNR-PMO is the only one that runs your whole back office &mdash; projects, CRM, HR &amp; payroll and real accounting &mdash; and adds approve-first AI agents and white-label resale.</p>
+            </div>
+            <CompareTable />
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-white/40">
+              <span className="inline-flex items-center gap-1.5"><span className="text-[#3ECF8E]">&#10003;</span> included</span>
+              <span className="inline-flex items-center gap-1.5"><span className="text-amber-400/90 font-medium">Partial</span> limited or add-on</span>
+              <span className="inline-flex items-center gap-1.5"><span className="text-white/30">&mdash;</span> not offered</span>
+            </div>
+            <p className="mt-5 text-[11px] text-white/30 leading-relaxed max-w-3xl">Based on each product&rsquo;s primary positioning and publicly documented capabilities as of June 2026; capabilities and plans change. Product names are trademarks of their respective owners and imply no affiliation.</p>
+            <div className="mt-8"><a href="/login?mode=signup" className="inline-flex items-center justify-center rounded-lg bg-[#3ECF8E] px-6 py-3 text-sm font-semibold text-[#0a0a0a] hover:bg-[#10b981] transition-colors">See it for yourself &mdash; start free &rarr;</a></div>
           </div>
         </section>
 
