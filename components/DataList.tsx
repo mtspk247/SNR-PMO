@@ -207,18 +207,35 @@ function EditableCell({ spec, value, display, onSave, onInvite }: { spec: EditSp
 
 function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   if (!prefs.cf?.canManage) return null;
+  // Anchored, VIEWPORT-FIXED menu so the table's overflow can never clip it; opens leftward
+  // from the far-right "+" and is capped + scrollable so it always fits on screen.
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const W = 288;
+      const left = Math.round(Math.max(8, Math.min(r.right - W, window.innerWidth - W - 8)));
+      const top = Math.round(Math.min(r.bottom + 6, window.innerHeight - 24));
+      setPos({ top, left });
+    }
+    setOpen(true);
+  };
   return (
-    <div className="relative inline-block">
-      <button onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} title="Add column"
+    <>
+      <button ref={btnRef} onClick={(e) => { e.stopPropagation(); open ? setOpen(false) : openMenu(); }} title="Add column"
         className="inline-flex items-center justify-center h-6 w-6 rounded text-muted2 hover:text-content hover:bg-surface2"><Icon name="ti-plus" className="text-sm" /></button>
-      {open && <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpen(false); }} aria-hidden />}
-      {open && (
-        <div className="absolute right-0 top-8 z-20 w-72 bg-surface border border-line rounded-lg shadow-lg p-2">
-          <AddColumnForm cf={prefs.cf!} onDone={() => setOpen(false)} />
-        </div>
+      {open && pos && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} aria-hidden />
+          <div className="fixed z-50 w-72 max-h-[70vh] overflow-y-auto bg-surface border border-line rounded-lg shadow-xl p-2"
+            style={{ top: pos.top, left: pos.left }} onClick={(e) => e.stopPropagation()}>
+            <AddColumnForm cf={prefs.cf!} onDone={() => setOpen(false)} />
+          </div>
+        </>
       )}
-    </div>
+    </>
   );
 }
 
