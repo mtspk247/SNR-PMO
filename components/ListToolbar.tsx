@@ -34,7 +34,7 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   // Explicit cfOpts still overrides (the pages that pass it are unchanged). `tasks` keeps its
   // own dedicated field system, so it's excluded from the auto-default.
   const activeOrg = useActiveOrg();
-  const keyEntity = (() => { const m = /^snrpmo\.([a-z0-9_]+)\.cols$/.exec(storageKey); const e = m ? m[1] : ''; return e && e !== 'tasks' ? e : ''; })();
+  const keyEntity = (() => { const m = /^snrpmo\.([a-z0-9_]+)\.cols$/.exec(storageKey); return m ? m[1] : ''; })();
   const effEntity = cfOpts?.entity ?? keyEntity;
   const effOrgId = cfOpts?.orgId ?? activeOrg?.id;
   const effCanManage = cfOpts?.canManage ?? ['owner', 'admin'].includes(activeOrg?.member_role || '');
