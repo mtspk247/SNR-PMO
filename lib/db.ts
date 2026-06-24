@@ -39,7 +39,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   if (!sess.session) return null;
   const { data, error } = await sb
     .from('users')
-    .select('id, auth_user_id, username, email, full_name, role, department, feature_access, can_manage_agents, can_approve_agent_actions, can_manage_appraisals, avatar_url')
+    .select('id, auth_user_id, username, email, full_name, role, department, feature_access, can_manage_agents, can_approve_agent_actions, can_manage_appraisals, avatar_url, page_perms, role_template_id, role_template:role_templates(page_perms)')
     .eq('auth_user_id', sess.session.user.id)
     .maybeSingle();
   if (error) throw error;
@@ -1564,7 +1564,7 @@ export async function logAudit(p: {
 }
 
 // ---- 2.7 Users admin / RBAC ----------------------------------------------
-const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, role_template_id, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, can_manage_appraisals, annual_balance, sick_balance, casual_balance, job_title, avatar_url, phone, company_id, last_login, company:companies!users_company_id_fkey(name)';
+const ADMIN_USER_COLS = 'id, full_name, email, username, role, department, status, role_template_id, page_perms, can_view_all_projects, can_edit_all_projects, can_approve_leaves, can_delete_tasks, can_manage_users, can_view_dashboard, can_export_data, can_manage_appraisals, annual_balance, sick_balance, casual_balance, job_title, avatar_url, phone, company_id, last_login, company:companies!users_company_id_fkey(name)';
 export interface UserAffiliation { user_id: string; companies: string[]; projects: string[]; }
 export async function userAffiliations(orgId: string): Promise<UserAffiliation[]> {
   const { data, error } = await sb.rpc('user_affiliations', { p_org: orgId });
@@ -1587,13 +1587,13 @@ export async function listRoleTemplates(): Promise<RoleTemplate[]> {
     .order('is_system', { ascending: false }).order('name');
   if (error) throw error; return (data as RoleTemplate[]) || [];
 }
-export async function createRoleTemplate(p: { org_id: string; name: string; description?: string | null; permissions: Record<string, boolean>; feature_access: string[] }): Promise<RoleTemplate> {
+export async function createRoleTemplate(p: { org_id: string; name: string; description?: string | null; permissions: Record<string, boolean>; feature_access: string[]; page_perms?: Record<string, any> }): Promise<RoleTemplate> {
   const { data, error } = await sb.from('role_templates')
-    .insert({ org_id: p.org_id, name: p.name, description: p.description ?? null, permissions: p.permissions, feature_access: p.feature_access })
+    .insert({ org_id: p.org_id, name: p.name, description: p.description ?? null, permissions: p.permissions, feature_access: p.feature_access, page_perms: p.page_perms ?? {} })
     .select('*').single();
   if (error) throw new Error(error.message); return data as RoleTemplate;
 }
-export async function updateRoleTemplate(id: string, patch: Partial<Pick<RoleTemplate, 'name' | 'description' | 'permissions' | 'feature_access'>>): Promise<RoleTemplate> {
+export async function updateRoleTemplate(id: string, patch: Partial<Pick<RoleTemplate, 'name' | 'description' | 'permissions' | 'feature_access' | 'page_perms'>>): Promise<RoleTemplate> {
   const { data, error } = await sb.from('role_templates').update(patch).eq('id', id).select('*').single();
   if (error) throw new Error(error.message); return data as RoleTemplate;
 }

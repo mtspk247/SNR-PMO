@@ -5,8 +5,8 @@ import { sb } from '@/lib/supabase';
 import { signOut, recordGuestActivity, avatarSrc } from '@/lib/db';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { roleLabel, can } from '@/lib/authz';
-import { hasFeature, roleAllowsFeature, navVisible, isUpsellLocked } from '@/lib/entitlements';
-import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, RESELLER_LINK, RESELLER_SECTION, DOCS_LINK, ROUTE_LABELS, featureForRoute, isPageHidden } from '@/lib/nav';
+import { hasFeature, roleAllowsFeature, navVisible, isUpsellLocked, pageReadable } from '@/lib/entitlements';
+import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, RESELLER_LINK, RESELLER_SECTION, DOCS_LINK, ROUTE_LABELS, featureForRoute, isPageHidden, navHrefForRoute } from '@/lib/nav';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import HeaderActions from '@/components/HeaderActions';
 import ShortcutsFab from '@/components/ShortcutsFab';
@@ -39,16 +39,18 @@ export default function Layout({ title, children, flat = false }: { title: strin
   const GUEST_HREFS = ['/', '/projects', '/tasks', '/chat', '/calendar', '/docs', '/portal'];
   const guestOk = (href: string) => !isGuest || GUEST_HREFS.includes(href);
   const hiddenPages = activeOrg?.hidden_pages;   // #10 per-page visibility (Settings ▸ Modules)
+  const routeHref = navHrefForRoute(router.pathname);   // #roles-crud per-page read guard
+  const pageBlocked = !!routeHref && !pageReadable(user, routeHref);
   const sections = [
     ...SECTIONS,
     ...(can.manageMembers(activeOrg) ? [ADMIN_SECTION] : []),
     DOCS_LINK,
   ]
     .map((s) => s.kind === 'menu'
-      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href) && !isPageHidden(hiddenPages, i.href) && (!i.adminOnly || can.manageMembers(activeOrg)) && (!i.platformOnly || platformAdmin)) }
+      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && roleAllowsFeature(user, i.feature) && guestOk(i.href) && !isPageHidden(hiddenPages, i.href) && pageReadable(user, i.href) && (!i.adminOnly || can.manageMembers(activeOrg)) && (!i.platformOnly || platformAdmin)) }
       : s)
     .filter((s) => s.kind === 'link'
-      ? navVisible(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature) && guestOk(s.item.href) && !isPageHidden(hiddenPages, s.item.href)
+      ? navVisible(activeOrg, s.item.feature) && roleAllowsFeature(user, s.item.feature) && guestOk(s.item.href) && !isPageHidden(hiddenPages, s.item.href) && pageReadable(user, s.item.href)
       : s.items.length > 0);
 
   const [checking, setChecking] = useState(true);
@@ -304,7 +306,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
             <HeaderActions onOpenChat={() => setChatOpen(true)} />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full${flat ? ' flat-surfaces' : ''}`} style={{ maxWidth: 'var(--container-max, 1400px)' }}>{routeFeature && isUpsellLocked(activeOrg, routeFeature) ? <UpgradeScreen feature={routeFeature} canManage={can.manageBilling(activeOrg)} /> : children}</div></main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full${flat ? ' flat-surfaces' : ''}`} style={{ maxWidth: 'var(--container-max, 1400px)' }}>{routeFeature && isUpsellLocked(activeOrg, routeFeature) ? <UpgradeScreen feature={routeFeature} canManage={can.manageBilling(activeOrg)} /> : pageBlocked ? (<div className="card p-10 text-center max-w-md mx-auto mt-10"><Icon name="ti-lock" className="text-3xl text-muted2 block mb-3" /><h2 className="text-base font-semibold text-content mb-1">No access to this page</h2><p className="text-sm text-muted">Your role does not have read access here. An admin can grant it in Users ▸ a member or role ▸ Page access.</p></div>) : children}</div></main>
         <AppFooter />
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}

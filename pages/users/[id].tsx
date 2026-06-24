@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
 import Select from '@/components/Select';
+import PagePermTree from '@/components/PagePermTree';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { useTeams } from '@/lib/queries';
@@ -218,6 +219,11 @@ function AccessTab({ u, roles, busy, patch, myTeams, orgId }: { u: AdminUser; ro
             </label>
           ))}
         </div>
+      </div>
+      <div className="pt-2 border-t border-line">
+        <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Page access (per-page CRUD)</p>
+        <p className="text-2xs text-muted mb-3">{u.role_template_id ? 'Overrides the assigned role template per page. Untouched pages inherit the role.' : 'Per-page Create / View / Edit / Delete for this user. View off hides the page.'}</p>
+        <PagePermTree value={(u.page_perms || {})} onChange={(pp) => patch({ page_perms: pp } as any)} disabled={busy} />
       </div>
       <div className="pt-2 border-t border-line">
         <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Password</p>

@@ -235,3 +235,32 @@ export function isPageHidden(hidden: readonly string[] | null | undefined, href:
 export const TENANT_ITEMS: NavItem[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK]
   .flatMap((s) => (s.kind === 'link' ? [s.item] : s.items))
   .filter((i) => !i.platformOnly);
+
+// --- #roles-crud Module groups + route->href (per-page permission tree) ----
+export type ModuleGroup = { key: string; label: string; icon: string; items: NavItem[] };
+// Sidebar-style grouping (module = menu group). Excludes platform/reseller + UNHIDEABLE
+// (dashboard/settings can never be access-restricted). Powers the roles/permissions tree.
+export const MODULE_GROUPS: ModuleGroup[] = (() => {
+  const groups: ModuleGroup[] = [];
+  const general: NavItem[] = [];
+  for (const s of [...SECTIONS, ADMIN_SECTION, DOCS_LINK]) {
+    if (s.kind === 'menu') {
+      const items = s.items.filter((i) => !i.platformOnly && !UNHIDEABLE.has(i.href));
+      if (items.length) groups.push({ key: s.key, label: s.label, icon: s.icon, items });
+    } else if (!s.item.platformOnly && !UNHIDEABLE.has(s.item.href)) {
+      general.push(s.item);
+    }
+  }
+  if (general.length) groups.unshift({ key: 'general', label: 'General', icon: 'ti-layout-dashboard', items: general });
+  return groups;
+})();
+// Map a route to its nav-item href (longest-prefix match), for the per-page read guard.
+export function navHrefForRoute(pathname: string): string | undefined {
+  let best: string | undefined;
+  for (const it of TENANT_ITEMS) {
+    if (pathname === it.href || pathname.startsWith(it.href + '/')) {
+      if (!best || it.href.length > best.length) best = it.href;
+    }
+  }
+  return best;
+}

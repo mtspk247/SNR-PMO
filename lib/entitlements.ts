@@ -1,4 +1,4 @@
-import { FEATURES, FeatureKey, MyOrg, AppUser, PermKey } from './supabase';
+import { FEATURES, FeatureKey, MyOrg, AppUser, PermKey, PagePerm } from './supabase';
 
 // 3.3 client-side entitlement gating. The DB is the source of truth (RLS feature
 // clauses + seat trigger); these helpers only decide what the UI offers. A user
@@ -59,4 +59,22 @@ export function formatPrice(cents: number, model: string): string {
   if (cents === 0) return 'Free';
   const dollars = (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   return model === 'per_user' ? `$${dollars}/user/mo` : `$${dollars}/mo`;
+}
+
+// #roles-crud — effective per-page CRUD for a user: per-user override merged over the
+// assigned role template. Absent op defaults to allowed (no explicit restriction).
+export function effectivePagePerm(user: AppUser | null | undefined, href: string): Required<PagePerm> {
+  const role = user?.role_template?.page_perms?.[href];
+  const own = user?.page_perms?.[href];
+  const pick = (k: keyof PagePerm): boolean => {
+    if (own && own[k] !== undefined) return own[k] as boolean;
+    if (role && role[k] !== undefined) return role[k] as boolean;
+    return true;
+  };
+  return { c: pick('c'), r: pick('r'), u: pick('u'), d: pick('d') };
+}
+// Read gate for nav + route guard: only an EXPLICIT read=false hides a page (module
+// access is enforced separately, so this can only restrict, never expand).
+export function pageReadable(user: AppUser | null | undefined, href: string): boolean {
+  return effectivePagePerm(user, href).r !== false;
 }

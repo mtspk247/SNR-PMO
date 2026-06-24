@@ -159,6 +159,9 @@ export interface AppUser {
   can_approve_agent_actions?: boolean;
   can_manage_appraisals?: boolean;
   avatar_url?: string | null;
+  page_perms?: PagePerms;            // #roles-crud per-user per-page CRUD override (wins over role template)
+  role_template_id?: string | null;
+  role_template?: { page_perms?: PagePerms } | null;  // joined at session load for nav read-gating
 }
 
 // Custom role templates — org-scoped reusable permission bundles + feature access.
@@ -166,6 +169,10 @@ export type PermKey =
   | 'can_view_all_projects' | 'can_edit_all_projects' | 'can_approve_leaves'
   | 'can_delete_tasks' | 'can_manage_users' | 'can_view_dashboard' | 'can_export_data'
   | 'can_manage_agents' | 'can_approve_agent_actions' | 'can_manage_appraisals';
+// #roles-crud Per-page CRUD matrix: nav href -> {create,read,update,delete}. Absent key
+// = inherit (no explicit grant). Read AND module access gate page visibility.
+export type PagePerm = { c?: boolean; r?: boolean; u?: boolean; d?: boolean };
+export type PagePerms = Record<string, PagePerm>;
 export interface RoleTemplate {
   id: string;
   org_id: string;
@@ -173,6 +180,7 @@ export interface RoleTemplate {
   description: string | null;
   permissions: Partial<Record<PermKey, boolean>>;
   feature_access: string[];
+  page_perms: PagePerms;
   is_system: boolean;
   created_at?: string;
 }
@@ -330,6 +338,7 @@ export interface AdminUser {
   id: string; full_name: string; email: string; username: string;
   role: Role; department: string | null; status: 'active' | 'suspended';
   role_template_id: string | null;
+  page_perms?: PagePerms;            // #roles-crud per-user per-page CRUD override
   can_view_all_projects: boolean; can_edit_all_projects: boolean;
   can_approve_leaves: boolean; can_delete_tasks: boolean;
   can_manage_users: boolean; can_view_dashboard: boolean; can_export_data: boolean; can_manage_appraisals: boolean;

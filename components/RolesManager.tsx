@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Spinner, EmptyState, Icon } from '@/components/ui';
 import { ViewControls, useViewPrefs, buildGroups } from '@/components/ViewControls';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate, seedDefaultRoles } from '@/lib/db';
-import { RoleTemplate, PermKey, FeatureKey } from '@/lib/supabase';
+import { RoleTemplate, PermKey, FeatureKey, PagePerms } from '@/lib/supabase';
+import PagePermTree from '@/components/PagePermTree';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { FEATURE_LABELS, PERMISSION_LABELS } from '@/lib/entitlements';
@@ -10,8 +11,8 @@ import { FEATURE_LABELS, PERMISSION_LABELS } from '@/lib/entitlements';
 const PERM_KEYS = Object.keys(PERMISSION_LABELS) as PermKey[];
 const FEATURE_KEYS = (Object.keys(FEATURE_LABELS) as FeatureKey[]).filter((k) => k !== 'white_label' && k !== 'audit' && k !== 'reseller');
 
-type Draft = { id?: string; name: string; description: string; permissions: Record<string, boolean>; feature_access: string[]; is_system: boolean };
-const emptyDraft = (): Draft => ({ name: '', description: '', permissions: {}, feature_access: [], is_system: false });
+type Draft = { id?: string; name: string; description: string; permissions: Record<string, boolean>; feature_access: string[]; page_perms: PagePerms; is_system: boolean };
+const emptyDraft = (): Draft => ({ name: '', description: '', permissions: {}, feature_access: [], page_perms: {}, is_system: false });
 
 export default function RolesManager() {
   const org = useActiveOrg();
@@ -31,7 +32,7 @@ export default function RolesManager() {
   }
 
   const openNew = () => { setErr(''); setSel(emptyDraft()); };
-  const openEdit = (r: RoleTemplate) => { setErr(''); setSel({ id: r.id, name: r.name, description: r.description || '', permissions: { ...r.permissions }, feature_access: [...r.feature_access], is_system: r.is_system }); };
+  const openEdit = (r: RoleTemplate) => { setErr(''); setSel({ id: r.id, name: r.name, description: r.description || '', permissions: { ...r.permissions }, feature_access: [...r.feature_access], page_perms: { ...(r.page_perms || {}) }, is_system: r.is_system }); };
   const togglePerm = (k: string) => setSel((d) => d && ({ ...d, permissions: { ...d.permissions, [k]: !d.permissions[k] } }));
   const toggleFeature = (k: string) => setSel((d) => d && ({ ...d, feature_access: d.feature_access.includes(k) ? d.feature_access.filter((x) => x !== k) : [...d.feature_access, k] }));
 
@@ -39,8 +40,8 @@ export default function RolesManager() {
     if (!sel || !org || !sel.name.trim()) return;
     setBusy(true); setErr('');
     try {
-      if (sel.id) await updateRoleTemplate(sel.id, { name: sel.name.trim(), description: sel.description || null, permissions: sel.permissions, feature_access: sel.feature_access });
-      else await createRoleTemplate({ org_id: org.id, name: sel.name.trim(), description: sel.description || null, permissions: sel.permissions, feature_access: sel.feature_access });
+      if (sel.id) await updateRoleTemplate(sel.id, { name: sel.name.trim(), description: sel.description || null, permissions: sel.permissions, feature_access: sel.feature_access, page_perms: sel.page_perms });
+      else await createRoleTemplate({ org_id: org.id, name: sel.name.trim(), description: sel.description || null, permissions: sel.permissions, feature_access: sel.feature_access, page_perms: sel.page_perms });
       await load(); setSel(null);
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
@@ -110,6 +111,12 @@ export default function RolesManager() {
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-1"><h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-layout-list" className="text-muted2" />Page access (per-page CRUD)</h3></div>
+          <p className="text-2xs text-muted mb-3">Per page, choose Create / Read / Update / Delete for this role. Turning <strong>View</strong> off hides the page from the sidebar &amp; search (with module access).</p>
+          <PagePermTree value={sel.page_perms} onChange={(pp) => setSel({ ...sel, page_perms: pp })} />
         </div>
       </div>
     );
