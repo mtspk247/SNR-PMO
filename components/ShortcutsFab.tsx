@@ -19,6 +19,7 @@ export const FAB_SHORTCUTS: FabShortcutDef[] = [
   { id: 'chat',     label: 'Team chat',      icon: 'ti-messages',   kind: 'event', event: 'snr:open-chat' },
   { id: 'task',     label: 'New task',       icon: 'ti-checkbox',   kind: 'route', href: '/tasks' },
   { id: 'calendar', label: 'Calendar',       icon: 'ti-calendar',   kind: 'route', href: '/calendar' },
+  { id: 'ask',      label: 'Ask AI',         icon: 'ti-sparkles',   kind: 'event', event: 'snr:open-assistant' },
 ];
 export const FAB_DEFAULT_IDS = ['notes', 'checkin', 'chat', 'task'];
 

@@ -28,6 +28,12 @@ export default function HelpAssistant() {
 
   useEffect(() => { try { setHidden(localStorage.getItem(HIDE_KEY) === '1'); } catch { /* */ } }, []);
   useEffect(() => { if (open && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [msgs, open, busy]);
+  // Openable from anywhere (e.g. the Shortcuts FAB 'Ask AI' action).
+  useEffect(() => {
+    const onOpen = () => { setHidden(false); try { localStorage.removeItem(HIDE_KEY); } catch { /* */ } setOpen(true); };
+    window.addEventListener('snr:open-assistant', onOpen);
+    return () => window.removeEventListener('snr:open-assistant', onOpen);
+  }, []);
 
   async function send(text: string) {
     const question = text.trim();
