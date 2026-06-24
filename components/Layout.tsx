@@ -10,6 +10,8 @@ import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFO
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import HeaderActions from '@/components/HeaderActions';
 import ShortcutsFab from '@/components/ShortcutsFab';
+import AppFooter from '@/components/AppFooter';
+import CheckInPopup from '@/components/CheckInPopup';
 import HelpAssistant from '@/components/HelpAssistant';
 import GlobalSearch from '@/components/GlobalSearch';
 import ActivityTicker from '@/components/ActivityTicker';
@@ -302,10 +304,12 @@ export default function Layout({ title, children, flat = false }: { title: strin
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full${flat ? ' flat-surfaces' : ''}`} style={{ maxWidth: 'var(--container-max, 1400px)' }}>{routeFeature && isUpsellLocked(activeOrg, routeFeature) ? <UpgradeScreen feature={routeFeature} canManage={can.manageBilling(activeOrg)} /> : children}</div></main>
+        <AppFooter />
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
       <ShortcutsFab />
       <HelpAssistant />
+      <CheckInPopup />
       <Toaster />
     </div>
   );

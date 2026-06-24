@@ -720,11 +720,17 @@ export async function getMyOpenToday(userId: string): Promise<Attendance | null>
     .eq('user_id', userId).eq('work_date', today()).eq('status', 'OPEN').maybeSingle();
   if (error) throw error; return (data as Attendance) ?? null;
 }
-export async function checkIn(userId: string, orgId: string): Promise<Attendance> {
+export async function checkIn(userId: string, orgId: string, geo?: { lat: number; lng: number; accuracy?: number } | null): Promise<Attendance> {
   const { data, error } = await sb.from('attendance')
-    .insert({ user_id: userId, org_id: orgId, work_date: today(), check_in: new Date().toISOString(), status: 'OPEN' })
+    .insert({ user_id: userId, org_id: orgId, work_date: today(), check_in: new Date().toISOString(), status: 'OPEN',
+      check_in_lat: geo?.lat ?? null, check_in_lng: geo?.lng ?? null, check_in_accuracy: geo?.accuracy ?? null })
     .select('*, users(full_name)').single();
   if (error) throw new Error(error.message); return data as Attendance;
+}
+// The current user's reporting manager (users.reports_to) — for check-in notifications.
+export async function getMyManagerId(userId: string): Promise<string | null> {
+  const { data, error } = await sb.from('users').select('reports_to').eq('id', userId).maybeSingle();
+  if (error) return null; return ((data as { reports_to?: string | null } | null)?.reports_to) ?? null;
 }
 export async function checkOut(row: Attendance): Promise<Attendance> {
   const out = new Date();

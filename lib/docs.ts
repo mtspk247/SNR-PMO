@@ -145,7 +145,7 @@ export const SECTIONS: Section[] = [
       { kind: 'p', text: 'A floating round button sits in the bottom-right corner on every page — your quick-actions launcher. Click it to open the shortcuts menu, drag it anywhere to reposition it, or dismiss it with the small \u00d7 (re-enable it later from the Notes page).' },
       { kind: 'steps', items: [
         { title: 'Quick notes', body: 'Open the sticky-notes panel to jot a note against the page you are on. Full management lives at Notes.' },
-        { title: 'Check in / out', body: 'Start or end your working day in one click — the same record you see under Attendance. The menu shows a green dot while you are checked in.' },
+        { title: 'Check in / out', body: 'Start or end your working day in one click — the same record you see under Attendance. With your permission your check-in also captures your location (best-effort — check-in still works if you decline), and your reporting manager is notified. A live timer in the footer shows how long you have been on the clock.' },
         { title: 'Team chat', body: 'Open the slide-in team chat panel from anywhere.' },
         { title: 'New task / Calendar', body: 'Jump straight to Tasks or your Calendar.' },
       ] },

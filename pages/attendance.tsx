@@ -8,7 +8,8 @@ import { ListView } from '@/components/ListView';
 import { useAttendance } from '@/lib/queries';
 import { qk } from '@/lib/queryKeys';
 import { useQueryClient } from '@tanstack/react-query';
-import { getMyOpenToday, checkIn, checkOut } from '@/lib/db';
+import { getMyOpenToday } from '@/lib/db';
+import { performCheckIn, performCheckOut } from '@/lib/attendance';
 import { Attendance } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
@@ -87,12 +88,12 @@ export default function AttendancePage() {
 
   const doCheckIn = async () => {
     if (!me || !org) return; setBusy(true);
-    try { const r = await checkIn(me.id, org.id); setOpenRow(r); qc.invalidateQueries({ queryKey: qk.attendance(org?.id) }); }
+    try { const r = await performCheckIn(me, org); setOpenRow(r); qc.invalidateQueries({ queryKey: qk.attendance(org?.id) }); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const doCheckOut = async () => {
     if (!openRow || !org) return; setBusy(true);
-    try { await checkOut(openRow); setOpenRow(null); qc.invalidateQueries({ queryKey: qk.attendance(org?.id) }); }
+    try { await performCheckOut(openRow); setOpenRow(null); qc.invalidateQueries({ queryKey: qk.attendance(org?.id) }); }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
 

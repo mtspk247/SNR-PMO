@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { Icon } from '@/components/ui';
 import {
   listStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, StickyNote,
-  getMyOpenToday, checkIn, checkOut,
+  getMyOpenToday,
 } from '@/lib/db';
 import { Attendance } from '@/lib/supabase';
+import { performCheckIn, performCheckOut } from '@/lib/attendance';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 
 // --- Configurable shortcut catalog (admin picks which appear, in Settings ▸ Workspace) ---
@@ -58,8 +59,8 @@ export default function ShortcutsFab() {
   const toggleCheckin = async () => {
     if (!me || !org) return;
     try {
-      if (att) { await checkOut(att); setAtt(null); flash('Checked out ✓'); }
-      else { const a = await checkIn(me.id, org.id); setAtt(a); flash('Checked in ✓'); }
+      if (att) { await performCheckOut(att); setAtt(null); flash('Checked out ✓'); }
+      else { const a = await performCheckIn(me, org); setAtt(a); }
     } catch (e: any) { flash(e?.message || 'Could not update attendance'); }
   };
 
