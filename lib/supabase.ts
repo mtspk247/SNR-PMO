@@ -402,7 +402,7 @@ export interface Payslip {
 // ---- Task custom fields (per-project definitions + per-task values) ----
 export interface TaskFieldDef {
   id: string; org_id: string; project_id: string; name: string;
-  field_type: 'text' | 'textarea' | 'number' | 'currency' | 'progress' | 'rating' | 'date' | 'checkbox' | 'dropdown' | 'multiselect' | 'labels' | 'url' | 'email' | 'phone' | 'location' | 'percent' | 'duration';
+  field_type: 'text' | 'textarea' | 'number' | 'currency' | 'progress' | 'rating' | 'date' | 'checkbox' | 'dropdown' | 'multiselect' | 'labels' | 'url' | 'email' | 'phone' | 'location' | 'percent' | 'duration' | 'ai';
   options?: string[] | null; created_by?: string | null; created_at?: string;
 }
 export interface TaskFieldValue {
@@ -414,7 +414,7 @@ export interface TaskFieldValue {
 export type CustomEntityType = 'crm_deal' | 'crm_contact' | 'crm_company' | 'employee' | 'ledger_entry' | (string & {});
 export interface CustomFieldDef {
   id: string; org_id: string; entity_type: CustomEntityType; name: string;
-  field_type: 'text' | 'textarea' | 'number' | 'currency' | 'progress' | 'rating' | 'date' | 'checkbox' | 'dropdown' | 'multiselect' | 'labels' | 'url' | 'email' | 'phone' | 'location' | 'percent' | 'duration';
+  field_type: 'text' | 'textarea' | 'number' | 'currency' | 'progress' | 'rating' | 'date' | 'checkbox' | 'dropdown' | 'multiselect' | 'labels' | 'url' | 'email' | 'phone' | 'location' | 'percent' | 'duration' | 'ai';
   options?: string[] | null; option_meta?: Record<string, string> | null; position?: number; created_by?: string | null; created_at?: string;
 }
 export interface CustomFieldValue {
