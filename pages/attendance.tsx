@@ -49,7 +49,7 @@ export default function AttendancePage() {
     { id: 'in', label: 'In' }, { id: 'out', label: 'Out' }, { id: 'hours', label: 'Hours' }, { id: 'status', label: 'Status' },
   ], [isAdmin]);
 
-  const prefs = useListPrefs(`snr-attendance-view-${me?.id || 'anon'}`, COLS);
+  const prefs = useListPrefs(`snr-attendance-view-${me?.id || 'anon'}`, COLS, { entity: 'attendance', orgId: org?.id, canManage: isAdmin });
 
   const shown = useMemo(() => {
     const term = prefs.query.trim().toLowerCase();

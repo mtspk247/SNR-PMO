@@ -67,7 +67,7 @@ export default function IdeasPage() {
   const { data: ideas = [], isLoading } = useIdeas();
 
   const router = useRouter();
-  const lp = useListPrefs(`snr-ideas-view-${user?.id || 'anon'}`, IDEA_COLS);
+  const lp = useListPrefs(`snr-ideas-view-${user?.id || 'anon'}`, IDEA_COLS, { entity: 'ideas', orgId: org?.id, canManage: isAdmin });
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Idea | null>(null);
   const vp = useViewPrefs(`snr-ideas-vp-${user?.id || 'anon'}`, { view: 'list', groupBy: 'none' });

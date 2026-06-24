@@ -158,7 +158,7 @@ export default function AccountingPage() {
     return Array.from(s).sort();
   }, [entries]);
 
-  const lp = useListPrefs(`snr-accounting-view-${me?.id || 'anon'}`, LEDGER_COLS);
+  const lp = useListPrefs(`snr-accounting-view-${me?.id || 'anon'}`, LEDGER_COLS, { entity: 'ledger_entry', orgId: org?.id, canManage: isAdmin });
   const FILTERS: FilterDef[] = useMemo(() => [
     { id: 'type', label: 'Type', options: [{ value: 'all', label: 'All types' }, { value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }] },
     { id: 'category', label: 'Category', options: [{ value: 'all', label: 'All categories' }, ...allCategories.map((c) => ({ value: c, label: titleCase(c) }))] },
