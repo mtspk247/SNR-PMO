@@ -87,7 +87,7 @@ export default function RolesManager() {
         <div className="grid gap-5">
           <div className="card p-5">
             <div className="flex items-center justify-between mb-1"><h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-shield-check" className="text-muted2" />Special permissions</h3><button onClick={() => setSel({ ...sel, permissions: Object.fromEntries(PERM_KEYS.map((k) => [k, !(selectedPerms === PERM_KEYS.length)])) })} className="btn-ghost text-2xs">{selectedPerms === PERM_KEYS.length ? 'Clear all' : 'Select all'}</button></div>
-            <p className="text-2xs text-muted mb-3">Cross-cutting powers not tied to a single page (approvals, user/agent management, export). Page-by-page access is set below.</p>
+            <p className="text-2xs text-muted mb-3">Action powers that page access cannot express: approvals, data export, agent controls. These do not hide pages and do not override the Page access tree below.</p>
             <div className="divide-y divide-line">
               {PERM_KEYS.map((k) => (
                 <label key={k} className="flex items-center justify-between gap-3 py-2.5 cursor-pointer">
@@ -101,7 +101,7 @@ export default function RolesManager() {
 
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-1"><h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-layout-list" className="text-muted2" />Page access (per-page CRUD)</h3></div>
-          <p className="text-2xs text-muted mb-3">Per page, choose Create / Read / Update / Delete for this role. Turning <strong>View</strong> off hides the page from the sidebar &amp; search (with module access).</p>
+          <p className="text-2xs text-muted mb-3">Set Create / View / Edit / Delete per module (the module row cascades to its pages) or per page. Turning <strong>View</strong> off hides a page from the sidebar &amp; search.</p>
           <PagePermTree value={sel.page_perms} onChange={(pp) => setSel({ ...sel, page_perms: pp })} />
         </div>
       </div>
