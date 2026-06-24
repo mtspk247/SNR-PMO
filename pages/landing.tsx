@@ -47,7 +47,7 @@ const PRICING = [
     cta: 'Start free',
     href: '/login?mode=signup',
     highlight: false,
-    feats: ['Up to 5 seats', 'Projects, tasks & CRM', 'Basic accounting & invoicing', '1 GB drive storage', 'Community support'],
+    feats: ['Up to 5 seats', 'AI agents — 25 actions/mo', 'Projects, tasks & CRM', 'Basic accounting & invoicing', '1 GB drive storage', 'Community support'],
   },
   {
     name: 'Pro',

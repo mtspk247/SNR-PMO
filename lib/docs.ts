@@ -586,7 +586,7 @@ export const SECTIONS: Section[] = [
         { text: 'Scoped, never a bypass', sub: ['An agent can only do what the approving person could do \u2014 every action runs through the same permissions and tenant isolation a human is subject to.'] },
         { text: 'Approve-first by default', sub: ['Agents propose; a person with the Approve agent actions permission approves or rejects. Money, payroll and legal actions always stay approve-first.'] },
         { text: 'Audited & reversible', sub: ['Every proposal, approval, execution and rollback is recorded in an append-only trail, and executed actions can be rolled back in one click.'] },
-        { text: 'Cost ceilings', sub: ['Set per-day or per-month run and dollar limits (org-wide or per agent). Agent runs are refused once a ceiling is reached.'] },
+        { text: 'Cost ceilings & the Free taste', sub: ['Set per-day or per-month run and dollar limits (org-wide or per agent). Agent runs are refused once a ceiling is reached.', 'AI agents are available on every plan: the Free plan includes a metered taste of 25 agent actions per month; Pro and above are unlimited. Set your own org-wide monthly cap any time and it overrides the default.'] },
       ] },
       { kind: 'steps', items: [
         { title: '1. Create an agent', body: 'Open Agents \u25b8 New agent. Give it a name, pick a domain (Accounting, Tasks, CRM, HR, Support) and an autonomy level \u2014 Approve-first is recommended.' },
