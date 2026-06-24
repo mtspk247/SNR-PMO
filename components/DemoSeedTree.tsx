@@ -6,7 +6,7 @@ import { INDUSTRIES, withCurrent } from '@/lib/taxonomy';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { buildDemoPayload, trimDemoPayload } from '@/lib/demoSeed';
-import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands } from '@/lib/db';
+import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands, seedAgentRoiDemo } from '@/lib/db';
 
 type Leaf = { key: string; label: string };
 const GROUPS: { group: string; icon: string; items: Leaf[] }[] = [
@@ -64,7 +64,7 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
       const payload = trimDemoPayload(full, selection, cur('__tasks'));
       const counts = await seedDemoCustom(orgId, payload);
       if (withSmart) { try { await seedDemoSmartColumns(orgId); } catch { /* non-fatal */ } }
-      if (withAgents && agentsAvail && me?.id) { try { await seedStarterAgents(orgId, me.id); await seedBuiltinChatCommands(orgId); } catch { /* non-fatal */ } }
+      if (withAgents && agentsAvail && me?.id) { try { await seedStarterAgents(orgId, me.id); await seedBuiltinChatCommands(orgId); await seedAgentRoiDemo(orgId); } catch { /* non-fatal */ } }
       setDone(counts);
     } catch (e: unknown) { setErr((e as Error).message || 'Seeding failed'); }
     finally { setBusy(''); }

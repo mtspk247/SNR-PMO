@@ -119,9 +119,16 @@ export async function seedFullDemo(orgId: string, opts: { industry?: string | nu
   const counts = await seedDemoData(orgId, opts.industry ?? null);
   try { await seedDemoSmartColumns(orgId); } catch { /* non-fatal */ }
   if (opts.withAgents && opts.userId) {
-    try { await seedStarterAgents(orgId, opts.userId); await seedBuiltinChatCommands(orgId); } catch { /* non-fatal */ }
+    try { await seedStarterAgents(orgId, opts.userId); await seedBuiltinChatCommands(orgId); await seedAgentRoiDemo(orgId); } catch { /* non-fatal */ }
   }
   return counts;
+}
+// Demo agent Activity & ROI — populate a believable executed/auto/rolled-back/pending
+// history so the Agent Activity dashboard is alive on every demo spin-up (idempotent;
+// never bumps real usage, so it can't consume a tenant's Free-tier agent cap).
+export async function seedAgentRoiDemo(orgId: string): Promise<number> {
+  const { data, error } = await sb.rpc('seed_agent_roi_demo', { p_org: orgId }); if (error) throw new Error(error.message);
+  return (data as number) || 0;
 }
 
 // Seed/remove the demo "smart columns" (relationship + multi-link + rollup + formula) on Clients,
