@@ -356,6 +356,26 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'automations',
+    title: 'Automations',
+    icon: 'ti-bolt',
+    blocks: [
+      { kind: 'p', text: 'Automations run actions automatically whenever something happens in your workspace — no code. Each one is a trigger (the event), optional conditions (only run when these match), and one or more actions. Find it under Automations (owners/admins).' },
+      { kind: 'bullets', items: [
+        { text: 'Triggers — Form submitted (a new form response), Task created, Project created, Deal created, and Client created. These are the events the system raises.' },
+        { text: 'Conditions — narrow an automation so it only runs when a field of the event matches a value (for example form_name = "Contact us"). Add as many as you like; all must match.' },
+        { text: 'Actions — notify owners & admins, create a task, set the triggering record’s status, or assign it to a teammate. Add several and they run in order.' },
+        { text: 'Activity log — the Recent activity panel shows each time an automation fired and how many actions ran, so you can confirm it is working.' },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Create one', body: 'Automations > New automation. Name it, pick the trigger, add any conditions, then add the actions. Create it — it starts active.' },
+        { title: 'Connect forms to your pipeline', body: 'Pick "Form submitted" as the trigger to act on every new lead — notify the owner, create a follow-up task, and more. Each submission already creates a CRM lead automatically.' },
+        { title: 'Pause or delete', body: 'Toggle an automation Off to pause it without losing it, or delete it. Paused automations keep their history and fire counts.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-check', text: 'Automations are owner/admin only and run on the server with your workspace permissions — they can never act outside your workspace. Each action is fault-isolated, so one failing action never blocks the others or the change that triggered it.' },
+    ],
+  },
+  {
     id: 'connections',
     title: 'Module connections',
     icon: 'ti-arrows-exchange-2',
