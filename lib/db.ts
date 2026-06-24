@@ -1007,8 +1007,8 @@ export async function setTenantLimitOverride(orgId: string, key: string, value: 
 
 // ---- Drives (F2) ----
 export interface Drive { id: string; org_id: string; name: string; description: string | null; project_id: string | null; created_by: string | null; created_at: string; }
-export interface DriveFolder { id: string; org_id: string; drive_id: string; parent_id: string | null; name: string; created_at: string; }
-export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; created_at: string; }
+export interface DriveFolder { id: string; org_id: string; drive_id: string; parent_id: string | null; name: string; created_by: string | null; created_at: string; }
+export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; created_by: string | null; created_at: string; }
 
 export async function listDrives(orgId: string): Promise<Drive[]> {
   const { data, error } = await sb.from('drives').select('*').eq('org_id', orgId).order('created_at');
@@ -1068,6 +1068,18 @@ export async function driveFileUrl(path: string): Promise<string> {
 // project's client portal (guest RLS fences reads via can_access_project).
 export async function setDriveProject(id: string, projectId: string | null): Promise<void> {
   const { error } = await sb.from('drives').update({ project_id: projectId }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// Move a folder under a new parent (or null = drive root). Plain UPDATE (no RETURNING) so the
+// drive_folders_upd RLS policy (creator-or-owner/admin) enforces; cycle-guard is client-side.
+export async function moveFolder(id: string, parentId: string | null): Promise<void> {
+  const { error } = await sb.from('drive_folders').update({ parent_id: parentId }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+// Move a file into a folder (or null = drive root). RLS drive_files_upd gates creator-or-owner/admin.
+export async function moveFile(id: string, folderId: string | null): Promise<void> {
+  const { error } = await sb.from('drive_files').update({ folder_id: folderId }).eq('id', id);
   if (error) throw new Error(error.message);
 }
 export interface PortalFile { id: string; name: string; kind: string; mime_type: string | null; size_bytes: number; storage_path: string | null; created_at: string; drive_id: string; drive_name?: string | null; }

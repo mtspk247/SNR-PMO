@@ -421,6 +421,26 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'drives',
+    title: 'Drives & files',
+    icon: 'ti-cloud',
+    blocks: [
+      { kind: 'p', text: 'Drives are your workspace’s cloud storage. Open Drives to create one or more drives (for example Marketing or Operations), organise files into nested folders, and upload or download files. A storage bar shows how much of your plan’s quota you have used.' },
+      { kind: 'bullets', items: [
+        { text: 'Tree view — each drive shows a nested, collapsible folder tree on the left; click any folder to open it, or use the breadcrumb trail at the top to jump back up a level.' },
+        { text: 'Move — hover a folder or file and click the move icon to relocate it into any folder, or back to the drive root. A folder cannot be moved into itself or one of its own sub-folders.' },
+        { text: 'Share with a client — set a drive’s “Client portal” project (owner/admin) to surface that drive’s files, read-only, in the project’s client portal. Leave it “Not shared” to keep the drive internal.' },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Create a drive', body: 'Drives > New drive. Give it a name and an optional description. Create as many as you need to keep teams or clients separate.' },
+        { title: 'Add folders & files', body: 'Inside a drive use New folder to build a hierarchy, and Upload to add files to the folder you are currently in. Folders can be nested as deep as you like.' },
+        { title: 'Organise by moving', body: 'Use the move icon on any row to re-file a folder or file. The destination picker shows the whole tree so you can place it exactly where it belongs.' },
+        { title: 'Share to a portal', body: 'Pick a project in the “Client portal” selector at the top of a drive to let that project’s invited clients see its files in their branded portal.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Permissions: any staff member can open drives and upload files. Renaming, moving or deleting a folder or file is limited to whoever created it (or a workspace owner/admin) — enforced on the server by row-level security, not just hidden in the UI. Drives is plan-gated and storage counts against your plan quota.' },
+    ],
+  },
+  {
     id: 'client-portal',
     title: 'Client portal',
     icon: 'ti-layout-dashboard',
