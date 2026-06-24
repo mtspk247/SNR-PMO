@@ -11,6 +11,7 @@ const BASE = 'https://snr-pmo.vercel.app';
 const PAGES: { path: string; priority: string; freq: string }[] = [
   { path: '/', priority: '1.0', freq: 'weekly' },
   { path: '/vs', priority: '0.8', freq: 'weekly' },
+  { path: '/alternatives', priority: '0.9', freq: 'weekly' },
   ...COMPETITORS.map((c) => ({ path: `/vs/${c.slug}`, priority: '0.8', freq: 'monthly' })),
 ];
 
