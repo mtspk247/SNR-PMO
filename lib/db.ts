@@ -740,6 +740,7 @@ export const RELATION_ENTITIES: { value: string; label: string }[] = [
   { value: 'deals', label: 'Deals' },
   { value: 'contacts', label: 'Contacts' },
   { value: 'tasks', label: 'Tasks' },
+  { value: 'people', label: 'People' },
 ];
 const RELATION_SOURCES: Record<string, { table: string; label: string }> = {
   projects: { table: 'projects', label: 'name' },
@@ -750,6 +751,11 @@ const RELATION_SOURCES: Record<string, { table: string; label: string }> = {
 };
 // Pickable rows for a relationship field's target entity (RLS-scoped to the user's org).
 export async function getRelationOptions(orgId: string, entity: string): Promise<{ id: string; label: string }[]> {
+  if (entity === 'people') {
+    const { data, error } = await (sb as any).from('users').select('id, full_name, org_members!inner(org_id)').eq('org_members.org_id', orgId).order('full_name').limit(500);
+    if (error) return [];
+    return (((data as any[]) || [])).map((r) => ({ id: r.id as string, label: (r.full_name as string) || '(unnamed)' }));
+  }
   const src = RELATION_SOURCES[entity];
   if (!src) return [];
   const { data, error } = await (sb as any).from(src.table).select(`id, ${src.label}`).eq('org_id', orgId).limit(500);
@@ -786,13 +792,26 @@ export const ROLLUP_TARGETS: Record<string, { value: string; label: string; kind
     { value: 'actual_hours', label: 'Actual hours', kind: 'number' },
     { value: 'due_date', label: 'Due date', kind: 'date' },
   ],
+  people: [
+    { value: 'email', label: 'Email', kind: 'text' },
+    { value: 'role', label: 'Role', kind: 'text' },
+    { value: 'department', label: 'Department', kind: 'text' },
+  ],
 };
 // Map { linked-record id -> target field value (text) } for a rollup column's target entity.
 // Field is whitelisted via ROLLUP_TARGETS so the interpolated column name can't be injected.
 export async function getRollupValues(orgId: string, entity: string, field: string): Promise<Record<string, string>> {
-  const src = RELATION_SOURCES[entity];
   const allowed = (ROLLUP_TARGETS[entity] || []).some((t) => t.value === field);
-  if (!src || !allowed) return {};
+  if (!allowed) return {};
+  if (entity === 'people') {
+    const { data, error } = await (sb as any).from('users').select(`id, ${field}, org_members!inner(org_id)`).eq('org_members.org_id', orgId).limit(1000);
+    if (error) return {};
+    const m: Record<string, string> = {};
+    (((data as any[]) || [])).forEach((r) => { const val = r[field]; if (val !== null && val !== undefined && val !== '') m[r.id as string] = String(val); });
+    return m;
+  }
+  const src = RELATION_SOURCES[entity];
+  if (!src) return {};
   const { data, error } = await (sb as any).from(src.table).select(`id, ${field}`).eq('org_id', orgId).limit(1000);
   if (error) return {};
   const m: Record<string, string> = {};

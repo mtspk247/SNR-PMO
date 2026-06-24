@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
-import { Icon } from '@/components/ui';
+import { Icon, Avatar } from '@/components/ui';
 import type { ColDef } from '@/components/ListToolbar';
 import type { EditSpec } from '@/components/DataList';
 import {
@@ -55,7 +55,7 @@ const colorPill = (text: string, color: string, key?: string): ReactNode => (
 
 // Relationship cell → link to the target module (deep link for tasks; list page otherwise).
 const REL_HREF: Record<string, (id: string) => string> = {
-  tasks: (id) => `/tasks?task=${id}`, projects: () => '/projects', clients: () => '/clients', deals: () => '/crm', contacts: () => '/crm',
+  tasks: (id) => `/tasks?task=${id}`, projects: () => '/projects', clients: () => '/clients', deals: () => '/crm', contacts: () => '/crm', people: (id) => `/users/${id}`,
 };
 
 const specFor = (d: CustomFieldDef): EditSpec => {
@@ -140,7 +140,11 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
     if (d.field_type === 'ai' || d.field_type === 'rollup' || d.field_type === 'formula') return;
     if (d.field_type === 'relationship') {
       const ent = d.option_meta?.relation_entity || '';
-      editable[PREFIX + d.id] = { type: 'select', options: [{ value: '', label: '—' }, ...((relList[ent] || []).map((o) => ({ value: o.id, label: o.label })))] };
+      if (ent === 'people') {
+        editable[PREFIX + d.id] = { type: 'person', options: (relList['people'] || []).map((o) => ({ value: o.id, label: o.label })), multi: false };
+      } else {
+        editable[PREFIX + d.id] = { type: 'select', options: [{ value: '', label: '—' }, ...((relList[ent] || []).map((o) => ({ value: o.id, label: o.label })))] };
+      }
     } else { editable[PREFIX + d.id] = specFor(d); }
   });
 
@@ -237,8 +241,10 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
         const ent = d?.option_meta?.relation_entity || '';
         const label = (relMap[ent] && relMap[ent][v]) || 'Linked record';
         const mk = REL_HREF[ent];
-        const pill = colorPill(label, '#6366F1');
-        return mk ? <a href={mk(v)} onClick={(e) => e.stopPropagation()} className="hover:opacity-80">{pill}</a> : pill;
+        const inner = ent === 'people'
+          ? <span className="inline-flex items-center gap-1.5"><Avatar name={label} size={20} /><span className="text-sm text-content truncate max-w-[12rem] align-middle">{label}</span></span>
+          : colorPill(label, '#6366F1');
+        return mk ? <a href={mk(v)} onClick={(e) => e.stopPropagation()} className="hover:opacity-80">{inner}</a> : inner;
       }
       default: return <span className="text-sm text-muted">{v}</span>;
     }
