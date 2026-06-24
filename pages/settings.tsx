@@ -4,9 +4,9 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs, HelpHint } from '@/components/ui';
 import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, setOrgFab } from '@/lib/db';
-import { getOrgProfile, saveOrgProfile, setOrgModule, setOrgHiddenPages, getOrgFeatures, getOrgPlanFeatures } from '@/lib/db';
-import { FEATURES, MyOrg, FabCustomShortcut } from '@/lib/supabase';
-import { TENANT_ITEMS, UNHIDEABLE } from '@/lib/nav';
+import { getOrgProfile, saveOrgProfile, setOrgHiddenPages } from '@/lib/db';
+import { MyOrg, FabCustomShortcut } from '@/lib/supabase';
+import { MODULE_GROUPS } from '@/lib/nav';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
 import OrgProfileForm from '@/components/OrgProfileForm';
@@ -214,121 +214,81 @@ function WipeWorkspace({ org }: { org: { id: string; name: string } }) {
   );
 }
 
-const CORE_MODULES = new Set(['projects']);
-const featureLabel = (key: string) => FEATURES.find((f) => f.key === key)?.label || key;
-
 function ModulesPanel({ org }: { org: MyOrg }) {
   const patchOrg = useAuthStore((s) => s.patchOrg);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const eff = new Set(org.features || []);
   const plan = new Set(org.planFeatures || []);
-  const hidden: string[] = org.hidden_pages || [];
+  const hidden = new Set<string>(org.hidden_pages || []);
+  const inPlan = (f?: string) => !f || plan.has(f as any);
 
-  const toggleModule = async (key: string, on: boolean) => {
-    if (!on && CORE_MODULES.has(key) && typeof window !== 'undefined' && !window.confirm(`Hide ${featureLabel(key)}? Members won't see it until you re-enable it — your data is kept.`)) return;
-    setBusy('m:' + key); setMsg('');
-    try {
-      await setOrgModule(org.id, key, on);
-      const [features, planFeatures] = await Promise.all([getOrgFeatures(org.id), getOrgPlanFeatures(org.id)]);
-      patchOrg({ id: org.id, features, planFeatures });
-      setMsg(`${featureLabel(key)} ${on ? 'enabled' : 'hidden'}.`);
-    } catch (e: any) { setMsg(e?.message || 'Could not update the module.'); }
-    finally { setBusy(null); }
+  const setHidden = async (hrefs: string[], hide: boolean) => {
+    const s = new Set<string>(org.hidden_pages || []);
+    hrefs.forEach((h) => (hide ? s.add(h) : s.delete(h)));
+    const next = Array.from(s);
+    setBusy(true); setMsg('');
+    try { await setOrgHiddenPages(org.id, next); patchOrg({ id: org.id, hidden_pages: next }); }
+    catch (e: any) { setMsg(e?.message || 'Could not update visibility.'); }
+    finally { setBusy(false); }
   };
-
-  const togglePage = async (href: string, show: boolean) => {
-    setBusy('p:' + href); setMsg('');
-    const next = show ? hidden.filter((h) => h !== href) : Array.from(new Set([...hidden, href]));
-    try {
-      await setOrgHiddenPages(org.id, next);
-      patchOrg({ id: org.id, hidden_pages: next });
-      setMsg(show ? 'Page shown.' : 'Page hidden.');
-    } catch (e: any) { setMsg(e?.message || 'Could not update the page.'); }
-    finally { setBusy(null); }
-  };
-
-  const pagesFor = (key: string) => TENANT_ITEMS.filter((i) => i.feature === key);
-  const corePages = TENANT_ITEMS.filter((i) => !i.feature && !UNHIDEABLE.has(i.href));
-
-  const PageList = ({ items, disabled }: { items: typeof TENANT_ITEMS; disabled?: boolean }) => (
-    <div className="mt-1 ml-7 pl-3 border-l border-line space-y-0.5">
-      {items.map((i) => {
-        const isHidden = hidden.includes(i.href);
-        const b = busy === 'p:' + i.href;
-        return (
-          <div key={i.href} className="flex items-center justify-between gap-3 py-1">
-            <span className={`flex items-center gap-2 text-sm min-w-0 ${disabled || isHidden ? 'text-muted' : 'text-content'}`}>
-              <Icon name={i.icon} className="text-sm text-muted2 shrink-0" />
-              <span className="truncate">{i.label}</span>
-            </span>
-            {disabled
-              ? <Icon name="ti-minus" className="text-muted2 text-sm shrink-0" />
-              : (
-                <button type="button" disabled={b} onClick={() => togglePage(i.href, isHidden)} title={isHidden ? 'Hidden - click to show' : 'Visible - click to hide'}
-                  className={`shrink-0 p-1 rounded-md hover:bg-surface2 ${b ? 'opacity-50' : ''} ${isHidden ? 'text-muted2' : 'text-accentstrong'}`}>
-                  <Icon name={isHidden ? 'ti-eye-off' : 'ti-eye'} className="text-base" />
-                </button>
-              )}
-          </div>
-        );
-      })}
-    </div>
-  );
 
   return (
     <div className="max-w-3xl">
       <div className="card p-5">
         <h3 className="text-sm font-semibold text-content inline-flex items-center gap-2"><Icon name="ti-apps" className="text-muted2" />Modules &amp; pages<HelpHint anchor="modules" /></h3>
-        <p className="text-2xs text-muted mt-1 max-w-2xl">Choose which modules this workspace uses, and hide individual pages you do not need. Turning a module off hides it everywhere; expand a module to show or hide its pages one by one. Your data is always kept and you can re-enable anytime. Greyed modules need a plan upgrade.</p>
+        <p className="text-2xs text-muted mt-1 max-w-2xl">Show or hide pages for the whole workspace, grouped by module (your sidebar sections). Hidden pages disappear from the sidebar and search for everyone; your data is kept and you can show them again anytime. Pages your plan does not include show a lock.</p>
         <div className="mt-4 space-y-2">
-          {FEATURES.map((f) => {
-            const inPlan = plan.has(f.key); const on = eff.has(f.key);
-            const pages = pagesFor(f.key);
-            const expanded = !!open[f.key];
-            const mb = busy === 'm:' + f.key;
+          {MODULE_GROUPS.map((g) => {
+            const pages = g.items;
+            const vis = pages.filter((i) => !hidden.has(i.href)).length;
+            const allVisible = vis === pages.length; const allHidden = vis === 0;
+            const state = allVisible ? 'All shown' : allHidden ? 'All hidden' : `${vis}/${pages.length} shown`;
+            const badge = allVisible ? 'bg-emerald-500/10 text-emerald-600' : allHidden ? 'bg-surface2 text-muted2' : 'bg-amber-500/10 text-amber-600';
+            const expanded = !!open[g.key];
             return (
-              <div key={f.key} className={`rounded-lg border border-line ${inPlan ? '' : 'opacity-60'}`}>
-                <div className="flex items-center justify-between gap-3 p-3">
-                  <button type="button" onClick={() => pages.length && setOpen((p) => ({ ...p, [f.key]: !p[f.key] }))}
-                    className="flex items-center gap-2 min-w-0 text-left">
-                    {pages.length > 0
-                      ? <Icon name="ti-chevron-down" className={`text-xs text-muted2 transition-transform shrink-0 ${expanded ? '' : '-rotate-90'}`} />
-                      : <span className="w-3 shrink-0" />}
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-content truncate">{f.label}</span>
-                      {!inPlan
-                        ? <span className="block text-2xs text-amber-600">Upgrade to enable</span>
-                        : pages.length > 0 && <span className="block text-2xs text-muted2">{pages.length} page{pages.length > 1 ? 's' : ''}{!on ? ' (module off)' : ''}</span>}
-                    </span>
+              <div key={g.key} className="rounded-lg border border-line">
+                <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                  <button type="button" onClick={() => setOpen((p) => ({ ...p, [g.key]: !p[g.key] }))} className="flex items-center gap-2 min-w-0 text-left flex-1">
+                    <Icon name="ti-chevron-down" className={`text-xs text-muted2 transition-transform shrink-0 ${expanded ? '' : '-rotate-90'}`} />
+                    <Icon name={g.icon} className="text-sm text-muted2 shrink-0" />
+                    <span className="text-sm font-medium text-content truncate">{g.label}</span>
+                    <span className="text-2xs text-muted2 shrink-0">{pages.length}</span>
+                    <span className={`text-2xs px-1.5 py-0.5 rounded-full shrink-0 ${badge}`}>{state}</span>
                   </button>
-                  {inPlan ? (
-                    <button type="button" disabled={mb} onClick={() => toggleModule(f.key, !on)} aria-pressed={on} title={on ? 'On' : 'Off'}
-                      className={`relative h-5 w-9 rounded-full transition shrink-0 ${on ? 'bg-accent' : 'bg-surface2 border border-line'} ${mb ? 'opacity-50' : ''}`}>
-                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[1.15rem]' : 'left-0.5'}`} />
-                    </button>
-                  ) : <Icon name="ti-lock" className="text-muted2 shrink-0" />}
+                  <button type="button" disabled={busy} onClick={() => setHidden(pages.map((i) => i.href), allVisible)} title={allVisible ? 'Hide all in this module' : 'Show all in this module'}
+                    className={`shrink-0 p-1 rounded-md hover:bg-surface2 ${busy ? 'opacity-50' : ''} ${allHidden ? 'text-muted2' : 'text-accentstrong'}`}>
+                    <Icon name={allVisible ? 'ti-eye' : 'ti-eye-off'} className="text-base" />
+                  </button>
                 </div>
-                {expanded && pages.length > 0 && inPlan && <div className="px-3 pb-3"><PageList items={pages} disabled={!on} /></div>}
+                {expanded && (
+                  <div className="border-t border-line divide-y divide-line">
+                    {pages.map((i) => {
+                      const isHidden = hidden.has(i.href);
+                      const locked = !inPlan(i.feature);
+                      return (
+                        <div key={i.href} className="flex items-center justify-between gap-2 px-3 py-1.5 pl-5">
+                          <span className={`flex items-center gap-2 text-sm min-w-0 ${isHidden ? 'text-muted' : 'text-content'}`}>
+                            <Icon name={i.icon} className="text-sm text-muted2 shrink-0" />
+                            <span className="truncate">{i.label}</span>
+                            {locked && <span className="text-2xs text-amber-600 shrink-0">Upgrade</span>}
+                          </span>
+                          {locked
+                            ? <Icon name="ti-lock" className="text-muted2 text-sm shrink-0" />
+                            : (
+                              <button type="button" disabled={busy} onClick={() => setHidden([i.href], !isHidden)} title={isHidden ? 'Hidden - click to show' : 'Visible - click to hide'}
+                                className={`shrink-0 p-1 rounded-md hover:bg-surface2 ${isHidden ? 'text-muted2' : 'text-accentstrong'}`}>
+                                <Icon name={isHidden ? 'ti-eye-off' : 'ti-eye'} className="text-base" />
+                              </button>
+                            )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
-
-          {corePages.length > 0 && (
-            <div className="rounded-lg border border-line">
-              <button type="button" onClick={() => setOpen((p) => ({ ...p, __core: !p.__core }))} className="w-full flex items-center justify-between gap-3 p-3 text-left">
-                <span className="flex items-center gap-2 min-w-0">
-                  <Icon name="ti-chevron-down" className={`text-xs text-muted2 transition-transform shrink-0 ${open.__core ? '' : '-rotate-90'}`} />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-content truncate">Core pages</span>
-                    <span className="block text-2xs text-muted2">Always included. Hide the ones you do not use.</span>
-                  </span>
-                </span>
-              </button>
-              {open.__core && <div className="px-3 pb-3"><PageList items={corePages} /></div>}
-            </div>
-          )}
         </div>
         {msg && <p className="text-2xs text-muted mt-3">{msg}</p>}
       </div>

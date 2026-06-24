@@ -10,12 +10,11 @@ import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStart
 
 type Leaf = { key: string; label: string };
 const GROUPS: { group: string; icon: string; items: Leaf[] }[] = [
-  { group: 'Projects & work', icon: 'ti-layout-kanban', items: [{ key: 'projects', label: 'Projects' }, { key: '__tasks', label: 'Tasks / project' }] },
-  { group: 'CRM & sales', icon: 'ti-users', items: [{ key: 'clients', label: 'Clients' }, { key: 'deals', label: 'Deals' }] },
-  { group: 'Accounting', icon: 'ti-calculator', items: [{ key: 'invoices', label: 'Invoices' }, { key: 'products', label: 'Products' }, { key: 'ledger', label: 'Ledger entries' }] },
-  { group: 'Support', icon: 'ti-lifebuoy', items: [{ key: 'support', label: 'Tickets' }] },
-  { group: 'Planning', icon: 'ti-bulb', items: [{ key: 'ideas', label: 'Ideas' }, { key: 'risks', label: 'Risks' }] },
+  { group: 'Work', icon: 'ti-briefcase', items: [{ key: 'projects', label: 'Projects' }, { key: '__tasks', label: 'Tasks / project' }, { key: 'ideas', label: 'Ideas' }] },
+  { group: 'CRM', icon: 'ti-users', items: [{ key: 'clients', label: 'Clients' }, { key: 'deals', label: 'Deals' }] },
+  { group: 'Accounting', icon: 'ti-report-money', items: [{ key: 'invoices', label: 'Invoices' }, { key: 'products', label: 'Products' }, { key: 'ledger', label: 'Ledger entries' }, { key: 'risks', label: 'Risks' }] },
   { group: 'People', icon: 'ti-users-group', items: [{ key: 'teams', label: 'Teams' }] },
+  { group: 'Support', icon: 'ti-lifebuoy', items: [{ key: 'support', label: 'Tickets' }] },
   { group: 'Automation', icon: 'ti-bolt', items: [{ key: 'automations', label: 'Automations' }, { key: 'templates', label: 'Templates' }] },
 ];
 
@@ -41,6 +40,7 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [full]);
   const [sel, setSel] = useState<Record<string, number>>({});
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const cur = (key: string) => (sel[key] ?? defaults[key] ?? 0);
 
   const [withSmart, setWithSmart] = useState(true);
@@ -94,25 +94,36 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
         {GROUPS.map((g) => {
           const allOn = g.items.every((it) => cur(it.key) > 0);
           const someOn = g.items.some((it) => cur(it.key) > 0);
+          const selectedCount = g.items.filter((it) => it.key !== '__tasks').reduce((a, it) => a + cur(it.key), 0);
+          const expanded = open[g.group] ?? someOn;
           return (
-            <div key={g.group} className="rounded-xl border border-line p-3">
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input type="checkbox" className="accent-accent" checked={allOn} ref={(el) => { if (el) el.indeterminate = someOn && !allOn; }} onChange={(e) => toggleGroup(g.items, e.target.checked)} />
-                <Icon name={g.icon} className="text-base text-accentstrong" />
-                <span className="text-sm font-medium text-content">{g.group}</span>
-              </label>
-              <div className="mt-2 pl-7 grid sm:grid-cols-2 gap-x-6 gap-y-2">
-                {g.items.map((it) => {
-                  const max = maxOf(it.key); const on = cur(it.key) > 0;
-                  return (
-                    <div key={it.key} className="flex items-center gap-2">
-                      <input type="checkbox" className="accent-accent" checked={on} onChange={(e) => toggleKey(it.key, e.target.checked)} />
-                      <span className={`text-sm flex-1 ${on ? 'text-content' : 'text-muted2'}`}>{it.label}</span>
-                      <input type="number" min={0} max={max} value={cur(it.key)} onChange={(e) => setKey(it.key, parseInt(e.target.value, 10))} className="input h-8 w-16 text-sm text-right" title={`Up to ${max}`} />
-                    </div>
-                  );
-                })}
+            <div key={g.group} className="rounded-xl border border-line">
+              <div className="flex items-center gap-2.5 p-3">
+                <button type="button" onClick={() => setOpen((p) => ({ ...p, [g.group]: !(p[g.group] ?? someOn) }))} className="shrink-0 text-muted2" title={expanded ? 'Collapse' : 'Expand'}>
+                  <Icon name="ti-chevron-down" className={`text-xs transition-transform ${expanded ? '' : '-rotate-90'}`} />
+                </button>
+                <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                  <input type="checkbox" className="accent-accent" checked={allOn} ref={(el) => { if (el) el.indeterminate = someOn && !allOn; }} onChange={(e) => toggleGroup(g.items, e.target.checked)} />
+                  <Icon name={g.icon} className="text-base text-accentstrong shrink-0" />
+                  <span className="text-sm font-medium text-content truncate">{g.group}</span>
+                  <span className="text-2xs text-muted2 shrink-0">{g.items.length}</span>
+                </label>
+                {selectedCount > 0 && <span className="text-2xs px-1.5 py-0.5 rounded-full bg-accent/10 text-accentstrong shrink-0">{selectedCount} selected</span>}
               </div>
+              {expanded && (
+                <div className="px-3 pb-3 pl-10 grid sm:grid-cols-2 gap-x-6 gap-y-2">
+                  {g.items.map((it) => {
+                    const max = maxOf(it.key); const on = cur(it.key) > 0;
+                    return (
+                      <div key={it.key} className="flex items-center gap-2">
+                        <input type="checkbox" className="accent-accent" checked={on} onChange={(e) => toggleKey(it.key, e.target.checked)} />
+                        <span className={`text-sm flex-1 ${on ? 'text-content' : 'text-muted2'}`}>{it.label}</span>
+                        <input type="number" min={0} max={max} value={cur(it.key)} onChange={(e) => setKey(it.key, parseInt(e.target.value, 10))} className="input h-8 w-16 text-sm text-right" title={`Up to ${max}`} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
