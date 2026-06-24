@@ -13,10 +13,17 @@ import Link from 'next/link';
 
 const NAV_LINKS = [
   { href: '#agents', label: 'AI Agents' },
+  { href: '#roi', label: 'ROI' },
   { href: '#features', label: 'Features' },
   { href: '#pricing', label: 'Pricing' },
   { href: '#faq', label: 'FAQ' },
 ];
+
+// ROI model — mirrors the conservative per-action minutes in lib/agentRoi.ts, inlined so
+// this marketing page stays dependency-free. Blended average minutes saved per action.
+const ROI_MINUTES = [12, 3, 4, 15, 3, 8, 2, 20, 3, 4, 8];
+const ROI_BLENDED_MIN = ROI_MINUTES.reduce((a, b) => a + b, 0) / ROI_MINUTES.length;
+const ROI_DEFAULT_RATE = 45;
 
 const REPLACES = [
   { cat: 'Project management', like: 'like ClickUp / Asana', glyph: '◧' },
@@ -156,6 +163,57 @@ function KpiCard({ label, value, sub, tone }: { label: string; value: string; su
       <div className="text-[10px] uppercase tracking-wide text-white/40">{label}</div>
       <div className="mt-1 text-lg font-semibold text-white">{value}</div>
       {sub && <div className={'mt-0.5 text-[11px] ' + (tone || 'text-white/40')}>{sub}</div>}
+    </div>
+  );
+}
+
+function RoiStat({ value, label, sub }: { value: string; label: string; sub?: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#161616] p-5">
+      <div className="text-2xl sm:text-3xl font-bold text-white">{value}</div>
+      <div className="mt-1 text-[13px] text-white/60 leading-snug">{label}</div>
+      {sub && <div className="mt-1 text-[11px] text-white/35 leading-snug">{sub}</div>}
+    </div>
+  );
+}
+
+function RoiCalculator() {
+  const [actions, setActions] = useState(300);
+  const [rate, setRate] = useState(ROI_DEFAULT_RATE);
+  const hours = (actions * ROI_BLENDED_MIN) / 60;
+  const monthly = hours * rate;
+  const fmt = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
+  return (
+    <div className="rounded-2xl border border-[#3ECF8E]/25 bg-gradient-to-b from-[#13211b] to-[#0f0f0f] p-6 sm:p-8 shadow-2xl shadow-black/40">
+      <div className="text-xs font-semibold uppercase tracking-widest text-[#3ECF8E]">ROI calculator</div>
+      <div className="mt-5 space-y-5">
+        <div>
+          <div className="flex items-center justify-between text-sm">
+            <label htmlFor="roi-actions" className="text-white/70">Back-office actions automated / month</label>
+            <span className="font-semibold text-white tabular-nums">{actions.toLocaleString('en-US')}</span>
+          </div>
+          <input id="roi-actions" type="range" min={50} max={2000} step={10} value={actions} onChange={(e) => setActions(Number(e.target.value))} className="mt-2 w-full accent-[#3ECF8E]" />
+          <div className="flex justify-between text-[10px] text-white/30 mt-1"><span>50</span><span>2,000</span></div>
+        </div>
+        <div>
+          <label htmlFor="roi-rate" className="text-sm text-white/70">Blended team cost ($ / hour)</label>
+          <input id="roi-rate" type="number" min={10} max={250} value={rate} onChange={(e) => setRate(Math.max(1, Number(e.target.value) || 0))} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[#3ECF8E]/50" />
+        </div>
+      </div>
+      <div className="mt-6 grid grid-cols-2 gap-4">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <div className="text-[11px] uppercase tracking-wide text-white/40">Time saved</div>
+          <div className="mt-1 text-2xl font-bold text-white tabular-nums">{Math.round(hours)}<span className="text-base font-medium text-white/50"> hrs/mo</span></div>
+          <div className="text-[11px] text-white/40 mt-0.5">&asymp; {(hours / 8).toFixed(1)} workdays</div>
+        </div>
+        <div className="rounded-xl border border-[#3ECF8E]/30 bg-[#3ECF8E]/10 p-4">
+          <div className="text-[11px] uppercase tracking-wide text-[#3ECF8E]/80">Value created</div>
+          <div className="mt-1 text-2xl font-bold text-white tabular-nums">{fmt(monthly)}<span className="text-base font-medium text-white/50">/mo</span></div>
+          <div className="text-[11px] text-white/40 mt-0.5">{fmt(monthly * 12)}/year</div>
+        </div>
+      </div>
+      <p className="mt-4 text-[11px] text-white/35 leading-relaxed">Assumes ~{Math.round(ROI_BLENDED_MIN)} min of manual work saved per automated action &mdash; the same conservative per-task model the in-product ROI dashboard uses. Approve-first, so you stay in control.</p>
+      <a href="/login?mode=signup" className="mt-5 inline-flex w-full items-center justify-center rounded-lg bg-[#3ECF8E] px-4 py-2.5 text-sm font-semibold text-[#0a0a0a] hover:bg-[#10b981] transition-colors">Start free &mdash; see your real numbers &rarr;</a>
     </div>
   );
 }
@@ -646,6 +704,29 @@ SNR-PMO runs projects, CRM, HR &amp; payroll and real accounting in one workspac
                   <a href="#product" className="text-sm font-medium text-[#3ECF8E] hover:text-[#10b981]">Explore the full platform &rarr;</a>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ------------------------------- ROI ------------------------------ */}
+        <section id="roi" className="relative overflow-hidden border-b border-white/10">
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+            <div className="absolute bottom-0 right-1/4 w-[600px] h-[420px] rounded-full bg-[#3ECF8E]/8 blur-[130px]" />
+          </div>
+          <div className="relative mx-auto max-w-7xl px-5 sm:px-8 py-20 sm:py-28">
+            <div className="max-w-2xl">
+              <div className="text-xs font-semibold uppercase tracking-widest text-[#3ECF8E]">The payoff &middot; hours and dollars</div>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight">Your back office, quantified</h2>
+              <p className="mt-4 text-white/55 text-[15px] leading-relaxed">Every approved action is busywork your team didn&rsquo;t have to do. Here&rsquo;s what that adds up to &mdash; on the same conservative model the in-product ROI dashboard uses, never inflated.</p>
+            </div>
+            <div className="mt-12 grid lg:grid-cols-2 gap-10 lg:gap-14 items-stretch">
+              <div className="grid grid-cols-2 gap-4 content-center">
+                <RoiStat value="~7 min" label="saved per automated action" sub="conservative, by task type" />
+                <RoiStat value="5 domains" label="Projects, CRM, HR, Accounting & Support" />
+                <RoiStat value="100%" label="approve-first & reversible" sub="money & payroll always wait for you" />
+                <RoiStat value="$0" label="extra headcount to scale ops" />
+              </div>
+              <RoiCalculator />
             </div>
           </div>
         </section>
