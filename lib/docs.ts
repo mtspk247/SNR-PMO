@@ -148,7 +148,7 @@ export const SECTIONS: Section[] = [
         { title: 'Check in / out', body: 'Start or end your working day in one click — the same record you see under Attendance. With your permission your check-in also captures your location (best-effort — check-in still works if you decline), and your reporting manager is notified. A live timer in the footer shows how long you have been on the clock.' },
         { title: 'Team chat', body: 'Open the slide-in team chat panel from anywhere.' },
         { title: 'New task / Calendar', body: 'Jump straight to Tasks or your Calendar.' },
-        { title: 'Ask AI', body: 'Open the in-app AI help assistant to ask how to do something — it answers from this guide and links the relevant section. Ask AI is always available in the launcher (the highlighted action); the assistant also has its own button.' },
+        { title: 'Ask AI', body: 'Open the in-app AI help assistant to ask how to do something — it answers from this guide and links the relevant section. Ask is built into the floating launcher (bottom-right, the highlighted action), so it is always one tap away.' },
       ] },
       { kind: 'p', text: 'Choose which actions appear - and add your own custom shortcuts (a label, a Tabler icon and a link to any internal page or external URL) - in Settings \u25b8 Shortcuts (owners/admins). Your selection applies to everyone in the workspace; each person can still drag the button or hide it just for themselves.' },
       { kind: 'callout', icon: 'ti-bulb', text: 'The button is workspace-wide UI, not tied to a plan. To remove a whole area, turn its module off in Settings \u25b8 Modules; the shortcuts list only controls the quick launcher.' },
@@ -550,7 +550,7 @@ export const SECTIONS: Section[] = [
       { kind: 'bullets', items: [
         { text: 'Contextual "?" links', sub: ['Most pages show a small "?" next to the title, and tricky fields have their own. Each one jumps straight to the matching section of this guide.'] },
         { text: 'Search the guide', sub: ['Open Docs and type in the search box to filter every section by keyword. Deep-links (e.g. /docs#billing-plans) open the exact section.'] },
-        { text: 'The Ask assistant', sub: ['The "Ask" button in the bottom-right corner opens a chat assistant. Ask a question in plain language and it answers from this guide, with links to the sections it used.'] },
+        { text: 'The Ask assistant', sub: ['The "Ask" button — part of the floating launcher in the bottom-right corner — opens a chat assistant. Ask a question in plain language and it answers from this guide, with links to the sections it used.'] },
       ] },
       { kind: 'steps', items: [
         { title: 'Ask a question', body: 'Click Ask (bottom-right), type your question, and press enter. Answers are short and to the point, with source links you can open for the full detail.' },
