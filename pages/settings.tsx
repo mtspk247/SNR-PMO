@@ -528,9 +528,9 @@ export default function SettingsPage() {
           {/* Built-in quick actions */}
           <div className="card p-6">
             <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Quick actions</p>
-            <p className="text-sm text-muted mb-4">Pick which built-in actions appear in the launcher for everyone in this workspace.</p>
+            <p className="text-sm text-muted mb-4">Pick which built-in actions appear in the launcher for everyone in this workspace. <strong>Ask AI</strong> is always available.</p>
             <div className="grid sm:grid-cols-2 gap-2">
-              {FAB_SHORTCUTS.map((s) => {
+              {FAB_SHORTCUTS.filter((s) => s.id !== 'ask').map((s) => {
                 const on = (Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : FAB_DEFAULT_IDS).includes(s.id);
                 return (
                   <label key={s.id} className={`flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer transition ${on ? 'border-accent ring-1 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>

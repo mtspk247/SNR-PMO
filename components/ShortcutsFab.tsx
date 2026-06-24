@@ -62,6 +62,10 @@ export default function ShortcutsFab() {
       ? FAB_SHORTCUTS.find((s) => s.id === e)
       : { id: e.id, label: e.label, icon: e.icon || 'ti-link', kind: 'route' as FabKind, href: e.href }))
     .filter((s): s is FabShortcutDef => !!s);
+  // 'Ask AI / Help' is a permanent, distinct member of the launcher (always available,
+  // even if not in the configured set) — separate, but part of this.
+  const askDef = shortcuts.find((s) => s.id === 'ask') || FAB_SHORTCUTS.find((s) => s.id === 'ask') || null;
+  const otherShortcuts = shortcuts.filter((s) => s.id !== 'ask');
 
   // --- Check-in/out (attendance) — same db path as /attendance; geolocation is a later slice. ---
   const [att, setAtt] = useState<Attendance | null>(null);
@@ -171,19 +175,20 @@ export default function ShortcutsFab() {
 
   return (
     <div ref={ref} style={style} className="fixed z-40 print:hidden">
-      {/* Shortcut launcher menu */}
+      <style>{`@keyframes snrFabPop{from{opacity:0;transform:translateY(10px) scale(.8)}to{opacity:1;transform:none}}`}</style>
+      {/* Speed-dial launcher: a fan of round icon buttons (Ask AI is the highlighted hero, nearest the FAB) */}
       {menuOpen && !notesOpen && (
-        <div className="absolute bottom-full right-0 mb-2 w-52 bg-surface border border-line rounded-xl shadow-lg overflow-hidden py-1">
-          <p className="text-2xs uppercase tracking-wide text-muted2 px-3 py-1.5">Shortcuts</p>
-          {shortcuts.length === 0 ? (
-            <p className="text-2xs text-muted2 px-3 py-2">No shortcuts enabled.</p>
-          ) : shortcuts.map((s) => (
-            <button key={s.id} onClick={() => runShortcut(s)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content hover:bg-surface2 text-left">
-              <Icon name={s.icon} className="text-base text-muted" />
-              <span className="truncate">{labelFor(s)}</span>
-              {s.kind === 'checkin' && att && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500" title="Checked in" />}
-            </button>
+        <div className="absolute bottom-full right-0 mb-3 flex flex-col items-end gap-2.5">
+          {[...otherShortcuts.map((s) => ({ s, hero: false })), ...(askDef ? [{ s: askDef, hero: true }] : [])].map(({ s, hero }, i, arr) => (
+            <div key={s.id} className="flex items-center gap-2"
+              style={{ animation: 'snrFabPop .2s cubic-bezier(.34,1.56,.64,1) both', animationDelay: `${(arr.length - 1 - i) * 26}ms` }}>
+              <span className="px-2 py-1 rounded-md bg-content text-surface text-2xs font-medium shadow whitespace-nowrap">{labelFor(s)}</span>
+              <button onClick={() => runShortcut(s)} title={labelFor(s)}
+                className={`relative h-11 w-11 rounded-full shadow-lg grid place-items-center transition hover:scale-110 ${hero ? 'bg-accent text-[#fff] ring-2 ring-accent/30' : 'bg-surface border border-line text-content hover:bg-surface2'}`}>
+                <Icon name={s.icon} className="text-lg" />
+                {s.kind === 'checkin' && att && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-surface" title="Checked in" />}
+              </button>
+            </div>
           ))}
         </div>
       )}
