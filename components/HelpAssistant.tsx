@@ -132,12 +132,8 @@ export default function HelpAssistant() {
         </div>
       )}
 
-      {/* Launcher */}
-      <button onClick={() => setOpen((v) => !v)} aria-label={open ? 'Close help' : 'Open help'}
-        className="flex items-center gap-2 h-11 pl-3 pr-4 rounded-full bg-accent text-white shadow-lg hover:opacity-95 transition-opacity">
-        <Icon name={open ? 'ti-x' : 'ti-sparkles'} className="text-lg" />
-        {!open && <span className="text-sm font-medium">Ask</span>}
-      </button>
+      {/* Launcher removed — 'Ask' now lives in the single FAB cluster (ShortcutsFab);
+          this panel opens via the 'snr:open-assistant' event the FAB's Ask button fires. */}
     </div>
   );
 }

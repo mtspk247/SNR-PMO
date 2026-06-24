@@ -70,9 +70,8 @@ export default function ShortcutsFab() {
       ? FAB_SHORTCUTS.find((s) => s.id === e)
       : { id: e.id, label: e.label, icon: e.icon || 'ti-link', kind: 'route' as FabKind, href: e.href }))
     .filter((s): s is FabShortcutDef => !!s);
-  // 'Ask AI / Help' is a permanent, distinct member of the launcher (always available,
-  // even if not in the configured set) — separate, but part of this.
-  const askDef = shortcuts.find((s) => s.id === 'ask') || FAB_SHORTCUTS.find((s) => s.id === 'ask') || null;
+  // 'Ask AI' lives in the FAB cluster itself (permanent pill, below) — never the dial
+  // fan and never a separate floating entity. The fan shows only the other shortcuts.
   const otherShortcuts = shortcuts.filter((s) => s.id !== 'ask');
 
   // --- Check-in/out (attendance) — same db path as /attendance; geolocation is a later slice. ---
@@ -146,18 +145,19 @@ export default function ShortcutsFab() {
     if (s.kind === 'event' && s.event) { try { window.dispatchEvent(new CustomEvent(s.event)); } catch { /* ignore */ } return; }
   };
   const labelFor = (s: FabShortcutDef) => (s.kind === 'checkin' ? (att ? 'Check out' : 'Check in') : s.label);
+  const openAssistant = () => { setMenuOpen(false); setNotesOpen(false); flush(); try { window.dispatchEvent(new CustomEvent('snr:open-assistant')); } catch { /* ignore */ } };
 
   // Drag-to-move. A click that doesn't move toggles the launcher; a real drag repositions + persists.
   const onDown = (e: React.MouseEvent) => {
     e.preventDefault();
     const sx = e.clientX, sy = e.clientY;
-    const base = posRef.current ?? { x: window.innerWidth - 68, y: window.innerHeight - 68 };
+    const base = posRef.current ?? { x: window.innerWidth - 168, y: window.innerHeight - 68 };
     let moved = false;
     const move = (ev: MouseEvent) => {
       const dx = ev.clientX - sx, dy = ev.clientY - sy;
       if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
       if (moved) {
-        const x = Math.min(Math.max(8, base.x + dx), window.innerWidth - 56);
+        const x = Math.min(Math.max(8, base.x + dx), window.innerWidth - 168);
         const y = Math.min(Math.max(8, base.y + dy), window.innerHeight - 56);
         const np = { x, y }; posRef.current = np; setPos(np);
       }
@@ -187,7 +187,7 @@ export default function ShortcutsFab() {
       {/* Speed-dial launcher: a fan of round icon buttons (Ask AI is the highlighted hero, nearest the FAB) */}
       {menuOpen && !notesOpen && (
         <div className="absolute bottom-full right-0 mb-3 flex flex-col items-end gap-2.5">
-          {[...otherShortcuts.map((s) => ({ s, hero: false })), ...(askDef ? [{ s: askDef, hero: true }] : [])].map(({ s, hero }, i, arr) => {
+          {otherShortcuts.map((s) => ({ s, hero: false })).map(({ s, hero }, i, arr) => {
             const color = FAB_COLORS[s.id] || PALETTE[i % PALETTE.length];
             return (
               <div key={s.id} className="flex items-center gap-2"
@@ -254,11 +254,16 @@ export default function ShortcutsFab() {
         <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-content text-surface text-xs shadow-lg whitespace-nowrap">{pill}</div>
       )}
 
-      {/* FAB: drag to move, click to toggle launcher, × to hide */}
-      <div className="relative">
+      {/* FAB cluster: ONE floating control — ⚡ launcher (drag/toggle dial) + permanent ✨ Ask. × hides. */}
+      <div className="relative inline-flex items-stretch rounded-full bg-accent text-[#fff] shadow-lg select-none">
         <button onMouseDown={onDown} title="Shortcuts — drag to move"
-          className="h-12 w-12 rounded-full bg-accent text-[#fff] shadow-lg grid place-items-center hover:opacity-90 transition cursor-grab active:cursor-grabbing select-none">
+          className="h-12 w-12 rounded-l-full grid place-items-center hover:bg-white/10 transition cursor-grab active:cursor-grabbing border-r border-white/25">
           <Icon name={fabIcon} className="text-xl" />
+        </button>
+        <button onClick={openAssistant} title="Ask AI" aria-label="Ask AI"
+          className="h-12 pl-3 pr-4 rounded-r-full flex items-center gap-1.5 hover:bg-white/10 transition">
+          <Icon name="ti-sparkles" className="text-lg" />
+          <span className="text-sm font-medium">Ask</span>
         </button>
         <button onClick={hide} title="Hide (restore from Settings ▸ Shortcuts)"
           className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-surface border border-line text-muted2 hover:text-rose-600 grid place-items-center shadow">
