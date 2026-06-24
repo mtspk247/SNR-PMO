@@ -165,6 +165,16 @@ function EditableCell({ spec, value, display, onSave, onInvite }: { spec: EditSp
   }
   if (spec.type === 'select') {
     const opts = spec.options || [];
+    if (spec.multi) {
+      const sel = value ? value.split(',').map((s) => s.trim()).filter(Boolean) : [];
+      const chosen = sel.map((id) => opts.find((o) => o.value === id)).filter(Boolean) as { value: string; label: string; dot?: string }[];
+      return (
+        <span onClick={(e) => e.stopPropagation()} className="inline-flex max-w-full">
+          <Dropdown multiple values={sel} onToggle={(o) => onSave((sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]).join(','))} items={opts} width={224} search={opts.length > 8}
+            trigger={<span className={`input flex items-center gap-1 flex-wrap cursor-pointer ${INLINE_SELECT_CLS}`}>{chosen.length ? (<>{chosen.slice(0, 4).map((o) => <span key={o.value} className="inline-flex items-center rounded px-1.5 py-0.5 text-2xs font-medium" style={{ backgroundColor: (o.dot || '#6366F1') + '1f', color: o.dot || '#6366F1' }}>{o.label}</span>)}{chosen.length > 4 && <span className="text-2xs text-muted2">+{chosen.length - 4}</span>}</>) : <span className="text-muted2">Select…</span>}<Icon name="ti-chevron-down" className="ml-auto text-2xs text-muted2 shrink-0" /></span>} />
+        </span>
+      );
+    }
     const cur = opts.find((o) => o.value === value);
     const dot = cur?.dot;
     return (

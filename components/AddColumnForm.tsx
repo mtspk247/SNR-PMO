@@ -20,6 +20,8 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
   const [rollSrc, setRollSrc] = useState('');
   const [rollTgt, setRollTgt] = useState('');
   const [formExpr, setFormExpr] = useState('');
+  const [relMulti, setRelMulti] = useState(false);
+  const [rollAgg, setRollAgg] = useState('show');
 
   const sel = ty ? CUSTOM_FIELD_TYPES.find((t) => t.value === ty) : null;
   const needsOpts = !!ty && NEEDS_OPTIONS.has(ty);
@@ -27,6 +29,10 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
   const rollSrcDef = relDefs.find((d) => d.id === rollSrc);
   const rollEnt = rollSrcDef?.option_meta?.relation_entity || '';
   const rollTgtOpts = ROLLUP_TARGETS[rollEnt] || [];
+  const rollTgtKind = rollTgtOpts.find((o) => o.value === rollTgt)?.kind || 'text';
+  const aggOpts: [string, string][] = rollTgtKind === 'number'
+    ? [['show', 'Show value'], ['count', 'Count'], ['sum', 'Sum'], ['avg', 'Average'], ['min', 'Min'], ['max', 'Max']]
+    : [['show', 'Show value'], ['count', 'Count'], ['list', 'List all'], ['min', 'A \u2192 Z / earliest'], ['max', 'Z \u2192 A / latest']];
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const matched = CUSTOM_FIELD_TYPES.filter((t) => !ql || t.label.toLowerCase().includes(ql) || t.value.includes(ql));
@@ -44,8 +50,8 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
       if (aiT === 'custom' && aiP.trim()) meta.ai_prompt = aiP.trim();
       if (aiT === 'categorize') { options = opts.options.map((s) => s.trim()).filter(Boolean); options.forEach((o) => { if (opts.meta[o]) meta![o] = opts.meta[o]; }); }
     } else if (needsOpts) { options = opts.options.map((s) => s.trim()).filter(Boolean); meta = {}; options.forEach((o) => { if (opts.meta[o]) meta![o] = opts.meta[o]; }); }
-    else if (ty === 'relationship') { meta = { relation_entity: relEntity }; }
-    else if (ty === 'rollup') { if (!rollSrc || !rollTgt) { setBusy(false); return; } meta = { rollup_source: rollSrc, rollup_target: rollTgt }; }
+    else if (ty === 'relationship') { meta = { relation_entity: relEntity }; if (relMulti) meta.multi = '1'; }
+    else if (ty === 'rollup') { if (!rollSrc || !rollTgt) { setBusy(false); return; } meta = { rollup_source: rollSrc, rollup_target: rollTgt }; if (rollAgg && rollAgg !== 'show') meta.rollup_agg = rollAgg; }
     else if (ty === 'formula') { if (!formExpr.trim()) { setBusy(false); return; } meta = { formula: formExpr.trim() }; }
     try { await cf.addColumn(n, ty, options, meta); if (onDone) onDone(); }
     finally { setBusy(false); }
@@ -86,7 +92,11 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
           <select value={relEntity} onChange={(e) => setRelEntity(e.target.value)} className="input h-8 text-sm w-full">
             {RELATION_ENTITIES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <p className="text-[10px] text-muted2 mt-1 inline-flex items-center gap-1"><Icon name="ti-info-circle" className="text-xs" />Each cell links one record from {RELATION_ENTITIES.find((o) => o.value === relEntity)?.label || 'the module'}; pick it inline.</p>
+          <label className="mt-2 flex items-center gap-2 text-xs text-content cursor-pointer">
+            <input type="checkbox" checked={relMulti} onChange={(e) => setRelMulti(e.target.checked)} className="accent-accent" />
+            Allow linking multiple {RELATION_ENTITIES.find((o) => o.value === relEntity)?.label || 'records'}
+          </label>
+          <p className="text-[10px] text-muted2 mt-1 inline-flex items-start gap-1"><Icon name="ti-info-circle" className="text-xs mt-0.5 shrink-0" />{relMulti ? 'Each cell can link several records \u2014 a Rollup can then aggregate them (sum, average, count\u2026).' : 'Each cell links one record; pick it inline.'}</p>
         </div>
       )}
       {ty === 'rollup' && (
@@ -110,7 +120,15 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
                 </select>
               </div>
             )}
-            <p className="text-[10px] text-muted2 inline-flex items-center gap-1"><Icon name="ti-info-circle" className="text-xs" />Read-only — it mirrors the linked record’s value.</p>
+            {rollTgt && (
+              <div>
+                <p className="text-2xs text-muted2 mb-1">Combine (when several records are linked)</p>
+                <select value={rollAgg} onChange={(e) => setRollAgg(e.target.value)} className="input h-8 text-sm w-full">
+                  {aggOpts.map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
+                </select>
+              </div>
+            )}
+            <p className="text-[10px] text-muted2 inline-flex items-center gap-1"><Icon name="ti-info-circle" className="text-xs" />Read-only — mirrors (or aggregates) the linked record(s).</p>
           </>)}
         </div>
       )}

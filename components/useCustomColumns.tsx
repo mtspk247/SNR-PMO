@@ -140,30 +140,48 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
     if (d.field_type === 'ai' || d.field_type === 'rollup' || d.field_type === 'formula') return;
     if (d.field_type === 'relationship') {
       const ent = d.option_meta?.relation_entity || '';
+      const multi = d.option_meta?.multi === '1';
+      const base = (relList[ent] || []).map((o) => ({ value: o.id, label: o.label }));
       if (ent === 'people') {
-        editable[PREFIX + d.id] = { type: 'person', options: (relList['people'] || []).map((o) => ({ value: o.id, label: o.label })), multi: false };
+        editable[PREFIX + d.id] = { type: 'person', options: base, multi };
       } else {
-        editable[PREFIX + d.id] = { type: 'select', options: [{ value: '', label: '—' }, ...((relList[ent] || []).map((o) => ({ value: o.id, label: o.label })))] };
+        editable[PREFIX + d.id] = multi ? { type: 'select', multi: true, options: base } : { type: 'select', options: [{ value: '', label: '—' }, ...base] };
       }
     } else { editable[PREFIX + d.id] = specFor(d); }
   });
 
   const rawValue = (colId: string, entityId: string) => vals[entityId]?.[colId.slice(PREFIX.length)] ?? '';
-  const rollupInfo = (d: CustomFieldDef, entityId: string): { raw: string; ent: string; tgt: string } => {
+  // Compute a rollup cell: follow the source relationship's linked id(s), look up the target
+  // field for each, and aggregate per option_meta.rollup_agg (show|count|sum|avg|min|max|list).
+  const rollupCompute = (d: CustomFieldDef, entityId: string): { value: string; kind: 'number' | 'text' | 'date' } => {
     const cfg = (d.option_meta || {}) as Record<string, string>;
     const srcDef = defs.find((x) => x.id === (cfg.rollup_source || ''));
     const ent = srcDef?.option_meta?.relation_entity || ''; const tgt = cfg.rollup_target || '';
-    if (!srcDef || !ent || !tgt) return { raw: '', ent, tgt };
-    const linkedId = vals[entityId]?.[srcDef.id] || '';
-    if (!linkedId) return { raw: '', ent, tgt };
-    return { raw: rollupVals[ent + ':' + tgt]?.[linkedId] ?? '', ent, tgt };
+    if (!srcDef || !ent || !tgt) return { value: '', kind: 'text' };
+    const kind = ((ROLLUP_TARGETS[ent] || []).find((x) => x.value === tgt)?.kind || 'text') as 'number' | 'text' | 'date';
+    const ids = (vals[entityId]?.[srcDef.id] || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const agg = cfg.rollup_agg || 'show';
+    if (agg === 'count') return { value: ids.length ? String(ids.length) : '', kind: 'number' };
+    if (!ids.length) return { value: '', kind };
+    const map = rollupVals[ent + ':' + tgt] || {};
+    const raws = ids.map((id) => map[id]).filter((x) => x !== undefined && x !== '') as string[];
+    if (!raws.length) return { value: '', kind };
+    if (kind === 'number' && (agg === 'sum' || agg === 'avg' || agg === 'min' || agg === 'max')) {
+      const nums = raws.map(Number).filter((nn) => !isNaN(nn));
+      if (!nums.length) return { value: '', kind };
+      const sum = nums.reduce((s, x) => s + x, 0);
+      const out = agg === 'sum' ? sum : agg === 'avg' ? sum / nums.length : agg === 'min' ? Math.min(...nums) : Math.max(...nums);
+      return { value: String(out), kind: 'number' };
+    }
+    if (agg === 'min' || agg === 'max') { const sorted = raws.slice().sort(); return { value: agg === 'min' ? sorted[0] : sorted[sorted.length - 1], kind }; }
+    return { value: Array.from(new Set(raws)).join(', '), kind };
   };
   // Resolve a formula's {Field name} ref to its value: stored fields, rollups, and nested
   // formulas (cycle-guarded via `visited`). Returns null for blank/unknown (engine treats as 0).
   const resolveFormulaRef = (entityId: string, name: string, visited: Set<string>): FormulaValue => {
     const dd = defs.find((x) => (x.name || '').toLowerCase() === name.toLowerCase());
     if (!dd) return null;
-    if (dd.field_type === 'rollup') { const s = rollupInfo(dd, entityId).raw; return s === '' ? null : s; }
+    if (dd.field_type === 'rollup') { const s = rollupCompute(dd, entityId).value; return s === '' ? null : s; }
     if (dd.field_type === 'formula') {
       if (visited.has(dd.id)) return null;
       const v2 = new Set(visited); v2.add(dd.id);
@@ -199,20 +217,12 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
       return <span className="inline-flex items-center gap-1 max-w-full"><Icon name="ti-sparkles" className="text-[11px] text-violet-400 shrink-0" /><span className="text-sm text-content truncate max-w-[16rem] align-middle">{v}</span>{canManage && <button onClick={gen} title="Regenerate" className="shrink-0 text-muted2 hover:text-content"><Icon name="ti-refresh" className="text-2xs" /></button>}</span>;
     }
     if (t === 'rollup') {
-      const cfg = (d?.option_meta || {}) as Record<string, string>;
-      const srcDef = defs.find((x) => x.id === (cfg.rollup_source || ''));
-      const ent = srcDef?.option_meta?.relation_entity || '';
-      const tgt = cfg.rollup_target || '';
-      if (!srcDef || !ent || !tgt) return <span className="text-muted2">—</span>;
-      const linkedId = vals[entityId]?.[srcDef.id] || '';
-      if (!linkedId) return <span className="text-muted2">—</span>;
-      const rv = rollupVals[ent + ':' + tgt]?.[linkedId] ?? '';
-      if (!rv) return <span className="text-muted2">—</span>;
-      const kind = (ROLLUP_TARGETS[ent] || []).find((x) => x.value === tgt)?.kind || 'text';
+      const { value: rv, kind } = rollupCompute(d!, entityId);
+      if (rv === '') return <span className="text-muted2">—</span>;
       let shown = rv;
       if (kind === 'number') { const n = Number(rv); shown = isNaN(n) ? rv : n.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
       else if (kind === 'date') { const dt = new Date(rv); shown = isNaN(dt.getTime()) ? rv : dt.toLocaleDateString(); }
-      return <span className="inline-flex items-center gap-1 max-w-full" title="Rolled up from the linked record"><Icon name="ti-arrow-bar-to-right" className="text-[11px] text-muted2 shrink-0" /><span className={`text-sm text-content truncate max-w-[14rem] align-middle ${kind === 'number' ? 'tabular-nums' : ''}`}>{shown}</span></span>;
+      return <span className="inline-flex items-center gap-1 max-w-full" title="Rolled up from the linked record(s)"><Icon name="ti-arrow-bar-to-right" className="text-[11px] text-muted2 shrink-0" /><span className={`text-sm text-content truncate max-w-[14rem] align-middle ${kind === 'number' ? 'tabular-nums' : ''}`}>{shown}</span></span>;
     }
     if (t === 'formula') {
       const expr = (d?.option_meta?.formula || '').trim();
@@ -239,12 +249,17 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
       case 'labels': return <span className="inline-flex flex-wrap gap-1">{v.split(',').map((s) => s.trim()).filter(Boolean).map((s) => colorPill(s, optColor(d, s), s))}</span>;
       case 'relationship': {
         const ent = d?.option_meta?.relation_entity || '';
-        const label = (relMap[ent] && relMap[ent][v]) || 'Linked record';
         const mk = REL_HREF[ent];
-        const inner = ent === 'people'
-          ? <span className="inline-flex items-center gap-1.5"><Avatar name={label} size={20} /><span className="text-sm text-content truncate max-w-[12rem] align-middle">{label}</span></span>
-          : colorPill(label, '#6366F1');
-        return mk ? <a href={mk(v)} onClick={(e) => e.stopPropagation()} className="hover:opacity-80">{inner}</a> : inner;
+        const ids = v.split(',').map((s) => s.trim()).filter(Boolean);
+        const renderOne = (id: string) => {
+          const label = (relMap[ent] && relMap[ent][id]) || 'Linked record';
+          const inner = ent === 'people'
+            ? <span className="inline-flex items-center gap-1.5"><Avatar name={label} size={20} /><span className="text-sm text-content truncate max-w-[10rem] align-middle">{label}</span></span>
+            : colorPill(label, '#6366F1');
+          return mk ? <a key={id} href={mk(id)} onClick={(e) => e.stopPropagation()} className="hover:opacity-80">{inner}</a> : <span key={id}>{inner}</span>;
+        };
+        if (ids.length <= 1) return renderOne(ids[0] || v);
+        return <span className="inline-flex flex-wrap items-center gap-1">{ids.slice(0, 4).map(renderOne)}{ids.length > 4 && <span className="text-2xs text-muted2 self-center">+{ids.length - 4}</span>}</span>;
       }
       default: return <span className="text-sm text-muted">{v}</span>;
     }
