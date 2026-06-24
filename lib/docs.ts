@@ -449,7 +449,7 @@ export const SECTIONS: Section[] = [
       { kind: 'bullets', items: [
         { text: 'Tree view — each drive shows a nested, collapsible folder tree on the left; click any folder to open it, or use the breadcrumb trail at the top to jump back up a level.' },
         { text: 'Drag & drop — drag any file or folder onto another folder (in the tree, the list, or the breadcrumb) to move it; or use the move icon. A folder cannot move into itself or one of its own sub-folders. You can also drag files from your computer straight onto a folder to upload.' },
-        { text: 'Preview — click an image or a PDF to view it right in the browser; other file types download.' },
+        { text: 'Preview — click an image, a PDF, or an Office file (Word, Excel, PowerPoint) to view it right in the browser; other file types download.' },
         { text: 'Documents — create rich-text documents right inside a drive (New doc): headings, lists, bold, links. They save in the drive like any other file, so you can move, organise and (in a project-linked drive) share them.' },
         { text: 'Share with a client — set a drive’s “Client portal” project (owner/admin) to surface that drive’s files, read-only, in the project’s client portal. Leave it “Not shared” to keep the drive internal.' },
       ] },

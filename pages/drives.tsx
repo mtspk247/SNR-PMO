@@ -26,6 +26,8 @@ const fileIcon = (f: DriveFile) => {
 };
 const isImage = (f: DriveFile) => (f.mime_type || '').startsWith('image/');
 const isPdf = (f: DriveFile) => (f.mime_type || '').includes('pdf');
+const OFFICE_RE = /\.(docx?|xlsx?|pptx?)$/i;
+const isOffice = (f: DriveFile) => { const m = f.mime_type || ''; return m.includes('officedocument') || m.includes('msword') || m.includes('ms-excel') || m.includes('ms-powerpoint') || OFFICE_RE.test(f.name || ''); };
 const dtHasFiles = (e: React.DragEvent) => { try { return Array.from(e.dataTransfer.types || []).includes('Files'); } catch { return false; } };
 
 export default function DrivesPage() {
@@ -48,7 +50,7 @@ export default function DrivesPage() {
   const [newFolder, setNewFolder] = useState('');
   const [showFolder, setShowFolder] = useState(false);
   const [moving, setMoving] = useState<{ kind: 'folder' | 'file'; id: string; name: string; parent: string | null } | null>(null);
-  const [preview, setPreview] = useState<{ name: string; type: 'image' | 'pdf'; url: string } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; type: 'image' | 'pdf' | 'office'; url: string; raw?: string } | null>(null);
   const [docEd, setDocEd] = useState<{ id: string; name: string; content: string; loading: boolean } | null>(null);
   const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
@@ -132,6 +134,7 @@ export default function DrivesPage() {
       const url = await driveFileUrl(f.storage_path);
       if (isImage(f)) setPreview({ name: f.name, type: 'image', url });
       else if (isPdf(f)) setPreview({ name: f.name, type: 'pdf', url });
+      else if (isOffice(f)) setPreview({ name: f.name, type: 'office', url: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`, raw: url });
       else window.open(url, '_blank');
     } catch (e: any) { setErr(e.message); }
   };
@@ -367,7 +370,7 @@ export default function DrivesPage() {
       )}
       {preview && (
         <Modal open onClose={() => setPreview(null)} size="lg" icon={preview.type === 'pdf' ? 'ti-file-type-pdf' : 'ti-photo'} title={preview.name}
-          footer={<><a className="btn" href={preview.url} target="_blank" rel="noreferrer"><Icon name="ti-external-link" className="text-sm" />Open original</a><button className="btn" onClick={() => setPreview(null)}>Close</button></>}>
+          footer={<><a className="btn" href={preview.raw || preview.url} target="_blank" rel="noreferrer"><Icon name="ti-external-link" className="text-sm" />Open original</a><button className="btn" onClick={() => setPreview(null)}>Close</button></>}>
           {preview.type === 'image'
             ? <img src={preview.url} alt={preview.name} className="max-h-[70vh] mx-auto rounded-lg" />
             : <iframe src={preview.url} className="w-full h-[70vh] rounded-lg border border-line" title={preview.name} />}
