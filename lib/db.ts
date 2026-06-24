@@ -1008,7 +1008,7 @@ export async function setTenantLimitOverride(orgId: string, key: string, value: 
 // ---- Drives (F2) ----
 export interface Drive { id: string; org_id: string; name: string; description: string | null; project_id: string | null; created_by: string | null; created_at: string; }
 export interface DriveFolder { id: string; org_id: string; drive_id: string; parent_id: string | null; name: string; created_by: string | null; created_at: string; }
-export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; created_by: string | null; created_at: string; }
+export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; content?: string | null; created_by: string | null; created_at: string; }
 
 export async function listDrives(orgId: string): Promise<Drive[]> {
   const { data, error } = await sb.from('drives').select('*').eq('org_id', orgId).order('created_at');
@@ -1081,6 +1081,22 @@ export async function moveFolder(id: string, parentId: string | null): Promise<v
 export async function moveFile(id: string, folderId: string | null): Promise<void> {
   const { error } = await sb.from('drive_files').update({ folder_id: folderId }).eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+// In-app documents (kind='doc') — rich-text/HTML stored in drive_files.content, governed by the same RLS.
+export async function createDoc(p: { org_id: string; drive_id: string; folder_id: string | null; name: string; created_by: string }): Promise<DriveFile> {
+  const { data, error } = await sb.from('drive_files').insert({ org_id: p.org_id, drive_id: p.drive_id, folder_id: p.folder_id, name: p.name, kind: 'doc', mime_type: 'text/html', size_bytes: 0, content: '', created_by: p.created_by }).select('*').single();
+  if (error) throw new Error(error.message); return data as DriveFile;
+}
+export async function getDocContent(id: string): Promise<string> {
+  const { data, error } = await sb.from('drive_files').select('content').eq('id', id).single();
+  if (error) throw new Error(error.message); return ((data as any)?.content as string) || '';
+}
+export async function saveDoc(id: string, patch: { name?: string; content?: string }): Promise<void> {
+  const upd: any = {};
+  if (patch.name !== undefined) upd.name = patch.name;
+  if (patch.content !== undefined) { upd.content = patch.content; upd.size_bytes = patch.content.length; }
+  const { error } = await sb.from('drive_files').update(upd).eq('id', id); if (error) throw new Error(error.message);
 }
 
 // ---- Forms (F2) — builder + submissions ----

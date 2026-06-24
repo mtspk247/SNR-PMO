@@ -7,11 +7,12 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
-  getProjects, setDriveProject, moveFolder, moveFile,
+  getProjects, setDriveProject, moveFolder, moveFile, createDoc, getDocContent, saveDoc,
   Drive, DriveFolder, DriveFile,
 } from '@/lib/db';
 import { Project } from '@/lib/supabase';
 import Select from '@/components/Select';
+import RichText from '@/components/RichText';
 
 const fmtBytes = (n: number) => {
   if (!n) return '0 B';
@@ -48,6 +49,7 @@ export default function DrivesPage() {
   const [showFolder, setShowFolder] = useState(false);
   const [moving, setMoving] = useState<{ kind: 'folder' | 'file'; id: string; name: string; parent: string | null } | null>(null);
   const [preview, setPreview] = useState<{ name: string; type: 'image' | 'pdf'; url: string } | null>(null);
+  const [docEd, setDocEd] = useState<{ id: string; name: string; content: string; loading: boolean } | null>(null);
   const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -106,8 +108,25 @@ export default function DrivesPage() {
   };
   const onUpload = (list: FileList | null) => uploadFilesTo(currentFolderId, list);
 
-  // Click a file: preview images/PDFs in-browser, otherwise download.
+  const openDoc = async (f: DriveFile) => {
+    setDocEd({ id: f.id, name: f.name, content: '', loading: true });
+    try { const c = await getDocContent(f.id); setDocEd({ id: f.id, name: f.name, content: c, loading: false }); }
+    catch (e: any) { setErr(e.message); setDocEd(null); }
+  };
+  const newDoc = async () => {
+    if (!org || !me || !active || busy) return;
+    setBusy(true); setErr('');
+    try { const d = await createDoc({ org_id: org.id, drive_id: active.id, folder_id: currentFolderId, name: 'Untitled document', created_by: me.id }); refreshHere(); setDocEd({ id: d.id, name: d.name, content: '', loading: false }); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const saveDocNow = async () => {
+    if (!docEd || busy) return; setBusy(true); setErr('');
+    try { await saveDoc(docEd.id, { name: docEd.name.trim() || 'Untitled document', content: docEd.content }); setDocEd(null); refreshHere(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  // Click a file: open docs in the editor, preview images/PDFs in-browser, otherwise download.
   const openFile = async (f: DriveFile) => {
+    if (f.kind === 'doc') { openDoc(f); return; }
     if (!f.storage_path) return;
     try {
       const url = await driveFileUrl(f.storage_path);
@@ -253,6 +272,7 @@ export default function DrivesPage() {
                         options={[{ value: '', label: 'Not shared' }, ...projects.map((pr) => ({ value: pr.id, label: pr.name }))]} />
                     </div>
                   )}
+                  <button className="btn h-8 py-0" disabled={busy} onClick={newDoc}><Icon name="ti-file-text" className="text-sm" />New doc</button>
                   <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
                   <button className="btn btn-primary h-8 py-0" disabled={busy} onClick={() => fileInput.current?.click()}><Icon name="ti-upload" className="text-sm" />Upload</button>
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onUpload(e.target.files)} />
@@ -332,6 +352,17 @@ export default function DrivesPage() {
             </button>
             {renderMoveTargets(null, 0)}
           </div>
+        </Modal>
+      )}
+      {docEd && (
+        <Modal open onClose={() => setDocEd(null)} size="lg" icon="ti-file-text" title="Document"
+          footer={<><button className="btn" onClick={() => setDocEd(null)}>Close</button><button className="btn btn-primary" disabled={busy} onClick={saveDocNow}>{busy ? 'Saving…' : 'Save'}</button></>}>
+          {docEd.loading ? <div className="p-8"><Spinner /></div> : (
+            <div className="space-y-3">
+              <Field label="Title"><input className="input" value={docEd.name} onChange={(e) => setDocEd((d) => d && { ...d, name: e.target.value })} placeholder="Untitled document" /></Field>
+              <RichText value={docEd.content} onChange={(html) => setDocEd((d) => d && { ...d, content: html })} minHeight={380} />
+            </div>
+          )}
         </Modal>
       )}
       {preview && (
