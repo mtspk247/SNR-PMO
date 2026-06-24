@@ -30,6 +30,9 @@ export interface OrgBranding {
   ink_color?: string;
 }
 
+export interface FabCustomShortcut { id: string; label: string; icon: string; href: string; custom: true; }
+export type FabEntry = string | FabCustomShortcut;
+
 export interface Organization {
   id: string;
   slug: string;
@@ -37,7 +40,7 @@ export interface Organization {
   branding: OrgBranding;
   theme_skin?: 'classic' | 'daylight' | 'vivid' | 'midnight' | null;
   allow_user_themes?: boolean;
-  fab_shortcuts?: string[] | null;   // configurable Shortcuts-FAB action ids (admin-set; null = default set)
+  fab_shortcuts?: FabEntry[] | null;   // Shortcuts-FAB entries: built-in id (string) or custom {id,label,icon,href}
   plan: 'free' | 'pro' | 'enterprise';
   onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string; step?: number; skipped?: boolean } | null;
 }

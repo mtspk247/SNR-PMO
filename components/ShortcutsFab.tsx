@@ -6,7 +6,7 @@ import {
   listStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, StickyNote,
   getMyOpenToday,
 } from '@/lib/db';
-import { Attendance } from '@/lib/supabase';
+import { Attendance, FabEntry } from '@/lib/supabase';
 import { performCheckIn, performCheckOut } from '@/lib/attendance';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 
@@ -20,6 +20,12 @@ export const FAB_SHORTCUTS: FabShortcutDef[] = [
   { id: 'task',     label: 'New task',       icon: 'ti-checkbox',   kind: 'route', href: '/tasks' },
   { id: 'calendar', label: 'Calendar',       icon: 'ti-calendar',   kind: 'route', href: '/calendar' },
   { id: 'ask',      label: 'Ask AI',         icon: 'ti-sparkles',   kind: 'event', event: 'snr:open-assistant' },
+  { id: 'dashboard',label: 'Dashboard',      icon: 'ti-layout-dashboard', kind: 'route', href: '/' },
+  { id: 'crm',      label: 'CRM / Deals',    icon: 'ti-target',     kind: 'route', href: '/crm' },
+  { id: 'clients',  label: 'Clients',        icon: 'ti-building',    kind: 'route', href: '/clients' },
+  { id: 'projects', label: 'Projects',       icon: 'ti-folder',     kind: 'route', href: '/projects' },
+  { id: 'support',  label: 'Support',        icon: 'ti-lifebuoy',   kind: 'route', href: '/support' },
+  { id: 'docs',     label: 'Help & docs',    icon: 'ti-help',       kind: 'route', href: '/docs' },
 ];
 export const FAB_DEFAULT_IDS = ['notes', 'checkin', 'chat', 'task'];
 
@@ -48,9 +54,14 @@ export default function ShortcutsFab() {
   const posRef = useRef<Pos | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Which shortcuts are enabled for this workspace (admin-set; sensible default otherwise).
-  const enabledIds = Array.isArray(org?.fab_shortcuts) ? org!.fab_shortcuts! : FAB_DEFAULT_IDS;
-  const shortcuts = FAB_SHORTCUTS.filter((s) => enabledIds.includes(s.id));
+  // Resolve enabled entries (admin-set; sensible default otherwise). Each entry is either a
+  // built-in id (string) or a custom { id,label,icon,href } object.
+  const entries: FabEntry[] = Array.isArray(org?.fab_shortcuts) ? org!.fab_shortcuts! : FAB_DEFAULT_IDS;
+  const shortcuts: FabShortcutDef[] = entries
+    .map((e) => (typeof e === 'string'
+      ? FAB_SHORTCUTS.find((s) => s.id === e)
+      : { id: e.id, label: e.label, icon: e.icon || 'ti-link', kind: 'route' as FabKind, href: e.href }))
+    .filter((s): s is FabShortcutDef => !!s);
 
   // --- Check-in/out (attendance) — same db path as /attendance; geolocation is a later slice. ---
   const [att, setAtt] = useState<Attendance | null>(null);
@@ -119,7 +130,7 @@ export default function ShortcutsFab() {
     setMenuOpen(false);
     if (s.kind === 'notes') { setNotesOpen(true); load(); return; }
     if (s.kind === 'checkin') { toggleCheckin(); return; }
-    if (s.kind === 'route' && s.href) { router.push(s.href); return; }
+    if (s.kind === 'route' && s.href) { if (/^https?:\/\//i.test(s.href)) { try { window.open(s.href, '_blank', 'noopener'); } catch { /* ignore */ } } else { router.push(s.href); } return; }
     if (s.kind === 'event' && s.event) { try { window.dispatchEvent(new CustomEvent(s.event)); } catch { /* ignore */ } return; }
   };
   const labelFor = (s: FabShortcutDef) => (s.kind === 'checkin' ? (att ? 'Check out' : 'Check in') : s.label);
@@ -233,7 +244,7 @@ export default function ShortcutsFab() {
           className="h-12 w-12 rounded-full bg-accent text-[#fff] shadow-lg grid place-items-center hover:opacity-90 transition cursor-grab active:cursor-grabbing select-none">
           <Icon name={fabIcon} className="text-xl" />
         </button>
-        <button onClick={hide} title="Hide shortcuts button (re-enable from the Notes page)"
+        <button onClick={hide} title="Hide (restore from Settings ▸ Shortcuts)"
           className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-surface border border-line text-muted2 hover:text-rose-600 grid place-items-center shadow">
           <Icon name="ti-x" className="text-2xs" />
         </button>

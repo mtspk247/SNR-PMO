@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs, HelpHint } from '@/components/ui';
 import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, setOrgFab } from '@/lib/db';
 import { getOrgProfile, saveOrgProfile, setOrgModule, getOrgFeatures, getOrgPlanFeatures } from '@/lib/db';
-import { FEATURES, MyOrg } from '@/lib/supabase';
+import { FEATURES, MyOrg, FabCustomShortcut } from '@/lib/supabase';
 import { applyBranding } from '@/lib/branding';
 import ProfileSettings from '@/components/ProfileSettings';
 import OrgProfileForm from '@/components/OrgProfileForm';
@@ -269,9 +269,9 @@ export default function SettingsPage() {
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
   const meUser = useAuthStore((s) => s.user);
-  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger' | 'demo' | 'modules'>('business');
+  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'shortcuts' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger' | 'demo' | 'modules'>('business');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'workspace', 'notifications', 'lists', 'audit', 'danger', 'demo', 'modules'].includes(t)) setTab(t as any); } }, [router.query.tab]);
+  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'shortcuts', 'workspace', 'notifications', 'lists', 'audit', 'danger', 'demo', 'modules'].includes(t)) setTab(t as any); } }, [router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
@@ -337,6 +337,23 @@ export default function SettingsPage() {
     patchOrg({ id: org.id, fab_shortcuts: next });
     try { await setOrgFab(org.id, next); setFabMsg('Saved'); setTimeout(() => setFabMsg(''), 2000); }
     catch { patchOrg({ id: org.id, fab_shortcuts: cur }); }
+  };
+  const showFab = () => { try { localStorage.removeItem('sn_fab_hidden'); } catch { /* ignore */ } try { window.dispatchEvent(new Event('sn-fab-show')); } catch { /* ignore */ } setFabMsg('Shortcuts button shown'); setTimeout(() => setFabMsg(''), 2500); };
+  const [cLabel, setCLabel] = useState(''); const [cIcon, setCIcon] = useState('ti-link'); const [cHref, setCHref] = useState('');
+  const addCustomFab = async () => {
+    if (!org || !cLabel.trim() || !cHref.trim()) return;
+    const cur = Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : FAB_DEFAULT_IDS;
+    const entry: FabCustomShortcut = { id: 'c_' + Math.random().toString(36).slice(2, 9), label: cLabel.trim(), icon: cIcon.trim() || 'ti-link', href: cHref.trim(), custom: true };
+    const next = [...cur, entry];
+    patchOrg({ id: org.id, fab_shortcuts: next }); setCLabel(''); setCHref(''); setCIcon('ti-link');
+    try { await setOrgFab(org.id, next); setFabMsg('Saved'); setTimeout(() => setFabMsg(''), 2000); } catch { patchOrg({ id: org.id, fab_shortcuts: cur }); }
+  };
+  const removeCustomFab = async (id: string) => {
+    if (!org) return;
+    const cur = Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : FAB_DEFAULT_IDS;
+    const next = cur.filter((e) => (typeof e === 'string' ? e !== id : e.id !== id));
+    patchOrg({ id: org.id, fab_shortcuts: next });
+    try { await setOrgFab(org.id, next); } catch { patchOrg({ id: org.id, fab_shortcuts: cur }); }
   };
 
   if (!org) return <Layout flat title="Settings"><Spinner /></Layout>;
@@ -407,6 +424,7 @@ export default function SettingsPage() {
           { key: 'business', label: 'Profile', icon: 'ti-id-badge-2' },
           { key: 'branding', label: 'Brand', icon: 'ti-palette' },
           { key: 'themes', label: 'Themes', icon: 'ti-color-swatch' },
+          { key: 'shortcuts', label: 'Shortcuts', icon: 'ti-bolt' },
           { key: 'modules', label: 'Modules', icon: 'ti-apps' },
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
           { key: 'lists', label: 'Lists & options', icon: 'ti-list-details' },
@@ -497,23 +515,58 @@ export default function SettingsPage() {
             </div>
           )}
 
-      {admin && tab === 'themes' && org && (
-        <div className="card p-6 mb-6 max-w-4xl">
-          <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium inline-flex items-center gap-1">Workspace shortcuts<HelpHint anchor="shortcuts" /></p>
-          <p className="text-sm text-muted mb-4">Pick which quick actions appear in the floating shortcuts button (bottom-right) for everyone in this workspace. Members can drag it or hide it for themselves.</p>
-          <div className="grid sm:grid-cols-2 gap-2">
-            {FAB_SHORTCUTS.map((s) => {
-              const on = (Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : FAB_DEFAULT_IDS).includes(s.id);
-              return (
-                <label key={s.id} className={`flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer transition ${on ? 'border-accent ring-1 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
-                  <input type="checkbox" checked={on} onChange={() => toggleFab(s.id)} className="accent-accent" />
-                  <Icon name={s.icon} className="text-base text-muted" />
-                  <span className="text-sm text-content">{s.label}</span>
-                </label>
-              );
-            })}
+      {admin && tab === 'shortcuts' && org && (
+        <div className="space-y-6 max-w-4xl">
+          {/* The floating button + restore */}
+          <div className="card p-6">
+            <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium inline-flex items-center gap-1">Floating shortcuts button<HelpHint anchor="shortcuts" /></p>
+            <p className="text-sm text-muted mb-4">A round button in the bottom-right corner opens your quick actions. Anyone can drag it anywhere or hide it for themselves &mdash; if it&rsquo;s missing, bring it back here.</p>
+            <button className="btn" onClick={showFab}><Icon name="ti-eye" />Show the button</button>
+            {fabMsg && <span className="ml-3 text-sm text-emerald-600 font-medium">{fabMsg}</span>}
           </div>
-          <p className="text-2xs text-muted mt-3">Saved instantly for the whole workspace.{fabMsg && <span className="ml-2 text-emerald-600 font-medium">{fabMsg}</span>}</p>
+
+          {/* Built-in quick actions */}
+          <div className="card p-6">
+            <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Quick actions</p>
+            <p className="text-sm text-muted mb-4">Pick which built-in actions appear in the launcher for everyone in this workspace.</p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {FAB_SHORTCUTS.map((s) => {
+                const on = (Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : FAB_DEFAULT_IDS).includes(s.id);
+                return (
+                  <label key={s.id} className={`flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer transition ${on ? 'border-accent ring-1 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
+                    <input type="checkbox" checked={on} onChange={() => toggleFab(s.id)} className="accent-accent" />
+                    <Icon name={s.icon} className="text-base text-muted" />
+                    <span className="text-sm text-content">{s.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Custom shortcuts */}
+          <div className="card p-6">
+            <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Custom shortcuts</p>
+            <p className="text-sm text-muted mb-4">Add your own &mdash; a label, an icon and a link. Use an internal page (e.g. <code className="text-2xs bg-surface2 px-1 rounded">/clients</code>) or a full URL (<code className="text-2xs bg-surface2 px-1 rounded">https://&hellip;</code>, opens in a new tab).</p>
+            {(Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : []).filter((e): e is FabCustomShortcut => typeof e === 'object' && !!e).length > 0 && (
+              <div className="space-y-2 mb-4">
+                {(Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : []).filter((e): e is FabCustomShortcut => typeof e === 'object' && !!e).map((e) => (
+                  <div key={e.id} className="flex items-center gap-2.5 rounded-lg border border-line p-2.5">
+                    <Icon name={e.icon || 'ti-link'} className="text-base text-muted shrink-0" />
+                    <span className="text-sm text-content font-medium shrink-0">{e.label}</span>
+                    <span className="text-2xs text-muted2 truncate">{e.href}</span>
+                    <button className="ml-auto text-muted2 hover:text-rose-600 shrink-0" title="Remove" onClick={() => removeCustomFab(e.id)}><Icon name="ti-trash" className="text-sm" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid sm:grid-cols-[1fr_7rem_1.5fr_auto] gap-2 items-center">
+              <input className="input" placeholder="Label (e.g. Helpdesk)" value={cLabel} onChange={(e) => setCLabel(e.target.value)} />
+              <input className="input" placeholder="ti-link" value={cIcon} onChange={(e) => setCIcon(e.target.value)} title="Tabler icon name, e.g. ti-link" />
+              <input className="input" placeholder="/clients or https://&hellip;" value={cHref} onChange={(e) => setCHref(e.target.value)} />
+              <button className="btn btn-primary" disabled={!cLabel.trim() || !cHref.trim()} onClick={addCustomFab}><Icon name="ti-plus" />Add</button>
+            </div>
+            <p className="text-2xs text-muted mt-2">Icons use <a className="underline" href="https://tabler.io/icons" target="_blank" rel="noopener noreferrer">Tabler</a> names (e.g. <code>ti-link</code>, <code>ti-phone</code>, <code>ti-file</code>). Saved instantly for the whole workspace.{fabMsg && <span className="ml-2 text-emerald-600 font-medium">{fabMsg}</span>}</p>
+          </div>
         </div>
       )}
 

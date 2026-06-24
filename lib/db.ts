@@ -1,4 +1,4 @@
-import { sb, activeOrgScope, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES } from './supabase';
+import { sb, activeOrgScope, Project, Task, Company, OrgCompany, CompanyMember, MemberRole, Portfolio, PortfolioMember, Contact, Deal, CrmActivity, AppUser, OrgUser, MyOrg, Organization, Risk, Financial, Comment, Plan, Feature, PlanFeature, PlatformOrg, OrgPlanInfo, OrgProfile, ORG_PROFILE_KEYS, FEATURES, FabEntry } from './supabase';
 import { buildDemoPayload } from './demoSeed';
 import { SAMPLE_PROPOSALS, STARTER_AGENTS } from './agents';
 import { scanForWork } from './agentScanner';
@@ -170,7 +170,7 @@ export async function setOrgTheme(orgId: string, skin: string): Promise<{ id: st
 }
 // Shortcuts-FAB config — which quick actions appear, workspace-wide. Ungated UI pref;
 // owner/admin via the same org_update RLS as theme_skin (no white-label needed).
-export async function setOrgFab(orgId: string, ids: string[]): Promise<void> {
+export async function setOrgFab(orgId: string, ids: FabEntry[]): Promise<void> {
   const { error } = await sb.from('organizations').update({ fab_shortcuts: ids }).eq('id', orgId);
   if (error) throw new Error(error.message);
 }
