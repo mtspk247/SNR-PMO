@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs, HelpHint } from '@/components/ui';
-import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot } from '@/lib/db';
+import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, setOrgFab } from '@/lib/db';
 import { getOrgProfile, saveOrgProfile, setOrgModule, getOrgFeatures, getOrgPlanFeatures } from '@/lib/db';
 import { FEATURES, MyOrg } from '@/lib/supabase';
 import { applyBranding } from '@/lib/branding';
@@ -16,6 +16,7 @@ import { PRESET_AVATARS, presetColor } from '@/lib/avatars';
 import NotifPolicyPanel from '@/components/NotifPolicyPanel';
 import AuditLog from '@/components/AuditLog';
 import { SKINS, SkinMeta, applySkin, normalizeSkin, Skin, getUserSkin, setUserSkin } from '@/lib/skin';
+import { FAB_SHORTCUTS, FAB_DEFAULT_IDS } from '@/components/ShortcutsFab';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 
@@ -283,6 +284,7 @@ export default function SettingsPage() {
   const [skinMsg, setSkinMsg] = useState('');
   const [uSkin, setUSkin] = useState<Skin | ''>('');
   const [allowUserThemes, setAllowUserThemes] = useState(false);
+  const [fabMsg, setFabMsg] = useState('');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -325,6 +327,16 @@ export default function SettingsPage() {
     const next = !allowUserThemes; setAllowUserThemes(next);
     try { await setOrgAllowUserThemes(org.id, next); patchOrg({ id: org.id, allow_user_themes: next }); }
     catch { setAllowUserThemes(!next); }
+  };
+
+  // Workspace shortcuts (FAB) — same ungated org_update path as the theme picker.
+  const toggleFab = async (id: string) => {
+    if (!org) return;
+    const cur = Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : FAB_DEFAULT_IDS;
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    patchOrg({ id: org.id, fab_shortcuts: next });
+    try { await setOrgFab(org.id, next); setFabMsg('Saved'); setTimeout(() => setFabMsg(''), 2000); }
+    catch { patchOrg({ id: org.id, fab_shortcuts: cur }); }
   };
 
   if (!org) return <Layout flat title="Settings"><Spinner /></Layout>;
@@ -484,6 +496,26 @@ export default function SettingsPage() {
               </label>
             </div>
           )}
+
+      {admin && tab === 'themes' && org && (
+        <div className="card p-6 mb-6 max-w-4xl">
+          <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium inline-flex items-center gap-1">Workspace shortcuts<HelpHint anchor="shortcuts" /></p>
+          <p className="text-sm text-muted mb-4">Pick which quick actions appear in the floating shortcuts button (bottom-right) for everyone in this workspace. Members can drag it or hide it for themselves.</p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {FAB_SHORTCUTS.map((s) => {
+              const on = (Array.isArray(org.fab_shortcuts) ? org.fab_shortcuts : FAB_DEFAULT_IDS).includes(s.id);
+              return (
+                <label key={s.id} className={`flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer transition ${on ? 'border-accent ring-1 ring-accent/30' : 'border-line hover:border-borderstrong'}`}>
+                  <input type="checkbox" checked={on} onChange={() => toggleFab(s.id)} className="accent-accent" />
+                  <Icon name={s.icon} className="text-base text-muted" />
+                  <span className="text-sm text-content">{s.label}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="text-2xs text-muted mt-3">Saved instantly for the whole workspace.{fabMsg && <span className="ml-2 text-emerald-600 font-medium">{fabMsg}</span>}</p>
+        </div>
+      )}
 
       {admin && tab === 'branding' && org && (
             <div className="grid lg:grid-cols-3 gap-6">

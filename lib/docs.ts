@@ -138,6 +138,22 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'shortcuts',
+    title: 'Shortcuts button (quick actions)',
+    icon: 'ti-bolt',
+    blocks: [
+      { kind: 'p', text: 'A floating round button sits in the bottom-right corner on every page — your quick-actions launcher. Click it to open the shortcuts menu, drag it anywhere to reposition it, or dismiss it with the small \u00d7 (re-enable it later from the Notes page).' },
+      { kind: 'steps', items: [
+        { title: 'Quick notes', body: 'Open the sticky-notes panel to jot a note against the page you are on. Full management lives at Notes.' },
+        { title: 'Check in / out', body: 'Start or end your working day in one click — the same record you see under Attendance. The menu shows a green dot while you are checked in.' },
+        { title: 'Team chat', body: 'Open the slide-in team chat panel from anywhere.' },
+        { title: 'New task / Calendar', body: 'Jump straight to Tasks or your Calendar.' },
+      ] },
+      { kind: 'p', text: 'Choose which actions appear in Settings \u25b8 Themes \u25b8 Workspace shortcuts (owners/admins). Your selection applies to everyone in the workspace; each person can still drag the button or hide it just for themselves.' },
+      { kind: 'callout', icon: 'ti-bulb', text: 'The button is workspace-wide UI, not tied to a plan. To remove a whole area, turn its module off in Settings \u25b8 Modules; the shortcuts list only controls the quick launcher.' },
+    ],
+  },
+  {
     id: 'templates',
     title: 'Document templates',
     icon: 'ti-files',

@@ -56,7 +56,7 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, is_reseller, is_platform_home)')
+    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, fab_shortcuts, is_reseller, is_platform_home)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -140,6 +140,12 @@ export async function setOrgTheme(orgId: string, skin: string): Promise<{ id: st
     .single();
   if (error) throw new Error(error.message);
   return data as { id: string; theme_skin: string | null };
+}
+// Shortcuts-FAB config — which quick actions appear, workspace-wide. Ungated UI pref;
+// owner/admin via the same org_update RLS as theme_skin (no white-label needed).
+export async function setOrgFab(orgId: string, ids: string[]): Promise<void> {
+  const { error } = await sb.from('organizations').update({ fab_shortcuts: ids }).eq('id', orgId);
+  if (error) throw new Error(error.message);
 }
 
 // Modular self-select: owner/admin turns a module on/off for THIS workspace (writes

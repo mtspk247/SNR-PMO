@@ -9,7 +9,7 @@ import { hasFeature, roleAllowsFeature, navVisible, isUpsellLocked } from '@/lib
 import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFORM_SECTION, RESELLER_LINK, RESELLER_SECTION, DOCS_LINK, ROUTE_LABELS, featureForRoute } from '@/lib/nav';
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import HeaderActions from '@/components/HeaderActions';
-import StickyNotesFab from '@/components/StickyNotesFab';
+import ShortcutsFab from '@/components/ShortcutsFab';
 import HelpAssistant from '@/components/HelpAssistant';
 import GlobalSearch from '@/components/GlobalSearch';
 import ActivityTicker from '@/components/ActivityTicker';
@@ -85,6 +85,13 @@ export default function Layout({ title, children, flat = false }: { title: strin
       try { const k = 'g_checkin_' + activeOrg.id; if (!sessionStorage.getItem(k)) { sessionStorage.setItem(k, '1'); recordGuestActivity(activeOrg.id, user.id, null, 'checkin', 'Signed in'); } } catch { /* ignore */ }
     }
   }, [activeOrg?.id, user?.id, activeOrg?.member_role]);
+
+  // Shortcuts-FAB can request the team chat panel from anywhere.
+  useEffect(() => {
+    const open = () => setChatOpen(true);
+    window.addEventListener('snr:open-chat', open);
+    return () => window.removeEventListener('snr:open-chat', open);
+  }, []);
 
   // Guests land on their branded /portal (their home), not the operator dashboard.
   // Guarded by the portal feature so we never bounce them into an upsell screen.
@@ -297,7 +304,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
         <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className={`mx-auto w-full${flat ? ' flat-surfaces' : ''}`} style={{ maxWidth: 'var(--container-max, 1400px)' }}>{routeFeature && isUpsellLocked(activeOrg, routeFeature) ? <UpgradeScreen feature={routeFeature} canManage={can.manageBilling(activeOrg)} /> : children}</div></main>
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
-      <StickyNotesFab />
+      <ShortcutsFab />
       <HelpAssistant />
       <Toaster />
     </div>

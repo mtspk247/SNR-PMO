@@ -2,8 +2,24 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Icon } from '@/components/ui';
-import { listStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, StickyNote } from '@/lib/db';
+import {
+  listStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, StickyNote,
+  getMyOpenToday, checkIn, checkOut,
+} from '@/lib/db';
+import { Attendance } from '@/lib/supabase';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
+
+// --- Configurable shortcut catalog (admin picks which appear, in Settings ▸ Workspace) ---
+type FabKind = 'notes' | 'checkin' | 'route' | 'event';
+export interface FabShortcutDef { id: string; label: string; icon: string; kind: FabKind; href?: string; event?: string; }
+export const FAB_SHORTCUTS: FabShortcutDef[] = [
+  { id: 'notes',    label: 'Quick notes',    icon: 'ti-notes',      kind: 'notes' },
+  { id: 'checkin',  label: 'Check in / out', icon: 'ti-clock-play', kind: 'checkin' },
+  { id: 'chat',     label: 'Team chat',      icon: 'ti-messages',   kind: 'event', event: 'snr:open-chat' },
+  { id: 'task',     label: 'New task',       icon: 'ti-checkbox',   kind: 'route', href: '/tasks' },
+  { id: 'calendar', label: 'Calendar',       icon: 'ti-calendar',   kind: 'route', href: '/calendar' },
+];
+export const FAB_DEFAULT_IDS = ['notes', 'checkin', 'chat', 'task'];
 
 const COLORS: Record<string, string> = {
   yellow: 'bg-amber-100 border-amber-200', green: 'bg-emerald-100 border-emerald-200',
@@ -15,18 +31,37 @@ const HIDE_KEY = 'sn_fab_hidden';
 
 type Pos = { x: number; y: number };
 
-/** Floating quick-notes — draggable, dismissable. Full management lives at /notes. */
-export default function StickyNotesFab() {
+/** Floating shortcuts launcher — admin-configurable quick actions (notes, check-in, chat, …).
+ *  Draggable + dismissable; the Quick-notes shortcut opens the same panel as before. */
+export default function ShortcutsFab() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [selId, setSelId] = useState<string | null>(null);
   const [pos, setPos] = useState<Pos | null>(null);
   const posRef = useRef<Pos | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Which shortcuts are enabled for this workspace (admin-set; sensible default otherwise).
+  const enabledIds = Array.isArray(org?.fab_shortcuts) ? org!.fab_shortcuts! : FAB_DEFAULT_IDS;
+  const shortcuts = FAB_SHORTCUTS.filter((s) => enabledIds.includes(s.id));
+
+  // --- Check-in/out (attendance) — same db path as /attendance; geolocation is a later slice. ---
+  const [att, setAtt] = useState<Attendance | null>(null);
+  const [pill, setPill] = useState('');
+  const flash = (m: string) => { setPill(m); setTimeout(() => setPill(''), 2600); };
+  useEffect(() => { if (me) getMyOpenToday(me.id).then(setAtt).catch(() => {}); }, [me?.id]);
+  const toggleCheckin = async () => {
+    if (!me || !org) return;
+    try {
+      if (att) { await checkOut(att); setAtt(null); flash('Checked out ✓'); }
+      else { const a = await checkIn(me.id, org.id); setAtt(a); flash('Checked in ✓'); }
+    } catch (e: any) { flash(e?.message || 'Could not update attendance'); }
+  };
 
   const load = () => { if (me) listStickyNotes(me.id).then((n) => { setNotes(n); setSelId((cur) => cur || (n[0]?.id ?? null)); }).catch(() => {}); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [me?.id]);
@@ -35,7 +70,6 @@ export default function StickyNotesFab() {
   useEffect(() => {
     try { const r = localStorage.getItem(POS_KEY); if (r) { const p = JSON.parse(r); setPos(p); posRef.current = p; } } catch { /* ignore */ }
     try { if (localStorage.getItem(HIDE_KEY) === '1') setHidden(true); } catch { /* ignore */ }
-    // Re-show if user re-enabled it from /notes (custom event) or another tab.
     const onShow = () => { setHidden(false); try { localStorage.removeItem(HIDE_KEY); } catch { /* ignore */ } };
     window.addEventListener('sn-fab-show', onShow);
     return () => window.removeEventListener('sn-fab-show', onShow);
@@ -44,9 +78,7 @@ export default function StickyNotesFab() {
   const sel = notes.find((n) => n.id === selId) || null;
   const patch = (id: string, p: Partial<StickyNote>) => setNotes((arr) => arr.map((n) => (n.id === id ? { ...n, ...p } : n)));
 
-  // --- Reliable autosave: edits queue into a dirty ref + debounce; we FLUSH on
-  // blur, note-switch, panel-close and unmount so a click on any non-focusable
-  // area still persists (the old onBlur-only path missed those clicks). ---
+  // Reliable autosave: edits queue into a dirty ref + debounce; FLUSH on blur, switch, close, unmount.
   const dirty = useRef<Record<string, Partial<StickyNote>>>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flush = () => {
@@ -60,12 +92,12 @@ export default function StickyNotesFab() {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 500);
   };
-  // Flush whenever the panel closes, and on unmount.
-  useEffect(() => { if (!open) flush(); /* eslint-disable-next-line */ }, [open]);
+  useEffect(() => { if (!notesOpen) flush(); /* eslint-disable-next-line */ }, [notesOpen]);
   useEffect(() => () => flush(), []); // eslint-disable-line
 
+  // Close panels (and flush notes) on an outside click.
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) { flush(); setOpen(false); } };
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) { flush(); setMenuOpen(false); setNotesOpen(false); } };
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h);
   }, []);
 
@@ -81,7 +113,16 @@ export default function StickyNotesFab() {
   const setColor = (n: StickyNote, color: string) => { queueSave(n.id, { color }); flush(); };
   const del = async (n: StickyNote) => { delete dirty.current[n.id]; setNotes((p) => p.filter((x) => x.id !== n.id)); if (selId === n.id) setSelId(null); deleteStickyNote(n.id).catch(() => {}); };
 
-  // Drag-to-move. A click that doesn't move toggles the panel; a real drag repositions + persists.
+  const runShortcut = (s: FabShortcutDef) => {
+    setMenuOpen(false);
+    if (s.kind === 'notes') { setNotesOpen(true); load(); return; }
+    if (s.kind === 'checkin') { toggleCheckin(); return; }
+    if (s.kind === 'route' && s.href) { router.push(s.href); return; }
+    if (s.kind === 'event' && s.event) { try { window.dispatchEvent(new CustomEvent(s.event)); } catch { /* ignore */ } return; }
+  };
+  const labelFor = (s: FabShortcutDef) => (s.kind === 'checkin' ? (att ? 'Check out' : 'Check in') : s.label);
+
+  // Drag-to-move. A click that doesn't move toggles the launcher; a real drag repositions + persists.
   const onDown = (e: React.MouseEvent) => {
     e.preventDefault();
     const sx = e.clientX, sy = e.clientY;
@@ -99,24 +140,44 @@ export default function StickyNotesFab() {
     const up = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
-      if (!moved) { setOpen((o) => !o); if (!open) load(); }
-      else { try { localStorage.setItem(POS_KEY, JSON.stringify(posRef.current)); } catch { /* ignore */ } }
+      if (!moved) {
+        if (notesOpen) { flush(); setNotesOpen(false); }
+        else { setMenuOpen((o) => !o); }
+      } else { try { localStorage.setItem(POS_KEY, JSON.stringify(posRef.current)); } catch { /* ignore */ } }
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
   };
 
-  const hide = () => { flush(); setHidden(true); setOpen(false); try { localStorage.setItem(HIDE_KEY, '1'); } catch { /* ignore */ } };
+  const hide = () => { flush(); setHidden(true); setMenuOpen(false); setNotesOpen(false); try { localStorage.setItem(HIDE_KEY, '1'); } catch { /* ignore */ } };
 
   if (!me || hidden) return null;
 
   const style: React.CSSProperties = pos ? { left: pos.x, top: pos.y } : { right: 20, bottom: 20 };
+  const fabIcon = notesOpen || menuOpen ? 'ti-x' : 'ti-bolt';
 
   return (
     <div ref={ref} style={style} className="fixed z-40 print:hidden">
-      {open && (
+      {/* Shortcut launcher menu */}
+      {menuOpen && !notesOpen && (
+        <div className="absolute bottom-full right-0 mb-2 w-52 bg-surface border border-line rounded-xl shadow-lg overflow-hidden py-1">
+          <p className="text-2xs uppercase tracking-wide text-muted2 px-3 py-1.5">Shortcuts</p>
+          {shortcuts.length === 0 ? (
+            <p className="text-2xs text-muted2 px-3 py-2">No shortcuts enabled.</p>
+          ) : shortcuts.map((s) => (
+            <button key={s.id} onClick={() => runShortcut(s)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-content hover:bg-surface2 text-left">
+              <Icon name={s.icon} className="text-base text-muted" />
+              <span className="truncate">{labelFor(s)}</span>
+              {s.kind === 'checkin' && att && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500" title="Checked in" />}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Quick-notes panel (opened by the Notes shortcut) */}
+      {notesOpen && (
         <div className="absolute bottom-full right-0 mb-2 w-[32rem] max-w-[calc(100vw-2.5rem)] h-[24rem] bg-surface border border-line rounded-xl shadow-lg overflow-hidden flex">
-          {/* Sidebar: note names */}
           <div className="w-40 shrink-0 border-r border-line flex flex-col">
             <div className="flex items-center justify-between px-2.5 py-2 border-b border-line">
               <span className="text-sm font-medium">Notes</span>
@@ -131,9 +192,8 @@ export default function StickyNotesFab() {
                 </button>
               ))}
             </div>
-            <Link href="/notes" onClick={() => { flush(); setOpen(false); }} className="text-2xs text-center text-muted hover:text-content border-t border-line py-2">All notes &amp; archive →</Link>
+            <Link href="/notes" onClick={() => { flush(); setNotesOpen(false); }} className="text-2xs text-center text-muted hover:text-content border-t border-line py-2">All notes &amp; archive →</Link>
           </div>
-          {/* Detail */}
           <div className="flex-1 min-w-0 flex flex-col">
             {!sel ? (
               <div className="flex-1 grid place-items-center text-2xs text-muted2 p-4 text-center">Select a note, or add a new one.</div>
@@ -145,7 +205,7 @@ export default function StickyNotesFab() {
                   <Icon name="ti-file-text" className="text-2xs" />
                   <span className="truncate">on {sel.page_path || 'unknown page'}</span>
                   {sel.page_path && sel.page_path !== router.asPath && (
-                    <button onClick={() => { flush(); setOpen(false); router.push(sel.page_path!); }} className="ml-1 text-sky-700 hover:underline shrink-0">open</button>
+                    <button onClick={() => { flush(); setNotesOpen(false); router.push(sel.page_path!); }} className="ml-1 text-sky-700 hover:underline shrink-0">open</button>
                   )}
                 </div>
                 <textarea value={sel.body || ''} onChange={(e) => queueSave(sel.id, { body: e.target.value })} onBlur={flush} placeholder="Write your note…"
@@ -159,13 +219,19 @@ export default function StickyNotesFab() {
           </div>
         </div>
       )}
-      {/* FAB: drag to move, click to toggle, × to hide */}
+
+      {/* Transient action feedback (e.g. check-in) */}
+      {pill && !notesOpen && (
+        <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-content text-surface text-xs shadow-lg whitespace-nowrap">{pill}</div>
+      )}
+
+      {/* FAB: drag to move, click to toggle launcher, × to hide */}
       <div className="relative">
-        <button onMouseDown={onDown} title="Quick notes — drag to move"
+        <button onMouseDown={onDown} title="Shortcuts — drag to move"
           className="h-12 w-12 rounded-full bg-accent text-[#fff] shadow-lg grid place-items-center hover:opacity-90 transition cursor-grab active:cursor-grabbing select-none">
-          <Icon name={open ? 'ti-x' : 'ti-notes'} className="text-xl" />
+          <Icon name={fabIcon} className="text-xl" />
         </button>
-        <button onClick={hide} title="Hide notes button (re-enable from the Notes page)"
+        <button onClick={hide} title="Hide shortcuts button (re-enable from the Notes page)"
           className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-surface border border-line text-muted2 hover:text-rose-600 grid place-items-center shadow">
           <Icon name="ti-x" className="text-2xs" />
         </button>

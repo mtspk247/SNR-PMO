@@ -37,6 +37,7 @@ export interface Organization {
   branding: OrgBranding;
   theme_skin?: 'classic' | 'daylight' | 'vivid' | 'midnight' | null;
   allow_user_themes?: boolean;
+  fab_shortcuts?: string[] | null;   // configurable Shortcuts-FAB action ids (admin-set; null = default set)
   plan: 'free' | 'pro' | 'enterprise';
   onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string; step?: number; skipped?: boolean } | null;
 }
