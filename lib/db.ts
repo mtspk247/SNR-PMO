@@ -3451,6 +3451,12 @@ export async function agentUsageCost(orgId: string, periodKind: 'day' | 'month' 
   const { data, error } = await sb.rpc('agent_usage_cost', { p_org: orgId, p_period_kind: periodKind }); if (error) throw new Error(error.message);
   return data as AgentUsageCost;
 }
+export interface AgentUsageSummary { plan: string; runs: number; cap: number | null; capped: boolean; source: 'free' | 'org_limit' | 'unlimited'; upgrade: boolean; remaining: number | null; pct: number; }
+// Effective monthly run cap + usage for the in-product usage meter / upgrade moment (read-only).
+export async function agentUsageSummary(orgId: string): Promise<AgentUsageSummary> {
+  const { data, error } = await sb.rpc('agent_usage_summary', { p_org: orgId }); if (error) throw new Error(error.message);
+  return data as AgentUsageSummary;
+}
 // Manual demo: exercise the propose -> approve -> rollback flow without an LLM key.
 export async function simulateAgentProposal(orgId: string, agentId: string, domain: string): Promise<string> {
   const { data: runId, error: e1 } = await sb.rpc('agent_start_run', { p_org: orgId, p_agent: agentId, p_trigger: 'manual', p_input: {} });

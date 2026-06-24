@@ -17,10 +17,10 @@ import { SCANNABLE_DOMAINS } from '@/lib/agentScanner';
 import { toast } from '@/lib/toast';
 import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
-  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, runWorkScan,
+  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, agentUsageSummary, runWorkScan,
   listAgentActions, recordAgentExecution, autoApproveAgentAction,
   listChatCommands, createChatCommand, updateChatCommand, deleteChatCommand, seedBuiltinChatCommands,
-  AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost,
+  AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost, AgentUsageSummary,
 } from '@/lib/db';
 
 const COLS: ColDef[] = [
@@ -46,6 +46,8 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<AgentDefinition[] | null>(null);
   const [usage, setUsage] = useState<AgentUsage[]>([]);
   const [cost, setCost] = useState<AgentUsageCost | null>(null);
+  const [summary, setSummary] = useState<AgentUsageSummary | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [limits, setLimits] = useState<AgentCostLimit[]>([]);
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft; initial: string } | null>(null);
   const [grants, setGrants] = useState<Set<string>>(new Set());
@@ -62,11 +64,18 @@ export default function AgentsPage() {
     listAgents(org.id).then(setAgents).catch((e) => { setErr(e.message); setAgents([]); });
     listAgentUsage(org.id).then(setUsage).catch(() => {});
     agentUsageCost(org.id).then(setCost).catch(() => {});
+    agentUsageSummary(org.id).then(setSummary).catch(() => {});
     listAgentCostLimits(org.id).then(setLimits).catch(() => {});
     listChatCommands(org.id).then(setCommands).catch(() => {});
   };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
+  // A refused run on the Free taste -> the upgrade moment (not a raw error toast).
+  const onRunError = (e: any) => {
+    const m = e?.message || '';
+    if (/free plan monthly agent limit|upgrade to pro/i.test(m)) { setUpgradeOpen(true); if (org) agentUsageSummary(org.id).then(setSummary).catch(() => {}); }
+    else setErr(m);
+  };
   const toolLabel = (k: string | null) => AGENT_TOOLS.find((t) => t.key === k)?.label || k || '—';
   const loadBuiltins = async () => { if (!org) return; setBusy(true); setErr(''); try { await seedBuiltinChatCommands(org.id); listChatCommands(org.id).then(setCommands); toast('Built-in commands added', 'success'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const toggleCmd = async (c: ChatCommand) => { try { await updateChatCommand(c.id, { enabled: !c.enabled }); setCommands((cs) => cs.map((x) => x.id === c.id ? { ...x, enabled: !x.enabled } : x)); } catch (e: any) { setErr(e.message); } };
@@ -170,7 +179,7 @@ export default function AgentsPage() {
       toast(auto > 0 ? (auto + ' low-risk action' + (auto === 1 ? '' : 's') + ' auto-executed') : 'Sample proposal ready for approval', auto > 0 ? 'success' : 'info');
       setEditor(null); router.push('/agent-approvals');
     }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+    catch (e: any) { onRunError(e); } finally { setBusy(false); }
   };
   const findWork = async () => {
     if (!org || !editor?.draft.id || busy) return;
@@ -181,7 +190,7 @@ export default function AgentsPage() {
       const { auto } = await autoRunForRun(runId || undefined, editor.draft);
       toast('Found ' + count + ' item' + (count === 1 ? '' : 's') + (auto > 0 ? (', ' + auto + ' auto-executed') : '') + ' \u2014 review in approvals', 'success');
       setEditor(null); router.push('/agent-approvals');
-    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+    } catch (e: any) { onRunError(e); } finally { setBusy(false); }
   };
 
   const runAgent = async () => {
@@ -194,7 +203,7 @@ export default function AgentsPage() {
       else if (res.error) setErr(res.error);
       else if ((res.proposed || 0) > 0) { const { auto } = await autoRunForRun(res.run_id, editor.draft); if (auto > 0) toast(auto + ' low-risk action' + (auto === 1 ? '' : 's') + ' auto-executed', 'success'); setEditor(null); router.push('/agent-approvals'); }
       else setErr('The agent did not propose any actions for that request.');
-    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+    } catch (e: any) { onRunError(e); } finally { setBusy(false); }
   };
 
   // Org-wide cost ceiling editor (agent_id = null)
@@ -228,6 +237,30 @@ export default function AgentsPage() {
         action={<div className="flex items-center gap-2"><button className="btn btn-sm" onClick={() => router.push('/agent-activity')}><Icon name="ti-chart-line" />Activity & ROI</button><button className="btn btn-primary" onClick={() => { setEditor({ mode: 'add', draft: emptyDraft(), initial: JSON.stringify(emptyDraft()) }); setGrants(new Set()); }}><Icon name="ti-plus" />New agent</button></div>}
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+
+      {summary && summary.upgrade && (
+        <div className={`card p-4 mb-5 border ${summary.pct >= 100 ? 'border-rose-300' : summary.pct >= 80 ? 'border-amber-300' : 'border-line'}`}>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Icon name="ti-sparkles" className={summary.pct >= 100 ? 'text-rose-500' : 'text-accent'} />
+                <span className="text-sm font-semibold text-content">
+                  {summary.pct >= 100 ? `You've used all ${summary.cap} free agent runs this month` : `Free plan \u00b7 ${summary.runs} of ${summary.cap} agent runs used this month`}
+                </span>
+              </div>
+              <p className="text-2xs text-muted mt-0.5 max-w-xl">
+                {summary.pct >= 100
+                  ? 'Your agents are paused until next month. Upgrade to Pro for unlimited approve-first agent runs across your back office.'
+                  : `${summary.remaining} run${summary.remaining === 1 ? '' : 's'} left on the Free taste \u2014 upgrade to Pro for unlimited agent runs.`}
+              </p>
+            </div>
+            <button className="btn btn-primary whitespace-nowrap" onClick={() => router.push('/settings?tab=billing')}><Icon name="ti-rocket" />Upgrade to Pro</button>
+          </div>
+          <div className="mt-3 h-2 rounded-full bg-surface2 overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${summary.pct >= 100 ? 'bg-rose-500' : summary.pct >= 80 ? 'bg-amber-500' : 'bg-accent'}`} style={{ width: `${summary.pct}%` }} />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
         <StatCard label="Agents" value={String(kpis.total)} icon="ti-robot" />
@@ -401,6 +434,14 @@ export default function AgentsPage() {
             <Field label={`Max runs / ${limDraft.period}`}><input className="input" type="number" min="0" value={limDraft.max_runs} onChange={(e) => setLimDraft({ ...limDraft, max_runs: e.target.value })} placeholder="∞" /></Field>
             <Field label={`Max $ / ${limDraft.period}`}><input className="input" type="number" min="0" step="0.01" value={limDraft.max_usd} onChange={(e) => setLimDraft({ ...limDraft, max_usd: e.target.value })} placeholder="∞" /></Field>
           </div>
+        </Modal>
+      )}
+
+      {upgradeOpen && (
+        <Modal open onClose={() => setUpgradeOpen(false)} size="sm" icon="ti-rocket" title="Upgrade to Pro" onSubmit={() => router.push('/settings?tab=billing')}
+          footer={<><button className="btn" onClick={() => setUpgradeOpen(false)}>Maybe later</button><button className="btn btn-primary" onClick={() => router.push('/settings?tab=billing')}><Icon name="ti-rocket" />View plans &amp; upgrade</button></>}>
+          <p className="text-sm text-content mb-2">You&rsquo;ve reached the Free plan limit of {summary?.cap ?? 25} agent runs this month.</p>
+          <p className="text-2xs text-muted">Upgrade to Pro for unlimited approve-first agent runs across your back office. Your agents, tools, approvals and cost ceilings stay exactly as configured.</p>
         </Modal>
       )}
     </Layout>
