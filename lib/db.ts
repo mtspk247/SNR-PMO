@@ -103,6 +103,19 @@ export async function seedDemoData(orgId: string, industry: string | null): Prom
   return (data || {}) as Record<string, number>;
 }
 
+// Seed/remove the demo "smart columns" (relationship + multi-link + rollup + formula) on Clients,
+// so a workspace SHOWS the advanced custom-field depth alive. Reversible + idempotent (owner-gated RPC).
+export async function seedDemoSmartColumns(orgId: string): Promise<{ status?: string; clients?: number; columns?: number }> {
+  const { data, error } = await sb.rpc('seed_demo_smart_columns', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  return (data || {}) as { status?: string; clients?: number; columns?: number };
+}
+export async function unseedDemoSmartColumns(orgId: string): Promise<{ removed?: number }> {
+  const { data, error } = await sb.rpc('unseed_demo_smart_columns', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  return (data || {}) as { removed?: number };
+}
+
 // ---- #5 Tenant profile (contact / web / location / classification) ----
 // Owner/admin path: org_select RLS lets a member read; org_update lets owner/admin write.
 const PROFILE_SELECT = ORG_PROFILE_KEYS.join(', ');

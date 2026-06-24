@@ -44,7 +44,7 @@ export const SECTIONS: Section[] = [
         { title: '5. Connect your email', body: 'In Users, click your own name, then the Email tab. Add the mailbox you want reports and automations to send from (custom SMTP, or Gmail with an App Password). Your credentials are stored securely and never shown back.' },
         { title: '6. Set your notifications', body: 'Admins set which notifications are required for everyone in Settings ▸ Notifications. Each person then tunes their own optional alerts on their user page (Notifications tab) or via the bell ▸ Notification settings.' },
         { title: '7. Tune lists & options', body: 'Open Settings ▸ Lists & options to customise the dropdowns used across the app — task priorities, income/expense categories, industries and more.' },
-        { title: '8. Explore with demo data (optional)', body: 'Owners can load realistic sample data from Settings ▸ Profile ▸ “Generate demo data” to see every module populated. You can wipe it later from Settings ▸ Danger zone.' },
+        { title: '8. Explore with demo data (optional)', body: 'Owners can load realistic sample data from Settings ▸ Profile ▸ “Generate demo data” to see every module populated. You can also add \u201cSample smart columns\u201d there to see relationship, rollup and formula columns working on real Clients data. You can wipe it later from Settings ▸ Danger zone.' },
       ] },
       { kind: 'callout', icon: 'ti-bulb', text: 'Tip: the sidebar only shows modules your plan includes and your role allows. If you cannot see something, check your plan (Billing) and your role (Users).' },
     ],
