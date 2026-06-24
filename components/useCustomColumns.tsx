@@ -4,7 +4,7 @@ import type { ColDef } from '@/components/ListToolbar';
 import type { EditSpec } from '@/components/DataList';
 import {
   getCustomFieldDefs, createCustomFieldDef, updateCustomFieldDef, deleteCustomFieldDef,
-  getCustomFieldValuesByType, upsertCustomFieldValue, computeAiField, getRelationOptions,
+  getCustomFieldValuesByType, upsertCustomFieldValue, computeAiField, getRelationOptions, getRollupValues, ROLLUP_TARGETS,
 } from '@/lib/db';
 import { CustomFieldDef, CustomEntityType } from '@/lib/supabase';
 
@@ -32,6 +32,7 @@ export const CUSTOM_FIELD_TYPES: { value: string; label: string; icon: string; g
   { value: 'location', label: 'Location', icon: 'ti-map-pin', group: 'Contact' },
   { value: 'ai', label: 'AI field', icon: 'ti-sparkles', group: 'AI' },
   { value: 'relationship', label: 'Relationship', icon: 'ti-link', group: 'Connect' },
+  { value: 'rollup', label: 'Rollup', icon: 'ti-arrow-bar-to-right', group: 'Connect' },
 ];
 export const AI_TRANSFORMS: { value: string; label: string; hint: string }[] = [
   { value: 'summarize', label: 'Summarize', hint: 'One-line summary of the record' },
@@ -81,6 +82,7 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
   const aiTextRef = useRef<(id: string) => string>(() => '');
   const [relList, setRelList] = useState<Record<string, { id: string; label: string }[]>>({});
   const [relMap, setRelMap] = useState<Record<string, Record<string, string>>>({});
+  const [rollupVals, setRollupVals] = useState<Record<string, Record<string, string>>>({});
 
   const reload = useCallback(() => {
     if (!orgId) { setDefs([]); setVals({}); return; }
@@ -109,12 +111,31 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
     return () => { active = false; };
   }, [orgId, relKey]);
 
+  // Rollup columns: fetch the target field across the linked entity's rows, keyed `entity:field`.
+  const rollupKey = defs.filter((d) => d.field_type === 'rollup').map((d) => {
+    const src = defs.find((x) => x.id === (d.option_meta?.rollup_source || ''));
+    const ent = src?.option_meta?.relation_entity || ''; const tgt = d.option_meta?.rollup_target || '';
+    return ent && tgt ? ent + ':' + tgt : '';
+  }).filter(Boolean).filter((k, i, a) => a.indexOf(k) === i).sort().join(',');
+  useEffect(() => {
+    if (!orgId || !rollupKey) { setRollupVals({}); return; }
+    const keys = rollupKey.split(',').filter(Boolean);
+    let active = true;
+    Promise.all(keys.map((k) => { const [ent, tgt] = k.split(':'); return getRollupValues(orgId, ent, tgt).then((m) => [k, m] as const); })).then((pairs) => {
+      if (!active) return;
+      const out: Record<string, Record<string, string>> = {};
+      pairs.forEach(([k, m]) => { out[k] = m; });
+      setRollupVals(out);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [orgId, rollupKey]);
+
   const cols: ColDef[] = defs.map((d) => ({ id: PREFIX + d.id, label: d.name }));
   const defById: Record<string, CustomFieldDef> = {};
   defs.forEach((d) => { defById[PREFIX + d.id] = d; });
   const editable: Record<string, EditSpec> = {};
   defs.forEach((d) => {
-    if (d.field_type === 'ai') return;
+    if (d.field_type === 'ai' || d.field_type === 'rollup') return;
     if (d.field_type === 'relationship') {
       const ent = d.option_meta?.relation_entity || '';
       editable[PREFIX + d.id] = { type: 'select', options: [{ value: '', label: '—' }, ...((relList[ent] || []).map((o) => ({ value: o.id, label: o.label })))] };
@@ -146,6 +167,22 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
       if (aiBusy.has(key)) return <span className="inline-flex items-center gap-1 text-2xs text-muted2"><Icon name="ti-loader-2" className="animate-spin text-xs" />Generating\u2026</span>;
       if (!v) return canManage ? <button onClick={gen} className="inline-flex items-center gap-1 text-2xs font-medium text-violet-500 hover:text-violet-600"><Icon name="ti-sparkles" className="text-xs" />Generate</button> : <span className="text-muted2">—</span>;
       return <span className="inline-flex items-center gap-1 max-w-full"><Icon name="ti-sparkles" className="text-[11px] text-violet-400 shrink-0" /><span className="text-sm text-content truncate max-w-[16rem] align-middle">{v}</span>{canManage && <button onClick={gen} title="Regenerate" className="shrink-0 text-muted2 hover:text-content"><Icon name="ti-refresh" className="text-2xs" /></button>}</span>;
+    }
+    if (t === 'rollup') {
+      const cfg = (d?.option_meta || {}) as Record<string, string>;
+      const srcDef = defs.find((x) => x.id === (cfg.rollup_source || ''));
+      const ent = srcDef?.option_meta?.relation_entity || '';
+      const tgt = cfg.rollup_target || '';
+      if (!srcDef || !ent || !tgt) return <span className="text-muted2">—</span>;
+      const linkedId = vals[entityId]?.[srcDef.id] || '';
+      if (!linkedId) return <span className="text-muted2">—</span>;
+      const rv = rollupVals[ent + ':' + tgt]?.[linkedId] ?? '';
+      if (!rv) return <span className="text-muted2">—</span>;
+      const kind = (ROLLUP_TARGETS[ent] || []).find((x) => x.value === tgt)?.kind || 'text';
+      let shown = rv;
+      if (kind === 'number') { const n = Number(rv); shown = isNaN(n) ? rv : n.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+      else if (kind === 'date') { const dt = new Date(rv); shown = isNaN(dt.getTime()) ? rv : dt.toLocaleDateString(); }
+      return <span className="inline-flex items-center gap-1 max-w-full" title="Rolled up from the linked record"><Icon name="ti-arrow-bar-to-right" className="text-[11px] text-muted2 shrink-0" /><span className={`text-sm text-content truncate max-w-[14rem] align-middle ${kind === 'number' ? 'tabular-nums' : ''}`}>{shown}</span></span>;
     }
     if (!v) return <span className="text-muted2">—</span>;
     switch (t) {

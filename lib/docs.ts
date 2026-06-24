@@ -572,6 +572,7 @@ export const SECTIONS: Section[] = [
       ] },
       { kind: 'callout', icon: 'ti-key', text: 'AI fields use your connected AI key (Console \u25b8 AI assistant). Without a key the column still exists but Generate will ask you to connect one. An AI field only reads the row and writes its own cell \u2014 it never changes other data.' },
       { kind: 'callout', icon: 'ti-link', text: 'Another column type is Relationship \u2014 link each row to a record from another module (Projects, Clients, Deals, Contacts or Tasks). Add it from the same \u201c+\u201d \u25b8 Connect \u25b8 Relationship, choose the module, then pick the linked record inline in the cell. It shows the record\u2019s name and links to it.' },
+      { kind: 'callout', icon: 'ti-arrow-bar-to-right', text: 'A Rollup column shows a value pulled from the record a Relationship column links to \u2014 e.g. link a Project, then roll up its Status, Progress or End date into this list. Add it from \u201c+\u201d \u25b8 Connect \u25b8 Rollup: pick the relationship field, then the field to show. It\u2019s read-only and always reflects the linked record.' },
     ],
   },
   {

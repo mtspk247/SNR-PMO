@@ -756,6 +756,49 @@ export async function getRelationOptions(orgId: string, entity: string): Promise
   if (error) return [];
   return (((data as any[]) || [])).map((r) => ({ id: r.id as string, label: (r[src.label] as string) || '(untitled)' }));
 }
+// --- Rollup custom-field: surface a field from the record a relationship column links ---
+// v1 = lookup of ONE whitelisted field on the single linked record. Aggregations
+// (sum/avg/min/max) become meaningful once a relationship column can hold many links.
+export const ROLLUP_TARGETS: Record<string, { value: string; label: string; kind: 'number' | 'text' | 'date' }[]> = {
+  projects: [
+    { value: 'status', label: 'Status', kind: 'text' },
+    { value: 'priority', label: 'Priority', kind: 'text' },
+    { value: 'progress', label: 'Progress', kind: 'number' },
+    { value: 'end_date', label: 'End date', kind: 'date' },
+  ],
+  clients: [
+    { value: 'status', label: 'Status', kind: 'text' },
+    { value: 'since', label: 'Client since', kind: 'date' },
+  ],
+  deals: [
+    { value: 'stage', label: 'Stage', kind: 'text' },
+    { value: 'value', label: 'Deal value', kind: 'number' },
+    { value: 'expected_close', label: 'Expected close', kind: 'date' },
+  ],
+  contacts: [
+    { value: 'title', label: 'Title', kind: 'text' },
+    { value: 'status', label: 'Status', kind: 'text' },
+  ],
+  tasks: [
+    { value: 'status', label: 'Status', kind: 'text' },
+    { value: 'priority', label: 'Priority', kind: 'text' },
+    { value: 'estimated_hours', label: 'Estimated hours', kind: 'number' },
+    { value: 'actual_hours', label: 'Actual hours', kind: 'number' },
+    { value: 'due_date', label: 'Due date', kind: 'date' },
+  ],
+};
+// Map { linked-record id -> target field value (text) } for a rollup column's target entity.
+// Field is whitelisted via ROLLUP_TARGETS so the interpolated column name can't be injected.
+export async function getRollupValues(orgId: string, entity: string, field: string): Promise<Record<string, string>> {
+  const src = RELATION_SOURCES[entity];
+  const allowed = (ROLLUP_TARGETS[entity] || []).some((t) => t.value === field);
+  if (!src || !allowed) return {};
+  const { data, error } = await (sb as any).from(src.table).select(`id, ${field}`).eq('org_id', orgId).limit(1000);
+  if (error) return {};
+  const m: Record<string, string> = {};
+  (((data as any[]) || [])).forEach((r) => { const val = r[field]; if (val !== null && val !== undefined && val !== '') m[r.id as string] = String(val); });
+  return m;
+}
 export async function checkOut(row: Attendance): Promise<Attendance> {
   const out = new Date();
   const hours = row.check_in

@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui';
 import { CUSTOM_FIELD_TYPES, NEEDS_OPTIONS, AI_TRANSFORMS } from '@/components/useCustomColumns';
 import type { CustomColumnsApi } from '@/components/useCustomColumns';
 import OptionsEditor, { OptionsValue } from '@/components/OptionsEditor';
-import { RELATION_ENTITIES } from '@/lib/db';
+import { RELATION_ENTITIES, ROLLUP_TARGETS } from '@/lib/db';
 
 // "+ Add column" → a searchable, grouped field-type palette (ClickUp "Fields" panel):
 // pick a type from the list, name it (+ colored options for choice fields), Add.
@@ -17,9 +17,15 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
   const [aiP, setAiP] = useState('');
   const [busy, setBusy] = useState(false);
   const [relEntity, setRelEntity] = useState('projects');
+  const [rollSrc, setRollSrc] = useState('');
+  const [rollTgt, setRollTgt] = useState('');
 
   const sel = ty ? CUSTOM_FIELD_TYPES.find((t) => t.value === ty) : null;
   const needsOpts = !!ty && NEEDS_OPTIONS.has(ty);
+  const relDefs = cf.defs.filter((d) => d.field_type === 'relationship');
+  const rollSrcDef = relDefs.find((d) => d.id === rollSrc);
+  const rollEnt = rollSrcDef?.option_meta?.relation_entity || '';
+  const rollTgtOpts = ROLLUP_TARGETS[rollEnt] || [];
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const matched = CUSTOM_FIELD_TYPES.filter((t) => !ql || t.label.toLowerCase().includes(ql) || t.value.includes(ql));
@@ -38,6 +44,7 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
       if (aiT === 'categorize') { options = opts.options.map((s) => s.trim()).filter(Boolean); options.forEach((o) => { if (opts.meta[o]) meta![o] = opts.meta[o]; }); }
     } else if (needsOpts) { options = opts.options.map((s) => s.trim()).filter(Boolean); meta = {}; options.forEach((o) => { if (opts.meta[o]) meta![o] = opts.meta[o]; }); }
     else if (ty === 'relationship') { meta = { relation_entity: relEntity }; }
+    else if (ty === 'rollup') { if (!rollSrc || !rollTgt) { setBusy(false); return; } meta = { rollup_source: rollSrc, rollup_target: rollTgt }; }
     try { await cf.addColumn(n, ty, options, meta); if (onDone) onDone(); }
     finally { setBusy(false); }
   };
@@ -80,6 +87,31 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
           <p className="text-[10px] text-muted2 mt-1 inline-flex items-center gap-1"><Icon name="ti-info-circle" className="text-xs" />Each cell links one record from {RELATION_ENTITIES.find((o) => o.value === relEntity)?.label || 'the module'}; pick it inline.</p>
         </div>
       )}
+      {ty === 'rollup' && (
+        <div className="space-y-2">
+          {relDefs.length === 0 ? (
+            <p className="text-[11px] text-muted2 inline-flex items-start gap-1"><Icon name="ti-info-circle" className="text-xs mt-0.5 shrink-0" />Add a <span className="font-medium">Relationship</span> field first — a rollup reads a value from the record it links to.</p>
+          ) : (<>
+            <div>
+              <p className="text-2xs text-muted2 mb-1">Roll up through…</p>
+              <select value={rollSrc} onChange={(e) => { setRollSrc(e.target.value); setRollTgt(''); }} className="input h-8 text-sm w-full">
+                <option value="">Select a relationship field…</option>
+                {relDefs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            {rollSrc && (
+              <div>
+                <p className="text-2xs text-muted2 mb-1">Show this field from the linked {RELATION_ENTITIES.find((o) => o.value === rollEnt)?.label || 'record'}</p>
+                <select value={rollTgt} onChange={(e) => setRollTgt(e.target.value)} className="input h-8 text-sm w-full">
+                  <option value="">Select a field…</option>
+                  {rollTgtOpts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            )}
+            <p className="text-[10px] text-muted2 inline-flex items-center gap-1"><Icon name="ti-info-circle" className="text-xs" />Read-only — it mirrors the linked record’s value.</p>
+          </>)}
+        </div>
+      )}
       {ty === 'ai' && (
         <div className="space-y-2">
           <div>
@@ -97,7 +129,7 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
         </div>
       )}
       {needsOpts && <div className="rounded-md border border-line/70 p-2"><OptionsEditor value={opts} onChange={setOpts} /></div>}
-      <button onClick={submit} disabled={busy || !nm.trim()} className="btn btn-primary h-8 text-xs w-full">{busy ? 'Adding…' : 'Add field'}</button>
+      <button onClick={submit} disabled={busy || !nm.trim() || (ty === 'rollup' && (!rollSrc || !rollTgt))} className="btn btn-primary h-8 text-xs w-full">{busy ? 'Adding…' : 'Add field'}</button>
     </div>
   );
 }
