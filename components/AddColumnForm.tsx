@@ -19,6 +19,7 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
   const [relEntity, setRelEntity] = useState('projects');
   const [rollSrc, setRollSrc] = useState('');
   const [rollTgt, setRollTgt] = useState('');
+  const [formExpr, setFormExpr] = useState('');
 
   const sel = ty ? CUSTOM_FIELD_TYPES.find((t) => t.value === ty) : null;
   const needsOpts = !!ty && NEEDS_OPTIONS.has(ty);
@@ -29,7 +30,7 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const matched = CUSTOM_FIELD_TYPES.filter((t) => !ql || t.label.toLowerCase().includes(ql) || t.value.includes(ql));
-    return ['Basic', 'Numeric', 'Choice', 'Contact', 'Connect', 'AI']
+    return ['Basic', 'Numeric', 'Choice', 'Contact', 'Connect', 'Advanced', 'AI']
       .map((g) => ({ g, items: matched.filter((t) => t.group === g) }))
       .filter((x) => x.items.length);
   }, [q]);
@@ -45,6 +46,7 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
     } else if (needsOpts) { options = opts.options.map((s) => s.trim()).filter(Boolean); meta = {}; options.forEach((o) => { if (opts.meta[o]) meta![o] = opts.meta[o]; }); }
     else if (ty === 'relationship') { meta = { relation_entity: relEntity }; }
     else if (ty === 'rollup') { if (!rollSrc || !rollTgt) { setBusy(false); return; } meta = { rollup_source: rollSrc, rollup_target: rollTgt }; }
+    else if (ty === 'formula') { if (!formExpr.trim()) { setBusy(false); return; } meta = { formula: formExpr.trim() }; }
     try { await cf.addColumn(n, ty, options, meta); if (onDone) onDone(); }
     finally { setBusy(false); }
   };
@@ -112,6 +114,22 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
           </>)}
         </div>
       )}
+      {ty === 'formula' && (
+        <div className="space-y-2">
+          <textarea autoFocus value={formExpr} onChange={(e) => setFormExpr(e.target.value)} placeholder={'e.g.  {Budget} * 0.1     IF({Progress} >= 100, "Done", "Open")'} className="input text-sm w-full min-h-[64px] resize-y font-mono leading-snug" />
+          {cf.defs.filter((d) => d.name).length > 0 && (
+            <div>
+              <p className="text-2xs text-muted2 mb-1">Insert a field</p>
+              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                {cf.defs.filter((d) => d.name).map((d) => (
+                  <button key={d.id} type="button" onClick={() => setFormExpr((x) => (x ? x + ' ' : '') + '{' + d.name + '}')} className="px-1.5 py-0.5 rounded border border-line text-2xs text-muted hover:bg-surface2">{d.name}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="text-[10px] text-muted2 inline-flex items-start gap-1"><Icon name="ti-info-circle" className="text-xs mt-0.5 shrink-0" />Reference columns as {'{Field name}'}. Supports + - * / %, comparisons, and SUM, AVG, MIN, MAX, ROUND, IF, CONCAT, LEN, UPPER, LOWER. Read-only — recomputes from the row.</p>
+        </div>
+      )}
       {ty === 'ai' && (
         <div className="space-y-2">
           <div>
@@ -129,7 +147,7 @@ export default function AddColumnForm({ cf, onDone }: { cf: CustomColumnsApi; on
         </div>
       )}
       {needsOpts && <div className="rounded-md border border-line/70 p-2"><OptionsEditor value={opts} onChange={setOpts} /></div>}
-      <button onClick={submit} disabled={busy || !nm.trim() || (ty === 'rollup' && (!rollSrc || !rollTgt))} className="btn btn-primary h-8 text-xs w-full">{busy ? 'Adding…' : 'Add field'}</button>
+      <button onClick={submit} disabled={busy || !nm.trim() || (ty === 'rollup' && (!rollSrc || !rollTgt)) || (ty === 'formula' && !formExpr.trim())} className="btn btn-primary h-8 text-xs w-full">{busy ? 'Adding…' : 'Add field'}</button>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   getCustomFieldValuesByType, upsertCustomFieldValue, computeAiField, getRelationOptions, getRollupValues, ROLLUP_TARGETS,
 } from '@/lib/db';
 import { CustomFieldDef, CustomEntityType } from '@/lib/supabase';
+import { evalFormula, type FormulaValue } from '@/lib/formula';
 
 const PREFIX = 'cf:';
 export const isCustomCol = (id: string) => id.startsWith(PREFIX);
@@ -33,6 +34,7 @@ export const CUSTOM_FIELD_TYPES: { value: string; label: string; icon: string; g
   { value: 'ai', label: 'AI field', icon: 'ti-sparkles', group: 'AI' },
   { value: 'relationship', label: 'Relationship', icon: 'ti-link', group: 'Connect' },
   { value: 'rollup', label: 'Rollup', icon: 'ti-arrow-bar-to-right', group: 'Connect' },
+  { value: 'formula', label: 'Formula', icon: 'ti-math-function', group: 'Advanced' },
 ];
 export const AI_TRANSFORMS: { value: string; label: string; hint: string }[] = [
   { value: 'summarize', label: 'Summarize', hint: 'One-line summary of the record' },
@@ -135,7 +137,7 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
   defs.forEach((d) => { defById[PREFIX + d.id] = d; });
   const editable: Record<string, EditSpec> = {};
   defs.forEach((d) => {
-    if (d.field_type === 'ai' || d.field_type === 'rollup') return;
+    if (d.field_type === 'ai' || d.field_type === 'rollup' || d.field_type === 'formula') return;
     if (d.field_type === 'relationship') {
       const ent = d.option_meta?.relation_entity || '';
       editable[PREFIX + d.id] = { type: 'select', options: [{ value: '', label: '—' }, ...((relList[ent] || []).map((o) => ({ value: o.id, label: o.label })))] };
@@ -143,6 +145,30 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
   });
 
   const rawValue = (colId: string, entityId: string) => vals[entityId]?.[colId.slice(PREFIX.length)] ?? '';
+  const rollupInfo = (d: CustomFieldDef, entityId: string): { raw: string; ent: string; tgt: string } => {
+    const cfg = (d.option_meta || {}) as Record<string, string>;
+    const srcDef = defs.find((x) => x.id === (cfg.rollup_source || ''));
+    const ent = srcDef?.option_meta?.relation_entity || ''; const tgt = cfg.rollup_target || '';
+    if (!srcDef || !ent || !tgt) return { raw: '', ent, tgt };
+    const linkedId = vals[entityId]?.[srcDef.id] || '';
+    if (!linkedId) return { raw: '', ent, tgt };
+    return { raw: rollupVals[ent + ':' + tgt]?.[linkedId] ?? '', ent, tgt };
+  };
+  // Resolve a formula's {Field name} ref to its value: stored fields, rollups, and nested
+  // formulas (cycle-guarded via `visited`). Returns null for blank/unknown (engine treats as 0).
+  const resolveFormulaRef = (entityId: string, name: string, visited: Set<string>): FormulaValue => {
+    const dd = defs.find((x) => (x.name || '').toLowerCase() === name.toLowerCase());
+    if (!dd) return null;
+    if (dd.field_type === 'rollup') { const s = rollupInfo(dd, entityId).raw; return s === '' ? null : s; }
+    if (dd.field_type === 'formula') {
+      if (visited.has(dd.id)) return null;
+      const v2 = new Set(visited); v2.add(dd.id);
+      const r = evalFormula(dd.option_meta?.formula || '', (nm) => resolveFormulaRef(entityId, nm, v2));
+      return r.error ? null : r.value;
+    }
+    const s = vals[entityId]?.[dd.id] ?? '';
+    return s === '' ? null : s;
+  };
   const cell = (colId: string, entityId: string): ReactNode => {
     const d = defById[colId];
     const t = d ? d.field_type : 'text';
@@ -183,6 +209,15 @@ export function useCustomColumns(orgId: string | undefined, entityType: CustomEn
       if (kind === 'number') { const n = Number(rv); shown = isNaN(n) ? rv : n.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
       else if (kind === 'date') { const dt = new Date(rv); shown = isNaN(dt.getTime()) ? rv : dt.toLocaleDateString(); }
       return <span className="inline-flex items-center gap-1 max-w-full" title="Rolled up from the linked record"><Icon name="ti-arrow-bar-to-right" className="text-[11px] text-muted2 shrink-0" /><span className={`text-sm text-content truncate max-w-[14rem] align-middle ${kind === 'number' ? 'tabular-nums' : ''}`}>{shown}</span></span>;
+    }
+    if (t === 'formula') {
+      const expr = (d?.option_meta?.formula || '').trim();
+      if (!expr) return <span className="text-muted2">—</span>;
+      const res = evalFormula(expr, (nm) => resolveFormulaRef(entityId, nm, new Set([d!.id])));
+      if (res.error) return <span className="text-2xs text-rose-400 cursor-help" title={res.error}>#ERR</span>;
+      if (res.value === null || res.value === '') return <span className="text-muted2">—</span>;
+      const shown = typeof res.value === 'number' ? res.value.toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(res.value);
+      return <span className="inline-flex items-center gap-1 max-w-full" title="Computed by formula"><Icon name="ti-math-function" className="text-[11px] text-muted2 shrink-0" /><span className="text-sm text-content truncate max-w-[14rem] align-middle tabular-nums">{shown}</span></span>;
     }
     if (!v) return <span className="text-muted2">—</span>;
     switch (t) {
