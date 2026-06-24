@@ -51,9 +51,9 @@ export default function AlternativesPage() {
         <meta property="og:url" content={`${BASE}/alternatives`} />
         <meta property="og:title" content="Best all-in-one business software (2026): SNR-PMO vs 8 alternatives" />
         <meta property="og:description" content="A master capability matrix + honest, side-by-side comparisons of SNR-PMO vs GoHighLevel, ClickUp, Odoo, HubSpot, Monday, Asana, Jira and QuickBooks." />
-        <meta property="og:image" content={`${BASE}/og.png`} />
+        <meta property="og:image" content={`${BASE}/og/alternatives.png`} />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:image" content={`${BASE}/og.png`} />
+        <meta name="twitter:image" content={`${BASE}/og/alternatives.png`} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
       </Head>

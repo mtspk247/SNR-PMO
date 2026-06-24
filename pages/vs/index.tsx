@@ -40,9 +40,9 @@ export default function VsHub() {
         <meta property="og:url" content={`${BASE}/vs`} />
         <meta property="og:title" content="SNR-PMO alternatives & comparisons" />
         <meta property="og:description" content="Honest, side-by-side comparisons: SNR-PMO vs GoHighLevel, ClickUp, Odoo and HubSpot." />
-        <meta property="og:image" content={`${BASE}/og.png`} />
+        <meta property="og:image" content={`${BASE}/og/alternatives.png`} />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:image" content={`${BASE}/og.png`} />
+        <meta name="twitter:image" content={`${BASE}/og/alternatives.png`} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(listLd) }} />
       </Head>
 

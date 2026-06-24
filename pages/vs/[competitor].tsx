@@ -70,11 +70,11 @@ export default function VsCompetitorPage({ competitor: c }: { competitor: Compet
         <meta property="og:url" content={url} />
         <meta property="og:title" content={`SNR-PMO vs ${c.name}`} />
         <meta property="og:description" content={c.metaDescription} />
-        <meta property="og:image" content={`${BASE}/og.png`} />
+        <meta property="og:image" content={`${BASE}/og/vs-${c.slug}.png`} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:image" content={`${BASE}/og.png`} />
+        <meta name="twitter:image" content={`${BASE}/og/vs-${c.slug}.png`} />
         <meta name="twitter:title" content={`SNR-PMO vs ${c.name}`} />
         <meta name="twitter:description" content={c.metaDescription} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
