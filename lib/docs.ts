@@ -142,15 +142,15 @@ export const SECTIONS: Section[] = [
     title: 'Shortcuts button (quick actions)',
     icon: 'ti-bolt',
     blocks: [
-      { kind: 'p', text: 'A floating round button sits in the bottom-right corner on every page — your quick-actions launcher. Click it to open the shortcuts menu, drag it anywhere to reposition it, or dismiss it with the small \u00d7 (re-enable it later from the Notes page).' },
+      { kind: 'p', text: 'A floating round button sits in the bottom-right corner on every page — your quick-actions launcher. Click it to fan out your quick actions, drag it anywhere to reposition it, or dismiss it with the small \u00d7 (bring it back any time from Settings \u25b8 Shortcuts \u25b8 "Show the button").' },
       { kind: 'steps', items: [
         { title: 'Quick notes', body: 'Open the sticky-notes panel to jot a note against the page you are on. Full management lives at Notes.' },
         { title: 'Check in / out', body: 'Start or end your working day in one click — the same record you see under Attendance. With your permission your check-in also captures your location (best-effort — check-in still works if you decline), and your reporting manager is notified. A live timer in the footer shows how long you have been on the clock.' },
         { title: 'Team chat', body: 'Open the slide-in team chat panel from anywhere.' },
         { title: 'New task / Calendar', body: 'Jump straight to Tasks or your Calendar.' },
-        { title: 'Ask AI', body: 'Open the in-app AI help assistant to ask how to do something — it answers from this guide and links the relevant section. Enable it for the launcher in Settings \u25b8 Themes \u25b8 Workspace shortcuts; the assistant also has its own button.' },
+        { title: 'Ask AI', body: 'Open the in-app AI help assistant to ask how to do something — it answers from this guide and links the relevant section. Ask AI is always available in the launcher (the highlighted action); the assistant also has its own button.' },
       ] },
-      { kind: 'p', text: 'Choose which actions appear in Settings \u25b8 Themes \u25b8 Workspace shortcuts (owners/admins). Your selection applies to everyone in the workspace; each person can still drag the button or hide it just for themselves.' },
+      { kind: 'p', text: 'Choose which actions appear - and add your own custom shortcuts (a label, a Tabler icon and a link to any internal page or external URL) - in Settings \u25b8 Shortcuts (owners/admins). Your selection applies to everyone in the workspace; each person can still drag the button or hide it just for themselves.' },
       { kind: 'callout', icon: 'ti-bulb', text: 'The button is workspace-wide UI, not tied to a plan. To remove a whole area, turn its module off in Settings \u25b8 Modules; the shortcuts list only controls the quick launcher.' },
     ],
   },
