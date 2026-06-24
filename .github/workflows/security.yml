@@ -1,0 +1,47 @@
+name: Security
+# Secret scan (gitleaks, BLOCKING — repo is public) + SAST (semgrep) + dependency audit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+  sast:
+    name: SAST (semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install semgrep
+      - name: semgrep scan
+        run: semgrep scan --config p/typescript --config p/react --config p/secrets --error --metrics off
+        continue-on-error: true
+  deps-audit:
+    name: Dependency audit (npm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+        continue-on-error: true
