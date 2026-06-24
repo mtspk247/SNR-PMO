@@ -57,6 +57,8 @@ export default function PublicForm({ form, slug }: { form: PForm; slug: string }
             </div>
           ) : (
             <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* honeypot: invisible to humans; bots that fill it are silently dropped server-side */}
+              <input type="text" name="_hpx" tabIndex={-1} autoComplete="off" aria-hidden="true" value={v['_hpx'] || ''} onChange={(e) => set('_hpx', e.target.value)} style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
               {(form.fields || []).map((f) => (
                 <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#334155' }}>
                   <span>{f.label}{f.required && <span style={{ color: '#ef4444' }}> *</span>}</span>
