@@ -29,6 +29,14 @@ export const FAB_SHORTCUTS: FabShortcutDef[] = [
 ];
 export const FAB_DEFAULT_IDS = ['notes', 'checkin', 'chat', 'task'];
 
+// Vibrant per-action colors for the speed-dial circles (custom shortcuts cycle the palette).
+const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#0ea5e9', '#8b5cf6', '#14b8a6', '#f97316'];
+const FAB_COLORS: Record<string, string> = {
+  notes: '#f59e0b', checkin: '#10b981', chat: '#0ea5e9', task: '#6366f1', calendar: '#f43f5e',
+  ask: '#8b5cf6', dashboard: '#14b8a6', crm: '#f97316', clients: '#06b6d4', projects: '#6366f1',
+  support: '#ef4444', docs: '#0891b2',
+};
+
 const COLORS: Record<string, string> = {
   yellow: 'bg-amber-100 border-amber-200', green: 'bg-emerald-100 border-emerald-200',
   blue: 'bg-sky-100 border-sky-200', pink: 'bg-pink-100 border-pink-200',
@@ -179,17 +187,20 @@ export default function ShortcutsFab() {
       {/* Speed-dial launcher: a fan of round icon buttons (Ask AI is the highlighted hero, nearest the FAB) */}
       {menuOpen && !notesOpen && (
         <div className="absolute bottom-full right-0 mb-3 flex flex-col items-end gap-2.5">
-          {[...otherShortcuts.map((s) => ({ s, hero: false })), ...(askDef ? [{ s: askDef, hero: true }] : [])].map(({ s, hero }, i, arr) => (
-            <div key={s.id} className="flex items-center gap-2"
-              style={{ animation: 'snrFabPop .2s cubic-bezier(.34,1.56,.64,1) both', animationDelay: `${(arr.length - 1 - i) * 26}ms` }}>
-              <span className="px-2 py-1 rounded-md bg-content text-surface text-2xs font-medium shadow whitespace-nowrap">{labelFor(s)}</span>
-              <button onClick={() => runShortcut(s)} title={labelFor(s)}
-                className={`relative h-11 w-11 rounded-full shadow-lg grid place-items-center transition hover:scale-110 ${hero ? 'bg-accent text-[#fff] ring-2 ring-accent/30' : 'bg-surface border border-line text-content hover:bg-surface2'}`}>
-                <Icon name={s.icon} className="text-lg" />
-                {s.kind === 'checkin' && att && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-surface" title="Checked in" />}
-              </button>
-            </div>
-          ))}
+          {[...otherShortcuts.map((s) => ({ s, hero: false })), ...(askDef ? [{ s: askDef, hero: true }] : [])].map(({ s, hero }, i, arr) => {
+            const color = FAB_COLORS[s.id] || PALETTE[i % PALETTE.length];
+            return (
+              <div key={s.id} className="flex items-center gap-2"
+                style={{ animation: 'snrFabPop .2s cubic-bezier(.34,1.56,.64,1) both', animationDelay: `${(arr.length - 1 - i) * 26}ms` }}>
+                <span className="px-2 py-1 rounded-md bg-content text-surface text-2xs font-medium shadow whitespace-nowrap">{labelFor(s)}</span>
+                <button onClick={() => runShortcut(s)} title={labelFor(s)} style={{ background: color }}
+                  className={`relative rounded-full shadow-lg grid place-items-center text-[#fff] transition hover:scale-110 ${hero ? 'h-12 w-12 ring-2 ring-white/70' : 'h-11 w-11'}`}>
+                  <Icon name={s.icon} className={hero ? 'text-xl' : 'text-lg'} />
+                  {s.kind === 'checkin' && att && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" title="Checked in" />}
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
