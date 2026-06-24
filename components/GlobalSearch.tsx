@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon, Avatar } from '@/components/ui';
-import { SEARCH_SPECS, pageModuleFor, SearchHit } from '@/lib/nav';
+import { useActiveOrg } from '@/lib/store';
+import { SEARCH_SPECS, pageModuleFor, SearchHit, ALL_ITEMS, isPageHidden } from '@/lib/nav';
 
 // Inline header search with a scope picker (All / a module / This page) + live
 // results dropdown. No modal. "/" or Cmd/Ctrl-K focuses the input.
@@ -13,6 +14,8 @@ type Hit = SearchHit;
 const MODS = SEARCH_SPECS.map((s) => ({ key: s.key, label: s.label, icon: s.icon }));
 const MOD_LABEL: Record<string, string> = Object.fromEntries(SEARCH_SPECS.map((s) => [s.key, s.label]));
 const SPEC = new Map(SEARCH_SPECS.map((s) => [s.key, s]));
+// #10 map a search-module key to its nav href, so hidden pages drop out of search.
+const SPEC_HREF: Record<string, string> = Object.fromEntries(ALL_ITEMS.filter((i) => i.search).map((i) => [i.search!.key, i.href]));
 
 async function runSearch(raw: string, mods: string[]): Promise<Hit[]> {
   const q = raw.trim();
@@ -27,6 +30,8 @@ async function runSearch(raw: string, mods: string[]): Promise<Hit[]> {
 export default function GlobalSearch() {
   const router = useRouter();
   const pageMod = pageModuleFor(router.pathname);
+  const activeOrg = useActiveOrg();
+  const availMods = useMemo(() => MODS.filter((m) => !isPageHidden(activeOrg?.hidden_pages, SPEC_HREF[m.key])), [activeOrg?.hidden_pages]);
   const [selMods, setSelMods] = useState<string[]>([]);   // empty = search everything
   const [scopeFilter, setScopeFilter] = useState('');
   const [q, setQ] = useState('');
@@ -42,7 +47,7 @@ export default function GlobalSearch() {
   const mInputRef = useRef<HTMLInputElement>(null);
   const reqId = useRef(0);
 
-  const allKeys = useMemo(() => MODS.map((m) => m.key), []);
+  const allKeys = useMemo(() => availMods.map((m) => m.key), [availMods]);
   const effectiveMods = useMemo<string[]>(() => (selMods.length ? selMods : allKeys), [selMods, allKeys]);
   const toggleMod = (k: string) => setSelMods((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
 
@@ -110,7 +115,7 @@ export default function GlobalSearch() {
         {pageMod && <button onMouseDown={(e) => { e.preventDefault(); setSelMods([pageMod]); }} className="text-2xs text-muted hover:text-content">This page</button>}
       </div>
       <div className="flex-1 overflow-y-auto py-1">
-        {MODS.filter((m) => m.label.toLowerCase().includes(scopeFilter.toLowerCase())).map((m) => {
+        {availMods.filter((m) => m.label.toLowerCase().includes(scopeFilter.toLowerCase())).map((m) => {
           const on = selMods.includes(m.key);
           return (
             <button key={m.key} onMouseDown={(e) => { e.preventDefault(); toggleMod(m.key); }}

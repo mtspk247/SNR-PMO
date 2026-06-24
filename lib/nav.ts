@@ -216,3 +216,22 @@ export function featureForRoute(pathname: string): FeatureKey | undefined {
   }
   return best?.feature;
 }
+
+// --- #10 Per-page visibility (Settings ▸ Modules tree) ------------------
+// Pages that can never be hidden — hiding them would lock an admin out of the
+// controls needed to unhide anything. Always rendered regardless of hidden_pages.
+export const UNHIDEABLE: ReadonlySet<string> = new Set(['/dashboard', '/settings']);
+
+// True if `href` is hidden for the org (per organizations.hidden_pages). Pure — pass
+// the org's array. Visibility only; never an access check (RLS is the wall).
+export function isPageHidden(hidden: readonly string[] | null | undefined, href: string): boolean {
+  if (!hidden || hidden.length === 0) return false;
+  if (UNHIDEABLE.has(href)) return false;
+  return hidden.includes(href);
+}
+
+// Tenant-facing nav items (excludes platform/reseller operator nav). Powers the
+// Settings ▸ Modules visibility tree. platformOnly items are operator-only.
+export const TENANT_ITEMS: NavItem[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK]
+  .flatMap((s) => (s.kind === 'link' ? [s.item] : s.items))
+  .filter((i) => !i.platformOnly);

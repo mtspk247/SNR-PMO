@@ -56,7 +56,7 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, fab_shortcuts, is_reseller, is_platform_home)')
+    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, fab_shortcuts, hidden_pages, is_reseller, is_platform_home)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -186,6 +186,16 @@ export async function setOrgTheme(orgId: string, skin: string): Promise<{ id: st
 // owner/admin via the same org_update RLS as theme_skin (no white-label needed).
 export async function setOrgFab(orgId: string, ids: FabEntry[]): Promise<void> {
   const { error } = await sb.from('organizations').update({ fab_shortcuts: ids }).eq('id', orgId);
+  if (error) throw new Error(error.message);
+}
+
+// #10 Per-page visibility: owner/admin hides individual pages from the sidebar/search
+// for THIS workspace. Ungated UI pref written via the same org_update RLS as
+// fab_shortcuts/theme_skin (no white-label needed; trg_white_label only guards branding).
+// Visibility only — RLS remains the access wall; a hidden page's data is still protected
+// and a direct link still works.
+export async function setOrgHiddenPages(orgId: string, hrefs: string[]): Promise<void> {
+  const { error } = await sb.from('organizations').update({ hidden_pages: hrefs }).eq('id', orgId);
   if (error) throw new Error(error.message);
 }
 

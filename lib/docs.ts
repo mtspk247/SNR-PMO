@@ -129,10 +129,11 @@ export const SECTIONS: Section[] = [
     title: 'Modules (turn features on/off)',
     icon: 'ti-apps',
     blocks: [
-      { kind: 'p', text: 'SNR-PMO is modular — you choose which parts your workspace uses. Open Settings \u25b8 Modules to switch modules such as CRM, HR, Accounting, Time tracking, Support or the Client portal on or off for the whole workspace.' },
+      { kind: 'p', text: 'SNR-PMO is modular — you choose which parts your workspace uses. Open Settings \u25b8 Modules to switch modules such as CRM, HR, Accounting, Time tracking, Support or the Client portal on or off for the whole workspace. Expand any module to show or hide its individual pages, so you can keep a module on but tuck away pages you do not use.' },
       { kind: 'steps', items: [
         { title: 'Turn a module off', body: 'Flip its toggle off. It disappears from the sidebar, search and menus for everyone in the workspace. Nothing is deleted — the data is only hidden — so you can switch the module back on any time and find everything exactly where you left it.' },
         { title: 'Turn a module on', body: 'Flip its toggle on. You can enable any module your current plan includes. A greyed module with a lock and \u201cUpgrade to enable\u201d is not in your plan yet — enabling it requires an upgrade (Settings \u25b8 Billing). This keeps modules and billing in sync.' },
+        { title: 'Hide individual pages', body: 'Expand a module using its chevron to list the pages inside it, then use the eye toggle to hide or show each page for the whole workspace. Core pages have their own group at the bottom. Dashboard and Settings can never be hidden. This changes only what appears in the sidebar and global search; it is not a security control, so permissions and data access stay enforced separately.' },
       ] },
       { kind: 'callout', icon: 'ti-shield-check', text: 'Only an owner or admin can change modules, and self-select can never exceed your plan — it lets you simplify your workspace, not bypass billing. Core modules ask for confirmation before being hidden.' },
     ],

@@ -41,6 +41,7 @@ export interface Organization {
   theme_skin?: 'classic' | 'daylight' | 'vivid' | 'midnight' | null;
   allow_user_themes?: boolean;
   fab_shortcuts?: FabEntry[] | null;   // Shortcuts-FAB entries: built-in id (string) or custom {id,label,icon,href}
+  hidden_pages?: string[] | null;      // #10 per-page visibility: nav hrefs hidden from sidebar/search (ungated UI pref). Visibility only — RLS stays the wall.
   plan: 'free' | 'pro' | 'enterprise';
   onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string; step?: number; skipped?: boolean } | null;
 }
