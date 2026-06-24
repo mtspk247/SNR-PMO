@@ -56,11 +56,11 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, fab_shortcuts, hidden_pages, is_reseller, is_platform_home)')
+    .select('role, is_primary, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, fab_shortcuts, hidden_pages, is_reseller, is_platform_home)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  return (data || []).map((r: any) => ({ ...r.organizations, member_role: r.role })) as MyOrg[];
+  return (data || []).map((r: any) => ({ ...r.organizations, member_role: r.role, member_is_primary: !!r.is_primary })) as MyOrg[];
 }
 
 export async function getOrgBranding(slug: string): Promise<Organization | null> {
@@ -341,6 +341,19 @@ export async function getOrgPlanFeatures(orgId: string): Promise<string[]> {
 }
 export async function isPlatformAdmin(): Promise<boolean> {
   const { data, error } = await sb.rpc('is_platform_admin');
+  if (error) return false;
+  return !!data;
+}
+
+// Primary PLATFORM owner (locked, un-restrictable). Distinct from co-owners (platform admins).
+export async function isPlatformPrimary(): Promise<boolean> {
+  const { data, error } = await sb.rpc('is_platform_primary');
+  if (error) return false;
+  return !!data;
+}
+// True if the TARGET user is a primary owner (org primary OR platform primary) — locked.
+export async function isUserPrimary(userId: string, orgId: string): Promise<boolean> {
+  const { data, error } = await sb.rpc('is_user_primary', { p_user: userId, p_org: orgId });
   if (error) return false;
   return !!data;
 }

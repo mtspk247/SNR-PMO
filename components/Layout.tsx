@@ -39,18 +39,19 @@ export default function Layout({ title, children, flat = false }: { title: strin
   const GUEST_HREFS = ['/', '/projects', '/tasks', '/chat', '/calendar', '/docs', '/portal'];
   const guestOk = (href: string) => !isGuest || GUEST_HREFS.includes(href);
   const hiddenPages = activeOrg?.hidden_pages;   // #10 per-page visibility (Settings ▸ Modules)
+  const lockFull = !!(user?.is_platform_primary || activeOrg?.member_is_primary);   // primary owner: un-restrictable full access
   const routeHref = navHrefForRoute(router.pathname);   // #roles-crud per-page read guard
-  const pageBlocked = !!routeHref && !pageReadable(user, routeHref);
+  const pageBlocked = !lockFull && !!routeHref && !pageReadable(user, routeHref);
   const sections = [
     ...SECTIONS,
     ...(can.manageMembers(activeOrg) ? [ADMIN_SECTION] : []),
     DOCS_LINK,
   ]
     .map((s) => s.kind === 'menu'
-      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && guestOk(i.href) && !isPageHidden(hiddenPages, i.href) && pageReadable(user, i.href) && (!i.adminOnly || can.manageMembers(activeOrg)) && (!i.platformOnly || platformAdmin)) }
+      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && guestOk(i.href) && (lockFull || (!isPageHidden(hiddenPages, i.href) && pageReadable(user, i.href))) && (!i.adminOnly || can.manageMembers(activeOrg)) && (!i.platformOnly || platformAdmin)) }
       : s)
     .filter((s) => s.kind === 'link'
-      ? navVisible(activeOrg, s.item.feature) && guestOk(s.item.href) && !isPageHidden(hiddenPages, s.item.href) && pageReadable(user, s.item.href)
+      ? navVisible(activeOrg, s.item.feature) && guestOk(s.item.href) && (lockFull || (!isPageHidden(hiddenPages, s.item.href) && pageReadable(user, s.item.href)))
       : s.items.length > 0);
 
   const [checking, setChecking] = useState(true);

@@ -5,7 +5,7 @@ import type { AppProps } from 'next/app';
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { sb, FEATURES } from '@/lib/supabase';
-import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, isPlatformAdmin, ensurePersonalWorkspace, claimPendingInvite, touchLastLogin } from '@/lib/db';
+import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, isPlatformAdmin, isPlatformPrimary, ensurePersonalWorkspace, claimPendingInvite, touchLastLogin } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import { ErrorBoundary } from '@/components/ui';
@@ -72,7 +72,7 @@ export default function App({ Component, pageProps }: AppProps) {
           try { const r = await ensurePersonalWorkspace(); if (r?.created) orgs = await getMyOrgs(user.id); } catch { /* ignore */ }
         }
         // 3.3: attach each org's plan entitlements + resolve platform-admin flag.
-        const [withFeatures, platformAdmin] = await Promise.all([
+        const [withFeatures, platformAdmin, platformPrimary] = await Promise.all([
           Promise.all(orgs.map(async (o) => {
             // Platform-home orgs get the full catalog — derive from the flag we
             // already loaded so the unlock never depends on a second (fragile) query.
@@ -80,8 +80,9 @@ export default function App({ Component, pageProps }: AppProps) {
             return { ...o, features: await getOrgFeatures(o.id), planFeatures: await getOrgPlanFeatures(o.id) };
           })),
           isPlatformAdmin(),
+          isPlatformPrimary(),
         ]);
-        if (active) setSession(user, withFeatures, platformAdmin);
+        if (active) setSession({ ...user, is_platform_primary: platformPrimary }, withFeatures, platformAdmin);
       } catch { if (active) clear(); }
     };
     load();

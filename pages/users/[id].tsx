@@ -11,7 +11,7 @@ import { useTeams } from '@/lib/queries';
 import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
   getAdminUser, updateUserAdmin, updateMyProfile, uploadAvatar, avatarSrc,
-  getUserActivity, ActivityItem, changeOwnPassword,
+  getUserActivity, ActivityItem, changeOwnPassword, isUserPrimary,
   getUserEmail, saveUserEmail, deleteUserEmail, UserEmailConfig, userGmailOauthStart, adminResetUserPassword, removeOrgMember, getMemberRole, setMemberRole, adminImpersonateLink,
   listRoleTemplates, getMyNotifSettings, getNotificationPrefs, saveNotificationPrefs, NotifSetting,
 } from '@/lib/db';
@@ -180,6 +180,9 @@ function AccessTab({ u, roles, busy, patch, myTeams, orgId }: { u: AdminUser; ro
     setRbusy(true); setRerr('');
     try { const r = await adminResetUserPassword(u.id); setRpw(r.temp_password); } catch (e: any) { setRerr(e.message || 'Reset failed'); } finally { setRbusy(false); }
   };
+  const _aorg = useActiveOrg();
+  const [targetPrimary, setTargetPrimary] = useState(false);
+  useEffect(() => { let ok = true; if (u.id && _aorg?.id) isUserPrimary(u.id, _aorg.id).then((v) => ok && setTargetPrimary(v)).catch(() => {}); return () => { ok = false; }; }, [u.id, _aorg?.id]);
   const t = u.role_template_id ? roles.find((r) => r.id === u.role_template_id) : null;
   const isSuper = u.role === 'super_admin' || access === 'owner';
   const permLabels = isSuper ? ['Full access'] : (t ? PERMS.filter((p) => (t.permissions as any)[p.key as string]).map((p) => p.label) : PERMS.filter((p) => !!u[p.key]).map((p) => p.label));
@@ -187,12 +190,12 @@ function AccessTab({ u, roles, busy, patch, myTeams, orgId }: { u: AdminUser; ro
   return (
     <Section>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div><label className="label">Access level</label><Select value={access} disabled={aBusy} onChange={changeAccess} options={[{ value: 'owner', label: 'Owner' }, { value: 'admin', label: 'Admin' }, { value: 'member', label: 'Member' }, { value: 'guest', label: 'Guest' }]} /><p className="text-2xs text-muted mt-1">Owner & Admin manage the workspace; Member works in it; Guest has limited access.</p></div>
+        <div><label className="label">Access level</label><Select value={access} disabled={aBusy || targetPrimary} onChange={changeAccess} options={[{ value: 'owner', label: 'Owner' }, { value: 'admin', label: 'Admin' }, { value: 'member', label: 'Member' }, { value: 'guest', label: 'Guest' }]} /><p className="text-2xs text-muted mt-1">Owner & Admin manage the workspace; Member works in it; Guest has limited access.</p></div>
         <div><label className="label">Status</label><Select value={u.status} disabled={busy} onChange={(v) => patch({ status: v as any })} options={[{ value: 'active', label: 'Active' }, { value: 'suspended', label: 'Suspended' }]} /></div>
       </div>
       <div>
         <label className="label">Role template</label>
-        <Select value={u.role_template_id || ''} disabled={busy} onChange={(v) => patch({ role_template_id: (v || null) as any })} options={[{ value: '', label: 'None (custom permissions)' }, ...roles.map((r) => ({ value: r.id, label: r.name }))]} />
+        <Select value={u.role_template_id || ''} disabled={busy || targetPrimary} onChange={(v) => patch({ role_template_id: (v || null) as any })} options={[{ value: '', label: 'None (custom permissions)' }, ...roles.map((r) => ({ value: r.id, label: r.name }))]} />
         <p className="text-2xs text-muted mt-1">Assigning a template applies its permissions and module access. Manage templates under the Roles tab on the Users page.</p>
       </div>
       <div className="rounded-lg border border-line bg-surface2/40 p-4">
@@ -211,15 +214,16 @@ function AccessTab({ u, roles, busy, patch, myTeams, orgId }: { u: AdminUser; ro
           {PERMS.map((p) => (
             <label key={String(p.key)} className="flex items-center justify-between text-sm py-1.5 cursor-pointer hover:bg-surface2/50 px-2 rounded">
               <span className="text-content">{p.label}</span>
-              <input type="checkbox" checked={!!u[p.key]} disabled={busy} onChange={(e) => patch({ [p.key]: e.target.checked } as any)} className="accent-accent w-4 h-4" />
+              <input type="checkbox" checked={!!u[p.key]} disabled={busy || targetPrimary} onChange={(e) => patch({ [p.key]: e.target.checked } as any)} className="accent-accent w-4 h-4" />
             </label>
           ))}
         </div>
       </div>
       <div className="pt-2 border-t border-line">
         <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Page access (per-page CRUD)</p>
+        {targetPrimary && <p className="text-2xs text-amber-600 mb-2 inline-flex items-center gap-1"><Icon name="ti-lock" className="text-sm" />Primary owner — full access, cannot be restricted.</p>}
         <p className="text-2xs text-muted mb-3">{u.role_template_id ? 'Overrides the assigned role template per page. Untouched pages inherit the role.' : 'Per-page Create / View / Edit / Delete for this user. View off hides the page.'}</p>
-        <PagePermTree value={(u.page_perms || {})} onChange={(pp) => patch({ page_perms: pp } as any)} disabled={busy} />
+        <PagePermTree value={(u.page_perms || {})} onChange={(pp) => patch({ page_perms: pp } as any)} disabled={busy || targetPrimary} />
       </div>
       <div className="pt-2 border-t border-line">
         <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Password</p>

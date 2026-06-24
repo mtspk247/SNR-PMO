@@ -86,6 +86,7 @@ export interface MyOrg extends Organization {
   features?: string[];   // 3.3 entitlements: EFFECTIVE feature keys (plan minus overrides-off plus overrides-on)
   planFeatures?: string[]; // feature keys the PLAN grants (ignores overrides) — used to tell upsell-locked vs operator-disabled
   is_reseller?: boolean;
+  member_is_primary?: boolean;   // current user is THIS org's primary owner — locked, un-restrictable
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +163,7 @@ export interface AppUser {
   page_perms?: PagePerms;            // #roles-crud per-user per-page CRUD override (wins over role template)
   role_template_id?: string | null;
   role_template?: { page_perms?: PagePerms } | null;  // joined at session load for nav read-gating
+  is_platform_primary?: boolean;     // primary PLATFORM owner — locked, un-restrictable
 }
 
 // Custom role templates — org-scoped reusable permission bundles + feature access.
