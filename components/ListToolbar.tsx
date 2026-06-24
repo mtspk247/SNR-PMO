@@ -5,6 +5,7 @@ import { useCustomColumns } from '@/components/useCustomColumns';
 import AddColumnForm from '@/components/AddColumnForm';
 import { ColumnOptionsEditor } from '@/components/OptionsEditor';
 import type { CustomColumnsApi } from '@/components/useCustomColumns';
+import { useActiveOrg } from '@/lib/store';
 
 // Shared, config-driven list controls: search + Filter popover + Columns
 // (show/hide + reorder), with per-user view persisted to localStorage.
@@ -28,8 +29,17 @@ export type ListPrefs = {
 };
 
 export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { entity?: string; orgId?: string; canManage?: boolean }): ListPrefs {
-  const cf = useCustomColumns(cfOpts?.orgId, cfOpts?.entity || '', !!cfOpts?.canManage);
-  const cols = cfOpts?.entity ? [...baseCols, ...cf.cols] : baseCols;
+  // Custom columns are GLOBAL by default: any standard `snrpmo.<entity>.cols` list gets the
+  // ClickUp-style "+ add column" automatically, with org + role from the active workspace.
+  // Explicit cfOpts still overrides (the pages that pass it are unchanged). `tasks` keeps its
+  // own dedicated field system, so it's excluded from the auto-default.
+  const activeOrg = useActiveOrg();
+  const keyEntity = (() => { const m = /^snrpmo\.([a-z0-9_]+)\.cols$/.exec(storageKey); const e = m ? m[1] : ''; return e && e !== 'tasks' ? e : ''; })();
+  const effEntity = cfOpts?.entity ?? keyEntity;
+  const effOrgId = cfOpts?.orgId ?? activeOrg?.id;
+  const effCanManage = cfOpts?.canManage ?? ['owner', 'admin'].includes(activeOrg?.member_role || '');
+  const cf = useCustomColumns(effOrgId, effEntity || '', !!effCanManage);
+  const cols = effEntity ? [...baseCols, ...cf.cols] : baseCols;
   const ids = cols.map((c) => c.id);
   const idsKey = ids.join('|');
   const [query, setQuery] = useState('');
@@ -92,7 +102,7 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   const setWidth = (id: string, w: number) => setWidths((pr) => ({ ...pr, [id]: Math.max(60, Math.round(w)) }));
   const toggleWrap = (id: string) => setWrap((pr) => ({ ...pr, [id]: !pr[id] }));
   const ordered = order.filter((id) => visible.has(id) && ids.includes(id));
-  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: cfOpts?.entity ? cf : undefined, widths, setWidth, wrap, toggleWrap, pinned, setPinned, storageKey };
+  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: effEntity ? cf : undefined, widths, setWidth, wrap, toggleWrap, pinned, setPinned, storageKey };
 }
 
 export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children, rightControls }:

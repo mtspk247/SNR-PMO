@@ -47,7 +47,7 @@ export default function Projects() {
   const pColor = (n: string) => pstatuses.find((s) => s.name === n)?.color;
   const pNames = pstatuses.length ? pstatuses.map((s) => s.name) : STATUSES;
 
-  const lp = useListPrefs(`snr-projects-view-${me?.id || 'anon'}`, PROJECT_COLS);
+  const lp = useListPrefs(`snr-projects-view-${me?.id || 'anon'}`, PROJECT_COLS, { entity: 'projects', orgId: activeOrg?.id, canManage: ['owner', 'admin'].includes(activeOrg?.member_role || '') });
   const FILTERS: FilterDef[] = useMemo(() => [
     { id: 'status', label: 'Status', options: [{ value: 'all', label: 'All statuses' }, ...pNames.map((s) => ({ value: s, label: titleCase(s) }))] },
     { id: 'company', label: 'Company', options: [{ value: 'all', label: 'All companies' }, ...companies.map((c) => ({ value: c.id, label: c.name }))] },
