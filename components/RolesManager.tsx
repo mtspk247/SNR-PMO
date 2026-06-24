@@ -8,8 +8,7 @@ import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 import { FEATURE_LABELS, PERMISSION_LABELS } from '@/lib/entitlements';
 
-const PERM_KEYS = Object.keys(PERMISSION_LABELS) as PermKey[];
-const FEATURE_KEYS = (Object.keys(FEATURE_LABELS) as FeatureKey[]).filter((k) => k !== 'white_label' && k !== 'audit' && k !== 'reseller');
+const PERM_KEYS = ['can_manage_users','can_approve_leaves','can_manage_appraisals','can_export_data','can_manage_agents','can_approve_agent_actions'] as PermKey[];
 
 type Draft = { id?: string; name: string; description: string; permissions: Record<string, boolean>; feature_access: string[]; page_perms: PagePerms; is_system: boolean };
 const emptyDraft = (): Draft => ({ name: '', description: '', permissions: {}, feature_access: [], page_perms: {}, is_system: false });
@@ -34,7 +33,6 @@ export default function RolesManager() {
   const openNew = () => { setErr(''); setSel(emptyDraft()); };
   const openEdit = (r: RoleTemplate) => { setErr(''); setSel({ id: r.id, name: r.name, description: r.description || '', permissions: { ...r.permissions }, feature_access: [...r.feature_access], page_perms: { ...(r.page_perms || {}) }, is_system: r.is_system }); };
   const togglePerm = (k: string) => setSel((d) => d && ({ ...d, permissions: { ...d.permissions, [k]: !d.permissions[k] } }));
-  const toggleFeature = (k: string) => setSel((d) => d && ({ ...d, feature_access: d.feature_access.includes(k) ? d.feature_access.filter((x) => x !== k) : [...d.feature_access, k] }));
 
   const save = async () => {
     if (!sel || !org || !sel.name.trim()) return;
@@ -70,7 +68,7 @@ export default function RolesManager() {
           <button onClick={() => setSel(null)} className="btn btn-ghost border border-line"><Icon name="ti-arrow-left" />Back to roles</button>
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-content truncate inline-flex items-center gap-2"><Icon name="ti-shield-lock" className="text-muted2" />{sel.id ? (sel.name || 'Role') : 'New role'}{sel.is_system && <span className="pill pill-gray">Predefined</span>}</h2>
-            <p className="text-2xs text-muted">{selectedPerms} permission{selectedPerms === 1 ? '' : 's'} · {sel.feature_access.length === 0 ? 'all modules' : `${sel.feature_access.length} modules`}</p>
+            <p className="text-2xs text-muted">{selectedPerms} special permission{selectedPerms === 1 ? '' : 's'}</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
             {sel.id && !sel.is_system && <button onClick={() => { const r = roles.find((x) => x.id === sel.id); if (r) remove(r); }} className="btn text-rose-600 border border-rose-300"><Icon name="ti-trash" />Delete</button>}
@@ -86,27 +84,15 @@ export default function RolesManager() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-5">
+        <div className="grid gap-5">
           <div className="card p-5">
-            <div className="flex items-center justify-between mb-1"><h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-shield-check" className="text-muted2" />Permissions</h3><button onClick={() => setSel({ ...sel, permissions: Object.fromEntries(PERM_KEYS.map((k) => [k, !(selectedPerms === PERM_KEYS.length)])) })} className="btn-ghost text-2xs">{selectedPerms === PERM_KEYS.length ? 'Clear all' : 'Select all'}</button></div>
-            <p className="text-2xs text-muted mb-3">What this role can do across the workspace.</p>
+            <div className="flex items-center justify-between mb-1"><h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-shield-check" className="text-muted2" />Special permissions</h3><button onClick={() => setSel({ ...sel, permissions: Object.fromEntries(PERM_KEYS.map((k) => [k, !(selectedPerms === PERM_KEYS.length)])) })} className="btn-ghost text-2xs">{selectedPerms === PERM_KEYS.length ? 'Clear all' : 'Select all'}</button></div>
+            <p className="text-2xs text-muted mb-3">Cross-cutting powers not tied to a single page (approvals, user/agent management, export). Page-by-page access is set below.</p>
             <div className="divide-y divide-line">
               {PERM_KEYS.map((k) => (
                 <label key={k} className="flex items-center justify-between gap-3 py-2.5 cursor-pointer">
                   <span className="text-sm text-content">{PERMISSION_LABELS[k]}</span>
                   <input type="checkbox" checked={!!sel.permissions[k]} onChange={() => togglePerm(k)} className="accent-accent w-4 h-4" />
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="card p-5">
-            <div className="flex items-center justify-between mb-1"><h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-puzzle" className="text-muted2" />Module access</h3><button onClick={() => setSel({ ...sel, feature_access: [] })} className="btn-ghost text-2xs">All modules</button></div>
-            <p className="text-2xs text-muted mb-3">Leave all unchecked = access to every module your plan includes. Check specific ones to restrict.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
-              {FEATURE_KEYS.map((k) => (
-                <label key={k} className="flex items-center justify-between gap-2 py-1.5 cursor-pointer">
-                  <span className="text-sm text-content truncate">{FEATURE_LABELS[k]}</span>
-                  <input type="checkbox" checked={sel.feature_access.includes(k)} onChange={() => toggleFeature(k)} className="accent-accent w-4 h-4" />
                 </label>
               ))}
             </div>

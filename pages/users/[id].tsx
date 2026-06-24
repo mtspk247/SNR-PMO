@@ -20,12 +20,8 @@ import AvatarPicker from '@/components/AvatarPicker';
 
 const ROLES = ['super_admin', 'pm', 'team_member', 'viewer'];
 const PERMS: { key: keyof AdminUser; label: string }[] = [
-  { key: 'can_view_all_projects', label: 'View all projects' },
-  { key: 'can_edit_all_projects', label: 'Edit all projects' },
   { key: 'can_approve_leaves', label: 'Approve leaves' },
-  { key: 'can_delete_tasks', label: 'Delete tasks' },
   { key: 'can_manage_users', label: 'Manage users' },
-  { key: 'can_view_dashboard', label: 'View dashboard' },
   { key: 'can_export_data', label: 'Export data' },
 ];
 type Tab = 'profile' | 'access' | 'email' | 'notifications' | 'security' | 'activity';
@@ -209,7 +205,7 @@ function AccessTab({ u, roles, busy, patch, myTeams, orgId }: { u: AdminUser; ro
         <p className="text-2xs text-muted mt-1"><span className="font-medium text-content">Teams:</span> {myTeams.length ? myTeams.join(', ') : 'None'}</p>
       </div>
       <div className="pt-2">
-        <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Custom permissions</p>
+        <p className="text-2xs uppercase tracking-wide text-muted mb-1 font-medium">Special permissions</p>
         <p className="text-2xs text-muted mb-3">{u.role_template_id ? 'A role template is assigned — effective access is shown above. These toggles apply only when no template is set.' : 'Used as this user’s effective access (no template assigned).'}</p>
         <div className="space-y-2">
           {PERMS.map((p) => (
