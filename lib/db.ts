@@ -1055,6 +1055,11 @@ export async function uploadDriveFile(p: { org_id: string; drive_id: string; fol
   const path = `${p.org_id}/${p.drive_id}/${rec.id}_${safe}`;
   const { error: upErr } = await sb.storage.from('drives').upload(path, p.file, { upsert: false });
   if (upErr) { await sb.from('drive_files').delete().eq('id', rec.id); throw new Error(upErr.message); }
+  // upload safety: reject dangerous types (server-side) + malware-scan; clean up row/object if blocked
+  const { error: regErr } = await sb.rpc('file_register', { p_bucket: 'drives', p_path: path, p_org: p.org_id, p_mime: p.file.type || null, p_size: p.file.size, p_filename: p.file.name });
+  if (regErr) { await sb.storage.from('drives').remove([path]); await sb.from('drive_files').delete().eq('id', rec.id); throw new Error('This file type is not allowed for security reasons.'); }
+  let _scan: any = null; try { const r = await sb.functions.invoke('scan-file', { body: { bucket: 'drives', path } }); _scan = r.data; } catch { /* best-effort */ }
+  if (_scan && _scan.status === 'infected') { await sb.from('drive_files').delete().eq('id', rec.id); throw new Error('This file was blocked by malware scanning.'); }
   const { error: updErr } = await sb.from('drive_files').update({ storage_path: path }).eq('id', rec.id);
   if (updErr) throw new Error(updErr.message);
   return { ...rec, storage_path: path };
@@ -1191,6 +1196,11 @@ export async function addAttachmentFile(p: { org_id: string; entity_type: string
   const path = `${p.org_id}/${p.entity_type}/${p.entity_id}/${crypto.randomUUID()}_${safe}`;
   const { error: upErr } = await sb.storage.from('attachments').upload(path, p.file, { upsert: false });
   if (upErr) throw new Error(upErr.message);
+  // upload safety: reject dangerous types + malware-scan before recording the attachment
+  const { error: regErr } = await sb.rpc('file_register', { p_bucket: 'attachments', p_path: path, p_org: p.org_id, p_mime: p.file.type || null, p_size: p.file.size, p_filename: p.file.name });
+  if (regErr) { await sb.storage.from('attachments').remove([path]); throw new Error('This file type is not allowed for security reasons.'); }
+  let _scan: any = null; try { const r = await sb.functions.invoke('scan-file', { body: { bucket: 'attachments', path } }); _scan = r.data; } catch { /* best-effort */ }
+  if (_scan && _scan.status === 'infected') throw new Error('This file was blocked by malware scanning.');
   const { data, error } = await sb.from('attachments').insert({ org_id: p.org_id, entity_type: p.entity_type, entity_id: p.entity_id, file_name: p.file.name, storage_path: path, mime_type: p.file.type || null, size_bytes: p.file.size, created_by: p.created_by }).select('*').single();
   if (error) { await sb.storage.from('attachments').remove([path]); throw new Error(error.message); }
   return data as Attachment;
@@ -2660,6 +2670,9 @@ export async function uploadGuestDocument(p: { org_id: string; project_id: strin
   const path = `${p.org_id}/${p.project_id}/${crypto.randomUUID()}_${safe}`;
   const { error: upErr } = await sb.storage.from('guest-uploads').upload(path, p.file, { upsert: false });
   if (upErr) throw new Error(upErr.message);
+  // upload safety (anon-facing): malware-scan before recording; scan-file removes infected objects
+  let _scan: any = null; try { const r = await sb.functions.invoke('scan-file', { body: { bucket: 'guest-uploads', path } }); _scan = r.data; } catch { /* best-effort */ }
+  if (_scan && _scan.status === 'infected') throw new Error('This file was blocked by malware scanning.');
   const { error } = await sb.from('guest_documents').insert({ org_id: p.org_id, project_id: p.project_id, uploaded_by: p.uploaded_by, file_path: path, file_name: p.file.name, note: p.note || null });
   if (error) throw new Error(error.message);
 }
