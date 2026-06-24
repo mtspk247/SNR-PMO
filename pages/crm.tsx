@@ -143,8 +143,8 @@ export default function CRM() {
   const selectDeal = (id: string) => { setSelectedId(id); setShowDetail(true); };
 
   // Contacts: search + status filter + customizable columns (deals are a pipeline board).
-  const clp = useListPrefs(`snr-crm-contacts-view-${me?.id || 'anon'}`, CONTACT_COLS);
-  const dlp = useListPrefs(`snr-crm-deals-view-${me?.id || 'anon'}`, DEAL_COLS);
+  const clp = useListPrefs(`snr-crm-contacts-view-${me?.id || 'anon'}`, CONTACT_COLS, { entity: 'crm_contact', orgId: org?.id, canManage: isAdmin });
+  const dlp = useListPrefs(`snr-crm-deals-view-${me?.id || 'anon'}`, DEAL_COLS, { entity: 'crm_deal', orgId: org?.id, canManage: isAdmin });
   const filtered = useMemo(() => {
     const term = dlp.query.trim().toLowerCase();
     if (!term) return deals;
