@@ -401,7 +401,7 @@ export async function setOrgPlan(orgId: string, planId: string, seats?: number |
 export type PlanPatch = {
   key?: string; name?: string; description?: string | null;
   pricing_model?: Plan['pricing_model']; price_cents?: number;
-  billing_period?: Plan['billing_period']; user_limit?: number | null;
+  billing_period?: Plan['billing_period']; user_limit?: number | null; unlimited_seats?: boolean;
   is_active?: boolean; sort_order?: number;
 };
 export async function createPlan(p: PlanPatch & { key: string; name: string }): Promise<Plan> {

@@ -74,6 +74,7 @@ function PlanModal({ plan, storageMb, onClose, onSaved }: { plan: Plan | null; s
   const [price, setPrice] = useState(plan ? String(plan.price_cents / 100) : '0');
   const [billingPeriod, setBillingPeriod] = useState<Plan['billing_period']>(plan?.billing_period || 'monthly');
   const [userLimit, setUserLimit] = useState(plan?.user_limit != null ? String(plan.user_limit) : '');
+  const [unlimitedSeats, setUnlimitedSeats] = useState(plan ? (plan.unlimited_seats ?? (plan.user_limit == null)) : false);
   const [sortOrder, setSortOrder] = useState(String(plan?.sort_order ?? 0));
   const [isActive, setIsActive] = useState(plan?.is_active ?? true);
   const STORAGE_GB_PRESETS = [1, 5, 10, 25, 50, 100, 250, 500, 1000];
@@ -93,7 +94,8 @@ function PlanModal({ plan, storageMb, onClose, onSaved }: { plan: Plan | null; s
     if (!name.trim() || saving) { tabs.setTab('plan'); return; }
     const cents = Math.round((parseFloat(price) || 0) * 100);
     if (cents < 0) { setErr('Price cannot be negative'); tabs.setTab('pricing'); return; }
-    const limit = userLimit.trim() === '' ? null : Math.max(1, parseInt(userLimit, 10) || 1);
+    if (!unlimitedSeats && userLimit.trim() === '') { setErr('Enter a seat limit, or tick "Unlimited seats"'); tabs.setTab('plan'); return; }
+    const limit = unlimitedSeats ? null : Math.max(1, parseInt(userLimit, 10) || 1);
     const patch: PlanPatch = {
       name: name.trim(),
       description: description.trim() || null,
@@ -101,6 +103,7 @@ function PlanModal({ plan, storageMb, onClose, onSaved }: { plan: Plan | null; s
       price_cents: cents,
       billing_period: billingPeriod,
       user_limit: limit,
+      unlimited_seats: unlimitedSeats,
       sort_order: parseInt(sortOrder, 10) || 0,
       is_active: isActive,
     };
@@ -177,8 +180,13 @@ function PlanModal({ plan, storageMb, onClose, onSaved }: { plan: Plan | null; s
           <Field label="Billing period" required>
             <Select value={billingPeriod} onChange={(v) => setBillingPeriod(v as Plan['billing_period'])} options={[{ value: 'monthly', label: 'Monthly' }, { value: 'annual', label: 'Annual' }]} />
           </Field>
-          <Field label="Seat limit" hint="Blank = unlimited; enforced on member invites">
-            <input className="input" type="number" min="1" placeholder="∞" value={userLimit} onChange={(e) => setUserLimit(e.target.value)} />
+          <Field label="Seat limit" hint="Per-tenant cap, enforced on member invites">
+            <div className="flex items-center gap-3">
+              <input className="input flex-1" type="number" min="1" placeholder={unlimitedSeats ? 'Unlimited' : 'e.g. 50'} value={unlimitedSeats ? '' : userLimit} disabled={unlimitedSeats} onChange={(e) => setUserLimit(e.target.value)} />
+              <label className="flex items-center gap-1.5 text-sm text-muted whitespace-nowrap select-none">
+                <input type="checkbox" checked={unlimitedSeats} onChange={(e) => setUnlimitedSeats(e.target.checked)} /> Unlimited
+              </label>
+            </div>
           </Field>
           <Field label="Drive storage" hint="Total drive space tenants on this plan get" className="sm:col-span-2">
             <div className="flex items-center gap-2">
