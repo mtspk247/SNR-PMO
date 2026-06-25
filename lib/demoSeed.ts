@@ -30,6 +30,11 @@ export interface DemoAsset { name: string; asset_type?: string; value?: number; 
 export interface DemoBankAccount { label: string; bank_name?: string; account_type?: string; balance?: number }
 export interface DemoLiability { name: string; type?: string; principal?: number; balance?: number; status?: string }
 export interface DemoRecurring { name: string; category?: string; amount?: number; cycle?: string; status?: string }
+export interface DemoBill { bill_number?: string; vendor_name?: string; amount?: number; status?: string }
+export interface DemoExpenseClaim { title: string; amount?: number; status?: string }
+export interface DemoCreditNote { credit_number: string; client_name?: string; amount?: number; status?: string }
+export interface DemoForm { name: string; slug: string; status?: string; fields?: unknown[] }
+export interface DemoDrive { name: string; description?: string }
 export interface DemoPayload {
   clients: string[]; projects: DemoProject[]; deals: DemoDeal[]; ledger: DemoLedger[];
   companies: string[]; portfolios: DemoPortfolio[]; teams: string[]; ideas: DemoIdea[];
@@ -38,6 +43,7 @@ export interface DemoPayload {
   leads: DemoLead[]; proposals: DemoProposal[]; contracts: DemoContract[];
   jobs: DemoJob[]; applications: DemoApplication[]; interviews: DemoInterview[]; offers: DemoOffer[];
   subscriptions: DemoSubscription[]; domains: DemoDomain[]; assets: DemoAsset[]; bank_accounts: DemoBankAccount[]; liabilities: DemoLiability[]; recurring: DemoRecurring[];
+  bills: DemoBill[]; expense_claims: DemoExpenseClaim[]; credit_notes: DemoCreditNote[]; forms: DemoForm[]; drives: DemoDrive[];
 }
 
 const T = (name: string, status: string, priority = 'Medium', h = 6): DemoTask => ({ name, status, priority, estimated_hours: h });
@@ -409,7 +415,25 @@ export function buildDemoPayload(industry: string | null | undefined): DemoPaylo
   const RECUR_STATUS = ['active', 'active', 'paused', 'active'];
   const recurring: DemoRecurring[] = RECUR.map(([name, category, amount], i) => ({ name, category, amount, cycle: RECUR_CYCLE[i % 4], status: RECUR_STATUS[i % 4] }));
 
-  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts, jobs, applications, interviews, offers, subscriptions, domains, assets, bank_accounts, liabilities, recurring };
+  // Receivables/payables + forms + drives — seeded via tenant_seed_demo_extras (per-feature gated).
+  const VENDORS = ['Cloudflare', 'AWS', 'Staples', 'WeWork', 'Adobe', 'Atlassian', 'UPS', 'Verizon'];
+  const BILL_STATUS = ['open', 'paid', 'overdue', 'open'];
+  const bills: DemoBill[] = [];
+  for (let i = 0; i < 10; i++) bills.push({ bill_number: `BILL-${tok}-${i + 1}`, vendor_name: VENDORS[i % VENDORS.length], amount: [1200, 450, 3800, 2600, 900, 1500, 700, 2100][i % 8], status: BILL_STATUS[i % 4] });
+  const EXP_TITLES = ['Client dinner', 'Flight to conference', 'Hotel — offsite', 'Software license', 'Team lunch', 'Taxi fares', 'Co-working day pass', 'Printing'];
+  const EXP_STATUS = ['draft', 'submitted', 'approved', 'paid', 'rejected'];
+  const expense_claims: DemoExpenseClaim[] = EXP_TITLES.map((title, i) => ({ title, amount: [120, 540, 320, 99, 210, 45, 30, 80][i % 8], status: EXP_STATUS[i % 5] }));
+  const CN_STATUS = ['open', 'applied', 'void'];
+  const credit_notes: DemoCreditNote[] = [];
+  for (let i = 0; i < 8; i++) credit_notes.push({ credit_number: `CN-${tok}-${i + 1}`, client_name: clients[i % clients.length], amount: [500, 1200, 300, 800, 150][i % 5], status: CN_STATUS[i % 3] });
+  const FORM_NAMES = ['Contact us', 'Demo request', 'Newsletter signup', 'Support ticket', 'Job application', 'Event registration'];
+  const FORM_STATUS = ['published', 'draft', 'archived'];
+  const FORM_FIELDS = [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'email', label: 'Email', type: 'email', required: true }, { key: 'message', label: 'Message', type: 'textarea', required: false }];
+  const forms: DemoForm[] = FORM_NAMES.map((name, i) => ({ name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + tok + '-' + i, status: FORM_STATUS[i % 3], fields: FORM_FIELDS }));
+  const DRIVE_NAMES = ['Company Documents', 'Client Deliverables', 'Marketing Assets', 'HR & Policies', 'Templates', 'Archive'];
+  const drives: DemoDrive[] = DRIVE_NAMES.map((name) => ({ name, description: name + ' — shared workspace drive.' }));
+
+  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts, jobs, applications, interviews, offers, subscriptions, domains, assets, bank_accounts, liabilities, recurring, bills, expense_claims, credit_notes, forms, drives };
 }
 
 
@@ -450,6 +474,11 @@ export function trimDemoPayload(full: DemoPayload, sel: Record<string, number>, 
     bank_accounts: take('bank_accounts', full.bank_accounts),
     liabilities: take('liabilities', full.liabilities),
     recurring: take('recurring', full.recurring),
+    bills: take('bills', full.bills),
+    expense_claims: take('expense_claims', full.expense_claims),
+    credit_notes: take('credit_notes', full.credit_notes),
+    forms: take('forms', full.forms),
+    drives: take('drives', full.drives),
     ideas: take('ideas', full.ideas).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
     products: take('products', full.products),
     invoices: take('invoices', full.invoices).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),

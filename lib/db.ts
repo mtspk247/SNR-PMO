@@ -153,6 +153,11 @@ export async function seedDemoAccountingExtra(orgId: string, payload: DemoPayloa
   if (error) throw new Error(error.message);
   return (data as Record<string, number>) || {};
 }
+export async function seedDemoExtras(orgId: string, payload: DemoPayload): Promise<Record<string, number>> {
+  const { data, error } = await sb.rpc('tenant_seed_demo_extras', { p_org: orgId, p_payload: payload });
+  if (error) throw new Error(error.message);
+  return (data as Record<string, number>) || {};
+}
 export async function unseedDemoSmartColumns(orgId: string): Promise<{ removed?: number }> {
   const { data, error } = await sb.rpc('unseed_demo_smart_columns', { p_org: orgId });
   if (error) throw new Error(error.message);
