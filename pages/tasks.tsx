@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Dropdown from '@/components/Dropdown';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
+import AgentPanel from '@/components/AgentPanel';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import StatusManager from '@/components/StatusManager';
 import { useListPrefs, ColDef } from '@/components/ListToolbar';
@@ -644,6 +645,8 @@ export default function Tasks() {
         <div className="flex flex-col h-full">
           <PageHeader help="work" title="Tasks" subtitle="Track work across all your projects"
             action={<button onClick={openCreate} className="btn btn-primary"><Icon name="ti-plus" />New task</button>} />
+
+          <AgentPanel domain="tasks" />
 
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <Summary icon="ti-checkbox" tone="bg-sky-500/10 text-sky-600" label="Open" count={open.length}

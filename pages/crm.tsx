@@ -4,6 +4,7 @@ import Select from '@/components/Select';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
+import AgentPanel from '@/components/AgentPanel';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import ConfirmDelete from '@/components/ConfirmDelete';
 import { Pill, Spinner, PageHeader, Avatar, Icon, StatusBadge } from '@/components/ui';
@@ -332,6 +333,8 @@ export default function CRM() {
               : <button onClick={() => setShowContact(true)} className="btn btn-primary"><Icon name="ti-plus" />New contact</button>}
           </div>
         } />
+
+      <AgentPanel domain="crm" />
 
       {loading ? <Spinner /> : view === 'pipeline' ? (
         <div className="flex flex-col h-full">

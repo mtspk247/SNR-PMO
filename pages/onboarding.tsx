@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
+import AgentPanel from '@/components/AgentPanel';
 import { PageHeader, Spinner, EmptyState, Avatar, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import {
@@ -71,6 +72,8 @@ export default function OnboardingPage() {
               : <button onClick={() => setShowTmpl(true)} className="btn btn-primary"><Icon name="ti-plus" />New template</button>}
           </div>
         ) : undefined} />
+
+      <AgentPanel domain="hr" />
 
       <div className="flex gap-1 mb-4 border-b border-line">
         {([['hires', 'Active onboarding'], ['templates', 'Templates']] as [Tab, string][]).map(([k, label]) => (

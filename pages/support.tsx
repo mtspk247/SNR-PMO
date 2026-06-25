@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
+import AgentPanel from '@/components/AgentPanel';
 import { PriorityBars, PageHeader, Spinner, EmptyState, Icon, StatCard, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -163,6 +164,7 @@ export default function SupportPage() {
           </button>
         }
       />
+      <AgentPanel domain="support" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
