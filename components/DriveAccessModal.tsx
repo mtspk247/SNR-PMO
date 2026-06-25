@@ -4,6 +4,7 @@ import { Icon, Spinner } from '@/components/ui';
 import Select from '@/components/Select';
 import { OrgUser } from '@/lib/supabase';
 import { DriveFolder, DriveGrant, DriveLevel, listDriveGrants, upsertUserGrant, removeDriveGrant, getItemLevel, requestAccess } from '@/lib/db';
+import DriveLinkPanel from '@/components/DriveLinkPanel';
 
 const LEVELS = [{ value: 'viewer', label: 'Viewer' }, { value: 'commenter', label: 'Commenter' }, { value: 'editor', label: 'Editor' }];
 
@@ -90,6 +91,10 @@ export default function DriveAccessModal({ target, orgId, folders, people, meId,
             <div className="flex-1"><Field label={`Share this ${target.kind} with`}><Select width={260} value={pick} onChange={setPick} search options={[{ value: '', label: 'Select a person…' }, ...candidates.map((p) => ({ value: p.id, label: p.full_name || p.email }))]} /></Field></div>
             <Select width={140} value={lvl} onChange={setLvl} options={LEVELS} />
             <button className="btn btn-primary" disabled={!pick || busy} onClick={add}><Icon name="ti-plus" />Add</button>
+          </div>
+          <div>
+            <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Share with a link</p>
+            <DriveLinkPanel target={{ drive_id: target.drive_id, folder_id: target.kind === 'folder' ? target.id : null, file_id: target.kind === 'file' ? target.id : null }} />
           </div>
         </div>
       ) : (

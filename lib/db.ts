@@ -1282,6 +1282,29 @@ export async function cancelAccessRequest(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// ---- Drive share links (Slice 3c) ----
+export interface DriveShareLink { id: string; token: string; org_id: string; drive_id: string; folder_id: string | null; file_id: string | null; level: 'viewer' | 'commenter'; mode: 'internal' | 'public'; expires_at: string | null; max_uses: number | null; use_count: number; revoked: boolean; created_by: string | null; created_at: string; }
+export async function createShareLink(p: { drive_id: string; folder_id?: string | null; file_id?: string | null; level: 'viewer' | 'commenter'; mode: 'internal' | 'public'; expires_at?: string | null; max_uses?: number | null }): Promise<string> {
+  const { data, error } = await sb.rpc('drive_link_create', { p_drive: p.drive_id, p_folder: p.folder_id ?? null, p_file: p.file_id ?? null, p_level: p.level, p_mode: p.mode, p_expires_at: p.expires_at ?? null, p_max_uses: p.max_uses ?? null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function listShareLinks(p: { drive_id: string; folder_id?: string | null; file_id?: string | null }): Promise<DriveShareLink[]> {
+  let q = sb.from('drive_share_links').select('*').eq('drive_id', p.drive_id);
+  q = p.file_id ? q.eq('file_id', p.file_id) : (p.folder_id ? q.eq('folder_id', p.folder_id) : q.is('folder_id', null).is('file_id', null));
+  const { data, error } = await q.order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as DriveShareLink[]) || [];
+}
+export async function revokeShareLink(id: string): Promise<void> { const { error } = await sb.from('drive_share_links').update({ revoked: true }).eq('id', id); if (error) throw new Error(error.message); }
+export async function deleteShareLink(id: string): Promise<void> { const { error } = await sb.from('drive_share_links').delete().eq('id', id); if (error) throw new Error(error.message); }
+// Public/anon link resolve (validates revoked/expiry/uses, rate-limited) -> target payload.
+export async function resolveShareLink(token: string): Promise<any> { const { data, error } = await sb.rpc('drive_link_resolve', { p_token: token }); if (error) throw new Error(error.message); return data; }
+// Signed download URL for a file reached through a link (edge fn validates token + scope server-side).
+export async function shareLinkFileUrl(token: string, fileId: string): Promise<string> {
+  const { data, error } = await sb.functions.invoke('drive-link-file', { body: { token, file_id: fileId } });
+  if (error) throw new Error(error.message);
+  if (!data || !data.url) throw new Error((data && data.error) || 'download failed'); return data.url as string;
+}
+
 // ---- Forms (F2) — builder + submissions ----
 export interface FormField { key: string; label: string; type: string; required?: boolean; options?: string[]; placeholder?: string; }
 export interface FormDef { id: string; org_id: string; name: string; slug: string; status: 'draft' | 'published' | 'archived'; fields: FormField[]; settings: Record<string, any>; submit_count: number; created_by: string | null; created_at: string; updated_at: string; }

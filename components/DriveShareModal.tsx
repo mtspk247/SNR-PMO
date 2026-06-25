@@ -4,6 +4,7 @@ import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
 import { OrgUser } from '@/lib/supabase';
 import { Drive, DriveGrant, listDriveGrants, upsertUserGrant, removeDriveGrant, setDriveRestricted } from '@/lib/db';
+import DriveLinkPanel from '@/components/DriveLinkPanel';
 
 const LEVELS = [{ value: 'viewer', label: 'Viewer' }, { value: 'commenter', label: 'Commenter' }, { value: 'editor', label: 'Editor' }];
 
@@ -61,6 +62,12 @@ export default function DriveShareModal({ drive, meId, people, canManage, onClos
           </div>
         )}
 
+        {canManage && (
+          <div>
+            <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Share with a link</p>
+            <DriveLinkPanel target={{ drive_id: drive.id }} />
+          </div>
+        )}
         <div>
           <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">People with access</p>
           <div className="rounded-lg border border-line divide-y divide-line">
