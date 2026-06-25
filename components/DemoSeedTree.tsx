@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
@@ -6,7 +6,7 @@ import { INDUSTRIES, withCurrent } from '@/lib/taxonomy';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { buildDemoPayload, trimDemoPayload } from '@/lib/demoSeed';
-import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands, seedAgentRoiDemo } from '@/lib/db';
+import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands, seedAgentRoiDemo, tenantSnapshot, restoreTenantSnapshot, listTenantSnapshots, TenantSnapshot, seedDefaultRoles } from '@/lib/db';
 
 type Leaf = { key: string; label: string };
 const GROUPS: { group: string; icon: string; items: Leaf[] }[] = [
@@ -49,6 +49,17 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
   const [done, setDone] = useState<Record<string, number> | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [withRoles, setWithRoles] = useState(true);
+  const [reverting, setReverting] = useState(false);
+  const [snaps, setSnaps] = useState<TenantSnapshot[]>([]);
+  const refreshSnaps = () => { listTenantSnapshots(orgId).then((all) => setSnaps(all.filter((x) => (x.label || '').toLowerCase().includes('demo data')))).catch(() => {}); };
+  useEffect(() => { refreshSnaps(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [orgId]);
+  const revertTo = async (id: string) => {
+    if (typeof window !== 'undefined' && !window.confirm('Restore this point? It removes the demo data and anything added since. A safety snapshot is taken first.')) return;
+    setReverting(true); setErr(''); setMsg('');
+    try { await tenantSnapshot(orgId, 'Before restore — ' + new Date().toLocaleString()); await restoreTenantSnapshot(id); setMsg('Restored — demo data removed.'); setDone(null); refreshSnaps(); }
+    catch (e: unknown) { setErr((e as Error).message || 'Restore failed'); } finally { setReverting(false); }
+  };
 
   const setKey = (key: string, n: number) => { setDone(null); setSel((s) => ({ ...s, [key]: Math.max(0, Math.min(isNaN(n) ? 0 : n, maxOf(key))) })); };
   const toggleKey = (key: string, on: boolean) => setKey(key, on ? maxOf(key) : 0);
@@ -59,13 +70,16 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
   const run = async () => {
     setBusy('seed'); setErr(''); setDone(null); setMsg('');
     try {
+      try { await tenantSnapshot(orgId, 'Before demo data — ' + new Date().toLocaleString()); } catch { /* restore-point best-effort */ }
       const selection: Record<string, number> = {};
       GROUPS.forEach((g) => g.items.forEach((it) => { if (it.key !== '__tasks') selection[it.key] = cur(it.key); }));
       const payload = trimDemoPayload(full, selection, cur('__tasks'));
       const counts = await seedDemoCustom(orgId, payload);
       if (withSmart) { try { await seedDemoSmartColumns(orgId); } catch { /* non-fatal */ } }
       if (withAgents && agentsAvail && me?.id) { try { await seedStarterAgents(orgId, me.id); await seedBuiltinChatCommands(orgId); await seedAgentRoiDemo(orgId); } catch { /* non-fatal */ } }
+      if (withRoles) { try { await seedDefaultRoles(orgId); } catch { /* non-fatal */ } }
       setDone(counts);
+      refreshSnaps();
     } catch (e: unknown) { setErr((e as Error).message || 'Seeding failed'); }
     finally { setBusy(''); }
   };
@@ -143,6 +157,10 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
             <Icon name="ti-robot" className="text-base text-muted" />Also set up a starter AI-agent team + chat commands
           </label>
         )}
+        <label className="flex items-center gap-2.5 cursor-pointer text-sm text-content">
+          <input type="checkbox" className="accent-accent" checked={withRoles} onChange={(e) => setWithRoles(e.target.checked)} />
+          <Icon name="ti-shield-lock" className="text-base text-muted" />Also seed a set of starter role templates
+        </label>
       </div>
 
       {err && <p className="text-sm text-rose-600 mt-3">{err}</p>}
@@ -151,6 +169,21 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
         <p className="text-sm text-emerald-600 mt-3 inline-flex items-center gap-1 flex-wrap">
           <Icon name="ti-check" />Added {Object.entries(done).filter(([, v]) => (v as number) > 0).map(([k, v]) => `${v} ${k}`).join(', ') || 'sample data'}.
         </p>
+      )}
+
+      {snaps.length > 0 && (
+        <div className="mt-4 rounded-xl border border-line p-3">
+          <p className="text-2xs uppercase tracking-wide text-muted font-medium mb-1 inline-flex items-center gap-1"><Icon name="ti-rotate-2" className="text-sm" />Reverse demo data</p>
+          <p className="text-2xs text-muted mb-2">Every Generate takes an automatic restore point first. Restore one to remove the demo data (and anything added since) &mdash; handy for performance testing.</p>
+          <div className="space-y-1">
+            {snaps.slice(0, 4).map((sn) => (
+              <div key={sn.id} className="flex items-center justify-between gap-2">
+                <span className="text-2xs text-muted truncate">{sn.label || new Date(sn.created_at).toLocaleString()} &middot; {sn.row_count} rows</span>
+                <button className="btn btn-ghost h-7 py-0 border border-line shrink-0" disabled={reverting} onClick={() => revertTo(sn.id)}>{reverting ? 'Restoring…' : 'Restore'}</button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="mt-4 flex items-center gap-3 flex-wrap">
