@@ -673,7 +673,7 @@ export const SECTIONS: Section[] = [
         { title: '3. Consent & caps', body: 'Numbers on the suppression list are never messaged. The monthly USD cap blocks sends once reached. Both are enforced server-side.' },
       ] },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: provider secrets live in a table no client can read - they are reachable only by the secure server dispatcher. Configuration is owner/admin only; sending is staff-gated; the public never touches it.' },
-      { kind: 'callout', icon: 'ti-bell', text: 'Coming next on this layer: a unified inbox for replies, booking + appointment reminders, and SMS steps inside automations.' },
+      { kind: 'callout', icon: 'ti-inbox', text: 'Replies land in your Inbox (People > Inbox) - a two-way conversation view per contact. Booking + appointment reminders (email + SMS) send automatically. To receive replies, point your provider inbound-SMS webhook at the sms-inbound function URL. Coming next: SMS steps inside automations.' },
     ],
   },
   {

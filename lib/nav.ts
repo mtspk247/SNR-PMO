@@ -96,6 +96,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/calendar', label: 'Calendar', icon: 'ti-calendar', feature: 'calendar' },
     { href: '/booking', label: 'Booking', icon: 'ti-calendar-plus', feature: 'booking' },
     { href: '/messaging', label: 'Messaging', icon: 'ti-message-2', feature: 'comms' },
+    { href: '/inbox', label: 'Inbox', icon: 'ti-inbox', feature: 'comms' },
     { href: '/guests', label: 'Guests', icon: 'ti-user-question', adminOnly: true },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Accounting', icon: 'ti-report-money', items: [
