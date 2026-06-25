@@ -1054,9 +1054,9 @@ export async function setTenantLimitOverride(orgId: string, key: string, value: 
 }
 
 // ---- Drives (F2) ----
-export interface Drive { id: string; org_id: string; name: string; description: string | null; project_id: string | null; created_by: string | null; created_at: string; }
+export interface Drive { id: string; org_id: string; name: string; description: string | null; project_id: string | null; restricted?: boolean; created_by: string | null; created_at: string; }
 export interface DriveFolder { id: string; org_id: string; drive_id: string; parent_id: string | null; name: string; created_by: string | null; created_at: string; }
-export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; content?: string | null; created_by: string | null; created_at: string; }
+export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; content?: string | null; doc_state?: string | null; created_by: string | null; created_at: string; }
 
 export async function listDrives(orgId: string): Promise<Drive[]> {
   const { data, error } = await sb.from('drives').select('*').eq('org_id', orgId).order('created_at');
@@ -1087,7 +1087,8 @@ export async function deleteFolder(id: string): Promise<void> {
   const { error } = await sb.from('drive_folders').delete().eq('id', id); if (error) throw new Error(error.message);
 }
 export async function listFiles(driveId: string, folderId: string | null): Promise<DriveFile[]> {
-  let q = sb.from('drive_files').select('*').eq('drive_id', driveId);
+  const LIST_COLS = 'id, org_id, drive_id, folder_id, name, kind, storage_path, mime_type, size_bytes, created_by, created_at';
+  let q = sb.from('drive_files').select(LIST_COLS).eq('drive_id', driveId);
   q = folderId === null ? q.is('folder_id', null) : q.eq('folder_id', folderId);
   const { data, error } = await q.order('created_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as DriveFile[]) || [];
@@ -1149,6 +1150,79 @@ export async function saveDoc(id: string, patch: { name?: string; content?: stri
   const upd: any = {};
   if (patch.name !== undefined) upd.name = patch.name;
   if (patch.content !== undefined) { upd.content = patch.content; upd.size_bytes = patch.content.length; }
+  const { error } = await sb.from('drive_files').update(upd).eq('id', id); if (error) throw new Error(error.message);
+}
+
+// ---------------------------------------------------------------------------
+// Drive collaboration — granular permissions (Viewer/Commenter/Editor),
+// comments + @mention tagging, and collaborative-document state.
+// RLS is the wall: drive_level() resolves each caller's level; these helpers
+// just surface it. Comments are posted via the SECURITY DEFINER RPC so mention
+// notifications fan out server-side (client never writes notifications).
+// ---------------------------------------------------------------------------
+export type DriveLevel = 'viewer' | 'commenter' | 'editor' | 'manage';
+export interface DriveGrant { id: string; org_id: string; drive_id: string; subject_user_id: string | null; subject_role: string | null; level: 'viewer' | 'commenter' | 'editor'; created_by: string | null; created_at: string; }
+export interface DriveComment { id: string; org_id: string; drive_id: string; file_id: string; parent_id: string | null; author_id: string; body: string; resolved: boolean; created_at: string; updated_at: string; }
+export interface DriveDocState { doc_state: string | null; content: string | null; }
+
+// Caller's resolved access level on a drive (null = no access).
+export async function getDriveLevel(driveId: string): Promise<DriveLevel | null> {
+  const { data, error } = await sb.rpc('drive_level', { p_drive: driveId });
+  if (error) throw new Error(error.message); return (data as DriveLevel | null) ?? null;
+}
+// Toggle a drive between org-wide (false) and explicit-grants-only (true). Manage-gated by RLS.
+export async function setDriveRestricted(id: string, restricted: boolean): Promise<void> {
+  const { error } = await sb.from('drives').update({ restricted }).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listDriveGrants(driveId: string): Promise<DriveGrant[]> {
+  const { data, error } = await sb.from('drive_grants').select('*').eq('drive_id', driveId).order('created_at');
+  if (error) throw new Error(error.message); return (data as DriveGrant[]) || [];
+}
+// Upsert without ON CONFLICT (partial unique indexes aren't usable as a PostgREST arbiter):
+// update the existing grant, else insert with return=minimal (dodges the INSERT…RETURNING RLS re-check).
+export async function upsertUserGrant(p: { org_id: string; drive_id: string; subject_user_id: string; level: 'viewer' | 'commenter' | 'editor'; created_by: string }): Promise<void> {
+  const { data: upd, error: e1 } = await sb.from('drive_grants').update({ level: p.level }).eq('drive_id', p.drive_id).eq('subject_user_id', p.subject_user_id).select('id');
+  if (e1) throw new Error(e1.message);
+  if (upd && upd.length) return;
+  const { error: e2 } = await sb.from('drive_grants').insert({ org_id: p.org_id, drive_id: p.drive_id, subject_user_id: p.subject_user_id, level: p.level, created_by: p.created_by });
+  if (e2) throw new Error(e2.message);
+}
+export async function upsertRoleGrant(p: { org_id: string; drive_id: string; subject_role: string; level: 'viewer' | 'commenter' | 'editor'; created_by: string }): Promise<void> {
+  const { data: upd, error: e1 } = await sb.from('drive_grants').update({ level: p.level }).eq('drive_id', p.drive_id).eq('subject_role', p.subject_role).select('id');
+  if (e1) throw new Error(e1.message);
+  if (upd && upd.length) return;
+  const { error: e2 } = await sb.from('drive_grants').insert({ org_id: p.org_id, drive_id: p.drive_id, subject_role: p.subject_role, level: p.level, created_by: p.created_by });
+  if (e2) throw new Error(e2.message);
+}
+export async function removeDriveGrant(id: string): Promise<void> {
+  const { error } = await sb.from('drive_grants').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+
+// ---- Comments + @mention tagging ----
+export async function addDriveComment(p: { file_id: string; body: string; parent_id?: string | null; mentions?: string[] }): Promise<string> {
+  const { data, error } = await sb.rpc('drive_comment_add', { p_file: p.file_id, p_body: p.body, p_parent: p.parent_id ?? null, p_mentions: p.mentions ?? [] });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function listDriveComments(fileId: string): Promise<DriveComment[]> {
+  const { data, error } = await sb.from('drive_comments').select('*').eq('file_id', fileId).order('created_at');
+  if (error) throw new Error(error.message); return (data as DriveComment[]) || [];
+}
+export async function setCommentResolved(id: string, resolved: boolean): Promise<void> {
+  const { error } = await sb.from('drive_comments').update({ resolved, updated_at: new Date().toISOString() }).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteDriveComment(id: string): Promise<void> {
+  const { error } = await sb.from('drive_comments').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+
+// ---- Collaborative document state (Yjs CRDT snapshot + rendered HTML) ----
+export async function loadDocState(id: string): Promise<DriveDocState> {
+  const { data, error } = await sb.from('drive_files').select('doc_state, content').eq('id', id).single();
+  if (error) throw new Error(error.message);
+  return { doc_state: (data as any)?.doc_state ?? null, content: (data as any)?.content ?? null };
+}
+export async function saveDocState(id: string, p: { doc_state: string; content?: string }): Promise<void> {
+  const upd: any = { doc_state: p.doc_state, updated_at: new Date().toISOString() };
+  if (p.content !== undefined) { upd.content = p.content; upd.size_bytes = p.content.length; }
   const { error } = await sb.from('drive_files').update(upd).eq('id', id); if (error) throw new Error(error.message);
 }
 

@@ -7,12 +7,16 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
-  getProjects, setDriveProject, moveFolder, moveFile, createDoc, getDocContent, saveDoc,
-  Drive, DriveFolder, DriveFile,
+  getProjects, setDriveProject, moveFolder, moveFile, createDoc, saveDoc, getDriveLevel, getOrgUsers,
+  Drive, DriveFolder, DriveFile, DriveLevel,
 } from '@/lib/db';
-import { Project } from '@/lib/supabase';
+import { Project, OrgUser } from '@/lib/supabase';
 import Select from '@/components/Select';
-import RichText from '@/components/RichText';
+import dynamic from 'next/dynamic';
+
+const CollabDocEditor = dynamic(() => import('@/components/CollabDocEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading editor…</div> });
+import DriveShareModal from '@/components/DriveShareModal';
+import DriveComments from '@/components/DriveComments';
 
 const fmtBytes = (n: number) => {
   if (!n) return '0 B';
@@ -51,19 +55,23 @@ export default function DrivesPage() {
   const [showFolder, setShowFolder] = useState(false);
   const [moving, setMoving] = useState<{ kind: 'folder' | 'file'; id: string; name: string; parent: string | null } | null>(null);
   const [preview, setPreview] = useState<{ name: string; type: 'image' | 'pdf' | 'office'; url: string; raw?: string } | null>(null);
-  const [docEd, setDocEd] = useState<{ id: string; name: string; content: string; loading: boolean } | null>(null);
+  const [docEd, setDocEd] = useState<{ id: string; name: string } | null>(null);
+  const [level, setLevel] = useState<DriveLevel | null>(null);
+  const [people, setPeople] = useState<OrgUser[]>([]);
+  const [shareFor, setShareFor] = useState<Drive | null>(null);
+  const [commentsFor, setCommentsFor] = useState<{ id: string; name: string } | null>(null);
   const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const currentFolderId = path.length ? path[path.length - 1].id : null;
-  useEffect(() => { if (org?.id && enabled) getProjects(org.id).then(setProjects).catch(() => {}); }, [org?.id, enabled]);
+  useEffect(() => { if (org?.id && enabled) { getProjects(org.id).then(setProjects).catch(() => {}); getOrgUsers(org.id).then(setPeople).catch(() => {}); } }, [org?.id, enabled]);
 
   const loadUsage = () => { if (org) Promise.all([getDriveUsage(org.id), tenantLimit(org.id, 'storage_mb')]).then(([u, l]) => setUsage({ used: u, limitMb: l })).catch(() => {}); };
   const loadDrives = () => { if (!org) return; listDrives(org.id).then((d) => { setDrives(d); if (!active && d.length) selectDrive(d[0]); }).catch((e) => { setErr(e.message); setDrives([]); }); };
   useEffect(() => { if (org?.id && enabled) { loadDrives(); loadUsage(); } /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
-  const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); listFolders(d.id).then(setFolders).catch(() => {}); };
+  const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); setLevel(null); getDriveLevel(d.id).then(setLevel).catch(() => setLevel(null)); listFolders(d.id).then(setFolders).catch(() => {}); };
   useEffect(() => { if (active) { setFiles(null); listFiles(active.id, currentFolderId).then(setFiles).catch(() => setFiles([])); } /* eslint-disable-next-line */ }, [active?.id, currentFolderId]);
 
   // ---- Tree helpers ----
@@ -110,21 +118,17 @@ export default function DrivesPage() {
   };
   const onUpload = (list: FileList | null) => uploadFilesTo(currentFolderId, list);
 
-  const openDoc = async (f: DriveFile) => {
-    setDocEd({ id: f.id, name: f.name, content: '', loading: true });
-    try { const c = await getDocContent(f.id); setDocEd({ id: f.id, name: f.name, content: c, loading: false }); }
-    catch (e: any) { setErr(e.message); setDocEd(null); }
-  };
+  const openDoc = (f: DriveFile) => setDocEd({ id: f.id, name: f.name });
   const newDoc = async () => {
     if (!org || !me || !active || busy) return;
     setBusy(true); setErr('');
-    try { const d = await createDoc({ org_id: org.id, drive_id: active.id, folder_id: currentFolderId, name: 'Untitled document', created_by: me.id }); refreshHere(); setDocEd({ id: d.id, name: d.name, content: '', loading: false }); }
+    try { const d = await createDoc({ org_id: org.id, drive_id: active.id, folder_id: currentFolderId, name: 'Untitled document', created_by: me.id }); refreshHere(); setDocEd({ id: d.id, name: d.name }); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
-  const saveDocNow = async () => {
-    if (!docEd || busy) return; setBusy(true); setErr('');
-    try { await saveDoc(docEd.id, { name: docEd.name.trim() || 'Untitled document', content: docEd.content }); setDocEd(null); refreshHere(); }
-    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  const renameDoc = async (name: string) => {
+    if (!docEd) return;
+    try { await saveDoc(docEd.id, { name }); setDocEd((d) => (d ? { ...d, name } : d)); refreshHere(); }
+    catch (e: any) { setErr(e.message); }
   };
   // Click a file: open docs in the editor, preview images/PDFs in-browser, otherwise download.
   const openFile = async (f: DriveFile) => {
@@ -189,6 +193,7 @@ export default function DrivesPage() {
 
   const limitBytes = usage.limitMb != null ? usage.limitMb * 1024 * 1024 : null;
   const pct = limitBytes ? Math.min(100, Math.round((usage.used / limitBytes) * 100)) : 0;
+  const docCanEdit = level === 'editor' || level === 'manage';
 
   const renderTree = (parentId: string | null, depth: number) => childrenOf(parentId).map((f) => {
     const kids = childrenOf(f.id); const open = !!expanded[f.id]; const cur = currentFolderId === f.id;
@@ -277,6 +282,7 @@ export default function DrivesPage() {
                   )}
                   <button className="btn h-8 py-0" disabled={busy} onClick={newDoc}><Icon name="ti-file-text" className="text-sm" />New doc</button>
                   <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
+                  {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => active && setShareFor(active)}><Icon name="ti-user-share" className="text-sm" />Share</button>}
                   <button className="btn btn-primary h-8 py-0" disabled={busy} onClick={() => fileInput.current?.click()}><Icon name="ti-upload" className="text-sm" />Upload</button>
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onUpload(e.target.files)} />
                 </div>
@@ -314,6 +320,7 @@ export default function DrivesPage() {
                             <Icon name={fileIcon(f)} className="text-muted" />
                             <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => openFile(f)}>{f.name}</button>
                             <span className="text-2xs text-muted2 shrink-0 tabular-nums">{fmtBytes(f.size_bytes)}</span>
+                            <button onClick={() => setCommentsFor({ id: f.id, name: f.name })} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Comments"><Icon name="ti-message-circle" className="text-sm" /></button>
                             <button onClick={() => download(f)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Download"><Icon name="ti-download" className="text-sm" /></button>
                             {canEdit(f.created_by) && <button onClick={() => setMoving({ kind: 'file', id: f.id, name: f.name, parent: f.folder_id })} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Move"><Icon name="ti-arrows-move" className="text-sm" /></button>}
                             {canEdit(f.created_by) && <button onClick={() => delFile(f)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500" title="Delete"><Icon name="ti-trash" className="text-sm" /></button>}
@@ -359,13 +366,11 @@ export default function DrivesPage() {
       )}
       {docEd && (
         <Modal open onClose={() => setDocEd(null)} size="lg" icon="ti-file-text" title="Document"
-          footer={<><button className="btn" onClick={() => setDocEd(null)}>Close</button><button className="btn btn-primary" disabled={busy} onClick={saveDocNow}>{busy ? 'Saving…' : 'Save'}</button></>}>
-          {docEd.loading ? <div className="p-8"><Spinner /></div> : (
-            <div className="space-y-3">
-              <Field label="Title"><input className="input" value={docEd.name} onChange={(e) => setDocEd((d) => d && { ...d, name: e.target.value })} placeholder="Untitled document" /></Field>
-              <RichText value={docEd.content} onChange={(html) => setDocEd((d) => d && { ...d, content: html })} minHeight={380} />
-            </div>
-          )}
+          footer={<><button className="btn" onClick={() => setCommentsFor({ id: docEd.id, name: docEd.name })}><Icon name="ti-message-circle" className="text-sm" />Comments</button><button className="btn btn-primary" onClick={() => setDocEd(null)}>Done</button></>}>
+          <div className="space-y-3">
+            <Field label="Title"><input className="input" defaultValue={docEd.name} onBlur={(e) => renameDoc(e.target.value.trim() || 'Untitled document')} placeholder="Untitled document" disabled={!docCanEdit} /></Field>
+            <CollabDocEditor key={docEd.id} fileId={docEd.id} meId={me?.id || ''} meName={me?.full_name || ''} canEdit={docCanEdit} />
+          </div>
         </Modal>
       )}
       {preview && (
@@ -375,6 +380,13 @@ export default function DrivesPage() {
             ? <img src={preview.url} alt={preview.name} className="max-h-[70vh] mx-auto rounded-lg" />
             : <iframe src={preview.url} className="w-full h-[70vh] rounded-lg border border-line" title={preview.name} />}
         </Modal>
+      )}
+      {shareFor && (
+        <DriveShareModal drive={shareFor} meId={me?.id || ''} people={people} canManage={level === 'manage' || isAdmin}
+          onClose={() => setShareFor(null)} onChanged={(r) => { setDrives((ds) => (ds || []).map((x) => (x.id === shareFor.id ? { ...x, restricted: r } : x))); if (active?.id === shareFor.id) getDriveLevel(shareFor.id).then(setLevel).catch(() => {}); }} />
+      )}
+      {commentsFor && (
+        <DriveComments fileId={commentsFor.id} fileName={commentsFor.name} meId={me?.id || ''} people={people} level={level} onClose={() => setCommentsFor(null)} />
       )}
     </Layout>
   );
