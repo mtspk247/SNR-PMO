@@ -120,6 +120,7 @@ export const FEATURES = [
   { key: 'forms', label: 'Forms' },
   { key: 'booking', label: 'Booking' },
   { key: 'comms', label: 'Messaging (SMS)' },
+  { key: 'sequences', label: 'Drip sequences' },
   { key: 'portal', label: 'Branded Client Portal' },
   { key: 'agents', label: 'AI Agents' },
 ] as const;

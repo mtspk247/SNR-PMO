@@ -131,6 +131,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/clients', label: 'Clients', icon: 'ti-friends', feature: 'crm', search: searchClients },
     { href: '/proposals', label: 'Proposals', icon: 'ti-file-description', feature: 'crm', search: searchProposals },
     { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm', search: searchContracts },
+    { href: '/sequences', label: 'Sequences', icon: 'ti-mail-forward', feature: 'sequences' },
   ]},
   { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
     { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },

@@ -1429,6 +1429,53 @@ export async function addSuppression(orgId: string, address: string, reason?: st
 export async function removeSuppression(id: string): Promise<void> {
   const { error } = await sb.from('comms_suppression').delete().eq('id', id); if (error) throw new Error(error.message);
 }
+
+// ---- Drip sequences (#15) — migrations sequences_substrate/_engine ----
+export interface Sequence { id: string; org_id: string; name: string; status: 'active' | 'paused' | 'archived'; created_by: string | null; created_at: string; }
+export interface SequenceStep { id: string; org_id: string; sequence_id: string; step_order: number; channel: 'email' | 'sms'; delay_minutes: number; subject: string | null; body: string; }
+export interface SequenceEnrollment { id: string; org_id: string; sequence_id: string; lead_id: string | null; email: string | null; phone: string | null; step_idx: number; next_due_at: string; status: string; enrolled_at: string; }
+export interface LeadLite { id: string; name: string; email: string | null; phone: string | null; }
+
+export async function listSequences(orgId: string): Promise<Sequence[]> {
+  const { data, error } = await sb.from('email_sequences').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as Sequence[]) || [];
+}
+export async function createSequence(p: { org_id: string; name: string; created_by: string }): Promise<Sequence> {
+  const { data, error } = await sb.from('email_sequences').insert({ org_id: p.org_id, name: p.name, created_by: p.created_by }).select().single();
+  if (error) throw new Error(error.message); return data as Sequence;
+}
+export async function updateSequence(id: string, patch: Partial<Pick<Sequence, 'name' | 'status'>>): Promise<void> {
+  const { error } = await sb.from('email_sequences').update(patch).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteSequence(id: string): Promise<void> {
+  const { error } = await sb.from('email_sequences').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listSteps(seqId: string): Promise<SequenceStep[]> {
+  const { data, error } = await sb.from('sequence_steps').select('*').eq('sequence_id', seqId).order('step_order', { ascending: true });
+  if (error) throw new Error(error.message); return (data as SequenceStep[]) || [];
+}
+export async function saveSteps(orgId: string, seqId: string, steps: { channel: string; delay_minutes: number; subject: string | null; body: string }[]): Promise<void> {
+  const { error: e1 } = await sb.from('sequence_steps').delete().eq('sequence_id', seqId); if (e1) throw new Error(e1.message);
+  if (steps.length) {
+    const rows = steps.map((s, i) => ({ org_id: orgId, sequence_id: seqId, step_order: i, channel: s.channel, delay_minutes: s.delay_minutes, subject: s.subject, body: s.body }));
+    const { error: e2 } = await sb.from('sequence_steps').insert(rows); if (e2) throw new Error(e2.message);
+  }
+}
+export async function listEnrollments(orgId: string, seqId?: string): Promise<SequenceEnrollment[]> {
+  let q = sb.from('sequence_enrollments').select('*').eq('org_id', orgId).order('enrolled_at', { ascending: false }).limit(500);
+  if (seqId) q = q.eq('sequence_id', seqId);
+  const { data, error } = await q; if (error) throw new Error(error.message); return (data as SequenceEnrollment[]) || [];
+}
+export async function stopEnrollment(id: string): Promise<void> {
+  const { error } = await sb.from('sequence_enrollments').update({ status: 'stopped' }).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function enrollLead(orgId: string, seqId: string, leadId: string): Promise<void> {
+  const { error } = await sb.rpc('sequence_enroll', { p_org: orgId, p_sequence: seqId, p_lead: leadId }); if (error) throw new Error(error.message);
+}
+export async function listLeadsLite(orgId: string): Promise<LeadLite[]> {
+  const { data, error } = await sb.from('leads').select('id, name, email, phone').eq('org_id', orgId).order('created_at', { ascending: false }).limit(500);
+  if (error) throw new Error(error.message); return (data as LeadLite[]) || [];
+}
 export async function listPortalFiles(orgId: string): Promise<PortalFile[]> {
   const { data, error } = await sb.from('drive_files')
     .select('id,name,kind,mime_type,size_bytes,storage_path,created_at,drive_id, drives(name)')
