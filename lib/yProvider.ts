@@ -44,7 +44,7 @@ export class SupabaseProvider {
     this.awareness.setLocalStateField('user', { id: me.id, name: me.name, color: me.color });
 
     this.channel = supabase.channel(channelName, {
-      config: { broadcast: { self: false }, presence: { key: me.id } },
+      config: { private: true, broadcast: { self: false }, presence: { key: me.id } },
     });
 
     this._onDocUpdate = (update, origin) => {
@@ -70,15 +70,22 @@ export class SupabaseProvider {
         this.channel.send({ type: 'broadcast', event: 'yu', payload: { u: u8ToB64(Y.encodeStateAsUpdate(this.doc)) } });
         const keys = Array.from(this.awareness.getStates().keys());
         this.channel.send({ type: 'broadcast', event: 'ya', payload: { u: u8ToB64(encodeAwarenessUpdate(this.awareness, keys)) } });
-      })
-      .subscribe((status) => {
+      });
+
+    // Private channel (RLS on realtime.messages): set the user's JWT on the Realtime
+    // client before subscribing, otherwise the authorized subscribe is rejected.
+    const ch = this.channel;
+    void (async () => {
+      try { const { data } = await supabase.auth.getSession(); const tok = data?.session?.access_token; if (tok) await supabase.realtime.setAuth(tok); } catch { /* ignore */ }
+      ch.subscribe((status: string) => {
         if (status === 'SUBSCRIBED' && !this._subscribed) {
           this._subscribed = true;
-          this.channel.track({ user: this.me });
-          this.channel.send({ type: 'broadcast', event: 'sync-req', payload: {} });
+          ch.track({ user: this.me });
+          ch.send({ type: 'broadcast', event: 'sync-req', payload: {} });
           this.synced = true;
         }
       });
+    })();
 
     if (typeof window !== 'undefined') window.addEventListener('beforeunload', this._beforeUnload);
   }
