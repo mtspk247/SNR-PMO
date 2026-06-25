@@ -19,13 +19,19 @@ const SPEC_HREF: Record<string, string> = Object.fromEntries(ALL_ITEMS.filter((i
 
 // Quick-create actions for the command palette (navigate to the create-capable page).
 const ACTIONS: { label: string; icon: string; href: string; kw: string }[] = [
+  { label: 'New project', icon: 'ti-plus', href: '/projects', kw: 'create add' },
+  { label: 'New task', icon: 'ti-plus', href: '/tasks', kw: 'create add todo' },
+  { label: 'New deal', icon: 'ti-plus', href: '/crm', kw: 'create add opportunity pipeline' },
+  { label: 'New contact', icon: 'ti-plus', href: '/crm', kw: 'create add person' },
   { label: 'New client', icon: 'ti-plus', href: '/clients', kw: 'create add customer' },
   { label: 'New lead', icon: 'ti-plus', href: '/leads', kw: 'create add' },
   { label: 'New invoice', icon: 'ti-plus', href: '/invoicing', kw: 'create add bill' },
+  { label: 'New expense claim', icon: 'ti-plus', href: '/expense-claims', kw: 'create add reimburse' },
+  { label: 'New ticket', icon: 'ti-plus', href: '/support', kw: 'create add support issue' },
+  { label: 'New employee', icon: 'ti-plus', href: '/employees', kw: 'create add hire staff' },
   { label: 'New form', icon: 'ti-plus', href: '/forms', kw: 'create add' },
   { label: 'New booking page', icon: 'ti-plus', href: '/booking', kw: 'create add appointment schedule' },
   { label: 'New note', icon: 'ti-plus', href: '/notes', kw: 'create add' },
-  { label: 'New expense claim', icon: 'ti-plus', href: '/expense-claims', kw: 'create add reimburse' },
 ];
 
 async function runSearch(raw: string, mods: string[]): Promise<Hit[]> {
@@ -80,8 +86,10 @@ export default function GlobalSearch() {
   }, [q2, activeOrg?.hidden_pages]);
   const actionHits = useMemo<Hit[]>(() => {
     if (q2.length < 2) return [];
-    return ACTIONS.filter((a) => !isPageHidden(activeOrg?.hidden_pages, a.href) && (a.label.toLowerCase().includes(q2) || a.kw.includes(q2)))
-      .map((a) => ({ id: 'act:' + a.href, key: '__action', title: a.label, subtitle: 'Action', href: a.href, icon: a.icon }));
+    const toks = q2.split(/\s+/).filter(Boolean);
+    return ACTIONS.filter((a) => !isPageHidden(activeOrg?.hidden_pages, a.href) && toks.every((t) => (a.label + ' ' + a.kw).toLowerCase().includes(t)))
+      .slice(0, 8)
+      .map((a) => ({ id: 'act:' + a.label, key: '__action', title: a.label, subtitle: 'Action', href: a.href, icon: a.icon }));
   }, [q2, activeOrg?.hidden_pages]);
   const combined = useMemo<Hit[]>(() => [...actionHits, ...navHits, ...hits], [actionHits, navHits, hits]);
 
