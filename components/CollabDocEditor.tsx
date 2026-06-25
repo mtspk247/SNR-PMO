@@ -4,6 +4,10 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableHeader from '@tiptap/extension-table-header';
+import TableCell from '@tiptap/extension-table-cell';
 import { sb } from '@/lib/supabase';
 import { SupabaseProvider, b64ToU8, u8ToB64, PresenceUser } from '@/lib/yProvider';
 import { loadDocState, saveDocState } from '@/lib/db';
@@ -35,6 +39,8 @@ export default function CollabDocEditor({ fileId, meId, meName, canEdit }: {
       StarterKit.configure({ history: false }),
       Collaboration.configure({ document: ydoc }),
       CollaborationCursor.configure({ provider: provider as any, user: { name: me.name, color: me.color } }),
+      Table.configure({ resizable: true }),
+      TableRow, TableHeader, TableCell,
     ],
     editorProps: { attributes: { class: 'prose prose-sm max-w-none focus:outline-none px-4 py-4 min-h-[440px]' } },
   });
@@ -95,6 +101,7 @@ export default function CollabDocEditor({ fileId, meId, meName, canEdit }: {
     { icon: 'ti-list-numbers', title: 'Numbered list', run: () => editor.chain().focus().toggleOrderedList().run(), active: () => editor.isActive('orderedList') },
     { icon: 'ti-quote', title: 'Quote', run: () => editor.chain().focus().toggleBlockquote().run(), active: () => editor.isActive('blockquote') },
     { icon: 'ti-code', title: 'Code block', run: () => editor.chain().focus().toggleCodeBlock().run(), active: () => editor.isActive('codeBlock') },
+    { icon: 'ti-table', title: 'Insert table', run: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), active: () => editor.isActive('table') },
   ] : [];
 
   return (
@@ -123,6 +130,11 @@ export default function CollabDocEditor({ fileId, meId, meName, canEdit }: {
       <style jsx global>{`
         .collaboration-cursor__caret { border-left: 1px solid; border-right: 1px solid; margin-left: -1px; margin-right: -1px; position: relative; word-break: normal; pointer-events: none; }
         .collaboration-cursor__label { border-radius: 3px 3px 3px 0; color: #fff; font-size: 11px; font-weight: 600; left: -1px; line-height: normal; padding: 1px 4px; position: absolute; top: -1.4em; user-select: none; white-space: nowrap; }
+        .ProseMirror table { border-collapse: collapse; width: 100%; margin: 10px 0; table-layout: fixed; overflow: hidden; }
+        .ProseMirror td, .ProseMirror th { border: 1px solid rgba(128,128,128,0.35); padding: 5px 8px; min-width: 4em; vertical-align: top; position: relative; }
+        .ProseMirror th { background: rgba(128,128,128,0.08); font-weight: 600; text-align: left; }
+        .ProseMirror .selectedCell:after { content: ''; position: absolute; inset: 0; background: rgba(62,207,142,0.15); pointer-events: none; }
+        .ProseMirror .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: rgba(62,207,142,0.5); cursor: col-resize; }
       `}</style>
     </div>
   );

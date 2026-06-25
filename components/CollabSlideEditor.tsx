@@ -26,6 +26,7 @@ export default function CollabSlideEditor({ fileId, meId, meName, canEdit }: {
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved'>('idle');
   const dirty = useRef(false); const loaded = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragIdx = useRef<number | null>(null);
 
   useEffect(() => {
     const rebuild = () => { const arr: Slide[] = []; yslides.forEach((m) => arr.push({ title: (m.get('title') || '') as string, body: (m.get('body') || '') as string })); setSlides(arr); };
@@ -61,6 +62,13 @@ export default function CollabSlideEditor({ fileId, meId, meName, canEdit }: {
   const setField = (i: number, field: 'title' | 'body', v: string) => { const m = yslides.get(i); if (m) m.set(field, v); };
   const addSlide = () => { const m = new Y.Map<string>(); m.set('title', 'Slide ' + (yslides.length + 1)); m.set('body', ''); yslides.push([m]); setActive(yslides.length - 1); };
   const delSlide = (i: number) => { if (yslides.length <= 1) return; yslides.delete(i, 1); setActive(Math.max(0, i - 1)); };
+  const move = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0) return;
+    const m = yslides.get(from); if (!m) return;
+    const title = (m.get('title') || '') as string; const body = (m.get('body') || '') as string;
+    ydoc.transact(() => { yslides.delete(from, 1); const nm = new Y.Map<string>(); nm.set('title', title); nm.set('body', body); yslides.insert(to > from ? to - 1 : to, [nm]); });
+    setActive(to > from ? to - 1 : to);
+  };
 
   const cur = slides[active] || { title: '', body: '' };
   return (
@@ -75,8 +83,12 @@ export default function CollabSlideEditor({ fileId, meId, meName, canEdit }: {
       <div className="grid grid-cols-[10rem_1fr]" style={{ minHeight: '50vh' }}>
         <div className="border-r border-line overflow-auto max-h-[55vh] p-2 space-y-1.5">
           {slides.map((s, i) => (
-            <button key={i} onClick={() => setActive(i)} className={`w-full text-left rounded-md border p-2 ${i === active ? 'border-accent bg-accent/5' : 'border-line hover:bg-surface2'}`}>
-              <span className="text-2xs text-muted2">Slide {i + 1}</span>
+            <button key={i} draggable={canEdit}
+              onDragStart={() => { dragIdx.current = i; }}
+              onDragOver={(e) => { if (dragIdx.current !== null) e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); if (dragIdx.current !== null && dragIdx.current !== i) move(dragIdx.current, i); dragIdx.current = null; }}
+              onClick={() => setActive(i)} className={`w-full text-left rounded-md border p-2 ${i === active ? 'border-accent bg-accent/5' : 'border-line hover:bg-surface2'}`}>
+              <span className="text-2xs text-muted2 flex items-center gap-1">{canEdit && <Icon name="ti-grip-vertical" className="text-muted2" />}Slide {i + 1}</span>
               <span className="block text-xs font-medium truncate">{s.title || 'Untitled'}</span>
             </button>
           ))}
