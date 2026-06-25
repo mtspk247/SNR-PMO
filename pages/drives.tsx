@@ -7,7 +7,7 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
-  getProjects, setDriveProject, moveFolder, moveFile, createDoc, createSheet, saveDoc, getDriveLevel, getOrgUsers,
+  getProjects, setDriveProject, moveFolder, moveFile, createDoc, createSheet, createSlides, saveDoc, getDriveLevel, getOrgUsers,
   archiveFile, restoreFile, archiveFolder, restoreFolder, listArchived, listAccessRequests,
   Drive, DriveFolder, DriveFile, DriveLevel,
 } from '@/lib/db';
@@ -17,6 +17,7 @@ import dynamic from 'next/dynamic';
 
 const CollabDocEditor = dynamic(() => import('@/components/CollabDocEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading editor…</div> });
 const CollabSheetEditor = dynamic(() => import('@/components/CollabSheetEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading sheet…</div> });
+const CollabSlideEditor = dynamic(() => import('@/components/CollabSlideEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading slides…</div> });
 import DriveShareModal from '@/components/DriveShareModal';
 import DriveComments from '@/components/DriveComments';
 import DriveActivityModal from '@/components/DriveActivityModal';
@@ -29,7 +30,7 @@ const fmtBytes = (n: number) => {
   return `${(n / Math.pow(1024, i)).toFixed(i ? 1 : 0)} ${u[i]}`;
 };
 const fileIcon = (f: DriveFile) => {
-  const m = f.mime_type || ''; if (f.kind === 'doc') return 'ti-file-text'; if (f.kind === 'sheet') return 'ti-table';
+  const m = f.mime_type || ''; if (f.kind === 'doc') return 'ti-file-text'; if (f.kind === 'sheet') return 'ti-table'; if (f.kind === 'slide') return 'ti-presentation';
   if (m.startsWith('image/')) return 'ti-photo'; if (m.includes('pdf')) return 'ti-file-type-pdf';
   if (m.includes('zip') || m.includes('compressed')) return 'ti-file-zip'; return 'ti-file';
 };
@@ -62,6 +63,7 @@ export default function DrivesPage() {
   const [preview, setPreview] = useState<{ name: string; type: 'image' | 'pdf' | 'office'; url: string; raw?: string } | null>(null);
   const [docEd, setDocEd] = useState<{ id: string; name: string } | null>(null);
   const [sheetEd, setSheetEd] = useState<{ id: string; name: string } | null>(null);
+  const [slideEd, setSlideEd] = useState<{ id: string; name: string } | null>(null);
   const [level, setLevel] = useState<DriveLevel | null>(null);
   const [people, setPeople] = useState<OrgUser[]>([]);
   const [shareFor, setShareFor] = useState<Drive | null>(null);
@@ -159,8 +161,20 @@ export default function DrivesPage() {
     try { await saveDoc(sheetEd.id, { name }); setSheetEd((d) => (d ? { ...d, name } : d)); refreshHere(); }
     catch (e: any) { setErr(e.message); }
   };
+  const newSlides = async () => {
+    if (!org || !me || !active || busy) return;
+    setBusy(true); setErr('');
+    try { const d = await createSlides({ org_id: org.id, drive_id: active.id, folder_id: currentFolderId, name: 'Untitled presentation', created_by: me.id }); refreshHere(); setSlideEd({ id: d.id, name: d.name }); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const renameSlides = async (name: string) => {
+    if (!slideEd) return;
+    try { await saveDoc(slideEd.id, { name }); setSlideEd((d) => (d ? { ...d, name } : d)); refreshHere(); }
+    catch (e: any) { setErr(e.message); }
+  };
   // Click a file: open docs in the editor, preview images/PDFs in-browser, otherwise download.
   const openFile = async (f: DriveFile) => {
+    if (f.kind === 'slide') { setSlideEd({ id: f.id, name: f.name }); return; }
     if (f.kind === 'sheet') { setSheetEd({ id: f.id, name: f.name }); return; }
     if (f.kind === 'doc') { openDoc(f); return; }
     if (!f.storage_path) return;
@@ -385,6 +399,7 @@ export default function DrivesPage() {
                   <button className="btn h-8 py-0 px-2" title="Select all" onClick={toggleAll}><Icon name={allSelected ? 'ti-checkbox' : 'ti-square'} className="text-sm" /></button>
                   <button className="btn h-8 py-0" disabled={busy} onClick={newDoc}><Icon name="ti-file-text" className="text-sm" />New doc</button>
                   <button className="btn h-8 py-0" disabled={busy} onClick={newSheet}><Icon name="ti-table" className="text-sm" />New sheet</button>
+                  <button className="btn h-8 py-0" disabled={busy} onClick={newSlides}><Icon name="ti-presentation" className="text-sm" />New slides</button>
                   <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
                   <button className="btn h-8 py-0" disabled={!active} onClick={() => { if (active) listArchived(active.id).then(setArchived).catch((e) => setErr(e.message)); }}><Icon name="ti-archive" className="text-sm" />Archived</button>
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => setRequestsOpen(true)}><Icon name="ti-inbox" className="text-sm" />Requests{pendingReq > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-white text-2xs">{pendingReq}</span>}</button>}
@@ -481,6 +496,15 @@ export default function DrivesPage() {
               <span className="text-2xs text-muted2 shrink-0">{moving.parent === null ? 'current' : 'root'}</span>
             </button>
             {renderMoveTargets(null, 0)}
+          </div>
+        </Modal>
+      )}
+      {slideEd && (
+        <Modal open onClose={() => setSlideEd(null)} size="lg" icon="ti-presentation" title="Presentation"
+          footer={<><button className="btn" onClick={() => setCommentsFor({ id: slideEd.id, name: slideEd.name })}><Icon name="ti-message-circle" className="text-sm" />Comments</button><button className="btn btn-primary" onClick={() => setSlideEd(null)}>Done</button></>}>
+          <div className="space-y-3">
+            <Field label="Title"><input className="input" defaultValue={slideEd.name} onBlur={(e) => renameSlides(e.target.value.trim() || 'Untitled presentation')} placeholder="Untitled presentation" disabled={!docCanEdit} /></Field>
+            <CollabSlideEditor key={slideEd.id} fileId={slideEd.id} meId={me?.id || ''} meName={me?.full_name || ''} canEdit={docCanEdit} />
           </div>
         </Modal>
       )}
