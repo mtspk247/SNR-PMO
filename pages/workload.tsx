@@ -8,6 +8,7 @@ import { useTasks, useProjects, useTeams, useOrgCompanies } from '@/lib/queries'
 import { getOrgUsers } from '@/lib/db';
 import { OrgUser, Task } from '@/lib/supabase';
 import { useActiveOrg } from '@/lib/store';
+import AgentPanel from '@/components/AgentPanel';
 
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date(new Date().toDateString());
 type Dim = 'person' | 'team' | 'project' | 'company';
@@ -88,6 +89,7 @@ export default function Workload() {
   return (
     <Layout flat title="Workload">
       <PageHeader title="Workload" subtitle="Open work distribution across people, teams and projects" icon="ti-chart-bar" />
+      <AgentPanel domain="people" />
       {isLoading ? <Spinner /> : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">

@@ -3411,7 +3411,7 @@ export async function askAssistant(p: { question: string; brand?: string; histor
 // agent caps); the action lifecycle (decide/rollback/propose/run) goes through
 // the SECURITY DEFINER RPCs so the scoped-principal + approve-first model holds.
 // ---------------------------------------------------------------------------
-export type AgentDomain = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'general';
+export type AgentDomain = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'people' | 'general';
 export type AgentAutonomy = 'draft_only' | 'approve_first' | 'auto_low_risk';
 export interface AgentDefinition { id: string; org_id: string; name: string; domain: AgentDomain; description: string | null; enabled: boolean; autonomy_level: AgentAutonomy; config: any; created_by: string | null; created_at: string; updated_at: string; }
 export type AgentActionStatus = 'proposed' | 'approved' | 'rejected' | 'executing' | 'executed' | 'failed' | 'rolled_back' | 'expired';

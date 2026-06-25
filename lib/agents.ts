@@ -4,17 +4,24 @@
 // can grant + the risk / reversibility / required-RBAC each action carries.
 import type { PermKey } from './supabase';
 
-export type AgentDomainKey = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'general';
+export type AgentDomainKey = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'people' | 'general';
 export type RiskLevel = 'low' | 'medium' | 'high';
 
 export const AGENT_DOMAINS: { key: AgentDomainKey; label: string; icon: string }[] = [
+  { key: 'tasks', label: 'Work', icon: 'ti-briefcase' },
   { key: 'accounting', label: 'Accounting', icon: 'ti-report-money' },
-  { key: 'tasks', label: 'Tasks & Projects', icon: 'ti-checkbox' },
+  { key: 'people', label: 'People', icon: 'ti-users-group' },
   { key: 'crm', label: 'CRM', icon: 'ti-users' },
-  { key: 'hr', label: 'HR / People', icon: 'ti-heart-handshake' },
+  { key: 'hr', label: 'HR', icon: 'ti-heart-handshake' },
   { key: 'support', label: 'Support', icon: 'ti-lifebuoy' },
   { key: 'general', label: 'General', icon: 'ti-robot' },
 ];
+
+// Maps a nav module group (lib/nav SECTIONS `key`) to its agent domain, so a module page
+// can mount <AgentPanel domain={DOMAIN_FOR_NAV[key]} />. 'general' agents are cross-module.
+export const DOMAIN_FOR_NAV: Record<string, AgentDomainKey> = {
+  work: 'tasks', tracking: 'accounting', people: 'people', crm: 'crm', hr: 'hr', support: 'support',
+};
 
 export const AUTONOMY_LABELS: Record<string, string> = {
   draft_only: 'Draft only (proposes, never executes)',
@@ -43,6 +50,8 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'route_leave_request', label: 'Route a leave request', domain: 'hr', risk: 'medium', reversible: true, requires: 'can_approve_leaves', description: 'Proposes an approve / deny on a leave request; the decision still flows through the leave approval gate.' },
   { key: 'triage_ticket', label: 'Triage a support ticket', domain: 'support', risk: 'low', reversible: true, description: 'Suggests an assignee / priority for a ticket.' },
   { key: 'draft_reply', label: 'Draft a support reply', domain: 'support', risk: 'low', reversible: true, description: 'Drafts a reply for an agent to review and send.' },
+  { key: 'flag_capacity_risk', label: 'Flag a capacity risk', domain: 'people', risk: 'low', reversible: true, description: 'Flags an over-allocated person or team from current workload for review. Draft only - proposes, never reassigns.' },
+  { key: 'draft_meeting_brief', label: 'Draft a 1:1 / meeting brief', domain: 'people', risk: 'low', reversible: true, description: 'Drafts a 1:1 or team-meeting brief from recent activity. Draft only.' },
 ];
 
 export const toolsForDomain = (d: string) => AGENT_TOOLS.filter((t) => t.domain === d);
@@ -65,6 +74,9 @@ export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; r
   support: [
     { tool: 'draft_reply', summary: 'Draft a reply to ticket "Login fails after password reset"', risk: 'low', payload: { ticket: 'Login fails after password reset' } },
   ],
+  people: [
+    { tool: 'flag_capacity_risk', summary: 'Flag that "Alex Kim" is over-allocated this week (7 open tasks, 3 overdue)', risk: 'low', payload: { person: 'Alex Kim' } },
+  ],
   general: [
     { tool: 'summarize_project', summary: 'Summarize this week of activity across active projects', risk: 'low', payload: {} },
   ],
@@ -79,4 +91,5 @@ export const STARTER_AGENTS: { name: string; domain: AgentDomainKey; autonomy: s
   { name: 'Expense Categorizer', domain: 'accounting', autonomy: 'approve_first', description: 'Suggests categories for uncategorized expenses and drafts journal entries. Financial — you approve each one.', tools: ['categorize_expense', 'draft_journal_entry'] },
   { name: 'Support Triage', domain: 'support', autonomy: 'approve_first', description: 'Suggests an assignee and priority for new tickets, and drafts replies for review.', tools: ['triage_ticket', 'draft_reply'] },
   { name: 'Pipeline Mover', domain: 'crm', autonomy: 'approve_first', description: 'Proposes deal-stage moves and drafts client follow-ups.', tools: ['update_deal_stage', 'draft_followup'] },
+  { name: 'People Coordinator', domain: 'people', autonomy: 'draft_only', description: 'Surfaces capacity risks and drafts 1:1 / meeting briefs from workload. Draft-only - it proposes, you decide.', tools: ['flag_capacity_risk', 'draft_meeting_brief'] },
 ];
