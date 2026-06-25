@@ -8,6 +8,7 @@ import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
   getProjects, setDriveProject, moveFolder, moveFile, createDoc, saveDoc, getDriveLevel, getOrgUsers,
+  archiveFile, restoreFile, archiveFolder, restoreFolder, listArchived,
   Drive, DriveFolder, DriveFile, DriveLevel,
 } from '@/lib/db';
 import { Project, OrgUser } from '@/lib/supabase';
@@ -17,6 +18,7 @@ import dynamic from 'next/dynamic';
 const CollabDocEditor = dynamic(() => import('@/components/CollabDocEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading editor…</div> });
 import DriveShareModal from '@/components/DriveShareModal';
 import DriveComments from '@/components/DriveComments';
+import DriveActivityModal from '@/components/DriveActivityModal';
 
 const fmtBytes = (n: number) => {
   if (!n) return '0 B';
@@ -61,11 +63,13 @@ export default function DrivesPage() {
   const [shareFor, setShareFor] = useState<Drive | null>(null);
   const [commentsFor, setCommentsFor] = useState<{ id: string; name: string } | null>(null);
   const [query, setQuery] = useState('');
-  const [sortKey, setSortKey] = useState<'name' | 'size' | 'created'>('name');
+  const [sortKey, setSortKey] = useState<'name' | 'size' | 'created' | 'modified'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; kind: 'file' | 'folder'; item: any } | null>(null);
   const [bulkMove, setBulkMove] = useState(false);
+  const [archived, setArchived] = useState<{ files: DriveFile[]; folders: DriveFolder[] } | null>(null);
+  const [activityFor, setActivityFor] = useState<{ id: string; name: string; kind: 'file' | 'folder' } | null>(null);
   const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -203,6 +207,7 @@ export default function DrivesPage() {
     let r = 0;
     if (sortKey === 'size') r = (a.size_bytes || 0) - (b.size_bytes || 0);
     else if (sortKey === 'created') r = (a.created_at || '').localeCompare(b.created_at || '');
+    else if (sortKey === 'modified') r = ((a.updated_at || a.created_at) || '').localeCompare((b.updated_at || b.created_at) || '');
     else r = (a.name || '').localeCompare(b.name || '');
     return sortDir === 'asc' ? r : -r;
   };
@@ -227,6 +232,13 @@ export default function DrivesPage() {
     try { for (const f of fs) await deleteDriveFile(f); for (const f of fd) await deleteFolder(f.id); clearSel(); refreshHere(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
+  const bulkArchive = async () => {
+    const fs = selFiles().filter((f) => canEdit(f.created_by)); const fd = selFolders().filter((f) => canEdit(f.created_by));
+    if (!fs.length && !fd.length) { setErr('You can only archive items you created (or as an admin).'); return; }
+    setBusy(true); setErr('');
+    try { for (const f of fs) await archiveFile(f.id); for (const f of fd) await archiveFolder(f.id); clearSel(); refreshHere(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const bulkMoveTo = async (dest: string | null) => {
     setBusy(true); setErr('');
     try {
@@ -241,7 +253,9 @@ export default function DrivesPage() {
     out.push(m.kind === 'folder' ? { icon: 'ti-folder-open', label: 'Open', run: () => navTo(it.id) } : { icon: 'ti-eye', label: 'Open', run: () => openFile(it) });
     if (m.kind === 'file') out.push({ icon: 'ti-download', label: 'Download', run: () => download(it) });
     out.push({ icon: 'ti-message-circle', label: 'Comments', run: () => setCommentsFor({ id: it.id, name: it.name }) });
+    out.push({ icon: 'ti-history', label: 'Activity', run: () => setActivityFor({ id: it.id, name: it.name, kind: m.kind }) });
     if (ed) out.push({ icon: 'ti-arrows-move', label: 'Move', run: () => setMoving({ kind: m.kind, id: it.id, name: it.name, parent: m.kind === 'folder' ? it.parent_id : it.folder_id }) });
+    if (ed) out.push({ icon: 'ti-archive', label: 'Archive', run: () => (m.kind === 'folder' ? archiveFolder(it.id) : archiveFile(it.id)).then(refreshHere).catch((e: any) => setErr(e.message)) });
     if (ed) out.push({ icon: 'ti-trash', label: 'Delete', danger: true, run: () => (m.kind === 'folder' ? delFolder(it) : delFile(it)) });
     return out;
   };
@@ -346,11 +360,12 @@ export default function DrivesPage() {
                     </div>
                   )}
                   <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="input h-8 py-0 w-36 hidden sm:block" />
-                  <Select width={120} value={sortKey} onChange={(v) => setSortKey(v as any)} options={[{ value: 'name', label: 'Name' }, { value: 'size', label: 'Size' }, { value: 'created', label: 'Created' }]} />
+                  <Select width={120} value={sortKey} onChange={(v) => setSortKey(v as any)} options={[{ value: 'name', label: 'Name' }, { value: 'size', label: 'Size' }, { value: 'created', label: 'Created' }, { value: 'modified', label: 'Modified' }]} />
                   <button className="btn h-8 py-0 px-2" title={sortDir === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>
                   <button className="btn h-8 py-0 px-2" title="Select all" onClick={toggleAll}><Icon name={allSelected ? 'ti-checkbox' : 'ti-square'} className="text-sm" /></button>
                   <button className="btn h-8 py-0" disabled={busy} onClick={newDoc}><Icon name="ti-file-text" className="text-sm" />New doc</button>
                   <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
+                  <button className="btn h-8 py-0" disabled={!active} onClick={() => { if (active) listArchived(active.id).then(setArchived).catch((e) => setErr(e.message)); }}><Icon name="ti-archive" className="text-sm" />Archived</button>
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => active && setShareFor(active)}><Icon name="ti-user-share" className="text-sm" />Share</button>}
                   <button className="btn btn-primary h-8 py-0" disabled={busy} onClick={() => fileInput.current?.click()}><Icon name="ti-upload" className="text-sm" />Upload</button>
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onUpload(e.target.files)} />
@@ -374,6 +389,7 @@ export default function DrivesPage() {
                         <span className="font-medium">{selected.size} selected</span>
                         <button className="btn h-7 py-0" disabled={busy} onClick={() => setBulkMove(true)}><Icon name="ti-arrows-move" className="text-sm" />Move</button>
                         <button className="btn h-7 py-0" disabled={busy} onClick={bulkDownload}><Icon name="ti-download" className="text-sm" />Download</button>
+                        <button className="btn h-7 py-0" disabled={busy} onClick={bulkArchive}><Icon name="ti-archive" className="text-sm" />Archive</button>
                         <button className="btn h-7 py-0 text-rose-600" disabled={busy} onClick={bulkDelete}><Icon name="ti-trash" className="text-sm" />Delete</button>
                         <button className="btn h-7 py-0 ml-auto" onClick={clearSel}>Clear</button>
                       </div>
@@ -494,6 +510,30 @@ export default function DrivesPage() {
             {renderBulkMoveTargets(null, 0)}
           </div>
         </Modal>
+      )}
+      {archived && (
+        <Modal open onClose={() => setArchived(null)} size="md" icon="ti-archive" title="Archived items"
+          footer={<button className="btn" onClick={() => setArchived(null)}>Close</button>}>
+          {(archived.files.length === 0 && archived.folders.length === 0) ? <p className="text-2xs text-muted2 py-4 text-center">Nothing archived in this drive.</p> : (
+            <div className="rounded-lg border border-line divide-y divide-line max-h-[55vh] overflow-auto">
+              {archived.folders.map((f) => (
+                <div key={f.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <Icon name="ti-folder" className="text-amber-500 shrink-0" /><span className="flex-1 truncate">{f.name}</span>
+                  {canEdit(f.created_by) && <button className="btn h-7 py-0" onClick={() => restoreFolder(f.id).then(() => { if (active) listArchived(active.id).then(setArchived); refreshHere(); }).catch((e) => setErr(e.message))}><Icon name="ti-arrow-back-up" className="text-sm" />Restore</button>}
+                </div>
+              ))}
+              {archived.files.map((f) => (
+                <div key={f.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <Icon name={fileIcon(f)} className="text-muted shrink-0" /><span className="flex-1 truncate">{f.name}</span>
+                  {canEdit(f.created_by) && <button className="btn h-7 py-0" onClick={() => restoreFile(f.id).then(() => { if (active) listArchived(active.id).then(setArchived); refreshHere(); }).catch((e) => setErr(e.message))}><Icon name="ti-arrow-back-up" className="text-sm" />Restore</button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
+      {activityFor && (
+        <DriveActivityModal fileId={activityFor.kind === 'file' ? activityFor.id : undefined} folderId={activityFor.kind === 'folder' ? activityFor.id : undefined} name={activityFor.name} people={people} onClose={() => setActivityFor(null)} />
       )}
     </Layout>
   );

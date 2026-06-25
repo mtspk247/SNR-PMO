@@ -1055,8 +1055,8 @@ export async function setTenantLimitOverride(orgId: string, key: string, value: 
 
 // ---- Drives (F2) ----
 export interface Drive { id: string; org_id: string; name: string; description: string | null; project_id: string | null; restricted?: boolean; created_by: string | null; created_at: string; }
-export interface DriveFolder { id: string; org_id: string; drive_id: string; parent_id: string | null; name: string; created_by: string | null; created_at: string; }
-export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; content?: string | null; doc_state?: string | null; created_by: string | null; created_at: string; }
+export interface DriveFolder { id: string; org_id: string; drive_id: string; parent_id: string | null; name: string; archived_at?: string | null; archived_by?: string | null; updated_at?: string | null; updated_by?: string | null; created_by: string | null; created_at: string; }
+export interface DriveFile { id: string; org_id: string; drive_id: string; folder_id: string | null; name: string; kind: string; storage_path: string | null; mime_type: string | null; size_bytes: number; content?: string | null; doc_state?: string | null; archived_at?: string | null; archived_by?: string | null; updated_at?: string | null; updated_by?: string | null; created_by: string | null; created_at: string; }
 
 export async function listDrives(orgId: string): Promise<Drive[]> {
   const { data, error } = await sb.from('drives').select('*').eq('org_id', orgId).order('created_at');
@@ -1073,7 +1073,7 @@ export async function deleteDrive(id: string): Promise<void> {
   const { error } = await sb.from('drives').delete().eq('id', id); if (error) throw new Error(error.message);
 }
 export async function listFolders(driveId: string): Promise<DriveFolder[]> {
-  const { data, error } = await sb.from('drive_folders').select('*').eq('drive_id', driveId).order('name');
+  const { data, error } = await sb.from('drive_folders').select('*').eq('drive_id', driveId).is('archived_at', null).order('name');
   if (error) throw new Error(error.message); return (data as DriveFolder[]) || [];
 }
 export async function createFolder(p: { org_id: string; drive_id: string; parent_id: string | null; name: string; created_by: string }): Promise<DriveFolder> {
@@ -1087,10 +1087,10 @@ export async function deleteFolder(id: string): Promise<void> {
   const { error } = await sb.from('drive_folders').delete().eq('id', id); if (error) throw new Error(error.message);
 }
 export async function listFiles(driveId: string, folderId: string | null): Promise<DriveFile[]> {
-  const LIST_COLS = 'id, org_id, drive_id, folder_id, name, kind, storage_path, mime_type, size_bytes, created_by, created_at';
+  const LIST_COLS = 'id, org_id, drive_id, folder_id, name, kind, storage_path, mime_type, size_bytes, created_by, created_at, updated_at, archived_at';
   let q = sb.from('drive_files').select(LIST_COLS).eq('drive_id', driveId);
   q = folderId === null ? q.is('folder_id', null) : q.eq('folder_id', folderId);
-  const { data, error } = await q.order('created_at', { ascending: false });
+  const { data, error } = await q.is('archived_at', null).order('created_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as DriveFile[]) || [];
 }
 export async function uploadDriveFile(p: { org_id: string; drive_id: string; folder_id: string | null; file: File; created_by: string }): Promise<DriveFile> {
@@ -1224,6 +1224,31 @@ export async function saveDocState(id: string, p: { doc_state: string; content?:
   const upd: any = { doc_state: p.doc_state, updated_at: new Date().toISOString() };
   if (p.content !== undefined) { upd.content = p.content; upd.size_bytes = p.content.length; }
   const { error } = await sb.from('drive_files').update(upd).eq('id', id); if (error) throw new Error(error.message);
+}
+
+// ---- Drive archive + activity (Slice 2) ----
+export interface DriveActivity { id: string; org_id: string; drive_id: string; file_id: string | null; folder_id: string | null; actor_id: string | null; action: string; detail: any; created_at: string; }
+
+export async function archiveFile(id: string): Promise<void> { const { error } = await sb.from('drive_files').update({ archived_at: new Date().toISOString() }).eq('id', id); if (error) throw new Error(error.message); }
+export async function restoreFile(id: string): Promise<void> { const { error } = await sb.from('drive_files').update({ archived_at: null, archived_by: null }).eq('id', id); if (error) throw new Error(error.message); }
+export async function archiveFolder(id: string): Promise<void> { const { error } = await sb.from('drive_folders').update({ archived_at: new Date().toISOString() }).eq('id', id); if (error) throw new Error(error.message); }
+export async function restoreFolder(id: string): Promise<void> { const { error } = await sb.from('drive_folders').update({ archived_at: null, archived_by: null }).eq('id', id); if (error) throw new Error(error.message); }
+export async function listArchived(driveId: string): Promise<{ files: DriveFile[]; folders: DriveFolder[] }> {
+  const [f, d] = await Promise.all([
+    sb.from('drive_files').select('id, org_id, drive_id, folder_id, name, kind, storage_path, mime_type, size_bytes, created_by, created_at, updated_at, archived_at').eq('drive_id', driveId).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
+    sb.from('drive_folders').select('*').eq('drive_id', driveId).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
+  ]);
+  if (f.error) throw new Error(f.error.message); if (d.error) throw new Error(d.error.message);
+  return { files: (f.data as DriveFile[]) || [], folders: (d.data as DriveFolder[]) || [] };
+}
+// Activity history for a file/folder (or whole drive). Read-gated by RLS (drive viewers).
+export async function listActivity(p: { fileId?: string; folderId?: string; driveId?: string; limit?: number }): Promise<DriveActivity[]> {
+  let q = sb.from('drive_activity').select('*');
+  if (p.fileId) q = q.eq('file_id', p.fileId);
+  else if (p.folderId) q = q.eq('folder_id', p.folderId);
+  else if (p.driveId) q = q.eq('drive_id', p.driveId);
+  const { data, error } = await q.order('created_at', { ascending: false }).limit(p.limit ?? 100);
+  if (error) throw new Error(error.message); return (data as DriveActivity[]) || [];
 }
 
 // ---- Forms (F2) — builder + submissions ----
