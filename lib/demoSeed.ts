@@ -24,6 +24,12 @@ export interface DemoJob { title: string; department?: string; location?: string
 export interface DemoApplication { candidate_name: string; email?: string; source?: string; stage?: string; rating?: number }
 export interface DemoInterview { mode?: string; status?: string; stage_label?: string }
 export interface DemoOffer { candidate_name: string; job_title?: string; salary?: number; currency?: string; status?: string }
+export interface DemoSubscription { service: string; category?: string; plan_name?: string; cost?: number; status?: string }
+export interface DemoDomain { domain: string; registrar?: string; cost?: number; status?: string }
+export interface DemoAsset { name: string; asset_type?: string; value?: number; status?: string }
+export interface DemoBankAccount { label: string; bank_name?: string; account_type?: string; balance?: number }
+export interface DemoLiability { name: string; type?: string; principal?: number; balance?: number; status?: string }
+export interface DemoRecurring { name: string; category?: string; amount?: number; cycle?: string; status?: string }
 export interface DemoPayload {
   clients: string[]; projects: DemoProject[]; deals: DemoDeal[]; ledger: DemoLedger[];
   companies: string[]; portfolios: DemoPortfolio[]; teams: string[]; ideas: DemoIdea[];
@@ -31,6 +37,7 @@ export interface DemoPayload {
   automations: DemoAutomation[]; templates: DemoTemplate[];
   leads: DemoLead[]; proposals: DemoProposal[]; contracts: DemoContract[];
   jobs: DemoJob[]; applications: DemoApplication[]; interviews: DemoInterview[]; offers: DemoOffer[];
+  subscriptions: DemoSubscription[]; domains: DemoDomain[]; assets: DemoAsset[]; bank_accounts: DemoBankAccount[]; liabilities: DemoLiability[]; recurring: DemoRecurring[];
 }
 
 const T = (name: string, status: string, priority = 'Medium', h = 6): DemoTask => ({ name, status, priority, estimated_hours: h });
@@ -381,7 +388,28 @@ export function buildDemoPayload(industry: string | null | undefined): DemoPaylo
   const offers: DemoOffer[] = [];
   for (let i = 0; i < N_OFFERS; i++) offers.push({ candidate_name: CAND[i % CAND.length], job_title: JOB_TITLES[i % JOB_TITLES.length], salary: [85000, 120000, 95000, 140000, 70000][i % 5], currency: 'USD', status: OFFER_STATUS[i % OFFER_STATUS.length] });
 
-  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts, jobs, applications, interviews, offers };
+  // Accounting registers — seeded via tenant_seed_demo_accounting (financial-gated). Enum values match CHECKs.
+  const SUB_SVC = ['Figma', 'Slack', 'Notion', 'GitHub', 'AWS', 'Zoom', 'Google Workspace', 'HubSpot', 'Datadog', 'Linear'];
+  const subscriptions: DemoSubscription[] = SUB_SVC.map((service, i) => ({ service, category: ['Design', 'Comms', 'Productivity', 'Dev', 'Infra'][i % 5], plan_name: ['Pro', 'Team', 'Business'][i % 3], cost: [12, 15, 8, 21, 300, 40, 18, 90, 70, 10][i % 10], status: 'active' }));
+  const DOMAIN_NAMES = ['shahzadrainer.com', 'snr-pmo.app', 'snrcloud.io', 'rainerlabs.dev', 'snrportal.co'];
+  const DOMAIN_STATUS = ['active', 'active', 'active', 'expired', 'for_sale'];
+  const domains: DemoDomain[] = DOMAIN_NAMES.map((domain, i) => ({ domain, registrar: ['Namecheap', 'GoDaddy', 'Cloudflare'][i % 3], cost: [12, 14, 9, 18, 11][i % 5], status: DOMAIN_STATUS[i % 5] }));
+  const ASSET_TYPE = ['digital', 'physical', 'saas', 'domain', 'other'];
+  const ASSET_NAMES = ['MacBook Pro fleet', 'Office furniture', 'Brand asset library', 'Server rack', 'Company vehicles', 'Software licenses', 'Camera kit', 'Trademark portfolio'];
+  const ASSET_STATUS = ['active', 'active', 'retired', 'sold'];
+  const assets: DemoAsset[] = ASSET_NAMES.map((name, i) => ({ name, asset_type: ASSET_TYPE[i % 5], value: [85000, 12000, 5000, 40000, 60000, 15000, 8000, 30000][i % 8], status: ASSET_STATUS[i % 4] }));
+  const BANKS: [string, string, string, number][] = [['Operating Account', 'First National', 'checking', 128400], ['Payroll Account', 'First National', 'checking', 56200], ['Savings Reserve', 'Summit Bank', 'savings', 310000], ['Company Card', 'Amex', 'credit', -8400], ['Stripe Wallet', 'Stripe', 'wallet', 24300]];
+  const bank_accounts: DemoBankAccount[] = BANKS.map(([label, bank_name, account_type, balance]) => ({ label, bank_name, account_type, balance }));
+  const LIAB_TYPE = ['loan', 'credit_card', 'payable', 'accrued', 'other'];
+  const LIAB: [string, number][] = [['SBA Term Loan', 420000], ['Equipment Lease', 58000], ['Vendor Payables', 23400], ['Accrued Bonuses', 41000], ['Line of Credit', 75000]];
+  const LIAB_STATUS = ['active', 'active', 'active', 'paid', 'closed'];
+  const liabilities: DemoLiability[] = LIAB.map(([name, principal], i) => ({ name, type: LIAB_TYPE[i % 5], principal, balance: Math.round(principal * 0.7), status: LIAB_STATUS[i % 5] }));
+  const RECUR_CYCLE = ['weekly', 'monthly', 'quarterly', 'annual'];
+  const RECUR: [string, string, number][] = [['Office rent', 'Facilities', 6500], ['Cloud hosting', 'Infra', 1800], ['Cleaning service', 'Facilities', 600], ['Accounting retainer', 'Professional', 1200], ['Insurance premium', 'Insurance', 2400], ['Internet & phone', 'Utilities', 450]];
+  const RECUR_STATUS = ['active', 'active', 'paused', 'active'];
+  const recurring: DemoRecurring[] = RECUR.map(([name, category, amount], i) => ({ name, category, amount, cycle: RECUR_CYCLE[i % 4], status: RECUR_STATUS[i % 4] }));
+
+  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts, jobs, applications, interviews, offers, subscriptions, domains, assets, bank_accounts, liabilities, recurring };
 }
 
 
@@ -416,6 +444,12 @@ export function trimDemoPayload(full: DemoPayload, sel: Record<string, number>, 
     applications: take('applications', full.applications),
     interviews: take('interviews', full.interviews),
     offers: take('offers', full.offers),
+    subscriptions: take('subscriptions', full.subscriptions),
+    domains: take('domains', full.domains),
+    assets: take('assets', full.assets),
+    bank_accounts: take('bank_accounts', full.bank_accounts),
+    liabilities: take('liabilities', full.liabilities),
+    recurring: take('recurring', full.recurring),
     ideas: take('ideas', full.ideas).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
     products: take('products', full.products),
     invoices: take('invoices', full.invoices).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
