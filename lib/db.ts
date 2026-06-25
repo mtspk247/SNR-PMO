@@ -121,6 +121,7 @@ export async function seedFullDemo(orgId: string, opts: { industry?: string | nu
   if (opts.withAgents && opts.userId) {
     try { await seedStarterAgents(orgId, opts.userId); await seedBuiltinChatCommands(orgId); await seedAgentRoiDemo(orgId); } catch { /* non-fatal */ }
   }
+  try { await seedCommsDemo(orgId); } catch { /* non-fatal */ }
   return counts;
 }
 // Demo agent Activity & ROI — populate a believable executed/auto/rolled-back/pending
@@ -128,6 +129,11 @@ export async function seedFullDemo(orgId: string, opts: { industry?: string | nu
 // never bumps real usage, so it can't consume a tenant's Free-tier agent cap).
 export async function seedAgentRoiDemo(orgId: string): Promise<number> {
   const { data, error } = await sb.rpc('seed_agent_roi_demo', { p_org: orgId }); if (error) throw new Error(error.message);
+  return (data as number) || 0;
+}
+// Demo Booking page + sample SMS conversation so a fresh trial shows Booking + Inbox alive (idempotent + gated).
+export async function seedCommsDemo(orgId: string): Promise<number> {
+  const { data, error } = await sb.rpc('tenant_seed_demo_comms', { p_org: orgId }); if (error) throw new Error(error.message);
   return (data as number) || 0;
 }
 
