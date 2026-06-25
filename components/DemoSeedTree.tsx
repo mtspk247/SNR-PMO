@@ -6,12 +6,13 @@ import { INDUSTRIES, withCurrent } from '@/lib/taxonomy';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { buildDemoPayload, trimDemoPayload } from '@/lib/demoSeed';
-import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands, seedAgentRoiDemo, tenantSnapshot, restoreTenantSnapshot, listTenantSnapshots, TenantSnapshot, seedDefaultRoles, seedDemoCrmExtra } from '@/lib/db';
+import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands, seedAgentRoiDemo, tenantSnapshot, restoreTenantSnapshot, listTenantSnapshots, TenantSnapshot, seedDefaultRoles, seedDemoCrmExtra, seedDemoHrExtra } from '@/lib/db';
 
 type Leaf = { key: string; label: string };
 const GROUPS: { group: string; icon: string; items: Leaf[] }[] = [
   { group: 'Work', icon: 'ti-briefcase', items: [{ key: 'projects', label: 'Projects' }, { key: '__tasks', label: 'Tasks / project' }, { key: 'ideas', label: 'Ideas' }] },
   { group: 'CRM', icon: 'ti-users', items: [{ key: 'clients', label: 'Clients' }, { key: 'leads', label: 'Leads' }, { key: 'deals', label: 'Deals' }, { key: 'proposals', label: 'Proposals' }, { key: 'contracts', label: 'Contracts' }] },
+  { group: 'HR', icon: 'ti-heart-handshake', items: [{ key: 'jobs', label: 'Jobs' }, { key: 'applications', label: 'Applications' }, { key: 'interviews', label: 'Interviews' }, { key: 'offers', label: 'Offer letters' }] },
   { group: 'Accounting', icon: 'ti-report-money', items: [{ key: 'invoices', label: 'Invoices' }, { key: 'products', label: 'Products' }, { key: 'ledger', label: 'Ledger entries' }, { key: 'risks', label: 'Risks' }] },
   { group: 'People', icon: 'ti-users-group', items: [{ key: 'teams', label: 'Teams' }] },
   { group: 'Support', icon: 'ti-lifebuoy', items: [{ key: 'support', label: 'Tickets' }] },
@@ -76,10 +77,11 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
       const payload = trimDemoPayload(full, selection, cur('__tasks'));
       const counts = await seedDemoCustom(orgId, payload);
       const crmExtra = await seedDemoCrmExtra(orgId, payload).catch(() => ({} as Record<string, number>));
+      const hrExtra = await seedDemoHrExtra(orgId, payload).catch(() => ({} as Record<string, number>));
       if (withSmart) { try { await seedDemoSmartColumns(orgId); } catch { /* non-fatal */ } }
       if (withAgents && agentsAvail && me?.id) { try { await seedStarterAgents(orgId, me.id); await seedBuiltinChatCommands(orgId); await seedAgentRoiDemo(orgId); } catch { /* non-fatal */ } }
       if (withRoles) { try { await seedDefaultRoles(orgId); } catch { /* non-fatal */ } }
-      setDone({ ...counts, ...crmExtra });
+      setDone({ ...counts, ...crmExtra, ...hrExtra });
       refreshSnaps();
     } catch (e: unknown) { setErr((e as Error).message || 'Seeding failed'); }
     finally { setBusy(''); }

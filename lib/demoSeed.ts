@@ -20,12 +20,17 @@ export interface DemoTemplate { name: string; doc_type: string; body: string }
 export interface DemoLead { name: string; contact_name?: string; status?: string; value?: number; currency?: string; source?: string }
 export interface DemoProposal { title: string; client_name?: string; amount?: number; currency?: string; status?: string }
 export interface DemoContract { title: string; client_name?: string; value?: number; currency?: string; status?: string }
+export interface DemoJob { title: string; department?: string; location?: string; employment_type?: string; openings?: number; status?: string }
+export interface DemoApplication { candidate_name: string; email?: string; source?: string; stage?: string; rating?: number }
+export interface DemoInterview { mode?: string; status?: string; stage_label?: string }
+export interface DemoOffer { candidate_name: string; job_title?: string; salary?: number; currency?: string; status?: string }
 export interface DemoPayload {
   clients: string[]; projects: DemoProject[]; deals: DemoDeal[]; ledger: DemoLedger[];
   companies: string[]; portfolios: DemoPortfolio[]; teams: string[]; ideas: DemoIdea[];
   products: DemoProduct[]; invoices: DemoInvoice[]; support: DemoSupport[]; risks: DemoRisk[];
   automations: DemoAutomation[]; templates: DemoTemplate[];
   leads: DemoLead[]; proposals: DemoProposal[]; contracts: DemoContract[];
+  jobs: DemoJob[]; applications: DemoApplication[]; interviews: DemoInterview[]; offers: DemoOffer[];
 }
 
 const T = (name: string, status: string, priority = 'Medium', h = 6): DemoTask => ({ name, status, priority, estimated_hours: h });
@@ -356,7 +361,27 @@ export function buildDemoPayload(industry: string | null | undefined): DemoPaylo
   const contracts: DemoContract[] = [];
   for (let i = 0; i < N_CONTRACTS; i++) contracts.push({ title: `${pack.deals[i % pack.deals.length]} — Contract`, client_name: clients[i % clients.length], value: [24000, 60000, 15000, 90000, 18000][i % 5], currency: 'USD', status: CONTRACT_STATUS[i % CONTRACT_STATUS.length] });
 
-  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts };
+  // HR (jobs -> applications -> interviews/offers) — seeded via tenant_seed_demo_hr; FK chain linked in the RPC.
+  const JOB_TITLES = ['Senior Software Engineer', 'Product Manager', 'UX Designer', 'Account Executive', 'Customer Success Manager', 'Data Analyst', 'Marketing Lead', 'Operations Coordinator'];
+  const DEPTS = ['Engineering', 'Product', 'Design', 'Sales', 'Customer Success', 'Data', 'Marketing', 'Operations'];
+  const EMP_TYPES = ['full_time', 'part_time', 'contract', 'intern', 'temporary'];
+  const APP_STAGE = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
+  const APP_SOURCE = ['LinkedIn', 'Referral', 'Job board', 'Website', 'Agency'];
+  const IV_MODE = ['onsite', 'phone', 'video'];
+  const IV_STATUS = ['scheduled', 'completed', 'scheduled', 'no_show'];
+  const OFFER_STATUS = ['draft', 'sent', 'accepted', 'declined', 'expired'];
+  const CAND = ['Avery Stone', 'Noah Patel', 'Lena Fischer', 'Marcus Webb', 'Yuki Tanaka', 'Sofia Russo', 'Ethan Cole', 'Hana Park', 'Liam Nasser', 'Zoe Adler', 'Carlos Mendez', 'Aisha Bello'];
+  const N_JOBS = 8, N_APPS = 20, N_INTERVIEWS = 14, N_OFFERS = 8;
+  const jobs: DemoJob[] = [];
+  for (let i = 0; i < N_JOBS; i++) jobs.push({ title: JOB_TITLES[i % JOB_TITLES.length], department: DEPTS[i % DEPTS.length], location: ['Remote', 'Hybrid', 'On-site'][i % 3], employment_type: EMP_TYPES[i % EMP_TYPES.length], openings: (i % 3) + 1, status: 'open' });
+  const applications: DemoApplication[] = [];
+  for (let i = 0; i < N_APPS; i++) applications.push({ candidate_name: CAND[i % CAND.length], email: CAND[i % CAND.length].toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com', source: APP_SOURCE[i % APP_SOURCE.length], stage: APP_STAGE[i % APP_STAGE.length], rating: (i % 5) + 1 });
+  const interviews: DemoInterview[] = [];
+  for (let i = 0; i < N_INTERVIEWS; i++) interviews.push({ mode: IV_MODE[i % IV_MODE.length], status: IV_STATUS[i % IV_STATUS.length], stage_label: ['Phone screen', 'Technical', 'Onsite', 'Final'][i % 4] });
+  const offers: DemoOffer[] = [];
+  for (let i = 0; i < N_OFFERS; i++) offers.push({ candidate_name: CAND[i % CAND.length], job_title: JOB_TITLES[i % JOB_TITLES.length], salary: [85000, 120000, 95000, 140000, 70000][i % 5], currency: 'USD', status: OFFER_STATUS[i % OFFER_STATUS.length] });
+
+  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts, jobs, applications, interviews, offers };
 }
 
 
@@ -387,6 +412,10 @@ export function trimDemoPayload(full: DemoPayload, sel: Record<string, number>, 
     leads: take('leads', full.leads),
     proposals: take('proposals', full.proposals),
     contracts: take('contracts', full.contracts),
+    jobs: take('jobs', full.jobs),
+    applications: take('applications', full.applications),
+    interviews: take('interviews', full.interviews),
+    offers: take('offers', full.offers),
     ideas: take('ideas', full.ideas).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
     products: take('products', full.products),
     invoices: take('invoices', full.invoices).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
