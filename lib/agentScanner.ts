@@ -6,7 +6,7 @@
 import type { Task, Deal, LedgerEntry } from './supabase';
 
 export type WorkProposal = { tool: string; summary: string; risk: 'low' | 'medium' | 'high'; reversible: boolean; payload: any };
-export const SCANNABLE_DOMAINS = ['accounting', 'tasks', 'crm', 'people'];
+export const SCANNABLE_DOMAINS = ['accounting', 'tasks', 'crm', 'people', 'support'];
 
 const CAT_RULES: [RegExp, string][] = [
   [/aws|cloud|hosting|server|vercel|supabase|\bs3\b|ec2|digitalocean|heroku/i, 'Cloud Hosting'],
@@ -28,7 +28,7 @@ const isDoneStatus = (s?: string) => /done|complete|closed|cancel|archiv|won|los
 
 export function scanForWork(
   domain: string,
-  ctx: { tasks?: Task[]; deals?: Deal[]; ledger?: LedgerEntry[]; users?: { id: string; name: string }[]; today: string },
+  ctx: { tasks?: Task[]; deals?: Deal[]; ledger?: LedgerEntry[]; users?: { id: string; name: string }[]; tickets?: { id: string; subject: string; status: string; assignee_id: string | null }[]; agents?: { id: string; name: string }[]; today: string },
   cap = 8,
 ): WorkProposal[] {
   const out: WorkProposal[] = [];
@@ -74,6 +74,20 @@ export function scanForWork(
       const id = e[0], v = e[1];
       const who = nameOf.get(id) || 'A team member';
       out.push({ tool: 'flag_capacity_risk', summary: 'Capacity risk: ' + who + ' has ' + v.open + ' open' + (v.overdue ? (', ' + v.overdue + ' overdue') : '') + ' - review workload', risk: 'low', reversible: true, payload: { person: who, person_id: id, open: v.open, overdue: v.overdue } });
+      if (out.length >= cap) break;
+    }
+  } else if (domain === 'support') {
+    // Round-robin assign unassigned, non-terminal tickets to active support staff.
+    // Maps to the existing triage_ticket executor (assignTicket; RPC enforces support-staff);
+    // reversible by unassigning (from_assignee_id=null). No-op when there is no active agent.
+    const staff = ctx.agents || [];
+    const isClosed = (st?: string) => /closed|resolved|done|cancel|archiv/i.test(st || '');
+    let i = 0;
+    for (const t of ctx.tickets || []) {
+      if (staff.length === 0) break;
+      if (t.assignee_id || isClosed(t.status)) continue;
+      const a = staff[i % staff.length]; i++;
+      out.push({ tool: 'triage_ticket', summary: 'Unassigned ticket "' + (t.subject || '').slice(0, 40) + '" \u2192 assign to ' + a.name, risk: 'low', reversible: true, payload: { ticket_id: t.id, assignee_id: a.id, from_assignee_id: null } });
       if (out.length >= cap) break;
     }
   }
