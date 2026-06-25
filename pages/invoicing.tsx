@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import AgentPanel from '@/components/AgentPanel';
 import Select from '@/components/Select';
 import { PageHeader, Spinner, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -124,6 +125,7 @@ export default function InvoicingPage() {
     <Layout flat title="Invoicing">
       <PageHeader help="tracking" title="Invoicing" subtitle="Create invoices, track payments and balances" icon="ti-file-invoice"
         action={<button className="btn btn-primary" disabled={busy} onClick={newInvoice}><Icon name="ti-plus" />New invoice</button>} />
+      <AgentPanel domain="accounting" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">

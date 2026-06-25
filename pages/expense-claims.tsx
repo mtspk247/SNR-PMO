@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import AgentPanel from '@/components/AgentPanel';
 import { PageHeader, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import Select from '@/components/Select';
@@ -174,6 +175,7 @@ export default function ExpenseClaimsPage() {
     <Layout flat title="Expense Claims">
       <PageHeader title="Expense Claims" subtitle="Employee reimbursements — approve to accrue payable, pay to settle. Posts to the ledger." icon="ti-receipt-2"
         action={<button onClick={openNew} className="btn btn-primary"><Icon name="ti-plus" />New claim</button>} />
+      <AgentPanel domain="accounting" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
         <StatCard label="Claims" value={String((rows || []).length)} icon="ti-receipt-2" />

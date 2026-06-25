@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
+import AgentPanel from '@/components/AgentPanel';
 import RefLink from '@/components/RefLink';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -190,6 +191,8 @@ export default function LedgerPage() {
           {tab === 'journal' && accounts.length > 0 && (<><button onClick={importExisting} disabled={busy} className="btn"><Icon name="ti-download" />Import existing</button><button onClick={openJournal} className="btn btn-primary"><Icon name="ti-plus" />New journal entry</button></>)}
           <button onClick={() => { setSDraft(settings || { fiscal_year_start_month: 1, base_currency: 'USD', basis: 'accrual', lock_date: null }); setSettingsOpen(true); }} className="btn" title="Accounting settings"><Icon name="ti-settings" /></button>
         </div>} />
+
+      <AgentPanel domain="accounting" />
 
       <Tabs tabs={[
         { key: 'coa', label: 'Chart of Accounts', icon: 'ti-list-tree' },
