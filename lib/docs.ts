@@ -647,6 +647,20 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'booking',
+    title: 'Booking & appointments',
+    icon: 'ti-calendar-plus',
+    blocks: [
+      { kind: 'p', text: 'Booking lets clients self-schedule. Create a booking page with your availability, share its public link, and visitors pick an open slot - every booking is captured as a CRM lead and can fire automations.' },
+      { kind: 'steps', items: [
+        { title: '1. Create a booking page', body: 'Open People > Booking > New booking page. Set the meeting length, a buffer, your timezone, who the meeting is with, and the days + hours you are available.' },
+        { title: '2. Publish & share', body: 'Toggle Published, then copy the public /book/<slug> link from the list and put it anywhere - email, site, signature. The page is brandless and works for logged-out visitors.' },
+        { title: '3. Manage bookings', body: 'New appointments appear under Upcoming on the Booking page; mark them Completed, No-show or Cancelled. Each booking also creates a lead in CRM.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-check', text: 'The public booking endpoint is rate-limited and validates availability server-side, and a slot can never be double-booked (an exclusion constraint enforces it atomically). Email confirmations and ahead-of-time reminders arrive with the comms layer.' },
+    ],
+  },
+  {
     id: 'agents',
     title: 'AI Agents & approvals',
     icon: 'ti-robot',

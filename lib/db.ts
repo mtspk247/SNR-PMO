@@ -1297,6 +1297,34 @@ export async function cancelPortalApproval(id: string): Promise<void> {
   const { error } = await sb.from('portal_approvals').update({ status: 'cancelled' }).eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ---- Booking (appointment scheduling) — migrations booking_substrate_tables/_rpcs ----
+export interface BookingPage { id: string; org_id: string; slug: string; name: string; description: string | null; duration_min: number; buffer_min: number; availability: Record<string, [string, string][]>; timezone: string; assignee_id: string | null; status: 'draft' | 'published' | 'archived'; created_by: string | null; created_at: string; updated_at: string; }
+export interface Appointment { id: string; org_id: string; booking_page_id: string; name: string; email: string | null; phone: string | null; starts_at: string; ends_at: string; status: 'confirmed' | 'cancelled' | 'completed' | 'no_show'; notes: string | null; lead_id: string | null; source: string | null; created_at: string; }
+
+export async function listBookingPages(orgId: string): Promise<BookingPage[]> {
+  const { data, error } = await sb.from('booking_pages').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as BookingPage[]) || [];
+}
+export async function createBookingPage(p: { org_id: string; name: string; slug: string; description?: string | null; duration_min?: number; buffer_min?: number; availability?: any; timezone?: string; assignee_id?: string | null; status?: string; created_by: string }): Promise<BookingPage> {
+  const { data, error } = await sb.from('booking_pages').insert({ ...p }).select().single();
+  if (error) throw new Error(error.message); return data as BookingPage;
+}
+export async function updateBookingPage(id: string, patch: Partial<Pick<BookingPage, 'name' | 'slug' | 'description' | 'duration_min' | 'buffer_min' | 'availability' | 'timezone' | 'assignee_id' | 'status'>>): Promise<void> {
+  const { error } = await sb.from('booking_pages').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteBookingPage(id: string): Promise<void> {
+  const { error } = await sb.from('booking_pages').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listAppointments(orgId: string, bookingPageId?: string): Promise<Appointment[]> {
+  let q = sb.from('appointments').select('*').eq('org_id', orgId).order('starts_at', { ascending: false }).limit(500);
+  if (bookingPageId) q = q.eq('booking_page_id', bookingPageId);
+  const { data, error } = await q; if (error) throw new Error(error.message); return (data as Appointment[]) || [];
+}
+export async function setAppointmentStatus(id: string, status: 'confirmed' | 'cancelled' | 'completed' | 'no_show'): Promise<void> {
+  const { error } = await sb.from('appointments').update({ status }).eq('id', id); if (error) throw new Error(error.message);
+}
 export async function listPortalFiles(orgId: string): Promise<PortalFile[]> {
   const { data, error } = await sb.from('drive_files')
     .select('id,name,kind,mime_type,size_bytes,storage_path,created_at,drive_id, drives(name)')

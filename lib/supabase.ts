@@ -118,6 +118,7 @@ export const FEATURES = [
   { key: 'api', label: 'API & Webhooks' },
   { key: 'automations', label: 'Automations' },
   { key: 'forms', label: 'Forms' },
+  { key: 'booking', label: 'Booking' },
   { key: 'portal', label: 'Branded Client Portal' },
   { key: 'agents', label: 'AI Agents' },
 ] as const;
