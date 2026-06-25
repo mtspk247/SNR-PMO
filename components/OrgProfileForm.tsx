@@ -63,7 +63,7 @@ export default function OrgProfileForm({ load, onSave, readOnly = false, orgId, 
 
   const save = async () => {
     setBusy(true); setErr(''); setOk(false);
-    try { await onSave(v); setOk(true); setTimeout(() => setOk(false), 2500); }
+    try { await onSave(v); setOk(true); setTimeout(() => setOk(false), 2500); try { window.dispatchEvent(new Event('snr:profile-saved')); } catch { /* ignore */ } }
     catch (e: any) { setErr(e.message || 'Save failed'); }
     finally { setBusy(false); }
   };

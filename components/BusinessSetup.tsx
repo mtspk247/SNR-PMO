@@ -6,15 +6,27 @@ import { OrgProfile } from '@/lib/supabase';
 // Guided business-profile completion prompt shown above the org profile editor.
 // Groups the profile into sections; a section counts as done when its key field(s) are set.
 const SECTIONS: { id: string; label: string; icon: string; keys: (keyof OrgProfile)[] }[] = [
+  // Mirrors the profile tabs you fill in. (The 7th tab, Workspace, is your name + logo set when
+  // the workspace was created, so it is not part of this fill-in checklist.) A section counts as
+  // done once any of its key fields is set.
   { id: 'contact', label: 'Contact details', icon: 'ti-address-book', keys: ['website', 'contact_email', 'contact_phone'] },
-  { id: 'classification', label: 'Industry & about', icon: 'ti-category', keys: ['industry', 'about'] },
+  { id: 'classification', label: 'Industry & about', icon: 'ti-category', keys: ['industry', 'about', 'category'] },
+  { id: 'person', label: 'Contact person', icon: 'ti-user', keys: ['contact_person', 'contact_person_email', 'contact_person_phone'] },
   { id: 'address', label: 'Business address', icon: 'ti-map-pin', keys: ['address_line1', 'city', 'country'] },
   { id: 'tax', label: 'Tax & legal', icon: 'ti-receipt', keys: ['tax_id', 'registration_no'] },
+  { id: 'social', label: 'Social links', icon: 'ti-share', keys: ['social_linkedin', 'social_twitter', 'social_facebook', 'social_instagram'] },
 ];
 
 export default function BusinessSetup({ orgId }: { orgId: string }) {
   const [profile, setProfile] = useState<OrgProfile | null>(null);
-  useEffect(() => { getOrgProfile(orgId).then(setProfile).catch(() => {}); }, [orgId]);
+  useEffect(() => {
+    let active = true;
+    const load = () => { getOrgProfile(orgId).then((p) => { if (active) setProfile(p); }).catch(() => {}); };
+    load();
+    const onSaved = () => load();
+    window.addEventListener('snr:profile-saved', onSaved);   // refresh when the form below saves
+    return () => { active = false; window.removeEventListener('snr:profile-saved', onSaved); };
+  }, [orgId]);
   if (!profile) return null;
 
   const has = (k: keyof OrgProfile) => !!(profile[k] && String(profile[k]).trim());
