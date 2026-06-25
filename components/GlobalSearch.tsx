@@ -17,6 +17,17 @@ const SPEC = new Map(SEARCH_SPECS.map((s) => [s.key, s]));
 // #10 map a search-module key to its nav href, so hidden pages drop out of search.
 const SPEC_HREF: Record<string, string> = Object.fromEntries(ALL_ITEMS.filter((i) => i.search).map((i) => [i.search!.key, i.href]));
 
+// Quick-create actions for the command palette (navigate to the create-capable page).
+const ACTIONS: { label: string; icon: string; href: string; kw: string }[] = [
+  { label: 'New client', icon: 'ti-plus', href: '/clients', kw: 'create add customer' },
+  { label: 'New lead', icon: 'ti-plus', href: '/leads', kw: 'create add' },
+  { label: 'New invoice', icon: 'ti-plus', href: '/invoicing', kw: 'create add bill' },
+  { label: 'New form', icon: 'ti-plus', href: '/forms', kw: 'create add' },
+  { label: 'New booking page', icon: 'ti-plus', href: '/booking', kw: 'create add appointment schedule' },
+  { label: 'New note', icon: 'ti-plus', href: '/notes', kw: 'create add' },
+  { label: 'New expense claim', icon: 'ti-plus', href: '/expense-claims', kw: 'create add reimburse' },
+];
+
 async function runSearch(raw: string, mods: string[]): Promise<Hit[]> {
   const q = raw.trim();
   const like = `%${q}%`;
@@ -67,7 +78,12 @@ export default function GlobalSearch() {
     }
     return out;
   }, [q2, activeOrg?.hidden_pages]);
-  const combined = useMemo<Hit[]>(() => [...navHits, ...hits], [navHits, hits]);
+  const actionHits = useMemo<Hit[]>(() => {
+    if (q2.length < 2) return [];
+    return ACTIONS.filter((a) => !isPageHidden(activeOrg?.hidden_pages, a.href) && (a.label.toLowerCase().includes(q2) || a.kw.includes(q2)))
+      .map((a) => ({ id: 'act:' + a.href, key: '__action', title: a.label, subtitle: 'Action', href: a.href, icon: a.icon }));
+  }, [q2, activeOrg?.hidden_pages]);
+  const combined = useMemo<Hit[]>(() => [...actionHits, ...navHits, ...hits], [actionHits, navHits, hits]);
 
   // Global hotkeys: "/" or Cmd/Ctrl-K focus the search (no modal).
   useEffect(() => {
@@ -160,7 +176,7 @@ export default function GlobalSearch() {
           const head = h.key !== last ? (last = h.key) : null;
           return (
             <div key={h.key + h.id}>
-              {head && <p className="px-4 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{h.key === '__page' ? 'Jump to' : MOD_LABEL[h.key]}</p>}
+              {head && <p className="px-4 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{h.key === '__action' ? 'Actions' : h.key === '__page' ? 'Jump to' : MOD_LABEL[h.key]}</p>}
               <button onMouseDown={(e) => { e.preventDefault(); go(h); }} onMouseEnter={() => setActive(i)}
                 className={`w-full flex items-center gap-3 px-4 py-2 text-left transition ${i === active ? 'bg-surface2' : 'hover:bg-surface2'}`}>
                 {h.avatar ? <Avatar name={h.title} size={24} />
