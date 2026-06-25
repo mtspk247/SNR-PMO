@@ -53,6 +53,22 @@ export default function GlobalSearch() {
 
   const scopeLabel = selMods.length === 0 ? 'All' : selMods.length === 1 ? MOD_LABEL[selMods[0]] : `${selMods.length} selected`;
 
+  // Command-palette: type a page name to jump there (nav manifest), shown above record hits.
+  const q2 = q.trim().toLowerCase();
+  const navHits = useMemo<Hit[]>(() => {
+    if (q2.length < 2) return [];
+    const seen = new Set<string>(); const out: Hit[] = [];
+    for (const it of ALL_ITEMS) {
+      if (out.length >= 6) break;
+      if (seen.has(it.href)) continue;
+      if (isPageHidden(activeOrg?.hidden_pages, it.href)) continue;
+      if (!it.label.toLowerCase().includes(q2)) continue;
+      seen.add(it.href); out.push({ id: it.href, key: '__page', title: it.label, subtitle: 'Page', href: it.href, icon: it.icon });
+    }
+    return out;
+  }, [q2, activeOrg?.hidden_pages]);
+  const combined = useMemo<Hit[]>(() => [...navHits, ...hits], [navHits, hits]);
+
   // Global hotkeys: "/" or Cmd/Ctrl-K focus the search (no modal).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -95,9 +111,9 @@ export default function GlobalSearch() {
   const go = (h?: Hit) => { if (!h) return; setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); setDesktopOpen(false); setQ(''); router.push(h.href); };
 
   const onInputKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, hits.length - 1)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, combined.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-    else if (e.key === 'Enter') { e.preventDefault(); go(hits[active]); }
+    else if (e.key === 'Enter') { e.preventDefault(); go(combined[active]); }
     else if (e.key === 'Escape') { setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); if (!q.trim()) setDesktopOpen(false); }
   };
 
@@ -137,14 +153,14 @@ export default function GlobalSearch() {
     <div className="absolute left-0 right-0 top-[2.6rem] z-[65] bg-surface border border-line rounded-lg shadow-xl overflow-hidden">
       <div className="max-h-[60vh] overflow-y-auto py-1">
         {q.trim().length < 2 ? (
-          <p className="px-4 py-5 text-center text-sm text-muted2">Type at least 2 characters{selMods.length > 0 ? ` · scope: ${scopeLabel}` : ''}.</p>
-        ) : !loading && hits.length === 0 ? (
+          <p className="px-4 py-5 text-center text-sm text-muted2">Type 2+ characters to jump to a page or search records{selMods.length > 0 ? ` · scope: ${scopeLabel}` : ''}.</p>
+        ) : !loading && combined.length === 0 ? (
           <p className="px-4 py-5 text-center text-sm text-muted2">No matches for “{q.trim()}”.</p>
-        ) : (() => { let last = ''; return hits.map((h, i) => {
+        ) : (() => { let last = ''; return combined.map((h, i) => {
           const head = h.key !== last ? (last = h.key) : null;
           return (
             <div key={h.key + h.id}>
-              {head && <p className="px-4 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{MOD_LABEL[h.key]}</p>}
+              {head && <p className="px-4 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{h.key === '__page' ? 'Jump to' : MOD_LABEL[h.key]}</p>}
               <button onMouseDown={(e) => { e.preventDefault(); go(h); }} onMouseEnter={() => setActive(i)}
                 className={`w-full flex items-center gap-3 px-4 py-2 text-left transition ${i === active ? 'bg-surface2' : 'hover:bg-surface2'}`}>
                 {h.avatar ? <Avatar name={h.title} size={24} />
