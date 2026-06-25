@@ -1,4 +1,7 @@
 
+## 2026-06-25 — Scalability hardening: covering indexes for all unindexed FKs (SHIPPED, DB-only)
+- Supabase performance advisor pass (273 lints). Fixed the 12 `unindexed_foreign_keys` → migration `fk_covering_indexes_2026_06_25` (expand-only, idempotent, no data change): covering indexes on automation_logs.rule_id; drive_access_requests.file_id/folder_id; drive_comments.drive_id/parent_id; drive_grants.drive_id/file_id/folder_id; drive_share_links.file_id/folder_id; form_submissions.lead_id; forms.created_by. **Catalog-verified: ZERO FKs in snrpmo now lack a covering index** (faster joins + cascade deletes at scale). Left (deliberate, low-value/risky): 135 unused_index, 125 multiple_permissive_policies, 1 backup-table no-PK. Security advisors unchanged — 2 manual items remain (Tariq: enable Auth leaked-password protection; pg_net-in-public left as-is).
+
 ## 2026-06-25 — Agents: Support agent "Find work" (SHIPPED)
 - `lib/agentScanner.ts`: deterministic scanner extended to **support** (was accounting/tasks/crm/people) — round-robin-assigns unassigned, non-terminal tickets to active support staff → `triage_ticket` (existing executor; `assignTicket` RPC enforces support-staff; reversible by unassigning). `runWorkScan` fetches `listTickets` + `supportAgentList` (active), dedupes by `ticket_id`. Pure-scanner unit test 10/10; **no new DB objects/write paths**. `/docs#agents`. Preview `e4d070a` READY → merged main. Lights up the Support agent's "Find work in my data" button (works without an LLM key).
 
