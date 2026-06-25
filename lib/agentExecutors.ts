@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -137,6 +137,18 @@ export const EXECUTORS: Record<string, Executor> = {
       return { target_table: 'tasks', target_id: t.id, result: { task_id: t.id, name: t.name }, reversal: { op: 'delete_task' } };
     },
     rollback: async (a) => { if (a.target_id) await deleteTask(a.target_id); },
+  },
+  // CRM (comms) — send an APPROVED SMS via the messaging provider. Irreversible (the tool is
+  // reversible:false), so it is ALWAYS approve-first; runs sendSms (sms_enqueue) as the approving
+  // user, where opt-outs + spend caps are enforced, then kicks the dispatcher.
+  send_sms: {
+    label: 'Send the SMS',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      if (!p.to || !p.body) throw new Error('send_sms needs to + body in the payload');
+      await sendSms(ctx.orgId, String(p.to), String(p.body));
+      return { target_table: 'comms_messages', target_id: null, result: { to: String(p.to) } };
+    },
   },
 };
 
