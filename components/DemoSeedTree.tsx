@@ -8,11 +8,11 @@ import { hasFeature } from '@/lib/entitlements';
 import { buildDemoPayload, trimDemoPayload } from '@/lib/demoSeed';
 import { seedDemoCustom, seedDemoSmartColumns, unseedDemoSmartColumns, seedStarterAgents, seedBuiltinChatCommands, seedAgentRoiDemo, tenantSnapshot, restoreTenantSnapshot, listTenantSnapshots, TenantSnapshot, seedDefaultRoles, seedDemoCrmExtra, seedDemoHrExtra, seedDemoAccountingExtra, seedDemoExtras, seedDemoUsers } from '@/lib/db';
 
-type Leaf = { key: string; label: string };
+type Leaf = { key: string; label: string; soon?: boolean };
 const GROUPS: { group: string; icon: string; items: Leaf[] }[] = [
   { group: 'Work', icon: 'ti-briefcase', items: [{ key: 'projects', label: 'Projects' }, { key: '__tasks', label: 'Tasks / project' }, { key: 'ideas', label: 'Ideas' }] },
   { group: 'CRM', icon: 'ti-users', items: [{ key: 'clients', label: 'Clients' }, { key: 'leads', label: 'Leads' }, { key: 'deals', label: 'Deals' }, { key: 'proposals', label: 'Proposals' }, { key: 'contracts', label: 'Contracts' }, { key: 'forms', label: 'Forms' }] },
-  { group: 'HR', icon: 'ti-heart-handshake', items: [{ key: 'jobs', label: 'Jobs' }, { key: 'applications', label: 'Applications' }, { key: 'interviews', label: 'Interviews' }, { key: 'offers', label: 'Offer letters' }] },
+  { group: 'HR', icon: 'ti-heart-handshake', items: [{ key: 'jobs', label: 'Jobs' }, { key: 'applications', label: 'Applications' }, { key: 'interviews', label: 'Interviews' }, { key: 'offers', label: 'Offer letters' }, { key: 'onboarding', label: 'Onboarding', soon: true }, { key: 'appraisals', label: 'Appraisals', soon: true }, { key: 'training', label: 'Training & JDs', soon: true }, { key: 'payroll', label: 'Payroll', soon: true }, { key: 'attendance', label: 'Attendance', soon: true }, { key: 'leave', label: 'Leave', soon: true }] },
   { group: 'Accounting', icon: 'ti-report-money', items: [{ key: 'invoices', label: 'Invoices' }, { key: 'products', label: 'Products' }, { key: 'ledger', label: 'Ledger entries' }, { key: 'risks', label: 'Risks' }, { key: 'subscriptions', label: 'Subscriptions' }, { key: 'domains', label: 'Domains' }, { key: 'assets', label: 'Assets' }, { key: 'bank_accounts', label: 'Bank accounts' }, { key: 'liabilities', label: 'Liabilities' }, { key: 'recurring', label: 'Recurring expenses' }, { key: 'bills', label: 'Bills / Purchases' }, { key: 'expense_claims', label: 'Expense claims' }, { key: 'credit_notes', label: 'Credit notes' }] },
   { group: 'People', icon: 'ti-users-group', items: [{ key: 'teams', label: 'Teams' }, { key: 'users', label: 'People (demo, no login)' }] },
   { group: 'Support', icon: 'ti-lifebuoy', items: [{ key: 'support', label: 'Tickets' }] },
@@ -40,7 +40,7 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
 
   const defaults = useMemo(() => {
     const d: Record<string, number> = {};
-    GROUPS.forEach((g) => g.items.forEach((it) => { d[it.key] = baseLen(it.key); }));
+    GROUPS.forEach((g) => g.items.forEach((it) => { if (!it.soon) d[it.key] = baseLen(it.key); }));
     return d;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [full]);
@@ -70,7 +70,7 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
   const toggleKey = (key: string, on: boolean) => setKey(key, on ? baseLen(key) : 0);
   const toggleGroup = (items: Leaf[], on: boolean) => { setDone(null); setSel((s) => { const n = { ...s }; items.forEach((it) => { n[it.key] = on ? baseLen(it.key) : 0; }); return n; }); };
 
-  const totalRecords = GROUPS.reduce((sum, g) => sum + g.items.filter((it) => it.key !== '__tasks').reduce((a, it) => a + cur(it.key), 0), 0);
+  const totalRecords = GROUPS.reduce((sum, g) => sum + g.items.filter((it) => it.key !== '__tasks' && !it.soon).reduce((a, it) => a + cur(it.key), 0), 0);
 
   const run = async () => {
     setBusy('seed'); setErr(''); setDone(null); setMsg('');
@@ -116,9 +116,10 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
 
       <div className="mt-4 space-y-3">
         {GROUPS.map((g) => {
-          const allOn = g.items.every((it) => cur(it.key) > 0);
-          const someOn = g.items.some((it) => cur(it.key) > 0);
-          const selectedCount = g.items.filter((it) => it.key !== '__tasks').reduce((a, it) => a + cur(it.key), 0);
+          const seedable = g.items.filter((it) => !it.soon);
+          const allOn = seedable.length > 0 && seedable.every((it) => cur(it.key) > 0);
+          const someOn = seedable.some((it) => cur(it.key) > 0);
+          const selectedCount = seedable.filter((it) => it.key !== '__tasks').reduce((a, it) => a + cur(it.key), 0);
           const expanded = open[g.group] ?? someOn;
           return (
             <div key={g.group} className="rounded-xl border border-line">
@@ -127,7 +128,7 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
                   <Icon name="ti-chevron-down" className={`text-xs transition-transform ${expanded ? '' : '-rotate-90'}`} />
                 </button>
                 <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
-                  <input type="checkbox" className="accent-accent" checked={allOn} ref={(el) => { if (el) el.indeterminate = someOn && !allOn; }} onChange={(e) => toggleGroup(g.items, e.target.checked)} />
+                  <input type="checkbox" className="accent-accent" checked={allOn} ref={(el) => { if (el) el.indeterminate = someOn && !allOn; }} onChange={(e) => toggleGroup(seedable, e.target.checked)} />
                   <Icon name={g.icon} className="text-base text-accentstrong shrink-0" />
                   <span className="text-sm font-medium text-content truncate">{g.group}</span>
                   <span className="text-2xs text-muted2 shrink-0">{g.items.length}</span>
@@ -137,6 +138,13 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
               {expanded && (
                 <div className="px-3 pb-3 pl-10 grid sm:grid-cols-2 gap-x-6 gap-y-2">
                   {g.items.map((it) => {
+                    if (it.soon) return (
+                      <div key={it.key} className="flex items-center gap-2" title="No demo generator yet — coming soon">
+                        <span className="w-3.5 h-3.5 shrink-0 rounded border border-line bg-surface2" />
+                        <span className="text-sm flex-1 text-muted2">{it.label}</span>
+                        <span className="text-2xs uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-line/60 text-muted2 shrink-0">Soon</span>
+                      </div>
+                    );
                     const max = maxOf(it.key); const on = cur(it.key) > 0;
                     return (
                       <div key={it.key} className="flex items-center gap-2">
