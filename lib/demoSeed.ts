@@ -35,6 +35,7 @@ export interface DemoExpenseClaim { title: string; amount?: number; status?: str
 export interface DemoCreditNote { credit_number: string; client_name?: string; amount?: number; status?: string }
 export interface DemoForm { name: string; slug: string; status?: string; fields?: unknown[] }
 export interface DemoDrive { name: string; description?: string }
+export interface DemoUser { full_name: string; username: string; email: string; department?: string }
 export interface DemoPayload {
   clients: string[]; projects: DemoProject[]; deals: DemoDeal[]; ledger: DemoLedger[];
   companies: string[]; portfolios: DemoPortfolio[]; teams: string[]; ideas: DemoIdea[];
@@ -43,7 +44,7 @@ export interface DemoPayload {
   leads: DemoLead[]; proposals: DemoProposal[]; contracts: DemoContract[];
   jobs: DemoJob[]; applications: DemoApplication[]; interviews: DemoInterview[]; offers: DemoOffer[];
   subscriptions: DemoSubscription[]; domains: DemoDomain[]; assets: DemoAsset[]; bank_accounts: DemoBankAccount[]; liabilities: DemoLiability[]; recurring: DemoRecurring[];
-  bills: DemoBill[]; expense_claims: DemoExpenseClaim[]; credit_notes: DemoCreditNote[]; forms: DemoForm[]; drives: DemoDrive[];
+  bills: DemoBill[]; expense_claims: DemoExpenseClaim[]; credit_notes: DemoCreditNote[]; forms: DemoForm[]; drives: DemoDrive[]; users: DemoUser[];
 }
 
 const T = (name: string, status: string, priority = 'Medium', h = 6): DemoTask => ({ name, status, priority, estimated_hours: h });
@@ -432,8 +433,12 @@ export function buildDemoPayload(industry: string | null | undefined): DemoPaylo
   const forms: DemoForm[] = FORM_NAMES.map((name, i) => ({ name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + tok + '-' + i, status: FORM_STATUS[i % 3], fields: FORM_FIELDS }));
   const DRIVE_NAMES = ['Company Documents', 'Client Deliverables', 'Marketing Assets', 'HR & Policies', 'Templates', 'Archive'];
   const drives: DemoDrive[] = DRIVE_NAMES.map((name) => ({ name, description: name + ' — shared workspace drive.' }));
+  const USER_NAMES = ['Olivia Bennett', 'Ryan Cooper', 'Maya Iyer', 'Daniel Kim', 'Grace Liu', 'Hassan Ali', 'Emma Novak', 'Leo Martins', 'Sara Demir', 'Jacob Reed', 'Nina Patel', 'Tomas Vega'];
+  const USER_DEPTS = ['Engineering', 'Sales', 'Operations', 'Marketing', 'Finance', 'Design', 'People', 'Support'];
+  // Display-only demo people (no auth account). trimDemoPayload uniquifies username/email per run.
+  const users: DemoUser[] = USER_NAMES.map((full_name, i) => { const slug = full_name.toLowerCase().replace(/[^a-z]+/g, '.'); return { full_name, username: slug, email: slug + '@demo.example.com', department: USER_DEPTS[i % USER_DEPTS.length] }; });
 
-  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts, jobs, applications, interviews, offers, subscriptions, domains, assets, bank_accounts, liabilities, recurring, bills, expense_claims, credit_notes, forms, drives };
+  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts, jobs, applications, interviews, offers, subscriptions, domains, assets, bank_accounts, liabilities, recurring, bills, expense_claims, credit_notes, forms, drives, users };
 }
 
 
@@ -491,6 +496,7 @@ export function trimDemoPayload(full: DemoPayload, sel: Record<string, number>, 
     credit_notes: take('credit_notes', full.credit_notes),
     forms: cap('forms', full.forms),
     drives: take('drives', full.drives),
+    users: take('users', full.users).map((u, i) => ({ ...u, username: u.username + '.' + volTok + '.' + (i + 1), email: u.email.replace('@', '.' + volTok.toLowerCase() + '.' + (i + 1) + '@') })),
     ideas: take('ideas', full.ideas).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
     products: take('products', full.products),
     invoices: take('invoices', full.invoices).map((e, i) => ({ ...e, number: 'INV-' + volTok + '-' + (i + 1), project_index: clampProj(e.project_index) })),
