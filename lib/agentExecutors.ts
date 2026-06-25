@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -149,6 +149,40 @@ export const EXECUTORS: Record<string, Executor> = {
       await sendSms(ctx.orgId, String(p.to), String(p.body));
       return { target_table: 'comms_messages', target_id: null, result: { to: String(p.to) } };
     },
+  },
+  // CRM (create) — CREATE pattern, reversible by delete. Reuses the same createContact a
+  // human uses, so the insert is RLS/RBAC-walled to the approver's org. Demoable via sample.
+  create_contact: {
+    label: 'Create the contact',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const full_name = String(p.full_name || p.name || a.summary || 'New contact').slice(0, 160);
+      const c = await createContact({
+        full_name, org_id: ctx.orgId,
+        email: p.email ?? null, phone: p.phone ?? null, title: p.title ?? null,
+        company_id: p.company_id ?? null, status: p.status ?? null,
+      });
+      return { target_table: 'crm_contacts', target_id: c.id, result: { contact_id: c.id, full_name }, reversal: { op: 'delete_contact' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteContact(a.target_id); },
+  },
+  // CRM (create) — CREATE pattern, reversible by delete. Opens a pipeline deal via createDeal
+  // (same RLS path as the human). Stage omitted -> the DB default applies (avoids a stage CHECK).
+  create_deal: {
+    label: 'Create the deal',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const title = String(p.title || a.summary || 'New deal').slice(0, 200);
+      const value = isFinite(Number(p.value)) ? Number(p.value) : null;
+      const ec = (typeof p.expected_close === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.expected_close)) ? p.expected_close : null;
+      const d = await createDeal({
+        title, org_id: ctx.orgId, value,
+        ...(p.stage ? { stage: String(p.stage) } : {}),
+        company_id: p.company_id ?? null, contact_id: p.contact_id ?? null, expected_close: ec,
+      });
+      return { target_table: 'crm_deals', target_id: d.id, result: { deal_id: d.id, title: d.title }, reversal: { op: 'delete_deal' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteDeal(a.target_id); },
   },
 };
 
