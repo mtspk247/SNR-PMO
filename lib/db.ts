@@ -1260,6 +1260,28 @@ export async function listActivity(p: { fileId?: string; folderId?: string; driv
   if (error) throw new Error(error.message); return (data as DriveActivity[]) || [];
 }
 
+// ---- Drive access requests (Slice 3b) ----
+export interface DriveAccessRequest { id: string; org_id: string; drive_id: string; folder_id: string | null; file_id: string | null; requester_id: string; requested_level: 'viewer' | 'commenter' | 'editor'; note: string | null; status: 'pending' | 'approved' | 'denied' | 'cancelled'; decided_by: string | null; decided_at: string | null; created_at: string; }
+export async function requestAccess(p: { drive_id: string; folder_id?: string | null; file_id?: string | null; level: 'viewer' | 'commenter' | 'editor'; note?: string }): Promise<string> {
+  const { data, error } = await sb.rpc('drive_request_create', { p_drive: p.drive_id, p_folder: p.folder_id ?? null, p_file: p.file_id ?? null, p_level: p.level, p_note: p.note ?? null });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function decideAccessRequest(id: string, approve: boolean): Promise<void> {
+  const { error } = await sb.rpc('drive_request_decide', { p_request: id, p_approve: approve });
+  if (error) throw new Error(error.message);
+}
+export async function listAccessRequests(p: { driveId?: string; status?: string }): Promise<DriveAccessRequest[]> {
+  let q = sb.from('drive_access_requests').select('*');
+  if (p.driveId) q = q.eq('drive_id', p.driveId);
+  if (p.status) q = q.eq('status', p.status);
+  const { data, error } = await q.order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as DriveAccessRequest[]) || [];
+}
+export async function cancelAccessRequest(id: string): Promise<void> {
+  const { error } = await sb.from('drive_access_requests').update({ status: 'cancelled' }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 // ---- Forms (F2) — builder + submissions ----
 export interface FormField { key: string; label: string; type: string; required?: boolean; options?: string[]; placeholder?: string; }
 export interface FormDef { id: string; org_id: string; name: string; slug: string; status: 'draft' | 'published' | 'archived'; fields: FormField[]; settings: Record<string, any>; submit_count: number; created_by: string | null; created_at: string; updated_at: string; }

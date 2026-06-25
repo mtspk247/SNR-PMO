@@ -8,7 +8,7 @@ import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
   getProjects, setDriveProject, moveFolder, moveFile, createDoc, saveDoc, getDriveLevel, getOrgUsers,
-  archiveFile, restoreFile, archiveFolder, restoreFolder, listArchived,
+  archiveFile, restoreFile, archiveFolder, restoreFolder, listArchived, listAccessRequests,
   Drive, DriveFolder, DriveFile, DriveLevel,
 } from '@/lib/db';
 import { Project, OrgUser } from '@/lib/supabase';
@@ -20,6 +20,7 @@ import DriveShareModal from '@/components/DriveShareModal';
 import DriveComments from '@/components/DriveComments';
 import DriveActivityModal from '@/components/DriveActivityModal';
 import DriveAccessModal from '@/components/DriveAccessModal';
+import DriveRequestsModal from '@/components/DriveRequestsModal';
 
 const fmtBytes = (n: number) => {
   if (!n) return '0 B';
@@ -72,6 +73,8 @@ export default function DrivesPage() {
   const [archived, setArchived] = useState<{ files: DriveFile[]; folders: DriveFolder[] } | null>(null);
   const [activityFor, setActivityFor] = useState<{ id: string; name: string; kind: 'file' | 'folder' } | null>(null);
   const [accessFor, setAccessFor] = useState<{ kind: 'file' | 'folder'; id: string; name: string; drive_id: string; folder_id?: string | null } | null>(null);
+  const [requestsOpen, setRequestsOpen] = useState(false);
+  const [pendingReq, setPendingReq] = useState(0);
   const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -83,7 +86,7 @@ export default function DrivesPage() {
   const loadDrives = () => { if (!org) return; listDrives(org.id).then((d) => { setDrives(d); if (!active && d.length) selectDrive(d[0]); }).catch((e) => { setErr(e.message); setDrives([]); }); };
   useEffect(() => { if (org?.id && enabled) { loadDrives(); loadUsage(); } /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
-  const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); setLevel(null); getDriveLevel(d.id).then(setLevel).catch(() => setLevel(null)); listFolders(d.id).then(setFolders).catch(() => {}); };
+  const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); setLevel(null); getDriveLevel(d.id).then(setLevel).catch(() => setLevel(null)); listAccessRequests({ driveId: d.id, status: 'pending' }).then((r) => setPendingReq(r.length)).catch(() => setPendingReq(0)); listFolders(d.id).then(setFolders).catch(() => {}); };
   useEffect(() => { if (active) { setFiles(null); listFiles(active.id, currentFolderId).then(setFiles).catch(() => setFiles([])); } /* eslint-disable-next-line */ }, [active?.id, currentFolderId]);
   useEffect(() => { setSelected(new Set()); setMenu(null); }, [active?.id, currentFolderId]);
 
@@ -369,6 +372,7 @@ export default function DrivesPage() {
                   <button className="btn h-8 py-0" disabled={busy} onClick={newDoc}><Icon name="ti-file-text" className="text-sm" />New doc</button>
                   <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
                   <button className="btn h-8 py-0" disabled={!active} onClick={() => { if (active) listArchived(active.id).then(setArchived).catch((e) => setErr(e.message)); }}><Icon name="ti-archive" className="text-sm" />Archived</button>
+                  {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => setRequestsOpen(true)}><Icon name="ti-inbox" className="text-sm" />Requests{pendingReq > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-white text-2xs">{pendingReq}</span>}</button>}
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => active && setShareFor(active)}><Icon name="ti-user-share" className="text-sm" />Share</button>}
                   <button className="btn btn-primary h-8 py-0" disabled={busy} onClick={() => fileInput.current?.click()}><Icon name="ti-upload" className="text-sm" />Upload</button>
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onUpload(e.target.files)} />
@@ -540,6 +544,10 @@ export default function DrivesPage() {
       )}
       {accessFor && org && (
         <DriveAccessModal target={accessFor} orgId={org.id} folders={folders} people={people} meId={me?.id || ''} canManage={level === 'manage' || isAdmin} onClose={() => setAccessFor(null)} />
+      )}
+      {requestsOpen && active && (
+        <DriveRequestsModal driveId={active.id} people={people} folders={folders} files={files || []} onClose={() => setRequestsOpen(false)}
+          onChange={() => { if (active) listAccessRequests({ driveId: active.id, status: 'pending' }).then((r) => setPendingReq(r.length)).catch(() => {}); refreshHere(); }} />
       )}
     </Layout>
   );
