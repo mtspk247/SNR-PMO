@@ -6,7 +6,7 @@
 import type { Task, Deal, LedgerEntry } from './supabase';
 
 export type WorkProposal = { tool: string; summary: string; risk: 'low' | 'medium' | 'high'; reversible: boolean; payload: any };
-export const SCANNABLE_DOMAINS = ['accounting', 'tasks', 'crm'];
+export const SCANNABLE_DOMAINS = ['accounting', 'tasks', 'crm', 'people'];
 
 const CAT_RULES: [RegExp, string][] = [
   [/aws|cloud|hosting|server|vercel|supabase|\bs3\b|ec2|digitalocean|heroku/i, 'Cloud Hosting'],
@@ -28,7 +28,7 @@ const isDoneStatus = (s?: string) => /done|complete|closed|cancel|archiv|won|los
 
 export function scanForWork(
   domain: string,
-  ctx: { tasks?: Task[]; deals?: Deal[]; ledger?: LedgerEntry[]; today: string },
+  ctx: { tasks?: Task[]; deals?: Deal[]; ledger?: LedgerEntry[]; users?: { id: string; name: string }[]; today: string },
   cap = 8,
 ): WorkProposal[] {
   const out: WorkProposal[] = [];
@@ -53,6 +53,27 @@ export function scanForWork(
     for (const d of ctx.deals || []) {
       if (isDoneStatus(d.stage) || !d.expected_close || d.expected_close >= today) continue;
       out.push({ tool: 'draft_followup', summary: 'Stale deal "' + (d.title || '').slice(0, 40) + '" (close date ' + d.expected_close + ' passed) — draft a follow-up', risk: 'low', reversible: true, payload: { deal_id: d.id, deal: d.title } });
+      if (out.length >= cap) break;
+    }
+  } else if (domain === 'people') {
+    // Group open (non-done) tasks by assignee; flag anyone carrying a heavy load.
+    const nameOf = new Map((ctx.users || []).map((u) => [u.id, u.name] as [string, string]));
+    const load = new Map<string, { open: number; overdue: number }>();
+    for (const t of ctx.tasks || []) {
+      if (isDoneStatus(t.status)) continue;
+      const ids = (t.assignee_ids && t.assignee_ids.length) ? t.assignee_ids : (t.assignee_id ? [t.assignee_id] : []);
+      for (const id of ids) {
+        const cur = load.get(id) || { open: 0, overdue: 0 };
+        cur.open++;
+        if (t.due_date && t.due_date < today) cur.overdue++;
+        load.set(id, cur);
+      }
+    }
+    const ranked = Array.from(load.entries()).filter((e) => e[1].open >= 8 || e[1].overdue >= 3).sort((a, b) => b[1].open - a[1].open);
+    for (const e of ranked) {
+      const id = e[0], v = e[1];
+      const who = nameOf.get(id) || 'A team member';
+      out.push({ tool: 'flag_capacity_risk', summary: 'Capacity risk: ' + who + ' has ' + v.open + ' open' + (v.overdue ? (', ' + v.overdue + ' overdue') : '') + ' - review workload', risk: 'low', reversible: true, payload: { person: who, person_id: id, open: v.open, overdue: v.overdue } });
       if (out.length >= cap) break;
     }
   }

@@ -3677,15 +3677,17 @@ export async function autoApproveAgentAction(actionId: string): Promise<void> {
 // already-pending proposals so a re-scan doesn't spam the queue.
 export async function runWorkScan(orgId: string, agent: { id: string; domain: string }): Promise<{ runId: string | null; count: number }> {
   const today = new Date().toISOString().slice(0, 10);
-  const [tasks, deals, ledger, pending] = await Promise.all([
-    agent.domain === 'tasks' ? getTasks(orgId) : Promise.resolve([] as Task[]),
+  const [tasks, deals, ledger, users, pending] = await Promise.all([
+    (agent.domain === 'tasks' || agent.domain === 'people') ? getTasks(orgId) : Promise.resolve([] as Task[]),
     agent.domain === 'crm' ? getDeals(orgId) : Promise.resolve([] as Deal[]),
     agent.domain === 'accounting' ? getLedgerEntries(orgId) : Promise.resolve([] as LedgerEntry[]),
+    agent.domain === 'people' ? getOrgUsers(orgId) : Promise.resolve([] as OrgUser[]),
     listAgentActions(orgId, 'proposed').catch(() => [] as AgentAction[]),
   ]);
-  const seen = new Set(pending.map((a) => a.payload?.entry_id || a.payload?.task_id || a.payload?.deal_id).filter(Boolean));
-  const proposals = scanForWork(agent.domain, { tasks, deals, ledger, today })
-    .filter((p) => { const tid = p.payload.entry_id || p.payload.task_id || p.payload.deal_id; return !tid || !seen.has(tid); });
+  const userList = (users as OrgUser[]).map((u) => ({ id: u.id, name: u.full_name || u.email || 'Unknown' }));
+  const seen = new Set(pending.map((a) => a.payload?.entry_id || a.payload?.task_id || a.payload?.deal_id || a.payload?.person_id).filter(Boolean));
+  const proposals = scanForWork(agent.domain, { tasks, deals, ledger, users: userList, today })
+    .filter((p) => { const tid = p.payload.entry_id || p.payload.task_id || p.payload.deal_id || p.payload.person_id; return !tid || !seen.has(tid); });
   if (proposals.length === 0) return { runId: null, count: 0 };
   const { data: runId, error: e1 } = await sb.rpc('agent_start_run', { p_org: orgId, p_agent: agent.id, p_trigger: 'manual', p_input: { kind: 'work_scan' } });
   if (e1) throw new Error(e1.message);
