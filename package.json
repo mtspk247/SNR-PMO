@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "npx --yes esbuild@0.24.2 __tests__/*.test.ts --bundle --platform=node --format=esm --out-extension:.js=.mjs --tsconfig=tsconfig.json --outdir=.test-dist && NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=test node --test .test-dist/*.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
