@@ -17,11 +17,15 @@ export interface DemoRisk { title: string; category?: string; impact?: number; p
 export interface DemoIdea { title: string; pitch?: string; status?: string; project_index?: number }
 export interface DemoAutomation { name: string; trigger_type: string; match: Record<string, unknown>; actions: unknown[] }
 export interface DemoTemplate { name: string; doc_type: string; body: string }
+export interface DemoLead { name: string; contact_name?: string; status?: string; value?: number; currency?: string; source?: string }
+export interface DemoProposal { title: string; client_name?: string; amount?: number; currency?: string; status?: string }
+export interface DemoContract { title: string; client_name?: string; value?: number; currency?: string; status?: string }
 export interface DemoPayload {
   clients: string[]; projects: DemoProject[]; deals: DemoDeal[]; ledger: DemoLedger[];
   companies: string[]; portfolios: DemoPortfolio[]; teams: string[]; ideas: DemoIdea[];
   products: DemoProduct[]; invoices: DemoInvoice[]; support: DemoSupport[]; risks: DemoRisk[];
   automations: DemoAutomation[]; templates: DemoTemplate[];
+  leads: DemoLead[]; proposals: DemoProposal[]; contracts: DemoContract[];
 }
 
 const T = (name: string, status: string, priority = 'Medium', h = 6): DemoTask => ({ name, status, priority, estimated_hours: h });
@@ -338,7 +342,21 @@ export function buildDemoPayload(industry: string | null | undefined): DemoPaylo
     { name: 'Client Welcome Email', doc_type: 'email', body: 'Hi {{client}},\n\nWelcome aboard! Your workspace is ready. Here is how to get started:\n1. Log in\n2. Invite your team\n3. Explore your dashboard\n\nWe are here to help.' },
   ];
 
-  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates };
+  // CRM extra (leads / proposals / contracts) — seeded via tenant_seed_demo_crm.
+  const PEOPLE = ['Alex Morgan', 'Jamie Lee', 'Priya Singh', 'Diego Ramirez', 'Sara Khan', 'Tom Becker', 'Mei Chen', 'Omar Farah'];
+  const LEAD_SOURCE = ['Referral', 'Website', 'LinkedIn', 'Event', 'Cold outreach', 'Partner'];
+  const LEAD_STATUS = ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'];
+  const PROPOSAL_STATUS = ['draft', 'sent', 'accepted', 'rejected'];
+  const CONTRACT_STATUS = ['active', 'draft', 'expired', 'renewed'];
+  const N_LEADS = 14, N_PROPOSALS = 12, N_CONTRACTS = 10;
+  const leads: DemoLead[] = [];
+  for (let i = 0; i < N_LEADS; i++) leads.push({ name: companies[i % companies.length], contact_name: PEOPLE[i % PEOPLE.length], status: LEAD_STATUS[i % LEAD_STATUS.length], value: [5000, 12000, 8000, 25000, 3000, 16000][i % 6], currency: 'USD', source: LEAD_SOURCE[i % LEAD_SOURCE.length] });
+  const proposals: DemoProposal[] = [];
+  for (let i = 0; i < N_PROPOSALS; i++) proposals.push({ title: `${pack.deals[i % pack.deals.length]} — Proposal`, client_name: clients[i % clients.length], amount: [12000, 28000, 7500, 45000, 9000][i % 5], currency: 'USD', status: PROPOSAL_STATUS[i % PROPOSAL_STATUS.length] });
+  const contracts: DemoContract[] = [];
+  for (let i = 0; i < N_CONTRACTS; i++) contracts.push({ title: `${pack.deals[i % pack.deals.length]} — Contract`, client_name: clients[i % clients.length], value: [24000, 60000, 15000, 90000, 18000][i % 5], currency: 'USD', status: CONTRACT_STATUS[i % CONTRACT_STATUS.length] });
+
+  return { clients, projects, deals, ledger, companies, portfolios, teams, ideas, products, invoices, support, risks, automations, templates, leads, proposals, contracts };
 }
 
 
@@ -366,6 +384,9 @@ export function trimDemoPayload(full: DemoPayload, sel: Record<string, number>, 
     deals: take('deals', full.deals),
     ledger: take('ledger', full.ledger).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
     teams: take('teams', full.teams),
+    leads: take('leads', full.leads),
+    proposals: take('proposals', full.proposals),
+    contracts: take('contracts', full.contracts),
     ideas: take('ideas', full.ideas).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
     products: take('products', full.products),
     invoices: take('invoices', full.invoices).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
