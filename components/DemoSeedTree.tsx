@@ -31,13 +31,16 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
 
   const [industry, setIndustry] = useState(defaultIndustry || '');
   const full = useMemo(() => buildDemoPayload(industry || null), [industry]);
-  const maxOf = (key: string): number => key === '__tasks'
+  const VOLUME_CAP = 2000;                                  // perf-testing: allow large per-module counts
+  const FIXED_KEYS = new Set(['forms', '__tasks']);        // not cycled -> capped at template size
+  const baseLen = (key: string): number => key === '__tasks'
     ? Math.max(0, ...full.projects.map((p) => p.tasks.length))
     : (((full as unknown as Record<string, unknown[]>)[key])?.length ?? 0);
+  const maxOf = (key: string): number => (FIXED_KEYS.has(key) ? baseLen(key) : VOLUME_CAP);
 
   const defaults = useMemo(() => {
     const d: Record<string, number> = {};
-    GROUPS.forEach((g) => g.items.forEach((it) => { d[it.key] = maxOf(it.key); }));
+    GROUPS.forEach((g) => g.items.forEach((it) => { d[it.key] = baseLen(it.key); }));
     return d;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [full]);
@@ -64,8 +67,8 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
   };
 
   const setKey = (key: string, n: number) => { setDone(null); setSel((s) => ({ ...s, [key]: Math.max(0, Math.min(isNaN(n) ? 0 : n, maxOf(key))) })); };
-  const toggleKey = (key: string, on: boolean) => setKey(key, on ? maxOf(key) : 0);
-  const toggleGroup = (items: Leaf[], on: boolean) => { setDone(null); setSel((s) => { const n = { ...s }; items.forEach((it) => { n[it.key] = on ? maxOf(it.key) : 0; }); return n; }); };
+  const toggleKey = (key: string, on: boolean) => setKey(key, on ? baseLen(key) : 0);
+  const toggleGroup = (items: Leaf[], on: boolean) => { setDone(null); setSel((s) => { const n = { ...s }; items.forEach((it) => { n[it.key] = on ? baseLen(it.key) : 0; }); return n; }); };
 
   const totalRecords = GROUPS.reduce((sum, g) => sum + g.items.filter((it) => it.key !== '__tasks').reduce((a, it) => a + cur(it.key), 0), 0);
 
@@ -101,7 +104,7 @@ export default function DemoSeedTree({ orgId, defaultIndustry }: { orgId: string
         <span className="w-10 h-10 shrink-0 rounded-xl grid place-items-center bg-accent/10 text-accentstrong ring-1 ring-inset ring-accent/15"><Icon name="ti-binary-tree" className="text-xl" /></span>
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-content">Demo data</h3>
-          <p className="text-2xs text-muted mt-0.5">Populate this workspace with realistic, industry-specific sample data &mdash; pick exactly which modules and how many records. Only modules your plan enables are seeded live. Companies &amp; portfolios are always included as the foundation other records link to.</p>
+          <p className="text-2xs text-muted mt-0.5">Populate this workspace with realistic, industry-specific sample data &mdash; pick exactly which modules and how many records. Only modules your plan enables are seeded live. Companies &amp; portfolios are always included as the foundation other records link to. Set high counts (up to 2,000 each) to stress-test performance, then Reverse to clean up.</p>
         </div>
       </div>
 

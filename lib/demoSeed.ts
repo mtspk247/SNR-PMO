@@ -441,10 +441,22 @@ export function buildDemoPayload(industry: string | null | undefined): DemoPaylo
 // Companies & portfolios are FOUNDATION (always kept) so cross-reference indices stay valid;
 // project-linked refs in ledger/invoices/ideas are clamped to the trimmed project list.
 export function trimDemoPayload(full: DemoPayload, sel: Record<string, number>, tasksPerProject?: number): DemoPayload {
+  const volTok = Math.random().toString(36).slice(2, 6).toUpperCase();
+  // Volume seeding: cycle the template up to n (repeat with wrap-around) when n exceeds the base size.
   const take = <T,>(key: string, arr: T[]): T[] => {
     const n = sel[key];
     if (n === undefined) return arr;
-    return n <= 0 ? [] : arr.slice(0, n);
+    if (n <= 0 || arr.length === 0) return [];
+    if (n <= arr.length) return arr.slice(0, n);
+    const out: T[] = [];
+    for (let i = 0; i < n; i++) out.push(arr[i % arr.length]);
+    return out;
+  };
+  // Forms keep base size only (slug is globally unique) — slice, never cycle.
+  const cap = <T,>(key: string, arr: T[]): T[] => {
+    const n = sel[key];
+    if (n === undefined) return arr;
+    return n <= 0 ? [] : arr.slice(0, Math.min(n, arr.length));
   };
   let projects = take('projects', full.projects);
   if (tasksPerProject !== undefined) {
@@ -477,11 +489,11 @@ export function trimDemoPayload(full: DemoPayload, sel: Record<string, number>, 
     bills: take('bills', full.bills),
     expense_claims: take('expense_claims', full.expense_claims),
     credit_notes: take('credit_notes', full.credit_notes),
-    forms: take('forms', full.forms),
+    forms: cap('forms', full.forms),
     drives: take('drives', full.drives),
     ideas: take('ideas', full.ideas).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
     products: take('products', full.products),
-    invoices: take('invoices', full.invoices).map((e) => ({ ...e, project_index: clampProj(e.project_index) })),
+    invoices: take('invoices', full.invoices).map((e, i) => ({ ...e, number: 'INV-' + volTok + '-' + (i + 1), project_index: clampProj(e.project_index) })),
     support: take('support', full.support),
     risks: take('risks', full.risks),
     automations: take('automations', full.automations),
