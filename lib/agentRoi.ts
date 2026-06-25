@@ -18,10 +18,12 @@ export const MINUTES_SAVED_BY_TOOL: Record<string, number> = {
   route_leave_request: 3,
   triage_ticket: 4,
   draft_reply: 8,
+  flag_capacity_risk: 6,
+  draft_meeting_brief: 10,
 };
 // Fallback when a tool isn't in the catalog (e.g. future scanners), by domain.
 export const MINUTES_SAVED_BY_DOMAIN: Record<AgentDomainKey, number> = {
-  accounting: 8, tasks: 5, crm: 6, hr: 12, support: 6, general: 6,
+  accounting: 8, tasks: 5, crm: 6, hr: 12, support: 6, people: 6, general: 6,
 };
 export const DEFAULT_MINUTES_SAVED = 5;
 // Blended back-office labour rate (USD/hour). Tunable per-viewer in the UI.
