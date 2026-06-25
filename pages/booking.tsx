@@ -22,8 +22,8 @@ const COLS: ColDef[] = [
 ];
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 48);
 const browserTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } };
-type Draft = { id?: string; name: string; slug: string; description: string; duration_min: number; buffer_min: number; timezone: string; assignee_id: string; days: Set<string>; start: string; end: string; published: boolean };
-const emptyDraft = (): Draft => ({ name: '', slug: '', description: '', duration_min: 30, buffer_min: 0, timezone: browserTz(), assignee_id: '', days: new Set(['1', '2', '3', '4', '5']), start: '09:00', end: '17:00', published: true });
+type Draft = { id?: string; name: string; slug: string; description: string; duration_min: number; buffer_min: number; timezone: string; assignee_id: string; days: Set<string>; start: string; end: string; reminder_hours: number; published: boolean };
+const emptyDraft = (): Draft => ({ name: '', slug: '', description: '', duration_min: 30, buffer_min: 0, timezone: browserTz(), assignee_id: '', days: new Set(['1', '2', '3', '4', '5']), start: '09:00', end: '17:00', reminder_hours: 24, published: true });
 
 export default function BookingAdmin() {
   const org = useActiveOrg();
@@ -66,7 +66,7 @@ export default function BookingAdmin() {
     const ks = DOW.map(([k]) => k).filter((k) => (p.availability?.[k] || []).length);
     const win = ks.length ? p.availability[ks[0]][0] : ['09:00', '17:00'];
     setErr('');
-    setEditor({ id: p.id, name: p.name, slug: p.slug, description: p.description || '', duration_min: p.duration_min, buffer_min: p.buffer_min, timezone: p.timezone, assignee_id: p.assignee_id || '', days: new Set(ks), start: win[0], end: win[1], published: p.status === 'published' });
+    setEditor({ id: p.id, name: p.name, slug: p.slug, description: p.description || '', duration_min: p.duration_min, buffer_min: p.buffer_min, timezone: p.timezone, assignee_id: p.assignee_id || '', days: new Set(ks), start: win[0], end: win[1], reminder_hours: p.reminder_hours ?? 24, published: p.status === 'published' });
   };
   const setD = (patch: Partial<Draft>) => setEditor((e) => e && { ...e, ...patch });
 
@@ -78,7 +78,7 @@ export default function BookingAdmin() {
     const availability: Record<string, [string, string][]> = {};
     editor.days.forEach((k) => { availability[k] = [[editor.start, editor.end]]; });
     const slug = (editor.slug || slugify(editor.name)) || ('book-' + Date.now());
-    const common = { name: editor.name.trim(), slug, description: editor.description || null, duration_min: editor.duration_min, buffer_min: editor.buffer_min, timezone: editor.timezone || 'UTC', assignee_id: editor.assignee_id || null, availability, status: (editor.published ? 'published' : 'draft') as string };
+    const common = { name: editor.name.trim(), slug, description: editor.description || null, duration_min: editor.duration_min, buffer_min: editor.buffer_min, timezone: editor.timezone || 'UTC', assignee_id: editor.assignee_id || null, reminder_hours: editor.reminder_hours, availability, status: (editor.published ? 'published' : 'draft') as string };
     try {
       if (editor.id) await updateBookingPage(editor.id, common as any);
       else await createBookingPage({ org_id: org.id, created_by: me.id, ...common });
@@ -139,6 +139,7 @@ export default function BookingAdmin() {
             <Field label="Public link (slug)"><div className="flex items-center"><span className="text-muted2 text-xs mr-1">/book/</span><input className="input" value={editor.slug} onChange={(e) => setD({ slug: slugify(e.target.value) })} placeholder="intro-call" /></div></Field>
             <Field label="Meeting length"><Select value={String(editor.duration_min)} onChange={(v) => setD({ duration_min: Number(v) })} options={[15, 30, 45, 60, 90].map((m) => ({ value: String(m), label: m + ' min' }))} /></Field>
             <Field label="Buffer between"><Select value={String(editor.buffer_min)} onChange={(v) => setD({ buffer_min: Number(v) })} options={[0, 5, 10, 15, 30].map((m) => ({ value: String(m), label: m + ' min' }))} /></Field>
+            <Field label="Send reminder"><Select value={String(editor.reminder_hours)} onChange={(v) => setD({ reminder_hours: Number(v) })} options={[{ value: '0', label: 'Off' }, { value: '1', label: '1 hour before' }, { value: '2', label: '2 hours before' }, { value: '24', label: '24 hours before' }, { value: '48', label: '48 hours before' }]} /></Field>
             <Field label="Timezone"><input className="input" value={editor.timezone} onChange={(e) => setD({ timezone: e.target.value })} placeholder="UTC" /></Field>
             <Field label="Meeting with"><Select value={editor.assignee_id} onChange={(v) => setD({ assignee_id: v })} options={[{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.full_name || u.email }))]} /></Field>
             <Field label="Description" className="sm:col-span-2"><textarea className="input min-h-[60px] resize-y" value={editor.description} onChange={(e) => setD({ description: e.target.value })} placeholder="What this meeting is for" /></Field>

@@ -1353,18 +1353,18 @@ export async function cancelPortalApproval(id: string): Promise<void> {
 }
 
 // ---- Booking (appointment scheduling) — migrations booking_substrate_tables/_rpcs ----
-export interface BookingPage { id: string; org_id: string; slug: string; name: string; description: string | null; duration_min: number; buffer_min: number; availability: Record<string, [string, string][]>; timezone: string; assignee_id: string | null; status: 'draft' | 'published' | 'archived'; created_by: string | null; created_at: string; updated_at: string; }
+export interface BookingPage { id: string; org_id: string; slug: string; name: string; description: string | null; duration_min: number; buffer_min: number; availability: Record<string, [string, string][]>; timezone: string; assignee_id: string | null; status: 'draft' | 'published' | 'archived'; reminder_hours: number; created_by: string | null; created_at: string; updated_at: string; }
 export interface Appointment { id: string; org_id: string; booking_page_id: string; name: string; email: string | null; phone: string | null; starts_at: string; ends_at: string; status: 'confirmed' | 'cancelled' | 'completed' | 'no_show'; notes: string | null; lead_id: string | null; source: string | null; created_at: string; }
 
 export async function listBookingPages(orgId: string): Promise<BookingPage[]> {
   const { data, error } = await sb.from('booking_pages').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as BookingPage[]) || [];
 }
-export async function createBookingPage(p: { org_id: string; name: string; slug: string; description?: string | null; duration_min?: number; buffer_min?: number; availability?: any; timezone?: string; assignee_id?: string | null; status?: string; created_by: string }): Promise<BookingPage> {
+export async function createBookingPage(p: { org_id: string; name: string; slug: string; description?: string | null; duration_min?: number; buffer_min?: number; availability?: any; timezone?: string; assignee_id?: string | null; status?: string; reminder_hours?: number; created_by: string }): Promise<BookingPage> {
   const { data, error } = await sb.from('booking_pages').insert({ ...p }).select().single();
   if (error) throw new Error(error.message); return data as BookingPage;
 }
-export async function updateBookingPage(id: string, patch: Partial<Pick<BookingPage, 'name' | 'slug' | 'description' | 'duration_min' | 'buffer_min' | 'availability' | 'timezone' | 'assignee_id' | 'status'>>): Promise<void> {
+export async function updateBookingPage(id: string, patch: Partial<Pick<BookingPage, 'name' | 'slug' | 'description' | 'duration_min' | 'buffer_min' | 'availability' | 'timezone' | 'assignee_id' | 'status' | 'reminder_hours'>>): Promise<void> {
   const { error } = await sb.from('booking_pages').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) throw new Error(error.message);
 }
@@ -1402,7 +1402,7 @@ export async function listMessages(orgId: string): Promise<CommsMessage[]> {
 export async function sendSms(orgId: string, to: string, body: string, leadId?: string | null): Promise<void> {
   const { error } = await sb.rpc('sms_enqueue', { p_org: orgId, p_to: to, p_body: body, p_lead_id: leadId ?? null });
   if (error) throw new Error(error.message);
-  try { await sb.functions.invoke('sms-dispatch', { body: { org_id: orgId } }); } catch { /* queued — a later run sends it */ }
+  try { await sb.rpc('sms_kick'); } catch { /* queued — a later run sends it */ }
 }
 export async function listSuppression(orgId: string): Promise<SuppressionEntry[]> {
   const { data, error } = await sb.from('comms_suppression').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
