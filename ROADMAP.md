@@ -1,0 +1,6 @@
+
+## 2026-06-25 — Drive collaboration: Real-time editing + Granular permissions + Comments/Tagging (SHIPPED)
+- Migration `drive_collab_foundation` (expand-only; RLS-sim allow/deny/cross-tenant + no-regression PASS; advisors clean): `drives.restricted`, `drive_files.doc_state`, `drive_grants`, `drive_comments`, `drive_comment_mentions`, `drive_level()`/`drive_can()` resolver, `drive_comment_add()` RPC (commenter+ gate, payload caps, mention notifications).
+- App: `lib/yProvider.ts` (custom Yjs provider over Supabase Realtime broadcast+presence — no extra server, up to 50 users), `components/CollabDocEditor.tsx` (TipTap+Yjs live document editor, presence avatars, live cursors, debounced autosave, level-gated), `components/DriveShareModal.tsx` (restrict + per-person Viewer/Commenter/Editor), `components/DriveComments.tsx` (threaded comments + @mention autocomplete). `lib/db.ts` data layer; `pages/drives.tsx` wired; `/docs#drives` updated. New deps: yjs, @tiptap/*, y-prosemirror, y-protocols.
+- Verified: Vercel preview build READY at commit 67e40ef before merge to main.
+- DEFERRED (open): collaborative SPREADSHEETS + PRESENTATIONS on the same substrate (documents proved the engine). Security follow-up: make the `drive_doc:<id>` Realtime channel private + add `realtime.messages` RLS (DB content already RLS-walled; broadcast carries only CRDT diffs).
