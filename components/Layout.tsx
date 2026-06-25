@@ -48,10 +48,10 @@ export default function Layout({ title, children, flat = false }: { title: strin
     DOCS_LINK,
   ]
     .map((s) => s.kind === 'menu'
-      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && guestOk(i.href) && (lockFull || (!isPageHidden(hiddenPages, i.href) && pageReadable(user, i.href))) && (!i.adminOnly || can.manageMembers(activeOrg)) && (!i.platformOnly || platformAdmin)) }
+      ? { ...s, items: s.items.filter((i) => navVisible(activeOrg, i.feature) && guestOk(i.href) && !isPageHidden(hiddenPages, i.href) && (lockFull || pageReadable(user, i.href)) && (!i.adminOnly || can.manageMembers(activeOrg)) && (!i.platformOnly || platformAdmin)) }
       : s)
     .filter((s) => s.kind === 'link'
-      ? navVisible(activeOrg, s.item.feature) && guestOk(s.item.href) && (lockFull || (!isPageHidden(hiddenPages, s.item.href) && pageReadable(user, s.item.href)))
+      ? navVisible(activeOrg, s.item.feature) && guestOk(s.item.href) && !isPageHidden(hiddenPages, s.item.href) && (lockFull || pageReadable(user, s.item.href))
       : s.items.length > 0);
 
   const [checking, setChecking] = useState(true);
