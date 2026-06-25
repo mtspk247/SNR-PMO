@@ -1142,6 +1142,10 @@ export async function createDoc(p: { org_id: string; drive_id: string; folder_id
   const { data, error } = await sb.from('drive_files').insert({ org_id: p.org_id, drive_id: p.drive_id, folder_id: p.folder_id, name: p.name, kind: 'doc', mime_type: 'text/html', size_bytes: 0, content: '', created_by: p.created_by }).select('*').single();
   if (error) throw new Error(error.message); return data as DriveFile;
 }
+export async function createSheet(p: { org_id: string; drive_id: string; folder_id: string | null; name: string; created_by: string }): Promise<DriveFile> {
+  const { data, error } = await sb.from('drive_files').insert({ org_id: p.org_id, drive_id: p.drive_id, folder_id: p.folder_id, name: p.name, kind: 'sheet', mime_type: 'text/csv', size_bytes: 0, content: '', created_by: p.created_by }).select('*').single();
+  if (error) throw new Error(error.message); return data as DriveFile;
+}
 export async function getDocContent(id: string): Promise<string> {
   const { data, error } = await sb.from('drive_files').select('content').eq('id', id).single();
   if (error) throw new Error(error.message); return ((data as any)?.content as string) || '';

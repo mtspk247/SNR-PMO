@@ -7,7 +7,7 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
-  getProjects, setDriveProject, moveFolder, moveFile, createDoc, saveDoc, getDriveLevel, getOrgUsers,
+  getProjects, setDriveProject, moveFolder, moveFile, createDoc, createSheet, saveDoc, getDriveLevel, getOrgUsers,
   archiveFile, restoreFile, archiveFolder, restoreFolder, listArchived, listAccessRequests,
   Drive, DriveFolder, DriveFile, DriveLevel,
 } from '@/lib/db';
@@ -16,6 +16,7 @@ import Select from '@/components/Select';
 import dynamic from 'next/dynamic';
 
 const CollabDocEditor = dynamic(() => import('@/components/CollabDocEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading editor…</div> });
+const CollabSheetEditor = dynamic(() => import('@/components/CollabSheetEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading sheet…</div> });
 import DriveShareModal from '@/components/DriveShareModal';
 import DriveComments from '@/components/DriveComments';
 import DriveActivityModal from '@/components/DriveActivityModal';
@@ -60,6 +61,7 @@ export default function DrivesPage() {
   const [moving, setMoving] = useState<{ kind: 'folder' | 'file'; id: string; name: string; parent: string | null } | null>(null);
   const [preview, setPreview] = useState<{ name: string; type: 'image' | 'pdf' | 'office'; url: string; raw?: string } | null>(null);
   const [docEd, setDocEd] = useState<{ id: string; name: string } | null>(null);
+  const [sheetEd, setSheetEd] = useState<{ id: string; name: string } | null>(null);
   const [level, setLevel] = useState<DriveLevel | null>(null);
   const [people, setPeople] = useState<OrgUser[]>([]);
   const [shareFor, setShareFor] = useState<Drive | null>(null);
@@ -146,8 +148,20 @@ export default function DrivesPage() {
     try { await saveDoc(docEd.id, { name }); setDocEd((d) => (d ? { ...d, name } : d)); refreshHere(); }
     catch (e: any) { setErr(e.message); }
   };
+  const newSheet = async () => {
+    if (!org || !me || !active || busy) return;
+    setBusy(true); setErr('');
+    try { const d = await createSheet({ org_id: org.id, drive_id: active.id, folder_id: currentFolderId, name: 'Untitled sheet', created_by: me.id }); refreshHere(); setSheetEd({ id: d.id, name: d.name }); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const renameSheet = async (name: string) => {
+    if (!sheetEd) return;
+    try { await saveDoc(sheetEd.id, { name }); setSheetEd((d) => (d ? { ...d, name } : d)); refreshHere(); }
+    catch (e: any) { setErr(e.message); }
+  };
   // Click a file: open docs in the editor, preview images/PDFs in-browser, otherwise download.
   const openFile = async (f: DriveFile) => {
+    if (f.kind === 'sheet') { setSheetEd({ id: f.id, name: f.name }); return; }
     if (f.kind === 'doc') { openDoc(f); return; }
     if (!f.storage_path) return;
     try {
@@ -370,6 +384,7 @@ export default function DrivesPage() {
                   <button className="btn h-8 py-0 px-2" title={sortDir === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>
                   <button className="btn h-8 py-0 px-2" title="Select all" onClick={toggleAll}><Icon name={allSelected ? 'ti-checkbox' : 'ti-square'} className="text-sm" /></button>
                   <button className="btn h-8 py-0" disabled={busy} onClick={newDoc}><Icon name="ti-file-text" className="text-sm" />New doc</button>
+                  <button className="btn h-8 py-0" disabled={busy} onClick={newSheet}><Icon name="ti-table" className="text-sm" />New sheet</button>
                   <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
                   <button className="btn h-8 py-0" disabled={!active} onClick={() => { if (active) listArchived(active.id).then(setArchived).catch((e) => setErr(e.message)); }}><Icon name="ti-archive" className="text-sm" />Archived</button>
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => setRequestsOpen(true)}><Icon name="ti-inbox" className="text-sm" />Requests{pendingReq > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-white text-2xs">{pendingReq}</span>}</button>}
@@ -466,6 +481,15 @@ export default function DrivesPage() {
               <span className="text-2xs text-muted2 shrink-0">{moving.parent === null ? 'current' : 'root'}</span>
             </button>
             {renderMoveTargets(null, 0)}
+          </div>
+        </Modal>
+      )}
+      {sheetEd && (
+        <Modal open onClose={() => setSheetEd(null)} size="lg" icon="ti-table" title="Spreadsheet"
+          footer={<><button className="btn" onClick={() => setCommentsFor({ id: sheetEd.id, name: sheetEd.name })}><Icon name="ti-message-circle" className="text-sm" />Comments</button><button className="btn btn-primary" onClick={() => setSheetEd(null)}>Done</button></>}>
+          <div className="space-y-3">
+            <Field label="Title"><input className="input" defaultValue={sheetEd.name} onBlur={(e) => renameSheet(e.target.value.trim() || 'Untitled sheet')} placeholder="Untitled sheet" disabled={!docCanEdit} /></Field>
+            <CollabSheetEditor key={sheetEd.id} fileId={sheetEd.id} meId={me?.id || ''} meName={me?.full_name || ''} canEdit={docCanEdit} />
           </div>
         </Modal>
       )}
