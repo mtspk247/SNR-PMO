@@ -46,22 +46,33 @@ const ENTITIES: Entity[] = [
 ];
 
 const SYN: Record<string, string[]> = {
-  name: ['name', 'title', 'project', 'project name', 'task', 'task name', 'client', 'company', 'account', 'full name'],
+  name: ['name', 'title', 'project', 'project name', 'task', 'task name', 'client', 'company', 'account', 'full name', 'opportunity', 'opportunity name', 'organization', 'organization name', 'account name', 'business name'],
   title: ['title', 'name', 'deal', 'deal name', 'opportunity'],
   description: ['description', 'desc', 'details', 'summary'],
   status: ['status', 'state'],
   priority: ['priority', 'urgency'],
-  stage: ['stage', 'pipeline', 'pipeline stage', 'deal stage', 'status'],
-  value: ['value', 'amount', 'deal value', 'price', 'revenue', 'total'],
+  stage: ['stage', 'pipeline', 'pipeline stage', 'deal stage', 'status', 'opportunity stage'],
+  value: ['value', 'amount', 'deal value', 'price', 'revenue', 'total', 'monetary value', 'opportunity value'],
   email: ['email', 'e-mail', 'email address'],
-  phone: ['phone', 'mobile', 'telephone', 'contact number', 'phone number'],
-  contact_name: ['contact', 'contact name', 'primary contact', 'contact person'],
+  phone: ['phone', 'mobile', 'telephone', 'contact number', 'phone number', 'phone 1', 'mobile phone', 'work phone'],
+  contact_name: ['contact', 'contact name', 'primary contact', 'contact person', 'first name', 'contact full name'],
   notes: ['notes', 'note', 'comment', 'comments', 'description'],
   start_date: ['start', 'start date', 'created', 'created date', 'begin'],
   end_date: ['end date', 'due', 'due date', 'deadline', 'finish'],
   due_date: ['due', 'due date', 'deadline', 'end date'],
   expected_close: ['close date', 'expected close', 'close', 'closing date'],
 };
+
+const SOURCES: { key: string; name: string; icon: string; ent: string; steps: string }[] = [
+  { key: 'gohighlevel', name: 'GoHighLevel', icon: 'ti-rocket', ent: 'clients', steps: 'Contacts > Smart Lists > select all > Export (CSV). For your pipeline, use Opportunities > Export and import that file as Deals.' },
+  { key: 'hubspot', name: 'HubSpot', icon: 'ti-affiliate', ent: 'clients', steps: 'Contacts (or Companies) > Actions > Export. For your pipeline, Deals > Export, then import as Deals.' },
+  { key: 'pipedrive', name: 'Pipedrive', icon: 'ti-filter', ent: 'deals', steps: 'Deals (or Organizations) > ... menu > Export data > CSV.' },
+  { key: 'clickup', name: 'ClickUp', icon: 'ti-checkbox', ent: 'tasks', steps: 'Open a List > ... menu > Export > CSV. Import as Tasks into a project (or pick Projects).' },
+  { key: 'asana', name: 'Asana', icon: 'ti-circle-dashed', ent: 'tasks', steps: 'Open a project > ... menu > Export / Print > CSV.' },
+  { key: 'monday', name: 'monday.com', icon: 'ti-layout-grid', ent: 'tasks', steps: 'Board menu > More actions > Export board to Excel/CSV.' },
+  { key: 'trello', name: 'Trello', icon: 'ti-layout-kanban', ent: 'tasks', steps: 'Board > Show menu > More > Print and Export > Export as CSV.' },
+  { key: 'jira', name: 'Jira', icon: 'ti-bug', ent: 'tasks', steps: 'Issues / Filters > Export > Export Excel CSV (current fields).' },
+];
 
 const norm = (s: string) => s.toLowerCase().replace(/[_\s-]+/g, ' ').trim();
 
@@ -108,6 +119,7 @@ export default function ImportPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const [entKey, setEntKey] = useState<string>('');
+  const [source, setSource] = useState('');
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [projectId, setProjectId] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
@@ -200,9 +212,31 @@ export default function ImportPage() {
 
   return (
     <Layout flat title="Import data">
-      <PageHeader title="Import data" subtitle="Bring data in from CSV — no lock-in." />
+      <PageHeader title="Import data" subtitle="Switch from any tool: GoHighLevel, HubSpot, ClickUp, Asana — no lock-in." />
 
       {/* Step 1 — entity */}
+      {/* Step 0 - switching from another tool */}
+      <div className="card p-5 mb-4">
+        <p className="text-sm font-semibold text-content mb-1">Switching from another tool?</p>
+        <p className="text-2xs text-muted mb-3">Pick where your data lives today and we&apos;ll show you exactly how to export it - then bring it in below. No lock-in, no re-keying.</p>
+        <div className="flex flex-wrap gap-2">
+          {SOURCES.map((s) => {
+            const on = source === s.key;
+            return (
+              <button key={s.key} onClick={() => { if (on) { setSource(''); } else { setSource(s.key); setEntKey(s.ent); reset(); } }}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition ${on ? 'border-accent bg-accent/10 text-accentstrong' : 'border-line bg-surface hover:bg-surface2 text-content'}`}>
+                <Icon name={s.icon} className="text-base" />{s.name}
+              </button>
+            );
+          })}
+        </div>
+        {source && (() => { const s = SOURCES.find((x) => x.key === source); return s ? (
+          <div className="mt-3 rounded-lg bg-surface2 px-4 py-3 text-2xs text-muted leading-relaxed">
+            <span className="text-content font-medium">Export from {s.name}:</span> {s.steps} <span className="text-muted2">Then upload the CSV below - we auto-match the columns for you.</span>
+          </div>
+        ) : null; })()}
+      </div>
+
       <div className="card p-5 mb-4">
         <p className="text-sm font-semibold text-content mb-3"><span className="text-accentstrong">1.</span> What are you importing?</p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
