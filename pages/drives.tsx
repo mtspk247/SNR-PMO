@@ -60,6 +60,12 @@ export default function DrivesPage() {
   const [people, setPeople] = useState<OrgUser[]>([]);
   const [shareFor, setShareFor] = useState<Drive | null>(null);
   const [commentsFor, setCommentsFor] = useState<{ id: string; name: string } | null>(null);
+  const [query, setQuery] = useState('');
+  const [sortKey, setSortKey] = useState<'name' | 'size' | 'created'>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [menu, setMenu] = useState<{ x: number; y: number; kind: 'file' | 'folder'; item: any } | null>(null);
+  const [bulkMove, setBulkMove] = useState(false);
   const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -73,6 +79,7 @@ export default function DrivesPage() {
 
   const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); setLevel(null); getDriveLevel(d.id).then(setLevel).catch(() => setLevel(null)); listFolders(d.id).then(setFolders).catch(() => {}); };
   useEffect(() => { if (active) { setFiles(null); listFiles(active.id, currentFolderId).then(setFiles).catch(() => setFiles([])); } /* eslint-disable-next-line */ }, [active?.id, currentFolderId]);
+  useEffect(() => { setSelected(new Set()); setMenu(null); }, [active?.id, currentFolderId]);
 
   // ---- Tree helpers ----
   const childrenOf = (pid: string | null) => folders.filter((f) => f.parent_id === pid);
@@ -189,6 +196,56 @@ export default function DrivesPage() {
     else if (dtHasFiles(e)) { e.preventDefault(); setOver(null); uploadFilesTo(currentFolderId, e.dataTransfer.files); }
   };
 
+  // ---- Slice 1: search, sort, multi-select, bulk, context menu ----
+  const q = query.trim().toLowerCase();
+  const matchesQ = (n: string) => !q || (n || '').toLowerCase().includes(q);
+  const cmp = (a: any, b: any) => {
+    let r = 0;
+    if (sortKey === 'size') r = (a.size_bytes || 0) - (b.size_bytes || 0);
+    else if (sortKey === 'created') r = (a.created_at || '').localeCompare(b.created_at || '');
+    else r = (a.name || '').localeCompare(b.name || '');
+    return sortDir === 'asc' ? r : -r;
+  };
+  const shownFolders = childFolders.filter((f) => matchesQ(f.name)).slice().sort(cmp);
+  const shownFiles = (files || []).filter((f) => matchesQ(f.name)).slice().sort(cmp);
+  const kfile = (id: string) => 'f:' + id; const kfold = (id: string) => 'd:' + id;
+  const isSel = (k: string) => selected.has(k);
+  const toggleSel = (k: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const clearSel = () => setSelected(new Set());
+  const allKeys = [...shownFolders.map((f) => kfold(f.id)), ...shownFiles.map((f) => kfile(f.id))];
+  const allSelected = allKeys.length > 0 && allKeys.every((k) => selected.has(k));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(allKeys));
+  const selFiles = () => (files || []).filter((f) => selected.has(kfile(f.id)));
+  const selFolders = () => folders.filter((f) => selected.has(kfold(f.id)));
+  const bulkInvalid = (() => { const set = new Set<string>(); selFolders().forEach((f) => { set.add(f.id); descendantIds(f.id).forEach((d) => set.add(d)); }); return set; })();
+  const bulkDownload = async () => { for (const f of selFiles()) { if (!f.storage_path) continue; try { const u = await driveFileUrl(f.storage_path); window.open(u, '_blank'); } catch { /* skip */ } } };
+  const bulkDelete = async () => {
+    const fs = selFiles().filter((f) => canEdit(f.created_by)); const fd = selFolders().filter((f) => canEdit(f.created_by));
+    if (!fs.length && !fd.length) { setErr('You can only delete items you created (or as an admin).'); return; }
+    if (!confirm(`Delete ${fs.length} file(s) and ${fd.length} folder(s)? This cannot be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const f of fs) await deleteDriveFile(f); for (const f of fd) await deleteFolder(f.id); clearSel(); refreshHere(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const bulkMoveTo = async (dest: string | null) => {
+    setBusy(true); setErr('');
+    try {
+      for (const f of selFolders()) { if (!canEdit(f.created_by) || f.id === dest || (dest && descendantIds(f.id).has(dest))) continue; await moveFolder(f.id, dest); }
+      for (const f of selFiles()) { if (canEdit(f.created_by)) await moveFile(f.id, dest); }
+      setBulkMove(false); clearSel(); if (dest) setExpanded((e) => ({ ...e, [dest]: true })); refreshHere();
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const ctxItems = (m: { kind: 'file' | 'folder'; item: any }) => {
+    const it = m.item; const ed = canEdit(it.created_by);
+    const out: { icon: string; label: string; run: () => void; danger?: boolean }[] = [];
+    out.push(m.kind === 'folder' ? { icon: 'ti-folder-open', label: 'Open', run: () => navTo(it.id) } : { icon: 'ti-eye', label: 'Open', run: () => openFile(it) });
+    if (m.kind === 'file') out.push({ icon: 'ti-download', label: 'Download', run: () => download(it) });
+    out.push({ icon: 'ti-message-circle', label: 'Comments', run: () => setCommentsFor({ id: it.id, name: it.name }) });
+    if (ed) out.push({ icon: 'ti-arrows-move', label: 'Move', run: () => setMoving({ kind: m.kind, id: it.id, name: it.name, parent: m.kind === 'folder' ? it.parent_id : it.folder_id }) });
+    if (ed) out.push({ icon: 'ti-trash', label: 'Delete', danger: true, run: () => (m.kind === 'folder' ? delFolder(it) : delFile(it)) });
+    return out;
+  };
+
   if (!enabled) return <Layout flat title="Drives"><EmptyState icon="ti-cloud-off" title="Drives not in your plan" text="Upgrade your plan to use cloud storage." /></Layout>;
 
   const limitBytes = usage.limitMb != null ? usage.limitMb * 1024 * 1024 : null;
@@ -225,6 +282,14 @@ export default function DrivesPage() {
       ...renderMoveTargets(f.id, depth + 1),
     ];
   });
+
+  const renderBulkMoveTargets = (parentId: string | null, depth: number): any[] => childrenOf(parentId).flatMap((f) => [
+    <button key={f.id} disabled={busy || bulkInvalid.has(f.id)} onClick={() => bulkMoveTo(f.id)} style={{ paddingLeft: depth * 14 + 12 }}
+      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface2 disabled:opacity-40 disabled:cursor-not-allowed text-left">
+      <Icon name="ti-folder" className="text-amber-500 shrink-0" /><span className="truncate flex-1">{f.name}</span>
+    </button>,
+    ...renderBulkMoveTargets(f.id, depth + 1),
+  ]);
 
   return (
     <Layout flat title="Drives">
@@ -280,6 +345,10 @@ export default function DrivesPage() {
                         options={[{ value: '', label: 'Not shared' }, ...projects.map((pr) => ({ value: pr.id, label: pr.name }))]} />
                     </div>
                   )}
+                  <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="input h-8 py-0 w-36 hidden sm:block" />
+                  <Select width={120} value={sortKey} onChange={(v) => setSortKey(v as any)} options={[{ value: 'name', label: 'Name' }, { value: 'size', label: 'Size' }, { value: 'created', label: 'Created' }]} />
+                  <button className="btn h-8 py-0 px-2" title={sortDir === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>
+                  <button className="btn h-8 py-0 px-2" title="Select all" onClick={toggleAll}><Icon name={allSelected ? 'ti-checkbox' : 'ti-square'} className="text-sm" /></button>
                   <button className="btn h-8 py-0" disabled={busy} onClick={newDoc}><Icon name="ti-file-text" className="text-sm" />New doc</button>
                   <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => active && setShareFor(active)}><Icon name="ti-user-share" className="text-sm" />Share</button>}
@@ -300,23 +369,36 @@ export default function DrivesPage() {
 
                   <div onDragOver={(e) => { if (dragRef.current || dtHasFiles(e)) { e.preventDefault(); setOver('__pane__'); } }} onDragLeave={() => setOver((o) => (o === '__pane__' ? null : o))} onDrop={dropOnPane}
                     className={over === '__pane__' ? 'bg-accent/5 ring-2 ring-inset ring-accent/40' : ''}>
-                    {files === null ? <div className="p-8"><Spinner /></div> : (childFolders.length === 0 && files.length === 0) ? (
-                      <div className="p-10"><EmptyState icon="ti-folder-open" text="This folder is empty — drop files here to upload, or create a folder." /></div>
+                    {selected.size > 0 && (
+                      <div className="flex items-center gap-2 px-4 py-2 border-b border-line bg-surface2/60 text-sm sticky top-0 z-10">
+                        <span className="font-medium">{selected.size} selected</span>
+                        <button className="btn h-7 py-0" disabled={busy} onClick={() => setBulkMove(true)}><Icon name="ti-arrows-move" className="text-sm" />Move</button>
+                        <button className="btn h-7 py-0" disabled={busy} onClick={bulkDownload}><Icon name="ti-download" className="text-sm" />Download</button>
+                        <button className="btn h-7 py-0 text-rose-600" disabled={busy} onClick={bulkDelete}><Icon name="ti-trash" className="text-sm" />Delete</button>
+                        <button className="btn h-7 py-0 ml-auto" onClick={clearSel}>Clear</button>
+                      </div>
+                    )}
+                    {files === null ? <div className="p-8"><Spinner /></div> : (shownFolders.length === 0 && shownFiles.length === 0) ? (
+                      <div className="p-10"><EmptyState icon="ti-folder-open" text={q ? 'No files or folders match your search.' : 'This folder is empty — drop files here to upload, or create a folder.'} /></div>
                     ) : (
                       <div className="divide-y divide-line">
-                        {childFolders.map((f) => (
+                        {shownFolders.map((f) => (
                           <div key={f.id} draggable={canEdit(f.created_by)} onDragStart={startDrag({ kind: 'folder', id: f.id, parent: f.parent_id })} onDragEnd={endDrag}
                             onDragOver={overIf(f.id)} onDragLeave={() => setOver((o) => (o === f.id ? null : o))} onDrop={dropOnFolder(f.id)}
-                            className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50 ${over === f.id ? 'ring-2 ring-inset ring-accent' : ''}`}>
+                            onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: 'folder', item: f }); }}
+                            className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50 ${isSel(kfold(f.id)) ? 'bg-accent/5' : ''} ${over === f.id ? 'ring-2 ring-inset ring-accent' : ''}`}>
+                            <input type="checkbox" className={`shrink-0 ${selected.size ? '' : 'opacity-0 group-hover:opacity-100'}`} checked={isSel(kfold(f.id))} onChange={() => toggleSel(kfold(f.id))} onClick={(e) => e.stopPropagation()} />
                             <Icon name="ti-folder" className="text-amber-500" />
                             <button className="text-sm text-content font-medium truncate flex-1 text-left hover:text-accentstrong" onClick={() => navTo(f.id)}>{f.name}</button>
                             {canEdit(f.created_by) && <button onClick={() => setMoving({ kind: 'folder', id: f.id, name: f.name, parent: f.parent_id })} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Move"><Icon name="ti-arrows-move" className="text-sm" /></button>}
                             {canEdit(f.created_by) && <button onClick={() => delFolder(f)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500" title="Delete"><Icon name="ti-trash" className="text-sm" /></button>}
                           </div>
                         ))}
-                        {files.map((f) => (
+                        {shownFiles.map((f) => (
                           <div key={f.id} draggable={canEdit(f.created_by)} onDragStart={startDrag({ kind: 'file', id: f.id, parent: f.folder_id })} onDragEnd={endDrag}
-                            className="group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50">
+                            onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: 'file', item: f }); }}
+                            className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50 ${isSel(kfile(f.id)) ? 'bg-accent/5' : ''}`}>
+                            <input type="checkbox" className={`shrink-0 ${selected.size ? '' : 'opacity-0 group-hover:opacity-100'}`} checked={isSel(kfile(f.id))} onChange={() => toggleSel(kfile(f.id))} onClick={(e) => e.stopPropagation()} />
                             <Icon name={fileIcon(f)} className="text-muted" />
                             <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => openFile(f)}>{f.name}</button>
                             <span className="text-2xs text-muted2 shrink-0 tabular-nums">{fmtBytes(f.size_bytes)}</span>
@@ -387,6 +469,31 @@ export default function DrivesPage() {
       )}
       {commentsFor && (
         <DriveComments fileId={commentsFor.id} fileName={commentsFor.name} meId={me?.id || ''} people={people} level={level} onClose={() => setCommentsFor(null)} />
+      )}
+      {menu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
+          <div className="fixed z-50 min-w-[10rem] rounded-lg border border-line bg-surface shadow-xl py-1"
+            style={{ top: Math.min(menu.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - 260), left: Math.min(menu.x, (typeof window !== 'undefined' ? window.innerWidth : 1000) - 190) }}>
+            {ctxItems(menu).map((a, i) => (
+              <button key={i} className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-surface2 text-left ${a.danger ? 'text-rose-600' : ''}`} onClick={() => { setMenu(null); a.run(); }}>
+                <Icon name={a.icon} className="text-sm" />{a.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {bulkMove && (
+        <Modal open onClose={() => setBulkMove(false)} title={`Move ${selected.size} item(s)`} icon="ti-arrows-move" size="sm"
+          footer={<button className="btn" onClick={() => setBulkMove(false)}>Cancel</button>}>
+          <p className="text-2xs text-muted2 mb-2">Pick a destination folder. Selected folders (and their contents) are disabled as targets.</p>
+          <div className="max-h-72 overflow-auto rounded-lg border border-line divide-y divide-line">
+            <button disabled={busy} onClick={() => bulkMoveTo(null)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface2 text-left">
+              <Icon name="ti-folders" className="text-accentstrong shrink-0" /><span className="truncate flex-1">{active?.name}</span><span className="text-2xs text-muted2">root</span>
+            </button>
+            {renderBulkMoveTargets(null, 0)}
+          </div>
+        </Modal>
       )}
     </Layout>
   );
