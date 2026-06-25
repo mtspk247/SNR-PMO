@@ -124,6 +124,20 @@ export const EXECUTORS: Record<string, Executor> = {
     },
     rollback: async (a) => { const ps = a.prior_state || {}; if (a.target_id && ps.category) await updateLedgerEntry(a.target_id, { category: String(ps.category) }); },
   },
+  // People (capacity) — CREATE pattern. Flags an over-allocated person/team as a review task
+  // via the same RLS-safe createTask a human uses; reversible by delete. Demoable via the
+  // people SAMPLE (no key needed) and emittable by the live proposer.
+  flag_capacity_risk: {
+    label: 'Flag the capacity risk',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const who = String(p.person || p.name || p.employee || '').trim();
+      const detail = who ? (who + ' is over-allocated') : 'A team member is over-allocated';
+      const t = await createTask({ name: ('Capacity risk: ' + detail + ' - review workload').slice(0, 200), org_id: ctx.orgId });
+      return { target_table: 'tasks', target_id: t.id, result: { task_id: t.id, name: t.name }, reversal: { op: 'delete_task' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteTask(a.target_id); },
+  },
 };
 
 export const executorFor = (toolKey: string): Executor | undefined => EXECUTORS[toolKey];

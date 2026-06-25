@@ -50,7 +50,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'route_leave_request', label: 'Route a leave request', domain: 'hr', risk: 'medium', reversible: true, requires: 'can_approve_leaves', description: 'Proposes an approve / deny on a leave request; the decision still flows through the leave approval gate.' },
   { key: 'triage_ticket', label: 'Triage a support ticket', domain: 'support', risk: 'low', reversible: true, description: 'Suggests an assignee / priority for a ticket.' },
   { key: 'draft_reply', label: 'Draft a support reply', domain: 'support', risk: 'low', reversible: true, description: 'Drafts a reply for an agent to review and send.' },
-  { key: 'flag_capacity_risk', label: 'Flag a capacity risk', domain: 'people', risk: 'low', reversible: true, description: 'Flags an over-allocated person or team from current workload for review. Draft only - proposes, never reassigns.' },
+  { key: 'flag_capacity_risk', label: 'Flag a capacity risk', domain: 'people', risk: 'low', reversible: true, description: 'Flags an over-allocated person or team as a reversible review task. Surfaces the risk for a human to act on; never reassigns work itself.' },
   { key: 'draft_meeting_brief', label: 'Draft a 1:1 / meeting brief', domain: 'people', risk: 'low', reversible: true, description: 'Drafts a 1:1 or team-meeting brief from recent activity. Draft only.' },
 ];
 
