@@ -119,6 +119,7 @@ export const FEATURES = [
   { key: 'automations', label: 'Automations' },
   { key: 'forms', label: 'Forms' },
   { key: 'booking', label: 'Booking' },
+  { key: 'comms', label: 'Messaging (SMS)' },
   { key: 'portal', label: 'Branded Client Portal' },
   { key: 'agents', label: 'AI Agents' },
 ] as const;

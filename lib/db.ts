@@ -1356,6 +1356,42 @@ export async function listAppointments(orgId: string, bookingPageId?: string): P
 export async function setAppointmentStatus(id: string, status: 'confirmed' | 'cancelled' | 'completed' | 'no_show'): Promise<void> {
   const { error } = await sb.from('appointments').update({ status }).eq('id', id); if (error) throw new Error(error.message);
 }
+
+// ---- Comms / SMS (F3) — migrations comms_sms_substrate_* + edge fn sms-dispatch ----
+export interface SmsConfigStatus { provider: string; from_number: string | null; custom_url: string | null; enabled: boolean; monthly_cap_usd: number | null; has_token: boolean; has_account: boolean; configured: boolean; month_cost_usd: number; }
+export interface CommsMessage { id: string; org_id: string; channel: string; direction: string; to_addr: string; from_addr: string | null; body: string; status: string; provider: string | null; provider_msg_id: string | null; cost_usd: number; error: string | null; lead_id: string | null; created_by: string | null; created_at: string; }
+export interface SuppressionEntry { id: string; org_id: string; channel: string; address: string; reason: string | null; created_at: string; }
+
+export async function smsGetConfig(orgId: string): Promise<SmsConfigStatus | null> {
+  const { data, error } = await sb.rpc('sms_get_config', { p_org: orgId });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as SmsConfigStatus) || null;
+}
+export async function smsSetConfig(p: { org_id: string; provider?: string; account_sid?: string; auth_token?: string; from_number?: string; custom_url?: string; enabled?: boolean; monthly_cap_usd?: number | null }): Promise<void> {
+  const { error } = await sb.rpc('sms_set_config', { p_org: p.org_id, p_provider: p.provider ?? null, p_account_sid: p.account_sid ?? '', p_auth_token: p.auth_token ?? '', p_from_number: p.from_number ?? '', p_custom_url: p.custom_url ?? '', p_enabled: p.enabled ?? null, p_monthly_cap_usd: p.monthly_cap_usd ?? null });
+  if (error) throw new Error(error.message);
+}
+export async function listMessages(orgId: string): Promise<CommsMessage[]> {
+  const { data, error } = await sb.from('comms_messages').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(200);
+  if (error) throw new Error(error.message); return (data as CommsMessage[]) || [];
+}
+export async function sendSms(orgId: string, to: string, body: string, leadId?: string | null): Promise<void> {
+  const { error } = await sb.rpc('sms_enqueue', { p_org: orgId, p_to: to, p_body: body, p_lead_id: leadId ?? null });
+  if (error) throw new Error(error.message);
+  try { await sb.functions.invoke('sms-dispatch', { body: { org_id: orgId } }); } catch { /* queued — a later run sends it */ }
+}
+export async function listSuppression(orgId: string): Promise<SuppressionEntry[]> {
+  const { data, error } = await sb.from('comms_suppression').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as SuppressionEntry[]) || [];
+}
+export async function addSuppression(orgId: string, address: string, reason?: string): Promise<void> {
+  const { error } = await sb.from('comms_suppression').insert({ org_id: orgId, channel: 'sms', address: address.trim(), reason: reason || 'manual' });
+  if (error) throw new Error(error.message);
+}
+export async function removeSuppression(id: string): Promise<void> {
+  const { error } = await sb.from('comms_suppression').delete().eq('id', id); if (error) throw new Error(error.message);
+}
 export async function listPortalFiles(orgId: string): Promise<PortalFile[]> {
   const { data, error } = await sb.from('drive_files')
     .select('id,name,kind,mime_type,size_bytes,storage_path,created_at,drive_id, drives(name)')

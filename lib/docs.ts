@@ -661,6 +661,21 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'messaging',
+    title: 'Messaging (SMS)',
+    icon: 'ti-message-2',
+    blocks: [
+      { kind: 'p', text: 'Send SMS to contacts from your own provider. You bring your Twilio, Telnyx or Plivo account (or a custom HTTP provider); your credentials stay encrypted and are never shown back. Every message is logged, consent is respected, and a monthly spend cap protects you.' },
+      { kind: 'steps', items: [
+        { title: '1. Connect a provider', body: 'People > Messaging. Pick Twilio / Telnyx / Plivo / Custom, paste the account id + auth token and your from-number, set a monthly spend cap, and enable it. Leave the token blank later to keep the saved one.' },
+        { title: '2. Send', body: 'Type a destination number + message and Send. It queues and the dispatcher delivers it through your provider in seconds; the result (sent/failed) shows in the log.' },
+        { title: '3. Consent & caps', body: 'Numbers on the suppression list are never messaged. The monthly USD cap blocks sends once reached. Both are enforced server-side.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: provider secrets live in a table no client can read - they are reachable only by the secure server dispatcher. Configuration is owner/admin only; sending is staff-gated; the public never touches it.' },
+      { kind: 'callout', icon: 'ti-bell', text: 'Coming next on this layer: a unified inbox for replies, booking + appointment reminders, and SMS steps inside automations.' },
+    ],
+  },
+  {
     id: 'agents',
     title: 'AI Agents & approvals',
     icon: 'ti-robot',
