@@ -1,4 +1,7 @@
 
+## 2026-06-25 — Agents: Support agent "Find work" (SHIPPED)
+- `lib/agentScanner.ts`: deterministic scanner extended to **support** (was accounting/tasks/crm/people) — round-robin-assigns unassigned, non-terminal tickets to active support staff → `triage_ticket` (existing executor; `assignTicket` RPC enforces support-staff; reversible by unassigning). `runWorkScan` fetches `listTickets` + `supportAgentList` (active), dedupes by `ticket_id`. Pure-scanner unit test 10/10; **no new DB objects/write paths**. `/docs#agents`. Preview `e4d070a` READY → merged main. Lights up the Support agent's "Find work in my data" button (works without an LLM key).
+
 ## 2026-06-25 — Agents: CRM agents now CREATE contacts + deals (SHIPPED)
 - `lib/agentExecutors.ts`: `create_contact` (low/reversible) + `create_deal` (medium/reversible) executors — run client-side as the approver via `createContact`/`createDeal` (same RLS path a human uses; reversible by delete). `lib/agents.ts` catalog + SAMPLE_PROPOSALS + Pipeline Mover starter; `/docs#agents`. **No new DB objects.** RLS-sim: same-org INSERT allowed, cross-tenant denied (42501) on crm_contacts/crm_deals (`is_org_member` + crm feature + non-guest wall). Preview `d42fe10` READY → merged main. Answers Tariq's "agents feel like automations" critique (depth backlog #2).
 
