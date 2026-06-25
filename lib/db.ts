@@ -1161,7 +1161,7 @@ export async function saveDoc(id: string, patch: { name?: string; content?: stri
 // notifications fan out server-side (client never writes notifications).
 // ---------------------------------------------------------------------------
 export type DriveLevel = 'viewer' | 'commenter' | 'editor' | 'manage';
-export interface DriveGrant { id: string; org_id: string; drive_id: string; subject_user_id: string | null; subject_role: string | null; level: 'viewer' | 'commenter' | 'editor'; created_by: string | null; created_at: string; }
+export interface DriveGrant { id: string; org_id: string; drive_id: string; folder_id: string | null; file_id: string | null; subject_user_id: string | null; subject_role: string | null; level: 'viewer' | 'commenter' | 'editor'; created_by: string | null; created_at: string; }
 export interface DriveComment { id: string; org_id: string; drive_id: string; file_id: string; parent_id: string | null; author_id: string; body: string; resolved: boolean; created_at: string; updated_at: string; }
 export interface DriveDocState { doc_state: string | null; content: string | null; }
 
@@ -1180,12 +1180,21 @@ export async function listDriveGrants(driveId: string): Promise<DriveGrant[]> {
 }
 // Upsert without ON CONFLICT (partial unique indexes aren't usable as a PostgREST arbiter):
 // update the existing grant, else insert with return=minimal (dodges the INSERT…RETURNING RLS re-check).
-export async function upsertUserGrant(p: { org_id: string; drive_id: string; subject_user_id: string; level: 'viewer' | 'commenter' | 'editor'; created_by: string }): Promise<void> {
-  const { data: upd, error: e1 } = await sb.from('drive_grants').update({ level: p.level }).eq('drive_id', p.drive_id).eq('subject_user_id', p.subject_user_id).select('id');
+export async function upsertUserGrant(p: { org_id: string; drive_id: string; subject_user_id: string; level: 'viewer' | 'commenter' | 'editor'; created_by: string; folder_id?: string | null; file_id?: string | null }): Promise<void> {
+  const fid = p.folder_id ?? null; const flid = p.file_id ?? null;
+  let upd = sb.from('drive_grants').update({ level: p.level }).eq('drive_id', p.drive_id).eq('subject_user_id', p.subject_user_id);
+  upd = fid ? upd.eq('folder_id', fid) : upd.is('folder_id', null);
+  upd = flid ? upd.eq('file_id', flid) : upd.is('file_id', null);
+  const { data, error: e1 } = await upd.select('id');
   if (e1) throw new Error(e1.message);
-  if (upd && upd.length) return;
-  const { error: e2 } = await sb.from('drive_grants').insert({ org_id: p.org_id, drive_id: p.drive_id, subject_user_id: p.subject_user_id, level: p.level, created_by: p.created_by });
+  if (data && data.length) return;
+  const { error: e2 } = await sb.from('drive_grants').insert({ org_id: p.org_id, drive_id: p.drive_id, subject_user_id: p.subject_user_id, level: p.level, created_by: p.created_by, folder_id: fid, file_id: flid });
   if (e2) throw new Error(e2.message);
+}
+// Caller's effective level on a specific item (drive base + item grant + inherited ancestor-folder grants).
+export async function getItemLevel(p: { drive_id: string; folder_id?: string | null; file_id?: string | null }): Promise<DriveLevel | null> {
+  const { data, error } = await sb.rpc('drive_eff_level', { p_drive: p.drive_id, p_folder: p.folder_id ?? null, p_file: p.file_id ?? null });
+  if (error) throw new Error(error.message); return (data as DriveLevel | null) ?? null;
 }
 export async function upsertRoleGrant(p: { org_id: string; drive_id: string; subject_role: string; level: 'viewer' | 'commenter' | 'editor'; created_by: string }): Promise<void> {
   const { data: upd, error: e1 } = await sb.from('drive_grants').update({ level: p.level }).eq('drive_id', p.drive_id).eq('subject_role', p.subject_role).select('id');

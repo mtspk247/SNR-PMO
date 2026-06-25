@@ -19,6 +19,7 @@ const CollabDocEditor = dynamic(() => import('@/components/CollabDocEditor'), { 
 import DriveShareModal from '@/components/DriveShareModal';
 import DriveComments from '@/components/DriveComments';
 import DriveActivityModal from '@/components/DriveActivityModal';
+import DriveAccessModal from '@/components/DriveAccessModal';
 
 const fmtBytes = (n: number) => {
   if (!n) return '0 B';
@@ -70,6 +71,7 @@ export default function DrivesPage() {
   const [bulkMove, setBulkMove] = useState(false);
   const [archived, setArchived] = useState<{ files: DriveFile[]; folders: DriveFolder[] } | null>(null);
   const [activityFor, setActivityFor] = useState<{ id: string; name: string; kind: 'file' | 'folder' } | null>(null);
+  const [accessFor, setAccessFor] = useState<{ kind: 'file' | 'folder'; id: string; name: string; drive_id: string; folder_id?: string | null } | null>(null);
   const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -254,6 +256,7 @@ export default function DrivesPage() {
     if (m.kind === 'file') out.push({ icon: 'ti-download', label: 'Download', run: () => download(it) });
     out.push({ icon: 'ti-message-circle', label: 'Comments', run: () => setCommentsFor({ id: it.id, name: it.name }) });
     out.push({ icon: 'ti-history', label: 'Activity', run: () => setActivityFor({ id: it.id, name: it.name, kind: m.kind }) });
+    out.push({ icon: 'ti-shield-lock', label: 'Access', run: () => setAccessFor({ kind: m.kind, id: it.id, name: it.name, drive_id: it.drive_id, folder_id: m.kind === 'file' ? it.folder_id : null }) });
     if (ed) out.push({ icon: 'ti-arrows-move', label: 'Move', run: () => setMoving({ kind: m.kind, id: it.id, name: it.name, parent: m.kind === 'folder' ? it.parent_id : it.folder_id }) });
     if (ed) out.push({ icon: 'ti-archive', label: 'Archive', run: () => (m.kind === 'folder' ? archiveFolder(it.id) : archiveFile(it.id)).then(refreshHere).catch((e: any) => setErr(e.message)) });
     if (ed) out.push({ icon: 'ti-trash', label: 'Delete', danger: true, run: () => (m.kind === 'folder' ? delFolder(it) : delFile(it)) });
@@ -534,6 +537,9 @@ export default function DrivesPage() {
       )}
       {activityFor && (
         <DriveActivityModal fileId={activityFor.kind === 'file' ? activityFor.id : undefined} folderId={activityFor.kind === 'folder' ? activityFor.id : undefined} name={activityFor.name} people={people} onClose={() => setActivityFor(null)} />
+      )}
+      {accessFor && org && (
+        <DriveAccessModal target={accessFor} orgId={org.id} folders={folders} people={people} meId={me?.id || ''} canManage={level === 'manage' || isAdmin} onClose={() => setAccessFor(null)} />
       )}
     </Layout>
   );
