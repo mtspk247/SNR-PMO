@@ -42,6 +42,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'draft_journal_entry', label: 'Draft a journal entry from a bill', domain: 'accounting', risk: 'high', reversible: true, requires: 'can_export_data', description: 'Reads a vendor bill and proposes a balanced ledger entry. Posting requires the approver to hold ledger write access.' },
   { key: 'categorize_expense', label: 'Categorize an expense', domain: 'accounting', risk: 'low', reversible: true, noAuto: true, description: 'Suggests a category / account for an uncategorized expense. Financial — always approve-first even in auto mode.' },
   { key: 'create_task', label: 'Create / assign a task', domain: 'tasks', risk: 'low', reversible: true, description: 'Drafts a task (title, assignee, due date) from a request.' },
+  { key: 'scaffold_project', label: 'Scaffold a project (with starter tasks)', domain: 'tasks', risk: 'medium', reversible: true, description: 'Creates a new project and seeds its starter tasks in one step. Approve-first; reversible (removes the tasks and the project).' },
   { key: 'summarize_project', label: 'Summarize a project', domain: 'tasks', risk: 'low', reversible: true, description: 'Generates a read-only status summary; produces no writes.' },
   { key: 'triage_task', label: 'Triage / reprioritize a task', domain: 'tasks', risk: 'low', reversible: true, requires: 'can_edit_all_projects', description: 'Proposes a priority / status change on a task.' },
   { key: 'draft_followup', label: 'Draft a client follow-up', domain: 'crm', risk: 'low', reversible: true, description: 'Drafts a follow-up for a deal / contact; sending is a separate approved step.' },
@@ -67,6 +68,7 @@ export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; r
   ],
   tasks: [
     { tool: 'create_task', summary: 'Create task "Send Q2 report to Acme", assign to the account owner, due Friday', risk: 'low', payload: { title: 'Send Q2 report to Acme', due: 'Friday' } },
+    { tool: 'scaffold_project', summary: 'Scaffold project "Acme Website Revamp" with 5 starter tasks', risk: 'medium', payload: { name: 'Acme Website Revamp', tasks: ['Kickoff & scope', 'Design & wireframes', 'Build', 'QA & launch', 'Retrospective'] } },
   ],
   crm: [
     { tool: 'draft_followup', summary: 'Draft a follow-up to "Globex" (no reply in 7 days on the proposal)', risk: 'low', payload: { deal: 'Globex' } },
@@ -92,7 +94,7 @@ export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; r
 // immediately. Provisioned via db.seedStarterAgents through the normal RLS-safe paths;
 // nothing runs until the user triggers a run (sample or proposer).
 export const STARTER_AGENTS: { name: string; domain: AgentDomainKey; autonomy: string; description: string; tools: string[] }[] = [
-  { name: 'Task Assistant', domain: 'tasks', autonomy: 'auto_low_risk', description: 'Creates and triages tasks from requests. Low-risk, reversible actions run automatically.', tools: ['create_task', 'triage_task', 'summarize_project'] },
+  { name: 'Task Assistant', domain: 'tasks', autonomy: 'auto_low_risk', description: 'Creates and triages tasks, and scaffolds new projects with starter tasks. Low-risk actions run automatically; project scaffolding is approve-first.', tools: ['create_task', 'scaffold_project', 'triage_task', 'summarize_project'] },
   { name: 'Onboarding Helper', domain: 'hr', autonomy: 'auto_low_risk', description: 'Drafts a week-1 onboarding checklist for a new hire.', tools: ['draft_onboarding', 'create_task'] },
   { name: 'Expense Categorizer', domain: 'accounting', autonomy: 'approve_first', description: 'Suggests categories for uncategorized expenses and drafts journal entries. Financial — you approve each one.', tools: ['categorize_expense', 'draft_journal_entry'] },
   { name: 'Support Triage', domain: 'support', autonomy: 'approve_first', description: 'Suggests an assignee and priority for new tickets, and drafts replies for review.', tools: ['triage_ticket', 'draft_reply'] },

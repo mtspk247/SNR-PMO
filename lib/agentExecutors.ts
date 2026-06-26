@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -183,6 +183,38 @@ export const EXECUTORS: Record<string, Executor> = {
       return { target_table: 'crm_deals', target_id: d.id, result: { deal_id: d.id, title: d.title }, reversal: { op: 'delete_deal' } };
     },
     rollback: async (a) => { if (a.target_id) await deleteDeal(a.target_id); },
+  },
+  // WORK (scaffold) — multi-write CREATE: a project + its starter tasks in ONE approved,
+  // reversible action (the \"agentic\" multi-step). Uses createProject/createTask as the approver
+  // so every write is RLS/RBAC-walled. Reversible: delete the tasks, then soft-delete the project.
+  scaffold_project: {
+    label: 'Create the project + tasks',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const name = String(p.name || a.summary || 'New project').slice(0, 160);
+      const projs = await createProject({
+        name, org_id: ctx.orgId,
+        ...(p.status ? { status: String(p.status) } : {}),
+        ...(p.priority ? { priority: String(p.priority) } : {}),
+        company_id: p.company_id ?? null, pm_id: ctx.userId, created_by: ctx.userId,
+      });
+      const project = Array.isArray(projs) ? projs[0] : (projs as any);
+      if (!project || !project.id) throw new Error('scaffold_project could not create the project');
+      const titles: string[] = (Array.isArray(p.tasks) && p.tasks.length)
+        ? p.tasks.map((x: any) => String(x))
+        : ['Kickoff & scope', 'Plan timeline & milestones', 'Assign team & roles', 'First deliverable', 'Review & retrospective'];
+      const ids: string[] = [];
+      for (const t of titles.slice(0, 12)) {
+        const task = await createTask({ name: String(t).slice(0, 200), org_id: ctx.orgId, project_id: project.id });
+        ids.push(task.id);
+      }
+      return { target_table: 'projects', target_id: project.id, result: { project_id: project.id, name: project.name, task_ids: ids, count: ids.length }, reversal: { op: 'delete_project_scaffold', project_id: project.id, ids } };
+    },
+    rollback: async (a) => {
+      const ids: string[] = (a.reversal && a.reversal.ids) || (a.result && a.result.task_ids) || [];
+      for (const id of ids) { try { await deleteTask(id); } catch { /* keep deleting */ } }
+      if (a.target_id) { try { await deleteProject(a.target_id); } catch { /* noop */ } }
+    },
   },
 };
 
