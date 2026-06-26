@@ -50,6 +50,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'send_sms', label: 'Send an SMS to a contact', domain: 'crm', risk: 'medium', reversible: false, noAuto: true, description: 'Sends an SMS to a contact through your messaging provider. Always approve-first (it cannot be unsent); respects opt-outs and spend caps.' },
   { key: 'create_contact', label: 'Add a CRM contact', domain: 'crm', risk: 'low', reversible: true, description: 'Creates a new contact (name, email, title) from a request. Reversible — deletes the contact on rollback.' },
   { key: 'create_deal', label: 'Create a deal / opportunity', domain: 'crm', risk: 'medium', reversible: true, description: 'Opens a new pipeline deal (title, value, expected close) from a request. Approve-first; reversible by deleting the deal.' },
+  { key: 'scaffold_client_onboarding', label: 'Onboard a new client (contact + project + tasks)', domain: 'crm', risk: 'medium', reversible: true, description: 'Onboards a client end-to-end in one step: creates a CRM contact, an onboarding project, and its starter tasks. Approve-first; reversible (removes them all).' },
   { key: 'draft_onboarding', label: 'Draft an onboarding plan', domain: 'hr', risk: 'low', reversible: true, description: 'Drafts onboarding tasks for a new hire.' },
   { key: 'route_leave_request', label: 'Route a leave request', domain: 'hr', risk: 'medium', reversible: true, requires: 'can_approve_leaves', description: 'Proposes an approve / deny on a leave request; the decision still flows through the leave approval gate.' },
   { key: 'triage_ticket', label: 'Triage a support ticket', domain: 'support', risk: 'low', reversible: true, description: 'Suggests an assignee / priority for a ticket.' },
@@ -75,6 +76,7 @@ export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; r
     { tool: 'send_sms', summary: 'Text "Acme" a reminder of tomorrow\'s 10am call', risk: 'medium', reversible: false, payload: { to: '+15551234567', body: 'Hi Acme - a reminder of our call tomorrow at 10am. Reply STOP to opt out.' } },
     { tool: 'create_contact', summary: 'Add contact "Jordan Reyes" (Ops Lead, jordan@acme.com)', risk: 'low', payload: { full_name: 'Jordan Reyes', title: 'Ops Lead', email: 'jordan@acme.com' } },
     { tool: 'create_deal', summary: 'Open a deal "Acme - Website redesign" ($12,000)', risk: 'medium', payload: { title: 'Acme - Website redesign', value: 12000 } },
+    { tool: 'scaffold_client_onboarding', summary: 'Onboard new client "Northwind Co" - contact + onboarding project + 5 tasks', risk: 'medium', payload: { client_name: 'Northwind Co', contact_name: 'Dana Pierce', contact_email: 'dana@northwind.co' } },
   ],
   hr: [
     { tool: 'draft_onboarding', summary: 'Draft a week-1 onboarding checklist for new hire "Jordan Lee"', risk: 'low', payload: { employee: 'Jordan Lee' } },
@@ -98,6 +100,6 @@ export const STARTER_AGENTS: { name: string; domain: AgentDomainKey; autonomy: s
   { name: 'Onboarding Helper', domain: 'hr', autonomy: 'auto_low_risk', description: 'Drafts a week-1 onboarding checklist for a new hire.', tools: ['draft_onboarding', 'create_task'] },
   { name: 'Expense Categorizer', domain: 'accounting', autonomy: 'approve_first', description: 'Suggests categories for uncategorized expenses and drafts journal entries. Financial — you approve each one.', tools: ['categorize_expense', 'draft_journal_entry'] },
   { name: 'Support Triage', domain: 'support', autonomy: 'approve_first', description: 'Suggests an assignee and priority for new tickets, and drafts replies for review.', tools: ['triage_ticket', 'draft_reply'] },
-  { name: 'Pipeline Mover', domain: 'crm', autonomy: 'approve_first', description: 'Creates contacts and deals, proposes deal-stage moves, drafts client follow-ups, and sends approved SMS. You approve each one.', tools: ['update_deal_stage', 'create_deal', 'create_contact', 'draft_followup', 'send_sms'] },
+  { name: 'Pipeline Mover', domain: 'crm', autonomy: 'approve_first', description: 'Creates contacts and deals, onboards won clients end-to-end (contact + project + tasks), proposes deal-stage moves, drafts follow-ups, and sends approved SMS. You approve each one.', tools: ['update_deal_stage', 'create_deal', 'create_contact', 'scaffold_client_onboarding', 'draft_followup', 'send_sms'] },
   { name: 'People Coordinator', domain: 'people', autonomy: 'draft_only', description: 'Surfaces capacity risks and drafts 1:1 / meeting briefs from workload. Draft-only - it proposes, you decide.', tools: ['flag_capacity_risk', 'draft_meeting_brief'] },
 ];

@@ -216,6 +216,44 @@ export const EXECUTORS: Record<string, Executor> = {
       if (a.target_id) { try { await deleteProject(a.target_id); } catch { /* noop */ } }
     },
   },
+  // CRM/cross-module (composite) — onboard a new client END-TO-END in ONE approved,
+  // reversible action: a CRM contact + an onboarding project + its starter tasks. Every
+  // write runs as the approver (createContact/createProject/createTask) -> RLS/RBAC-walled.
+  // Reversible: delete the tasks, soft-delete the project, delete the contact.
+  scaffold_client_onboarding: {
+    label: 'Onboard the client',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const client = String(p.client_name || p.name || a.summary || 'New client').slice(0, 120);
+      const contact = await createContact({
+        full_name: String(p.contact_name || client).slice(0, 160), org_id: ctx.orgId,
+        email: p.contact_email ?? null, company_id: p.company_id ?? null,
+      });
+      const projs = await createProject({
+        name: String(p.project_name || (client + ' \u2014 Onboarding')).slice(0, 160),
+        org_id: ctx.orgId, status: 'Planning', pm_id: ctx.userId, created_by: ctx.userId,
+      });
+      const project = Array.isArray(projs) ? projs[0] : (projs as any);
+      if (!project || !project.id) throw new Error('scaffold_client_onboarding could not create the project');
+      const titles: string[] = (Array.isArray(p.tasks) && p.tasks.length)
+        ? p.tasks.map((x: any) => String(x))
+        : ['Welcome & kickoff call', 'Collect brand assets & access', 'Set up workspace & contracts', 'Define scope & milestones', 'First check-in'];
+      const ids: string[] = [];
+      for (const t of titles.slice(0, 12)) {
+        const task = await createTask({ name: String(t).slice(0, 200), org_id: ctx.orgId, project_id: project.id });
+        ids.push(task.id);
+      }
+      return { target_table: 'projects', target_id: project.id, result: { contact_id: contact.id, project_id: project.id, task_ids: ids, count: ids.length, client }, reversal: { op: 'delete_client_onboarding', contact_id: contact.id, project_id: project.id, ids } };
+    },
+    rollback: async (a) => {
+      const r: any = a.reversal || {};
+      const ids: string[] = r.ids || (a.result && a.result.task_ids) || [];
+      for (const id of ids) { try { await deleteTask(id); } catch { /* keep going */ } }
+      if (a.target_id) { try { await deleteProject(a.target_id); } catch { /* noop */ } }
+      const cid = r.contact_id || (a.result && a.result.contact_id);
+      if (cid) { try { await deleteContact(cid); } catch { /* noop */ } }
+    },
+  },
 };
 
 export const executorFor = (toolKey: string): Executor | undefined => EXECUTORS[toolKey];
