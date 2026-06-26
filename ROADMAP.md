@@ -1,4 +1,7 @@
 
+## 2026-06-25 — Admin: API keys & integrations status page (SHIPPED)
+- New admin-only `/keys` (`2f3e76a`): single secure pane of every external secret the workspace uses — AI/LLM (Groq), Email, SMS, Stripe — with Active/Not-configured status, what each powers, masked provider/model/mode, and how recently it was set. Reads ONLY secret-safe status RPCs (assistant_status/email_get_status/sms_get_config/billing_get_status) → has_key/metadata, **never the secret value** (repo is public). Notes provider keys have no fixed expiry → rotate periodically. Nav (Administration) + `/docs#api-keys` + admin gate (can.manageOrg). No new DB objects.
+
 ## 2026-06-25 — Agents: scaffold_client_onboarding (flagship composite action) SHIPPED
 - `scaffold_client_onboarding` (`dd4da06`): one approved, reversible agent action onboards a client end-to-end — **CRM contact + onboarding project + starter tasks** (createContact/createProject/createTask as the approver → RLS/RBAC-walled; reversible by delete + soft-delete). AGENT_TOOLS(crm, medium→approve-first) + sample + Pipeline Mover starter + `/docs#agents`. Reuses write paths already RLS-sim'd this session. Granted to the snr demo Pipeline Mover. Second multi-step action after scaffold_project — the "agent runs a whole workflow" moat.
 
