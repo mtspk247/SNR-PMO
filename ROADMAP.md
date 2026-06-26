@@ -1,4 +1,7 @@
 
+## 2026-06-25 — Agents: scaffold_client_onboarding (flagship composite action) SHIPPED
+- `scaffold_client_onboarding` (`dd4da06`): one approved, reversible agent action onboards a client end-to-end — **CRM contact + onboarding project + starter tasks** (createContact/createProject/createTask as the approver → RLS/RBAC-walled; reversible by delete + soft-delete). AGENT_TOOLS(crm, medium→approve-first) + sample + Pipeline Mover starter + `/docs#agents`. Reuses write paths already RLS-sim'd this session. Granted to the snr demo Pipeline Mover. Second multi-step action after scaffold_project — the "agent runs a whole workflow" moat.
+
 ## 2026-06-25 — Agents: scaffold_project (multi-step "agentic" action) + palette QA fix (SHIPPED)
 - `scaffold_project` (`66d77d3`): one approved, reversible agent action creates a **project + its starter tasks** (createProject return=minimal + createTask, as the approver → RLS/RBAC-walled; reversible by delete + soft-delete). AGENT_TOOLS(tasks, medium→approve-first) + sample + Task Assistant starter + `/docs#agents`. RLS-sim: project insert allowed same-org, denied cross-tenant (42501). Granted to the snr demo "task creator" so the demo shows it.
 - Command palette QA fix (`005cc05`): added New project/task/deal/contact/ticket/employee + token-AND matching ("new deal" now resolves) — found & fixed via live QA, verified in prod.
