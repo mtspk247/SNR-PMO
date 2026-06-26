@@ -1,4 +1,9 @@
 
+## 2026-06-25 — Agents: scaffold_project (multi-step "agentic" action) + palette QA fix (SHIPPED)
+- `scaffold_project` (`66d77d3`): one approved, reversible agent action creates a **project + its starter tasks** (createProject return=minimal + createTask, as the approver → RLS/RBAC-walled; reversible by delete + soft-delete). AGENT_TOOLS(tasks, medium→approve-first) + sample + Task Assistant starter + `/docs#agents`. RLS-sim: project insert allowed same-org, denied cross-tenant (42501). Granted to the snr demo "task creator" so the demo shows it.
+- Command palette QA fix (`005cc05`): added New project/task/deal/contact/ticket/employee + token-AND matching ("new deal" now resolves) — found & fixed via live QA, verified in prod.
+- Demo enablement: snr Pipeline Mover granted create_deal/create_contact; seeded 3 unassigned support tickets (module was empty).
+
 ## 2026-06-25 — Scalability hardening: covering indexes for all unindexed FKs (SHIPPED, DB-only)
 - Supabase performance advisor pass (273 lints). Fixed the 12 `unindexed_foreign_keys` → migration `fk_covering_indexes_2026_06_25` (expand-only, idempotent, no data change): covering indexes on automation_logs.rule_id; drive_access_requests.file_id/folder_id; drive_comments.drive_id/parent_id; drive_grants.drive_id/file_id/folder_id; drive_share_links.file_id/folder_id; form_submissions.lead_id; forms.created_by. **Catalog-verified: ZERO FKs in snrpmo now lack a covering index** (faster joins + cascade deletes at scale). Left (deliberate, low-value/risky): 135 unused_index, 125 multiple_permissive_policies, 1 backup-table no-PK. Security advisors unchanged — 2 manual items remain (Tariq: enable Auth leaked-password protection; pg_net-in-public left as-is).
 
