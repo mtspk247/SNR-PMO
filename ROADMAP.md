@@ -1,4 +1,7 @@
 
+## 2026-06-25 — Keys: per-integration rotation reminders (SHIPPED)
+- `/keys` now supports a "rotate by" date per key (`c6bd89c`, migration `org_key_rotation_reminders`): shows "due in Nd" (amber) as it nears, "Overdue" (red) once passed — completes the expiry ask (provider keys have no intrinsic expiry). Storage = `organizations.key_rotation_reminders` jsonb (ungated UI pref, `org_update` RLS like theme_skin; no secrets). `setKeyRotations` + org-load + MyOrg type + patchOrg. RLS-sim: owner update allowed, non-member 0 rows.
+
 ## 2026-06-25 — Admin: API keys & integrations status page (SHIPPED)
 - New admin-only `/keys` (`2f3e76a`): single secure pane of every external secret the workspace uses — AI/LLM (Groq), Email, SMS, Stripe — with Active/Not-configured status, what each powers, masked provider/model/mode, and how recently it was set. Reads ONLY secret-safe status RPCs (assistant_status/email_get_status/sms_get_config/billing_get_status) → has_key/metadata, **never the secret value** (repo is public). Notes provider keys have no fixed expiry → rotate periodically. Nav (Administration) + `/docs#api-keys` + admin gate (can.manageOrg). No new DB objects.
 
