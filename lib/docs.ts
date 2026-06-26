@@ -384,7 +384,7 @@ export const SECTIONS: Section[] = [
     icon: 'ti-key',
     blocks: [
       { kind: 'p', text: 'Administration \u25b8 API keys shows every external secret your workspace uses \u2014 AI/LLM, email, SMS and Stripe \u2014 in one place: which are active, what each one powers, and how recently it was set. Owners and admins only.' },
-      { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: secrets are stored encrypted server-side and are never displayed or sent to the browser \u2014 the page shows status only, never the key value. These provider keys carry no fixed expiry; rotate them periodically by re-entering the key on each integration\u2019s manage page.' },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: secrets are stored encrypted server-side and are never displayed or sent to the browser \u2014 the page shows status only, never the key value. These provider keys carry no fixed expiry; rotate them periodically by re-entering the key on each integration\u2019s manage page. You can also set a per-key rotation-reminder date on the page \u2014 it shows \u201cdue in Nd\u201d as the date nears and \u201cOverdue\u201d once it passes.' },
     ],
   },
   {

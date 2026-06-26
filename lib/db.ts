@@ -56,7 +56,7 @@ export async function getMyOrgs(userId: string): Promise<MyOrg[]> {
   // org switcher would show the same org N times).
   const { data, error } = await sb
     .from('org_members')
-    .select('role, is_primary, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, fab_shortcuts, hidden_pages, is_reseller, is_platform_home)')
+    .select('role, is_primary, organizations(id, slug, name, branding, plan, onboarding, theme_skin, allow_user_themes, fab_shortcuts, hidden_pages, key_rotation_reminders, is_reseller, is_platform_home)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -227,6 +227,13 @@ export async function setOrgFab(orgId: string, ids: FabEntry[]): Promise<void> {
 // and a direct link still works.
 export async function setOrgHiddenPages(orgId: string, hrefs: string[]): Promise<void> {
   const { error } = await sb.from('organizations').update({ hidden_pages: hrefs }).eq('id', orgId);
+  if (error) throw new Error(error.message);
+}
+
+// Per-integration key-rotation reminder dates (jsonb map keyed by integration). Ungated UI
+// pref via the same organizations org_update RLS as theme_skin/fab_shortcuts; holds no secrets.
+export async function setKeyRotations(orgId: string, map: Record<string, string>): Promise<void> {
+  const { error } = await sb.from('organizations').update({ key_rotation_reminders: map }).eq('id', orgId);
   if (error) throw new Error(error.message);
 }
 

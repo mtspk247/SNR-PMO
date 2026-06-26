@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { PageHeader, Icon, Spinner, EmptyState } from '@/components/ui';
-import { useActiveOrg } from '@/lib/store';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import {
-  assistantGetStatus, emailGetStatus, smsGetConfig, billingGetStatus,
+  assistantGetStatus, emailGetStatus, smsGetConfig, billingGetStatus, setKeyRotations,
 } from '@/lib/db';
 
 // Read-only registry of the platform SECRETS this workspace uses (AI, email, SMS, billing):
@@ -25,6 +25,14 @@ function ago(iso: string | null): string {
   return Math.round(d / 365) + ' yr ago';
 }
 const mask = (v: string | null) => (v ? '••••' + v.slice(-4) : '');
+function rotInfo(d?: string): { text: string; cls: string } | null {
+  if (!d) return null;
+  const t = new Date(d + 'T00:00:00').getTime(); if (isNaN(t)) return null;
+  const days = Math.round((t - Date.now()) / 86400000);
+  if (days < 0) return { text: 'Overdue', cls: 'text-rose-600' };
+  if (days <= 30) return { text: 'due in ' + days + 'd', cls: 'text-amber-600' };
+  return { text: '', cls: 'text-muted2' };
+}
 
 type Row = {
   key: string; name: string; icon: string; powers: string;
@@ -35,6 +43,15 @@ type Row = {
 export default function KeysPage() {
   const org = useActiveOrg();
   const admin = can.manageOrg(org);
+  const patchOrg = useAuthStore((st) => st.patchOrg);
+  const remOf = (k: string) => ((org?.key_rotation_reminders || {}) as Record<string, string>)[k] || '';
+  const setRot = async (k: string, val: string) => {
+    if (!org?.id) return;
+    const cur = { ...((org.key_rotation_reminders || {}) as Record<string, string>) };
+    if (val) cur[k] = val; else delete cur[k];
+    patchOrg({ id: org.id, key_rotation_reminders: cur });
+    try { await setKeyRotations(org.id, cur); } catch { /* non-fatal */ }
+  };
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
 
@@ -121,6 +138,14 @@ export default function KeysPage() {
                 <span className="text-2xs text-muted2 truncate">{r.active ? ('Updated ' + ago(r.updated)) : (r.accessible ? 'No key on file' : 'Managed elsewhere')}</span>
                 <Link href={r.manageHref} className="btn btn-sm shrink-0"><Icon name="ti-settings" className="text-sm" />{r.manageLabel}</Link>
               </div>
+              {r.active && (
+                <div className="flex items-center gap-2 mt-2 text-2xs">
+                  <Icon name="ti-rotate" className="text-muted2" />
+                  <span className="text-muted2">Rotate by</span>
+                  <input type="date" value={remOf(r.key)} onChange={(e) => setRot(r.key, e.target.value)} className="input h-7 text-2xs" style={{ maxWidth: 150 }} />
+                  {(() => { const ri = rotInfo(remOf(r.key)); return ri && ri.text ? <span className={ri.cls + ' font-medium'}>{ri.text}</span> : null; })()}
+                </div>
+              )}
             </div>
           ))}
           <div className="card p-4">

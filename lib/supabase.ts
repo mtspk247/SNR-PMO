@@ -42,6 +42,7 @@ export interface Organization {
   allow_user_themes?: boolean;
   fab_shortcuts?: FabEntry[] | null;   // Shortcuts-FAB entries: built-in id (string) or custom {id,label,icon,href}
   hidden_pages?: string[] | null;      // #10 per-page visibility: nav hrefs hidden from sidebar/search (ungated UI pref). Visibility only — RLS stays the wall.
+  key_rotation_reminders?: Record<string, string> | null; // per-integration 'rotate by' dates (YYYY-MM-DD); ungated UI pref, never holds secrets.
   plan: 'free' | 'pro' | 'enterprise';
   onboarding?: { completed_at?: string; team_size?: string; industry?: string; use_case?: string; role?: string; step?: number; skipped?: boolean } | null;
 }
