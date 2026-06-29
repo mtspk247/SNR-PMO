@@ -368,7 +368,7 @@ export const SECTIONS: Section[] = [
       { kind: 'bullets', items: [
         { text: 'Triggers — Form submitted (a new form response), Task created, Project created, Deal created, Client created, and Lead became hot (a lead’s score crosses into Hot, ≥ 60). These are the events the system raises.' },
         { text: 'Conditions — narrow an automation so it only runs when a field of the event matches a value (for example form_name = "Contact us"). Add as many as you like; all must match.' },
-        { text: 'Actions — notify owners & admins, create a task, set the triggering record’s status, assign it to a teammate, send an email or SMS to the lead, or enroll the lead in a drip sequence. Add several and they run in order.' },
+        { text: 'Actions — notify owners & admins, notify the lead’s assigned owner, create a task, set the triggering record’s status, assign it to a teammate, send an email or SMS to the lead, or enroll the lead in a drip sequence. Add several and they run in order.' },
         { text: 'Activity log — the Recent activity panel shows each time an automation fired and how many actions ran, so you can confirm it is working.' },
       ] },
       { kind: 'steps', items: [
