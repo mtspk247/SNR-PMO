@@ -15,6 +15,15 @@ import { useAuthStore } from '@/lib/store';
 
 const CF_PREFIX = 'cf:';
 const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
+// Extract sortable text from a rendered cell — lets DataList self-sort on pages that
+// don't supply rawValue (walks strings/numbers/arrays/element children).
+function nodeText(node: ReactNode): string {
+  if (node == null || node === false || node === true) return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join(' ');
+  const props = (node as any)?.props;
+  return props ? nodeText(props.children) : '';
+}
 // Pill class -> hex, for the name-cell status circle (slice E).
 const PILL_HEX: Record<string, string> = { 'pill-green': '#10b981', 'pill-amber': '#f59e0b', 'pill-blue': '#0ea5e9', 'pill-red': '#f43f5e', 'pill-rose': '#f43f5e', 'pill-gray': '#9ca3af', 'pill-violet': '#8b5cf6' };
 
@@ -291,6 +300,18 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const toggleExpand = (rid: string) => setExpandedRows((p) => { const n = new Set(p); n.has(rid) ? n.delete(rid) : n.add(rid); return n; });
   const dragId = drag?.id || null;
+  // Self-contained sort: when the parent (e.g. ListView) does NOT wire onSort, DataList
+  // owns the sort so EVERY list — including pages that render DataList directly — is
+  // click-to-sort with header arrows. ListView pages keep passing onSort (no double work).
+  const [iSortBy, setISortBy] = useState('');
+  const [iSortDir, setISortDir] = useState<'asc' | 'desc'>('asc');
+  const selfSort = !onSort;
+  const curSortBy = onSort ? (sortBy || '') : iSortBy;
+  const curSortDir: 'asc' | 'desc' = onSort ? (sortDir || 'asc') : iSortDir;
+  const handleSort = onSort || ((id: string) => {
+    if (id === iSortBy) setISortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setISortBy(id); setISortDir('asc'); }
+  });
 
   useEffect(() => {
     if (!orderKey) return;
@@ -306,6 +327,22 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     const idx = new Map(manualOrder.map((id, i) => [id, i] as [string, number]));
     return [...rows].sort((a, b) => (idx.has(rowKey(a)) ? idx.get(rowKey(a))! : 1e9) - (idx.has(rowKey(b)) ? idx.get(rowKey(b))! : 1e9));
   })();
+
+  // Self-sort the rows (only when DataList owns sorting; ListView pre-sorts + passes onSort).
+  const sortKey = (r: T): string => {
+    if (isCustomCol(curSortBy) && prefs.cf) return prefs.cf.rawValue(curSortBy, rowKey(r)) ?? '';
+    const rv = rawValue ? rawValue(curSortBy, r) : undefined;
+    return (rv !== undefined && rv !== '') ? rv : nodeText(cell(curSortBy, r));
+  };
+  const sortedRows = (!selfSort || !curSortBy) ? orderedRows : orderedRows
+    .map((r) => [r, sortKey(r)] as [T, string])
+    .sort((a, b) => {
+      const an = parseFloat(a[1]), bn = parseFloat(b[1]);
+      const num = !isNaN(an) && !isNaN(bn) && a[1].trim() !== '' && b[1].trim() !== '';
+      const c = num ? an - bn : a[1].localeCompare(b[1], undefined, { numeric: true });
+      return curSortDir === 'asc' ? c : -c;
+    })
+    .map((x) => x[0]);
 
   const commitDrag = (src: string, tgtId: string | null, grp: string | null) => {
     if (!src) return;
@@ -414,12 +451,12 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
           onDragEnd={() => setColDrag(null)}
           style={pinSty(ci)}
           className={`group/col relative px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wider whitespace-nowrap overflow-hidden cursor-grab select-none transition ${pinCls(ci)} ${colDrag === id ? 'opacity-40' : 'hover:text-content'}`}>
-          <span onClick={(e) => { if (onSort) { e.stopPropagation(); onSort(id); } }} title={onSort ? 'Sort by this column' : undefined} className={`inline-flex items-center gap-1 max-w-full ${onSort ? 'cursor-pointer' : ''}`}>
+          <span onClick={(e) => { e.stopPropagation(); handleSort(id); }} title="Sort by this column" className="inline-flex items-center gap-1 max-w-full cursor-pointer">
             <Icon name="ti-grip-vertical" className="text-2xs text-muted2 opacity-0 group-hover/col:opacity-60 shrink-0" />
             <span className="truncate">{labelOf(id)}</span>
-            {onSort && (sortBy === id
-              ? <Icon name={sortDir === 'desc' ? 'ti-arrow-narrow-down' : 'ti-arrow-narrow-up'} className="text-2xs text-accentstrong shrink-0" />
-              : <Icon name="ti-arrows-sort" className="text-2xs text-muted2 opacity-40 group-hover/col:opacity-90 shrink-0" />)}
+            {curSortBy === id
+              ? <Icon name={curSortDir === 'desc' ? 'ti-arrow-narrow-down' : 'ti-arrow-narrow-up'} className="text-2xs text-accentstrong shrink-0" />
+              : <Icon name="ti-arrows-sort" className="text-2xs text-muted2 opacity-40 group-hover/col:opacity-90 shrink-0" />}
           </span>
           <span onPointerDown={(e) => startColResize(e, id, ci)} onDoubleClick={() => autoFit(id)} onClick={(e) => e.stopPropagation()} title="Drag to resize · double-click to fit"
             className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-accent/50 z-10" />
@@ -530,12 +567,12 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   ) : null;
 
   const grouped = groupBy !== 'none' && !!groupOf && !!groups;
-  if (!grouped) return <>{tableCard(orderedRows)}{floatingChip}</>;
+  if (!grouped) return <>{tableCard(sortedRows)}{floatingChip}</>;
 
   return (
     <div>
       {groups!.map((g) => {
-        const gr = orderedRows.filter((r) => groupOf!(r) === g.value);
+        const gr = sortedRows.filter((r) => groupOf!(r) === g.value);
         if (gr.length === 0) return null;
         const isC = collapsed.has(g.value);
         return (
