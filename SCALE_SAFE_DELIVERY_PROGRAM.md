@@ -10,7 +10,7 @@
 - App: Vercel, `main` auto-deploys to ALL tenants. Per-branch preview builds (tsc/lint) + verify-before-deploy.
 - Strong floor already: RLS+RBAC every table, anon rate-limiting, per-tenant cost caps (agent_cost_check),
   file malware-scan gate, FK covering indexes, expand->contract migrations, secret-scanning CI.
-- Gaps this program closes: no staged rollout, no staging DB, soft test gate (37 tsc backlog),
+- Gaps this program closes: no staged rollout, no staging DB, test gate not merge-blocking (tsc/lint/unit-tests now green; no branch protection),
   no network WAF/DDoS, no global cost circuit-breaker, pooling unverified, leaked-password protection off.
 
 ## P1 - Progressive delivery (release without blast radius)  [IN PROGRESS]
@@ -32,7 +32,8 @@
 - [ ] Stripe money paths: signature-verify + idempotency + server-computed amounts (when live billing turns on).
 
 ## P3 - Real test gate (stop broken code reaching prod)
-- [ ] Burn down the 37 tsc errors; flip next.config ignore flags OFF so type/lint BLOCKS merges.
+- [x] **CI gate green & accurate** (`fe5fad4`): `next.config` ignore flags were already OFF and tsc/lint are clean (no 37-tsc backlog — memory `snr-pmo-ci-gate` corrected). The red `Unit tests` job is fixed (harness-only `globalThis.WebSocket` stub in the test bundle); typecheck+lint+unit-tests now pass on every push/PR.
+- [ ] **Make the gate merge-blocking:** enable branch protection on `main` (required status checks = `CI (enforced gate)` + `Security`). Currently green but NOT required (no protection) → a red gate would not block. NOTE: this moves deploys from direct `sha→main` to PR-merge.
 - [ ] Playwright smoke/e2e against the preview URL; wire the RLS-sim suite into CI as required-green before merge to main.
 
 ## P4 - Staging environment (needs a billing decision)
