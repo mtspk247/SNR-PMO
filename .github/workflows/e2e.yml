@@ -1,18 +1,19 @@
 name: E2E (smoke)
-# Public-route smoke against the PR's Vercel preview (URL resolved via the built-in
-# GITHUB_TOKEN from GitHub deployment statuses — no Vercel token, no 3rd-party action),
-# and against prod on push/schedule. NON-BLOCKING: not a required status check yet.
+# Public-route smoke against the LIVE prod site after each deploy + daily + on demand.
+# NON-BLOCKING: not a required status check (a flaky smoke must never block a merge).
+#
+# NOTE: pre-merge e2e against the PR's Vercel PREVIEW is a deliberate follow-up, NOT
+# done here — preview deployments are gated by Vercel Deployment Protection (requests
+# hit a "Log in to Vercel" wall), so headless testing needs a Protection-Bypass-for-
+# Automation secret. Enable that in Vercel + add the CI secret to flip this to per-PR.
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [main]
   schedule:
     - cron: '17 7 * * *'
+  workflow_dispatch:
 permissions:
   contents: read
-  deployments: read
-  statuses: read
 concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
@@ -24,36 +25,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Resolve BASE_URL (PR preview, else prod)
-        id: base
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
-          EVENT: ${{ github.event_name }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT" != "pull_request" ]; then
-            echo "base_url=https://snr-pmo.vercel.app" >> "$GITHUB_OUTPUT"
-            echo "Using prod alias"; exit 0
-          fi
-          echo "Resolving Vercel preview for $PR_SHA"
-          url=""
-          for i in $(seq 1 40); do
-            ids=$(curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$REPO/deployments?sha=$PR_SHA&per_page=30" | jq -r '.[].id')
-            for d in $ids; do
-              u=$(curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/$REPO/deployments/$d/statuses?per_page=30" \
-                | jq -r '[.[] | select(.state=="success") | (.environment_url // .target_url)] | map(select(. != null and . != "")) | .[0] // empty')
-              if [ -n "$u" ]; then url="$u"; break; fi
-            done
-            if [ -n "$url" ]; then break; fi
-            echo "  preview not ready (attempt $i/40); sleeping 15s"; sleep 15
-          done
-          if [ -z "$url" ]; then echo "::error::Vercel preview URL not found in time"; exit 1; fi
-          echo "Resolved preview: $url"
-          echo "base_url=$url" >> "$GITHUB_OUTPUT"
       - name: Install Playwright (isolated)
         run: |
           set -e
@@ -61,9 +32,9 @@ jobs:
           npm init -y >/dev/null 2>&1
           npm i -D @playwright/test@1.48.2 >/dev/null 2>&1
           npx playwright install --with-deps chromium
-      - name: Run smoke
+      - name: Run smoke (prod)
         env:
-          BASE_URL: ${{ steps.base.outputs.base_url }}
+          BASE_URL: https://snr-pmo.vercel.app
         run: |
           set -e
           cd /tmp/pw
