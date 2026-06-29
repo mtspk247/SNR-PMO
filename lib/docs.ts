@@ -298,6 +298,7 @@ export const SECTIONS: Section[] = [
           { text: 'Activity log on every deal, company, and contact record' },
           { text: 'Custom fields on Deals, Contacts, and Companies — defined once, appear on every record of that type' },
           { text: 'Won deal → create Project directly from the pipeline view' },
+          { text: 'Lead scoring — every lead gets an automatic 0–100 score (Hot ≥ 60 / Warm / Cold) from contactability (email, phone), source (referral and form-captured leads rank higher) and deal value, so your team works the hottest leads first. Sort the Leads list by Score.' },
         ],
       },
     ],
