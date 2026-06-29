@@ -1,4 +1,10 @@
 
+## 2026-06-30 — Automations: "Lead became hot" trigger — act the moment a lead heats up
+- New `lead.became_hot` event when a lead's score crosses into **Hot (≥60)** — an AFTER INSERT/UPDATE trigger on `leads` (crossing detection from <60; no re-emit while already hot). It flows through the existing `run_automations` engine, so any rule on the "Lead became hot" trigger can notify the owner, create a follow-up task, or enroll the lead in a nurture sequence (payload carries `lead_id`). Migration `lead_became_hot_trigger` (applied to prod via MCP); SECURITY DEFINER + pinned search_path; **no RLS/policy change**. Completes the lead-scoring loop shipped earlier today (PR #13).
+- `pages/automations.tsx`: "Lead became hot" added to the trigger list + field hint. `lib/docs.ts`: documented.
+- **RLS-sim PASS:** insert-hot emits 1 (correct lead_id payload), cold 0, warm→hot crossing 1, already-hot update does NOT re-emit (total 2); advisors clean; esbuild + secret-scan clean.
+- Shipped via **PR #16 → `3ae02fd17`** (6/6 required checks green).
+
 ## 2026-06-30 — CRM: automatic lead scoring (Hot / Warm / Cold) prioritizes the hottest leads
 - New `leads.score` (0–100), auto-computed by a cheap BEFORE INSERT/UPDATE-OF trigger from contactability (email +25 / phone +15 / contact +10), source (referral +25, form +20, import +5, other +10) and deal value (up to +25), capped. Pure **IMMUTABLE** `lead_score()` fn (pinned search_path) reused by trigger + backfill. Migration `leads_scoring` (applied to prod via MCP, expand-only); **no RLS/policy change**.
 - Leads list: sortable **Score** column with a Hot(≥60)/Warm(≥30)/Cold tier badge (matches the status-pill style). `Lead` interface += `score`. Docs (CRM section) updated. Demo + form-captured leads auto-score via the trigger → shows alive on day one.
