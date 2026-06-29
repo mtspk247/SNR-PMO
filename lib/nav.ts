@@ -75,6 +75,19 @@ const searchDomains = simpleSpec({ key: 'domain', label: 'Domains', icon: 'ti-wo
 const searchAssets = simpleSpec({ key: 'asset', label: 'Assets', icon: 'ti-building-warehouse', table: 'assets', col: 'name', href: () => '/assets' });
 const searchBankAccounts = simpleSpec({ key: 'bank_account', label: 'Bank accounts', icon: 'ti-building-bank', table: 'bank_accounts', col: 'label', href: () => '/bank-accounts' });
 const searchTeams = simpleSpec({ key: 'team', label: 'Teams', icon: 'ti-users-group', table: 'teams', col: 'name', href: (r) => `/teams/${r.id}` });
+// Newly-registered searchable modules (tables/cols verified against snrpmo schema).
+const searchBills = simpleSpec({ key: 'bill', label: 'Bills', icon: 'ti-file-dollar', table: 'bills', col: 'vendor_name', href: () => '/bills', subtitle: (r) => r.bill_number || undefined });
+const searchExpenseClaims = simpleSpec({ key: 'expense_claim', label: 'Expense claims', icon: 'ti-receipt-2', table: 'expense_claims', col: 'title', href: () => '/expense-claims' });
+const searchProducts = simpleSpec({ key: 'product', label: 'Products', icon: 'ti-box', table: 'products', col: 'name', href: () => '/products', subtitle: (r) => r.sku || undefined });
+const searchRisks = simpleSpec({ key: 'risk', label: 'Risks', icon: 'ti-alert-triangle', table: 'risks', col: 'title', href: () => '/risk' });
+const searchForms = simpleSpec({ key: 'form', label: 'Forms', icon: 'ti-forms', table: 'forms', col: 'name', href: () => '/forms' });
+const searchSequences = simpleSpec({ key: 'sequence', label: 'Sequences', icon: 'ti-mail-forward', table: 'email_sequences', col: 'name', href: () => '/sequences' });
+const searchBooking = simpleSpec({ key: 'booking', label: 'Booking', icon: 'ti-calendar-plus', table: 'booking_pages', col: 'name', href: () => '/booking' });
+const searchAppraisals = simpleSpec({ key: 'appraisal', label: 'Appraisals', icon: 'ti-clipboard-check', table: 'appraisals', col: 'summary', href: () => '/appraisals' });
+// Notes: match title OR body, skip archived; show title or a body snippet.
+const searchNotes: SearchSpec = { key: 'note', label: 'Notes', icon: 'ti-notes',
+  run: async (_like, safe) => (await grab(sb.from('sticky_notes').select('id, title, body').or(`title.ilike.*${safe}*,body.ilike.*${safe}*`).is('archived_at', null).limit(8)))
+    .map((n: any) => ({ id: n.id, key: 'note', title: n.title || String(n.body || '').slice(0, 40) || 'Untitled note', href: '/notes', icon: 'ti-notes' })) };
 
 // --- The manifest --------------------------------------------------------
 export const SECTIONS: NavSection[] = [
@@ -94,7 +107,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/teams', label: 'Teams', icon: 'ti-users-group', feature: 'teams', search: searchTeams },
     { href: '/workload', label: 'Workload', icon: 'ti-chart-bar', feature: 'teams' },
     { href: '/calendar', label: 'Calendar', icon: 'ti-calendar', feature: 'calendar' },
-    { href: '/booking', label: 'Booking', icon: 'ti-calendar-plus', feature: 'booking' },
+    { href: '/booking', label: 'Booking', icon: 'ti-calendar-plus', feature: 'booking', search: searchBooking },
     { href: '/messaging', label: 'Messaging', icon: 'ti-message-2', feature: 'comms' },
     { href: '/inbox', label: 'Inbox', icon: 'ti-inbox', feature: 'comms' },
     { href: '/guests', label: 'Guests', icon: 'ti-user-question', adminOnly: true },
@@ -109,12 +122,12 @@ export const SECTIONS: NavSection[] = [
     { href: '/recurring-billing', label: 'Recurring Billing', icon: 'ti-refresh', feature: 'financial' },
     { href: '/revenue-recognition', label: 'Revenue Recognition', icon: 'ti-calendar-stats', feature: 'financial' },
     // Payables
-    { href: '/bills', label: 'Bills / Purchases', icon: 'ti-file-dollar', feature: 'financial' },
-    { href: '/expense-claims', label: 'Expense Claims', icon: 'ti-receipt-2', feature: 'financial' },
+    { href: '/bills', label: 'Bills / Purchases', icon: 'ti-file-dollar', feature: 'financial', search: searchBills },
+    { href: '/expense-claims', label: 'Expense Claims', icon: 'ti-receipt-2', feature: 'financial', search: searchExpenseClaims },
     { href: '/recurring', label: 'Recurring Expenses', icon: 'ti-repeat', feature: 'financial', search: searchRecurring },
     { href: '/subscriptions', label: 'Vendor Subscriptions', icon: 'ti-credit-card', feature: 'subscriptions', search: searchSubscriptions },
     // Catalog & stock
-    { href: '/products', label: 'Products & Services', icon: 'ti-box', feature: 'financial' },
+    { href: '/products', label: 'Products & Services', icon: 'ti-box', feature: 'financial', search: searchProducts },
     { href: '/inventory', label: 'Inventory', icon: 'ti-packages', feature: 'financial' },
     // Registers (balance sheet)
     { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial', search: searchBankAccounts },
@@ -122,16 +135,16 @@ export const SECTIONS: NavSection[] = [
     { href: '/liabilities', label: 'Liabilities', icon: 'ti-businessplan', feature: 'financial' },
     { href: '/domains', label: 'Domains', icon: 'ti-world-www', feature: 'financial', search: searchDomains },
     // Analysis
-    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk' },
+    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk', search: searchRisks },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
     { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm', search: searchDeals },
     { href: '/leads', label: 'Leads', icon: 'ti-filter', feature: 'crm', search: searchLeads },
-    { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms' },
+    { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms', search: searchForms },
     { href: '/clients', label: 'Clients', icon: 'ti-friends', feature: 'crm', search: searchClients },
     { href: '/proposals', label: 'Proposals', icon: 'ti-file-description', feature: 'crm', search: searchProposals },
     { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm', search: searchContracts },
-    { href: '/sequences', label: 'Sequences', icon: 'ti-mail-forward', feature: 'sequences' },
+    { href: '/sequences', label: 'Sequences', icon: 'ti-mail-forward', feature: 'sequences', search: searchSequences },
   ]},
   { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
     { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
@@ -140,7 +153,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/interviews', label: 'Interviews', icon: 'ti-calendar-event', feature: 'hr' },
     { href: '/offers', label: 'Offer letters', icon: 'ti-mail-check', feature: 'hr', search: searchOffers },
     { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr', search: searchPeople },
-    { href: '/appraisals', label: 'Appraisals', icon: 'ti-clipboard-check', feature: 'appraisals' },
+    { href: '/appraisals', label: 'Appraisals', icon: 'ti-clipboard-check', feature: 'appraisals', search: searchAppraisals },
     { href: '/training', label: 'Training & JDs', icon: 'ti-school', feature: 'hr' },
     { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
     { href: '/attendance', label: 'Attendance', icon: 'ti-clock', feature: 'attendance' },
@@ -157,7 +170,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/agent-approvals', label: 'Agent Approvals', icon: 'ti-checks', feature: 'agents' },
     { href: '/agent-activity', label: 'Activity & ROI', icon: 'ti-chart-line', feature: 'agents' },
   ]},
-  { kind: 'link', item: { href: '/notes', label: 'Notes', icon: 'ti-notes' } },
+  { kind: 'link', item: { href: '/notes', label: 'Notes', icon: 'ti-notes', search: searchNotes } },
   { kind: 'link', item: { href: '/trash', label: 'Trash', icon: 'ti-trash' } },
 ];
 
