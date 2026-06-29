@@ -1076,8 +1076,15 @@ export async function listDrives(orgId: string): Promise<Drive[]> {
   if (error) throw new Error(error.message); return (data as Drive[]) || [];
 }
 export async function createDrive(p: { org_id: string; name: string; description?: string; created_by: string }): Promise<Drive> {
-  const { data, error } = await sb.from('drives').insert({ org_id: p.org_id, name: p.name, description: p.description || null, created_by: p.created_by }).select('*').single();
-  if (error) throw new Error(error.message); return data as Drive;
+  // No .select() on the insert: INSERT ... RETURNING re-applies the drive_lvl_sel
+  // policy (drive_visible -> STABLE fn can't see the just-inserted row) and 42501s.
+  // Insert with a client id (return=minimal), then refetch that row RLS-scoped.
+  const id = crypto.randomUUID();
+  const { error } = await sb.from('drives').insert({ id, org_id: p.org_id, name: p.name, description: p.description || null, created_by: p.created_by });
+  if (error) throw new Error(error.message);
+  const { data, error: selErr } = await sb.from('drives').select('*').eq('id', id).single();
+  if (selErr) throw new Error(selErr.message);
+  return data as Drive;
 }
 export async function renameDrive(id: string, name: string): Promise<void> {
   const { error } = await sb.from('drives').update({ name }).eq('id', id); if (error) throw new Error(error.message);
