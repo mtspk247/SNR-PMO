@@ -33,6 +33,7 @@ const COLS: ColDef[] = [
   { id: 'email', label: 'Email' },
   { id: 'source', label: 'Source' },
   { id: 'value', label: 'Value' },
+  { id: 'score', label: 'Score' },
   { id: 'owner', label: 'Owner' },
   { id: 'status', label: 'Status' },
 ];
@@ -112,13 +113,14 @@ export default function LeadsPage() {
       case 'value': return <span className="tabular-nums">{fmtMoney(l.value || 0, l.currency)}</span>;
       case 'owner': return <PersonTag name={nameOf(l.owner_id)} />;
       case 'status': return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-medium" style={{ backgroundColor: statusHex(l.status) + '1f', color: statusHex(l.status), boxShadow: `inset 0 0 0 1px ${statusHex(l.status)}33` }}>{cap(l.status)}</span>;
+      case 'score': { const sc = l.score ?? 0; const t = sc >= 60 ? { c: '#10b981', n: 'Hot' } : sc >= 30 ? { c: '#f59e0b', n: 'Warm' } : { c: '#9ca3af', n: 'Cold' }; return <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium tabular-nums" style={{ backgroundColor: t.c + '1f', color: t.c, boxShadow: `inset 0 0 0 1px ${t.c}33` }}>{sc} · {t.n}</span>; }
       default: return '—';
     }
   };
 
   const exportValue = (id: string, l: Lead) =>
     id === 'name' ? l.name : id === 'contact' ? (l.contact_name || '') : id === 'email' ? (l.email || '')
-    : id === 'source' ? (l.source || '') : id === 'value' ? String(l.value ?? '') : id === 'owner' ? nameOf(l.owner_id)
+    : id === 'source' ? (l.source || '') : id === 'value' ? String(l.value ?? '') : id === 'score' ? String(l.score ?? 0) : id === 'owner' ? nameOf(l.owner_id)
     : id === 'status' ? l.status : '';
 
   const editable: Record<string, EditSpec> = {
