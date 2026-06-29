@@ -25,9 +25,11 @@
 - NOTE: this is FEATURE rollout. Staged CODE-change rollout needs P3 (test gate) + P4 (staging) + Vercel canary.
 
 ## P2 - Cost / abuse circuit-breaker ("a big hit = a runaway bill")
-- [ ] Global + per-tenant HARD ceilings on metered paths (AI runs, SMS, email, storage) that AUTO-DISABLE the
-      path + alert when tripped, on top of agent_cost_check. Stripe = signature-verify + server-computed amounts only.
-- [ ] Spend dashboards + 80/90/100% alerts.
+- [x] Coverage audit: AI/agents (`agent_cost_check`+`agent_cost_limits`), SMS (`monthly_cap_usd`), storage (`drive_usage`/quota) were already capped. EMAIL was the open path.
+- [x] Email circuit-breaker SHIPPED (`7272ea3`, migration `email_cost_circuit_breaker`): global pause kill-switch + global daily cap + per-tenant monthly cap, enforced at `email_claim_batch`; /platform Email "Sending limits" UI; admin-gated RPCs; RLS-sim'd. Over-cap mail stays queued, not dropped.
+- [ ] Spend ALERTS for email/sms/agents (extend `check_usage_alerts` with an 'email' metric — the 80/90/100% machinery already exists).
+- [ ] Unified "Cost & limits" dashboard (one view of every cap + current usage) + a global aggregate breaker across tenants.
+- [ ] Stripe money paths: signature-verify + idempotency + server-computed amounts (when live billing turns on).
 
 ## P3 - Real test gate (stop broken code reaching prod)
 - [ ] Burn down the 37 tsc errors; flip next.config ignore flags OFF so type/lint BLOCKS merges.

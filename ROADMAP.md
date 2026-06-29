@@ -1,4 +1,7 @@
 
+## 2026-06-29 — Cost/abuse defense: email circuit-breaker (SHIPPED)
+- `email_config` is a platform singleton (one sender for all tenants) → an abusive workspace burns the platform bill + domain reputation. Server-side breaker at the send chokepoint (`email_claim_batch`): **global pause kill-switch + global daily cap + per-tenant monthly cap** (migration `email_cost_circuit_breaker`: paused/monthly_cap_per_org/daily_cap_global + `email_month_count` + `email_org_ok` + admin-gated `email_set_limits`/`email_get_limits`). Over-cap mail stays queued (not dropped). Operator UI: "Sending limits" card in /platform ▸ Email. Default (caps unset) = no change. RLS-sim: admin set/get ok, non-admin 42501; breaker holds over-cap + paused mail. Preview+prod READY (`7272ea3`). Closes the one uncapped metered path (agents/sms/storage already capped).
+
 ## 2026-06-29 — Progressive delivery: self-serve Rollout console (SHIPPED)
 - `/platform` ▸ **Feature rollout** tab (platform-admin): every catalog feature gets a stage control (Off / Internal / Percent / GA) + percent input — dark-launch and expand cohort-by-cohort with **no SQL**. Writes via `platform_set_feature_rollout()` (SECURITY DEFINER + `is_platform_admin()` guard, stage-validated, percent-clamped; migration `platform_set_feature_rollout_rpc`). RLS-sim: admin sets stage (allowed), non-admin → 42501. Preview+prod READY (`deaec9a`). Completes P1 core (beta per-tenant allowlist UI = fast-follow).
 
