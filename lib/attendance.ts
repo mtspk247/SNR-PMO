@@ -21,9 +21,26 @@ export function getGeo(): Promise<{ lat: number; lng: number; accuracy?: number 
 
 /** Check in with best-effort location, notify the reporting manager, and broadcast
  *  `snr:checkin` so the footer timer + the bottom-left confirmation popup update. */
+/** Best-effort reverse geocode to a short place label via OpenStreetMap (no key).
+ *  Coarse zoom for privacy; falls back to coordinates; never throws/blocks check-in. */
+export async function placeName(lat: number, lng: number): Promise<string | null> {
+  const coords = `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&addressdetails=1&lat=${lat}&lon=${lng}`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) return coords;
+    const j: any = await r.json();
+    const a = j.address || {};
+    const area = a.suburb || a.neighbourhood || a.city_district || a.quarter || a.village || a.town;
+    const city = a.city || a.town || a.county || a.state;
+    const label = Array.from(new Set([area, city].filter(Boolean))).slice(0, 2).join(', ');
+    return label || (j.display_name ? String(j.display_name).split(',').slice(0, 2).join(',').trim() : coords);
+  } catch { return coords; }
+}
+
 export async function performCheckIn(me: AppUser, org: MyOrg): Promise<Attendance> {
   const geo = await getGeo();
-  const row = await checkIn(me.id, org.id, geo);
+  const place = geo ? await placeName(geo.lat, geo.lng) : null;
+  const row = await checkIn(me.id, org.id, geo, place);
   let notified = false;
   try {
     const mgr = await getMyManagerId(me.id);
@@ -32,13 +49,13 @@ export async function performCheckIn(me: AppUser, org: MyOrg): Promise<Attendanc
       await notify({
         org_id: org.id, user_id: mgr, type: 'SYSTEM',
         title: `${me.full_name || 'A teammate'} checked in`,
-        body: `Checked in${t ? ` at ${t}` : ''}${geo ? ' · location captured' : ''}.`,
+        body: `Checked in${t ? ` at ${t}` : ''}${geo ? ` · ${place || 'location captured'}` : ''}.`,
         link: '/attendance', entity_type: 'attendance', entity_id: row.id,
       });
       notified = true;
     }
   } catch { /* notify is best-effort; never blocks check-in */ }
-  try { window.dispatchEvent(new CustomEvent('snr:checkin', { detail: { time: row.check_in, located: !!geo, notified } })); } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent('snr:checkin', { detail: { time: row.check_in, located: !!geo, notified, place } })); } catch { /* ignore */ }
   return row;
 }
 

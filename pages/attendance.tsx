@@ -47,6 +47,7 @@ export default function AttendancePage() {
     ...(isAdmin ? [{ id: 'person', label: 'Person' }] : []),
     { id: 'date', label: 'Date', locked: true },
     { id: 'in', label: 'In' }, { id: 'out', label: 'Out' }, { id: 'hours', label: 'Hours' }, { id: 'status', label: 'Status' },
+    { id: 'location', label: 'Location' },
   ], [isAdmin]);
 
   const prefs = useListPrefs(`snr-attendance-view-${me?.id || 'anon'}`, COLS, { entity: 'attendance', orgId: org?.id, canManage: isAdmin });
@@ -70,6 +71,7 @@ export default function AttendancePage() {
       case 'out': return fmtTime(r.check_out);
       case 'hours': return r.hours ?? '—';
       case 'status': return <span className={`pill ${ATT_PILL[r.status] || 'pill-gray'}`}>{ATT_LABEL[r.status] || r.status}</span>;
+      case 'location': return r.check_in_place || (r.check_in_lat != null ? 'Captured' : '—');
       default: return '—';
     }
   };
@@ -82,6 +84,7 @@ export default function AttendancePage() {
       case 'out': return fmtTime(r.check_out);
       case 'hours': return String(r.hours ?? '');
       case 'status': return ATT_LABEL[r.status] || r.status;
+      case 'location': return r.check_in_place || '';
       default: return '';
     }
   };

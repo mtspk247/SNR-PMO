@@ -297,7 +297,7 @@ export interface Attendance {
   id: string; user_id: string | null; work_date: string;
   check_in: string | null; check_out: string | null; hours: number | null;
   status: 'OPEN' | 'CLOSED' | 'AUTO_CHECKOUT'; org_id?: string;
-  check_in_lat?: number | null; check_in_lng?: number | null; check_in_accuracy?: number | null;
+  check_in_lat?: number | null; check_in_lng?: number | null; check_in_accuracy?: number | null; check_in_place?: string | null;
   users?: { full_name: string } | null;
 }
 

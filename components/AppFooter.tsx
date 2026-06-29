@@ -46,7 +46,11 @@ export default function AppFooter() {
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
           On the clock · {elapsed(open.check_in)}
-          {open.check_in_lat != null && <Icon name="ti-map-pin" className="text-2xs" title="Location captured" />}
+          {(open.check_in_place || open.check_in_lat != null) && (
+            <span className="inline-flex items-center gap-1 font-normal opacity-90" title="Check-in location">
+              <Icon name="ti-map-pin" className="text-2xs" /><span className="hidden md:inline truncate max-w-[12rem]">{open.check_in_place || 'Location captured'}</span>
+            </span>
+          )}
         </span>
       ) : <span className="ml-auto" />}
       <span className="inline-flex items-center gap-1.5 tabular-nums"><Icon name="ti-clock" className="text-2xs" />{date} · {time}</span>

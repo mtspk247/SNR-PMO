@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui';
 
-type Info = { time: string | null; located: boolean; notified: boolean };
+type Info = { time: string | null; located: boolean; notified: boolean; place?: string | null };
 
 /** Bottom-left confirmation popup shown to the person who just checked in. */
 export default function CheckInPopup() {
@@ -9,7 +9,7 @@ export default function CheckInPopup() {
   useEffect(() => {
     const onIn = (e: Event) => {
       const d = ((e as CustomEvent).detail || {}) as Partial<Info>;
-      setInfo({ time: d.time ?? null, located: !!d.located, notified: !!d.notified });
+      setInfo({ time: d.time ?? null, located: !!d.located, notified: !!d.notified, place: d.place ?? null });
       setTimeout(() => setInfo(null), 6000);
     };
     window.addEventListener('snr:checkin', onIn);
@@ -17,7 +17,7 @@ export default function CheckInPopup() {
   }, []);
   if (!info) return null;
   const t = info.time ? new Date(info.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-  const meta = [info.located ? 'Location captured' : 'Location not shared', info.notified ? 'manager notified' : null].filter(Boolean).join(' · ');
+  const meta = [info.located ? (info.place || 'Location captured') : 'Location not shared', info.notified ? 'manager notified' : null].filter(Boolean).join(' · ');
   return (
     <div className="fixed bottom-4 left-4 z-50 print:hidden animate-[fadein_.2s_ease-out]">
       <div className="flex items-start gap-2.5 bg-surface border border-line rounded-xl shadow-lg px-3.5 py-2.5 w-[19rem] max-w-[calc(100vw-2rem)]">
