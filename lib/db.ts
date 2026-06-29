@@ -368,6 +368,18 @@ export async function deleteOption(id: string): Promise<void> {
 export async function reorderOptions(ids: string[]): Promise<void> {
   const { error } = await sb.rpc('option_reorder', { p_ids: ids }); if (error) throw new Error(error.message);
 }
+export interface FeatureRollout { feature_key: string; stage: string; percent: number; updated_at: string | null }
+// Platform-admin rollout console: list current stages + set a feature's stage/percent.
+export async function listFeatureRollouts(): Promise<FeatureRollout[]> {
+  const { data, error } = await sb.from('feature_rollouts').select('feature_key, stage, percent, updated_at').order('feature_key');
+  if (error) throw new Error(error.message);
+  return (data as FeatureRollout[]) || [];
+}
+export async function setFeatureRollout(feature: string, stage: string, percent: number): Promise<void> {
+  const { error } = await sb.rpc('platform_set_feature_rollout', { p_feature: feature, p_stage: stage, p_percent: percent });
+  if (error) throw new Error(error.message);
+}
+
 // Rollout layer: feature keys NOT yet released to this org (progressive delivery).
 // Fail-open — on any error return [] so a resolver hiccup never hides a paid feature.
 export async function getOrgDarkFeatures(orgId: string): Promise<string[]> {

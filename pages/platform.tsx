@@ -7,7 +7,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon, EmptyState, HelpHint } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow, assistantGetStatus, assistantSetConfig, AssistantStatus, platformAgentBillingGet, platformAgentBillingSet, platformAgentRevenue, PlatformAgentRevenue } from '@/lib/db';
+import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow, assistantGetStatus, assistantSetConfig, AssistantStatus, platformAgentBillingGet, platformAgentBillingSet, platformAgentRevenue, PlatformAgentRevenue, FeatureRollout, listFeatureRollouts, setFeatureRollout } from '@/lib/db';
 import { Plan, Feature, PlanFeature, FEATURES } from '@/lib/supabase';
 import { ALL_ITEMS } from '@/lib/nav';
 import { formatPrice } from '@/lib/entitlements';
@@ -52,7 +52,7 @@ const ACTIVITY_COLS: ColDef[] = [
   { id: 'entity', label: 'Entity', width: 180 },
 ];
 
-type Tab = 'plans' | 'billing' | 'email' | 'assistant' | 'backups' | 'errors' | 'owners' | 'campaigns' | 'activity';
+type Tab = 'plans' | 'billing' | 'email' | 'assistant' | 'backups' | 'errors' | 'owners' | 'rollout' | 'campaigns' | 'activity';
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -1040,6 +1040,71 @@ function ActivityTab() {
   );
 }
 
+function RolloutTab() {
+  const [rows, setRows] = useState<FeatureRollout[] | null>(null);
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  const load = async () => { try { setRows(await listFeatureRollouts()); } catch (e: any) { setErr(e.message); } };
+  useEffect(() => { load(); }, []);
+  const byKey = (k: string) => rows?.find((r) => r.feature_key === k);
+  const update = async (feature: string, stage: string, percent: number) => {
+    setErr(''); setBusy(feature);
+    try { await setFeatureRollout(feature, stage, percent); await load(); }
+    catch (e: any) { setErr(e.message); }
+    finally { setBusy(''); }
+  };
+  if (!rows) return <Spinner />;
+  return (
+    <div className="card rounded-t-none p-0 overflow-x-auto">
+      <div className="px-4 py-3 border-b border-line">
+        <p className="text-sm text-content font-medium">Feature rollout</p>
+        <p className="text-2xs text-muted">Ship new features dark, then expand cohort-by-cohort. <strong>Off</strong> = nobody · <strong>Internal</strong> = your workspace only · <strong>Percent</strong> = a stable % of tenants · <strong>GA</strong> = everyone. Your own (platform-home) workspace always sees in-progress features. Plan entitlement still gates access; rollout only controls exposure.</p>
+      </div>
+      {err && <p className="text-sm text-rose-600 px-4 pt-3">{err}</p>}
+      <table className="w-full text-sm">
+        <thead className="bg-surface2 text-left">
+          <tr>
+            <th className="px-4 py-3 font-medium text-2xs uppercase tracking-wide text-muted">Feature</th>
+            <th className="px-4 py-3 font-medium text-2xs uppercase tracking-wide text-muted" style={{ width: 210 }}>Stage</th>
+            <th className="px-4 py-3 font-medium text-2xs uppercase tracking-wide text-muted" style={{ width: 150 }}>Rollout %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {FEATURES.map((f) => {
+            const r = byKey(f.key); const stage = r?.stage || 'ga'; const pct = r?.percent ?? 0;
+            return (
+              <tr key={f.key} className="border-t border-line hover:bg-surface2/50">
+                <td className="px-4 py-2.5"><span className="font-medium text-content">{f.label}</span> <span className="text-2xs text-muted2 font-mono ml-1">{f.key}</span></td>
+                <td className="px-4 py-2.5">
+                  <Select value={stage} disabled={busy === f.key}
+                    onChange={(v) => update(f.key, v, pct)}
+                    options={[
+                      { value: 'off', label: 'Off (nobody)' },
+                      { value: 'internal', label: 'Internal (you only)' },
+                      { value: 'percent', label: 'Percent rollout' },
+                      { value: 'ga', label: 'GA (everyone)' },
+                    ]} />
+                </td>
+                <td className="px-4 py-2.5">
+                  {stage === 'percent' ? (
+                    <span className="inline-flex items-center gap-2">
+                      <input type="number" min={0} max={100} defaultValue={pct} disabled={busy === f.key}
+                        onBlur={(e) => { const n = Math.max(0, Math.min(100, parseInt(e.target.value || '0', 10))); if (n !== pct) update(f.key, 'percent', n); }}
+                        className="input h-8 w-20 text-sm" />
+                      <span className="text-2xs text-muted2">%</span>
+                    </span>
+                  ) : <span className="text-2xs text-muted2">—</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="px-4 py-3 text-2xs text-muted border-t border-line">Applies on each tenant's next load (fail-open). Percent is a stable hash per tenant, so a tenant never flips back as you raise the number. Beta per-tenant allowlist: SQL for now (UI fast-follow).</div>
+    </div>
+  );
+}
+
 export default function PlatformPage() {
   const platformAdmin = useAuthStore((s) => s.platformAdmin);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -1110,7 +1175,7 @@ export default function PlatformPage() {
 
           {/* Tabs */}
           <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'campaigns', 'activity'] as const).map((t) => (
+            {(['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'rollout', 'campaigns', 'activity'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -1120,7 +1185,7 @@ export default function PlatformPage() {
                     : 'border-b-transparent text-muted hover:text-content'
                 }`}
               >
-                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'assistant' ? 'AI assistant' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : t === 'campaigns' ? 'Campaigns' : 'Activity'}
+                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'assistant' ? 'AI assistant' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : t === 'rollout' ? 'Feature rollout' : t === 'campaigns' ? 'Campaigns' : 'Activity'}
               </button>
             ))}
           </div>
@@ -1188,6 +1253,8 @@ export default function PlatformPage() {
             <ErrorsTab />
           ) : tab === 'owners' ? (
             <OwnersTab />
+          ) : tab === 'rollout' ? (
+            <RolloutTab />
           ) : tab === 'campaigns' ? (
             <CampaignsTab />
           ) : (
