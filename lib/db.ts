@@ -853,10 +853,10 @@ export async function getMyOpenToday(userId: string): Promise<Attendance | null>
     .eq('user_id', userId).eq('work_date', today()).eq('status', 'OPEN').maybeSingle();
   if (error) throw error; return (data as Attendance) ?? null;
 }
-export async function checkIn(userId: string, orgId: string, geo?: { lat: number; lng: number; accuracy?: number } | null): Promise<Attendance> {
+export async function checkIn(userId: string, orgId: string, geo?: { lat: number; lng: number; accuracy?: number } | null, place?: string | null): Promise<Attendance> {
   const { data, error } = await sb.from('attendance')
     .insert({ user_id: userId, org_id: orgId, work_date: today(), check_in: new Date().toISOString(), status: 'OPEN',
-      check_in_lat: geo?.lat ?? null, check_in_lng: geo?.lng ?? null, check_in_accuracy: geo?.accuracy ?? null })
+      check_in_lat: geo?.lat ?? null, check_in_lng: geo?.lng ?? null, check_in_accuracy: geo?.accuracy ?? null, check_in_place: place ?? null })
     .select('*, users(full_name)').single();
   if (error) throw new Error(error.message); return data as Attendance;
 }
