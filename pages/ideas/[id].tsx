@@ -32,6 +32,7 @@ export default function IdeaDetail() {
 
   const [poll, setPoll] = useState<IdeaPoll | null | undefined>(undefined);
   const [showPoll, setShowPoll] = useState(false);
+  const [deadline, setDeadline] = useState('');
   const [question, setQuestion] = useState('Should we pursue this idea?');
   const [picks, setPicks] = useState<Record<string, boolean>>({});
 
@@ -64,7 +65,7 @@ export default function IdeaDetail() {
     const ids = Object.keys(picks).filter((k) => picks[k]);
     if (ids.length === 0) { alert('Pick at least one stakeholder to vote.'); return; }
     setBusy(true);
-    try { await createIdeaPoll(idea.id, question, ids); setShowPoll(false); setPicks({}); loadPoll(); }
+    try { await createIdeaPoll(idea.id, question, ids, deadline ? new Date(deadline).toISOString() : null); setShowPoll(false); setPicks({}); setDeadline(''); loadPoll(); try { window.dispatchEvent(new Event('snr:polls-refresh')); } catch { /* ignore */ } }
     catch (e: any) { alert(e.message); } finally { setBusy(false); }
   };
   const castPoll = async (choice: 'yes' | 'no' | 'abstain') => {
@@ -151,6 +152,7 @@ export default function IdeaDetail() {
             ) : (
               <div className="space-y-4">
                 <p className="text-sm font-medium text-content">{poll.question}</p>
+                {poll.deadline && <p className="text-2xs text-muted2 mt-0.5 inline-flex items-center gap-1"><Icon name="ti-clock" className="text-2xs" />Closes {new Date(poll.deadline).toLocaleString()}</p>}
                 <div>
                   <div className="flex h-2 rounded-full overflow-hidden bg-surface2">
                     <div className="bg-emerald-500" style={{ width: `${pct(poll.counts.yes)}%` }} />
@@ -208,6 +210,9 @@ export default function IdeaDetail() {
                 </label>
               ))}
             </div>
+          </Field>
+          <Field label="Deadline (optional)" hint="If set, stakeholders see a countdown and the poll auto-hides after it passes.">
+            <input type="datetime-local" className="input" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           </Field>
         </Modal>
       )}

@@ -12,6 +12,7 @@ import HeaderActions from '@/components/HeaderActions';
 import ShortcutsFab from '@/components/ShortcutsFab';
 import AppFooter from '@/components/AppFooter';
 import CheckInPopup from '@/components/CheckInPopup';
+import PollPopup from '@/components/PollPopup';
 import HelpAssistant from '@/components/HelpAssistant';
 import GlobalSearch from '@/components/GlobalSearch';
 import ActivityTicker from '@/components/ActivityTicker';
@@ -314,6 +315,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
       <ShortcutsFab />
       <HelpAssistant />
       <CheckInPopup />
+      <PollPopup />
       <Toaster />
     </div>
   );

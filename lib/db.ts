@@ -2468,18 +2468,24 @@ export async function toggleIdeaVote(idea: Idea, userId: string): Promise<void> 
 export interface IdeaPollStakeholder { user_id: string; name: string | null; choice: 'yes' | 'no' | 'abstain' | null; }
 export interface IdeaPoll {
   id: string; question: string; status: 'open' | 'closed';
-  created_by: string | null; created_at: string; am_creator: boolean;
+  created_by: string | null; created_at: string; deadline: string | null; am_creator: boolean;
   my_choice: 'yes' | 'no' | 'abstain' | null; can_vote: boolean;
   stakeholders: IdeaPollStakeholder[];
   counts: { yes: number; no: number; abstain: number; pending: number };
+}
+export interface PendingPoll { id: string; question: string; idea_id: string; idea_title: string | null; deadline: string | null; created_at: string; }
+/** Open polls awaiting MY vote (stakeholder, not voted, not past deadline). Fail-soft. */
+export async function getMyPendingPolls(): Promise<PendingPoll[]> {
+  const { data, error } = await sb.rpc('idea_polls_for_me');
+  if (error) return []; return (data as PendingPoll[]) || [];
 }
 export async function getIdeaPoll(ideaId: string): Promise<IdeaPoll | null> {
   const { data, error } = await sb.rpc('idea_poll_get', { p_idea: ideaId });
   if (error) throw new Error(error.message);
   return (data as IdeaPoll) || null;
 }
-export async function createIdeaPoll(ideaId: string, question: string, stakeholderIds: string[]): Promise<string> {
-  const { data, error } = await sb.rpc('idea_poll_create', { p_idea: ideaId, p_question: question, p_stakeholders: stakeholderIds });
+export async function createIdeaPoll(ideaId: string, question: string, stakeholderIds: string[], deadline?: string | null): Promise<string> {
+  const { data, error } = await sb.rpc('idea_poll_create', { p_idea: ideaId, p_question: question, p_stakeholders: stakeholderIds, p_deadline: deadline ?? null });
   if (error) throw new Error(error.message);
   return data as string;
 }
