@@ -7,6 +7,7 @@ import { can } from '@/lib/authz';
 import {
   assistantGetStatus, emailGetStatus, smsGetConfig, billingGetStatus, setKeyRotations,
 } from '@/lib/db';
+import { rotInfo } from '@/lib/keyRotation';
 
 // Read-only registry of the platform SECRETS this workspace uses (AI, email, SMS, billing):
 // which are configured/active, what each one powers, and how recently it was set. Secrets are
@@ -25,14 +26,6 @@ function ago(iso: string | null): string {
   return Math.round(d / 365) + ' yr ago';
 }
 const mask = (v: string | null) => (v ? '••••' + v.slice(-4) : '');
-function rotInfo(d?: string): { text: string; cls: string } | null {
-  if (!d) return null;
-  const t = new Date(d + 'T00:00:00').getTime(); if (isNaN(t)) return null;
-  const days = Math.round((t - Date.now()) / 86400000);
-  if (days < 0) return { text: 'Overdue', cls: 'text-rose-600' };
-  if (days <= 30) return { text: 'due in ' + days + 'd', cls: 'text-amber-600' };
-  return { text: '', cls: 'text-muted2' };
-}
 
 type Row = {
   key: string; name: string; icon: string; powers: string;

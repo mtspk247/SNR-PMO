@@ -8,6 +8,7 @@ import FirstRunChecklist from '@/components/FirstRunChecklist';
 import WelcomeWizard from '@/components/WelcomeWizard';
 import ProfileCompletion from '@/components/ProfileCompletion';
 import InstallPrompt from '@/components/InstallPrompt';
+import KeyRotationNudge from '@/components/KeyRotationNudge';
 import { Pill, Spinner, EmptyState, Icon, Avatar, StatusBadge } from '@/components/ui';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
@@ -535,6 +536,7 @@ export default function Dashboard() {
       </div>
 
       <WelcomeWizard />
+      <KeyRotationNudge />
       <InstallPrompt />
       <OnboardingWizard />
       <FirstRunChecklist />
