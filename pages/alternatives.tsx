@@ -16,10 +16,10 @@ import { resellerPublicSite } from '@/lib/db';
 const BASE = 'https://snr-pmo.vercel.app';
 
 const FAQS = [
-  { q: 'What is the best all-in-one business software in 2026?', a: 'It depends what you are consolidating. SNR-PMO is built to run an entire back office — projects, CRM, HR & payroll and real double-entry accounting — in one workspace, with approve-first AI agents and white-label resale. Odoo is a broader ERP but is typically partner-deployed; ClickUp, Monday, Asana and Jira focus on project/work management; HubSpot on marketing and sales; QuickBooks on accounting.' },
+  { q: 'What is the best all-in-one business software in 2026?', a: 'It depends what you are consolidating. SNR-PMO is built to run an entire back office — projects, CRM, HR & payroll and real double-entry accounting — in one workspace, with approve-first AI agents and white-label resale. Odoo is a broader ERP but is typically partner-deployed; ClickUp, Monday, Asana, Jira, Wrike and Smartsheet focus on project/work management; HubSpot and Salesforce on CRM; Zoho One bundles 45+ apps; QuickBooks on accounting.' },
   { q: 'What is the best GoHighLevel alternative that also does accounting and HR?', a: 'SNR-PMO. GoHighLevel covers the marketing front office and white-label resale, but not PMO, HR & payroll or double-entry accounting. SNR-PMO adds all three with the same resell-as-your-own model.' },
-  { q: 'Which of these tools include real double-entry accounting?', a: 'Only Odoo, QuickBooks and SNR-PMO have a genuine general ledger. ClickUp, Monday, Asana, Jira, GoHighLevel and HubSpot do not — HubSpot Commerce handles invoices and payments, not double-entry books.' },
-  { q: 'Can I white-label and resell any of these as my own?', a: 'GoHighLevel and SNR-PMO are built for white-label resale; ClickUp and Odoo offer limited or partner paths; Monday, Asana, Jira, HubSpot and QuickBooks do not. SNR-PMO is turnkey — your brand, domain and reseller billing for unlimited sub-accounts.' },
+  { q: 'Which of these tools include real double-entry accounting?', a: 'Odoo, QuickBooks, Zoho (via Zoho Books) and SNR-PMO have a genuine general ledger. ClickUp, Monday, Asana, Jira, Wrike, Smartsheet, GoHighLevel, HubSpot and Salesforce do not — HubSpot Commerce handles invoices and payments, not double-entry books.' },
+  { q: 'Can I white-label and resell any of these as my own?', a: 'GoHighLevel and SNR-PMO are built for white-label resale; ClickUp, Odoo, Zoho and Wrike offer limited, partner or branded-workspace paths; Monday, Asana, Jira, HubSpot, QuickBooks, Smartsheet and Salesforce do not. SNR-PMO is turnkey — your brand, domain and reseller billing for unlimited sub-accounts.' },
 ];
 
 export default function AlternativesPage() {
@@ -40,17 +40,17 @@ export default function AlternativesPage() {
   return (
     <>
       <Head>
-        <title>Best all-in-one business software (2026): SNR-PMO vs 8 alternatives</title>
-        <meta name="description" content="Compare SNR-PMO with GoHighLevel, ClickUp, Odoo, HubSpot, Monday.com, Asana, Jira and QuickBooks. A master capability matrix plus honest, side-by-side breakdowns — projects, CRM, HR & payroll, real accounting, approve-first AI agents and white-label resale." />
-        <meta name="keywords" content="all-in-one business software, GoHighLevel alternative, ClickUp alternative, Odoo alternative, HubSpot alternative, Monday.com alternative, Asana alternative, Jira alternative, QuickBooks alternative, white-label SaaS" />
+        <title>Best all-in-one business software (2026): SNR-PMO vs 12 alternatives</title>
+        <meta name="description" content="Compare SNR-PMO with GoHighLevel, ClickUp, Odoo, HubSpot, Monday.com, Asana, Jira, QuickBooks, Wrike, Smartsheet, Zoho and Salesforce. A master capability matrix plus honest, side-by-side breakdowns — projects, CRM, HR & payroll, real accounting, approve-first AI agents and white-label resale." />
+        <meta name="keywords" content="all-in-one business software, GoHighLevel alternative, ClickUp alternative, Odoo alternative, HubSpot alternative, Monday.com alternative, Asana alternative, Jira alternative, QuickBooks alternative, Wrike alternative, Smartsheet alternative, Zoho alternative, Salesforce alternative, white-label SaaS" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="canonical" href={`${BASE}/alternatives`} />
         <meta name="theme-color" content="#0a0a0a" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="SNR-PMO" />
         <meta property="og:url" content={`${BASE}/alternatives`} />
-        <meta property="og:title" content="Best all-in-one business software (2026): SNR-PMO vs 8 alternatives" />
-        <meta property="og:description" content="A master capability matrix + honest, side-by-side comparisons of SNR-PMO vs GoHighLevel, ClickUp, Odoo, HubSpot, Monday, Asana, Jira and QuickBooks." />
+        <meta property="og:title" content="Best all-in-one business software (2026): SNR-PMO vs 12 alternatives" />
+        <meta property="og:description" content="A master capability matrix + honest, side-by-side comparisons of SNR-PMO vs GoHighLevel, ClickUp, Odoo, HubSpot, Monday, Asana, Jira, QuickBooks, Wrike, Smartsheet, Zoho and Salesforce." />
         <meta property="og:image" content={`${BASE}/og/alternatives.png`} />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content={`${BASE}/og/alternatives.png`} />
@@ -67,7 +67,7 @@ export default function AlternativesPage() {
           <div className="relative mx-auto max-w-6xl px-5 sm:px-8 pt-16 sm:pt-20 pb-12">
             <div className="text-xs font-semibold uppercase tracking-widest text-[#3ECF8E]">All-in-one business software</div>
             <h1 className="mt-3 text-4xl sm:text-5xl font-extrabold tracking-tight max-w-3xl">The best all-in-one business software, honestly compared</h1>
-            <p className="mt-5 text-[16px] sm:text-lg text-white/65 leading-relaxed max-w-3xl">Most tools own one slice — project management, CRM, marketing or accounting. SNR-PMO is the only one that runs your whole back office in a single workspace — projects, CRM, HR &amp; payroll and real double-entry accounting — with approve-first AI agents and white-label resale. Here is how it stacks up against eight popular tools, including where each of them is the better choice.</p>
+            <p className="mt-5 text-[16px] sm:text-lg text-white/65 leading-relaxed max-w-3xl">Most tools own one slice — project management, CRM, marketing or accounting. SNR-PMO is the only one that runs your whole back office in a single workspace — projects, CRM, HR &amp; payroll and real double-entry accounting — with approve-first AI agents and white-label resale. Here is how it stacks up against twelve popular tools, including where each of them is the better choice.</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/login?mode=signup" className="inline-flex items-center justify-center rounded-lg bg-[#3ECF8E] px-6 py-3 text-sm font-semibold text-[#0a0a0a] hover:bg-[#10b981] transition-colors shadow-lg shadow-[#10b981]/20">Start free &rarr;</Link>
               <a href="#matrix" className="inline-flex items-center justify-center rounded-lg border border-white/15 px-6 py-3 text-sm font-medium text-white/85 hover:bg-white/5 transition-colors">Jump to the matrix</a>
@@ -77,7 +77,7 @@ export default function AlternativesPage() {
 
         {/* MASTER MATRIX */}
         <section id="matrix" className="mx-auto max-w-6xl px-5 sm:px-8 py-14">
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Capability matrix — SNR-PMO vs 8 alternatives</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Capability matrix — SNR-PMO vs 12 alternatives</h2>
           <p className="mt-3 text-white/55 text-[15px] max-w-3xl">Based on each product&rsquo;s primary positioning and publicly documented capabilities as of June 2026.</p>
           <div className="mt-8 overflow-x-auto">
             <table className="w-full min-w-[940px] border-collapse text-left">
