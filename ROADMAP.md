@@ -1,4 +1,7 @@
 
+## 2026-06-29 — Progressive delivery: self-serve Rollout console (SHIPPED)
+- `/platform` ▸ **Feature rollout** tab (platform-admin): every catalog feature gets a stage control (Off / Internal / Percent / GA) + percent input — dark-launch and expand cohort-by-cohort with **no SQL**. Writes via `platform_set_feature_rollout()` (SECURITY DEFINER + `is_platform_admin()` guard, stage-validated, percent-clamped; migration `platform_set_feature_rollout_rpc`). RLS-sim: admin sets stage (allowed), non-admin → 42501. Preview+prod READY (`deaec9a`). Completes P1 core (beta per-tenant allowlist UI = fast-follow).
+
 ## 2026-06-29 — Progressive delivery: feature rollout foundation (SHIPPED)
 - Release-stage gate so features ship DARK and expand cohort-by-cohort instead of hitting all tenants at once: off→internal(vendor)→beta(allowlist)→percent(hash)→ga. Migration `feature_rollout_foundation`: `feature_rollouts`+`feature_rollout_tenants` (platform-admin RLS, fail-closed) + `feature_rolled_out()` resolver + `org_dark_features()` RPC. All 28 catalog features backfilled GA = **zero behavior change**. Client subtracts dark features in `pages/_app.tsx` (fail-open — a resolver error never hides a paid feature). Sim-verified every stage; preview+prod READY (`ce674a8`). Tracked in `SCALE_SAFE_DELIVERY_PROGRAM.md`. NEXT: /platform Rollout admin UI.
 

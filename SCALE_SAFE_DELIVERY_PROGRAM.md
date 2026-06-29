@@ -19,7 +19,7 @@
       off->internal->beta->percent->ga; all current features backfilled GA (zero behavior change);
       client subtracts dark features in pages/_app.tsx (fail-open: errors never hide a paid feature).
       Sim-verified across every stage.
-- [ ] Admin UI: /platform "Rollout" tab — per-feature stage + percent + beta-tenant allowlist; platform-admin RPCs.
+- [x] Admin UI: /platform "Feature rollout" tab — per-feature stage (off/internal/percent/ga) + percent; `platform_set_feature_rollout` RPC (admin-gated, fail-closed). Shipped deaec9a. (Beta per-tenant allowlist UI = fast-follow.)
 - [ ] Propagation: /docs section; update CLAUDE.md feature-change rule (new feature => register a feature_rollouts row, default `off`).
 - [ ] (later, gated) Server-enforce: AND rollout into tenant_can for defense-in-depth (high blast radius).
 - NOTE: this is FEATURE rollout. Staged CODE-change rollout needs P3 (test gate) + P4 (staging) + Vercel canary.
