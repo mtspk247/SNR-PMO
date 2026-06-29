@@ -1,4 +1,10 @@
 
+## 2026-06-30 — Automations: "Notify the assigned owner" action — alerts reach the right rep
+- New `notify_owner` action in `run_automations`: notifies the **lead's owner** (resolved from `payload.owner_id`, else `leads.owner_id` via `payload.lead_id`) instead of the whole owner/admin team. Completes the hot-lead loop — "Lead became hot → notify the assigned rep" (or enroll in a sequence). Migration `automation_action_notify_owner` (applied via MCP); all existing branches preserved verbatim; SECURITY DEFINER + pinned search_path.
+- `pages/automations.tsx`: "Notify the assigned owner" action (reuses the notify title/body/urgent inputs). `lib/docs.ts`: documented.
+- **RLS-sim PASS:** notifies exactly the lead's owner (1), not the admin pile (total 1); advisors clean; esbuild + secret-scan clean.
+- Shipped via **PR #19 → `37aead1a6`** (6/6 required checks green).
+
 ## 2026-06-30 — Automations: "Lead became hot" trigger — act the moment a lead heats up
 - New `lead.became_hot` event when a lead's score crosses into **Hot (≥60)** — an AFTER INSERT/UPDATE trigger on `leads` (crossing detection from <60; no re-emit while already hot). It flows through the existing `run_automations` engine, so any rule on the "Lead became hot" trigger can notify the owner, create a follow-up task, or enroll the lead in a nurture sequence (payload carries `lead_id`). Migration `lead_became_hot_trigger` (applied to prod via MCP); SECURITY DEFINER + pinned search_path; **no RLS/policy change**. Completes the lead-scoring loop shipped earlier today (PR #13).
 - `pages/automations.tsx`: "Lead became hot" added to the trigger list + field hint. `lib/docs.ts`: documented.
