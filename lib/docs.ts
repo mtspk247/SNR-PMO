@@ -367,12 +367,12 @@ export const SECTIONS: Section[] = [
       { kind: 'bullets', items: [
         { text: 'Triggers — Form submitted (a new form response), Task created, Project created, Deal created, and Client created. These are the events the system raises.' },
         { text: 'Conditions — narrow an automation so it only runs when a field of the event matches a value (for example form_name = "Contact us"). Add as many as you like; all must match.' },
-        { text: 'Actions — notify owners & admins, create a task, set the triggering record’s status, or assign it to a teammate. Add several and they run in order.' },
+        { text: 'Actions — notify owners & admins, create a task, set the triggering record’s status, assign it to a teammate, send an email or SMS to the lead, or enroll the lead in a drip sequence. Add several and they run in order.' },
         { text: 'Activity log — the Recent activity panel shows each time an automation fired and how many actions ran, so you can confirm it is working.' },
       ] },
       { kind: 'steps', items: [
         { title: 'Create one', body: 'Automations > New automation. Name it, pick the trigger, add any conditions, then add the actions. Create it — it starts active.' },
-        { title: 'Connect forms to your pipeline', body: 'Pick "Form submitted" as the trigger to act on every new lead — notify the owner, create a follow-up task, and more. Each submission already creates a CRM lead automatically.' },
+        { title: 'Connect forms to your pipeline', body: 'Pick "Form submitted" as the trigger to act on every new lead — notify the owner, create a follow-up task, or enroll the lead in a drip sequence so nurture emails start automatically. Each submission already creates a CRM lead automatically.' },
         { title: 'Pause or delete', body: 'Toggle an automation Off to pause it without losing it, or delete it. Paused automations keep their history and fire counts.' },
       ] },
       { kind: 'callout', icon: 'ti-shield-check', text: 'Automations are owner/admin only and run on the server with your workspace permissions — they can never act outside your workspace. Each action is fault-isolated, so one failing action never blocks the others or the change that triggered it.' },
@@ -412,6 +412,7 @@ export const SECTIONS: Section[] = [
           ['Recurring task (Done)', 'Next task instance', 'Completing a recurring task spawns the next occurrence and moves the repeat rule to the clone'],
           ['Time tracking + Attendance', 'Payroll', '"Load active employees" pulls logged hours and attendance days into each payslip'],
           ['Reminders + @mentions', 'Notification bell', 'Due reminders and chat mentions create notifications; clicking one deep-links to the task/leave/deal/employee'],
+          ['Form submitted', 'Drip sequence', 'Automation action “Enroll the lead in a sequence” starts a nurture drip for the new lead'],
         ],
       },
     ],
