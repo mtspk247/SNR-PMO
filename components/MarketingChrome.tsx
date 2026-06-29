@@ -10,7 +10,7 @@ import Link from 'next/link';
 export function MktHeader() {
   const [open, setOpen] = useState(false);
   const links = [
-    { href: '/#agents', label: 'AI Agents' },
+    { href: '/ai-agents', label: 'AI Agents' },
     { href: '/#compare', label: 'Compare' },
     { href: '/vs', label: 'vs Others' },
     { href: '/savings', label: 'Savings' },

@@ -37,3 +37,10 @@ test('robots.txt references the sitemap', async ({ request }) => {
   expect(r.status()).toBeLessThan(400);
   expect((await r.text()).toLowerCase()).toContain('sitemap');
 });
+
+test('ai-agents page renders the moat content', async ({ page }) => {
+  const res = await page.goto('/ai-agents');
+  expect(res, 'no response for /ai-agents').toBeTruthy();
+  expect(res!.status()).toBeLessThan(400);
+  await expect(page.locator('body')).toContainText('Approve');
+});

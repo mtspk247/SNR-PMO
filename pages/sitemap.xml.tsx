@@ -13,6 +13,7 @@ const PAGES: { path: string; priority: string; freq: string }[] = [
   { path: '/vs', priority: '0.8', freq: 'weekly' },
   { path: '/alternatives', priority: '0.9', freq: 'weekly' },
   { path: '/savings', priority: '0.8', freq: 'monthly' },
+  { path: '/ai-agents', priority: '0.9', freq: 'monthly' },
   ...COMPETITORS.map((c) => ({ path: `/vs/${c.slug}`, priority: '0.8', freq: 'monthly' })),
 ];
 
