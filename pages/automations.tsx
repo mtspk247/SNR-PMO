@@ -15,6 +15,7 @@ const TRIGGERS = [
 ];
 const ACTION_TYPES = [
   { v: 'notify', l: 'Notify owners & admins' },
+  { v: 'notify_owner', l: 'Notify the assigned owner' },
   { v: 'create_task', l: 'Create a task' },
   { v: 'set_status', l: 'Set the record’s status' },
   { v: 'assign', l: 'Assign the record' },
@@ -85,6 +86,7 @@ export default function AutomationsPage() {
       conds.forEach((c) => { if (c.field.trim() && c.value.trim()) match[c.field.trim()] = c.value.trim(); });
       const cleanActions = actions.map((a) => {
         if (a.type === 'notify') return { type: 'notify', title: (a.title || '').trim(), body: (a.body || '').trim(), urgent: !!a.urgent };
+        if (a.type === 'notify_owner') return { type: 'notify_owner', title: (a.title || '').trim(), body: (a.body || '').trim(), urgent: !!a.urgent };
         if (a.type === 'set_status') return { type: 'set_status', value: (a.value || '').trim() };
         if (a.type === 'assign') return { type: 'assign', user_id: a.user_id || '' };
         if (a.type === 'send_sms') return { type: 'send_sms', body: (a.body || '').trim() };
@@ -116,6 +118,7 @@ export default function AutomationsPage() {
     if (a.type === 'send_email') return 'email the lead';
     if (a.type === 'enroll_sequence') return 'enroll lead in ' + (seqs.find((s) => s.id === a.sequence_id)?.name || 'a sequence');
     if (a.type === 'create_task') return `create task “${a.name || 'Automation task'}”`;
+    if (a.type === 'notify_owner') return 'notify the assigned owner';
     return 'notify owners/admins';
   };
   const describeRule = (r: Rule) => (r.actions || []).map(describeAction).join(', ') || 'no actions';
@@ -162,7 +165,7 @@ export default function AutomationsPage() {
                         <select className="input h-8 py-0" value={a.type} onChange={(e) => updAction(i, { type: e.target.value })}>{ACTION_TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}</select>
                         {actions.length > 1 && <button className="ml-auto text-muted2 hover:text-rose-500" onClick={() => rmAction(i)} title="Remove action"><Icon name="ti-trash" className="text-sm" /></button>}
                       </div>
-                      {a.type === 'notify' && (
+                      {(a.type === 'notify' || a.type === 'notify_owner') && (
                         <div className="space-y-2">
                           <div className="grid sm:grid-cols-2 gap-2">
                             <input className="input h-8 py-0" placeholder="Notification title" value={a.title || ''} onChange={(e) => updAction(i, { title: e.target.value })} />
