@@ -19,6 +19,7 @@ const ACTION_TYPES = [
   { v: 'assign', l: 'Assign the record' },
   { v: 'send_sms', l: 'Send an SMS to the lead' },
   { v: 'send_email', l: 'Send an email to the lead' },
+  { v: 'enroll_sequence', l: 'Enroll the lead in a sequence' },
 ];
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const FIELD_HINT: Record<string, string> = {
@@ -31,7 +32,7 @@ const FIELD_HINT: Record<string, string> = {
 
 type Member = { id: string; full_name: string | null; email: string | null };
 type Cond = { field: string; value: string };
-type Action = { type: string; title?: string; body?: string; subject?: string; urgent?: boolean; value?: string; user_id?: string; name?: string; priority?: string };
+type Action = { type: string; title?: string; body?: string; subject?: string; urgent?: boolean; value?: string; user_id?: string; name?: string; priority?: string; sequence_id?: string };
 type Rule = { id: string; name: string; trigger_type: string; match: Record<string, string>; actions: any[]; active: boolean; fire_count: number; last_fired_at: string | null };
 type LogRow = { id: string; rule_name: string | null; event_type: string; detail: string | null; status: string; created_at: string };
 
@@ -41,6 +42,7 @@ export default function AutomationsPage() {
   const [rules, setRules] = useState<Rule[] | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
+  const [seqs, setSeqs] = useState<{ id: string; name: string }[]>([]);
   const [name, setName] = useState('');
   const [trig, setTrig] = useState('form.submitted');
   const [conds, setConds] = useState<Cond[]>([]);
@@ -56,6 +58,7 @@ export default function AutomationsPage() {
   useEffect(() => {
     load();
     if (org) sb.from('users').select('id, full_name, email').order('full_name').then(({ data }) => setMembers((data as Member[]) || []));
+    if (org) sb.from('email_sequences').select('id, name').eq('org_id', org.id).eq('status', 'active').order('name').then(({ data }) => setSeqs((data as { id: string; name: string }[]) || []));
     /* eslint-disable-next-line */
   }, [org?.id]);
 
@@ -84,11 +87,13 @@ export default function AutomationsPage() {
         if (a.type === 'assign') return { type: 'assign', user_id: a.user_id || '' };
         if (a.type === 'send_sms') return { type: 'send_sms', body: (a.body || '').trim() };
         if (a.type === 'send_email') return { type: 'send_email', subject: (a.subject || '').trim(), body: (a.body || '').trim() };
+        if (a.type === 'enroll_sequence') return { type: 'enroll_sequence', sequence_id: a.sequence_id || '' };
         return { type: 'create_task', name: (a.name || '').trim() || 'Automation task', priority: a.priority || 'Medium' };
       });
       for (const a of cleanActions) {
         if (a.type === 'set_status' && !a.value) throw new Error('A “set status” action needs a status value.');
         if (a.type === 'assign' && !a.user_id) throw new Error('An “assign” action needs a teammate.');
+        if (a.type === 'enroll_sequence' && !a.sequence_id) throw new Error('An “enroll in a sequence” action needs a sequence.');
       }
       const { error } = await sb.from('automation_rules').insert({ org_id: org.id, name: name.trim() || 'Automation', trigger_type: trig, match, actions: cleanActions, active: true } as any);
       if (error) throw error;
@@ -107,6 +112,7 @@ export default function AutomationsPage() {
     if (a.type === 'assign') return `assign → ${memberName(a.user_id)}`;
     if (a.type === 'send_sms') return 'text the lead';
     if (a.type === 'send_email') return 'email the lead';
+    if (a.type === 'enroll_sequence') return 'enroll lead in ' + (seqs.find((s) => s.id === a.sequence_id)?.name || 'a sequence');
     if (a.type === 'create_task') return `create task “${a.name || 'Automation task'}”`;
     return 'notify owners/admins';
   };
@@ -166,6 +172,14 @@ export default function AutomationsPage() {
                       {a.type === 'set_status' && <input className="input h-8 py-0 w-full" placeholder="Status to set (e.g. Done)" value={a.value || ''} onChange={(e) => updAction(i, { value: e.target.value })} />}
                       {a.type === 'send_sms' && <textarea className="input w-full min-h-[56px] resize-y" placeholder="SMS message to the lead" value={a.body || ''} onChange={(e) => updAction(i, { body: e.target.value })} />}
                       {a.type === 'send_email' && (<div className="space-y-1.5"><input className="input h-8 py-0 w-full" placeholder="Subject" value={a.subject || ''} onChange={(e) => updAction(i, { subject: e.target.value })} /><textarea className="input w-full min-h-[56px] resize-y" placeholder="Email body to the lead" value={a.body || ''} onChange={(e) => updAction(i, { body: e.target.value })} /></div>)}
+                      {a.type === 'enroll_sequence' && (seqs.length ? (
+                        <select className="input h-8 py-0 w-full" value={a.sequence_id || ''} onChange={(e) => updAction(i, { sequence_id: e.target.value })}>
+                          <option value="">Select a sequence…</option>
+                          {seqs.map((sq) => <option key={sq.id} value={sq.id}>{sq.name}</option>)}
+                        </select>
+                      ) : (
+                        <p className="text-2xs text-amber-600">No active sequences yet — create one in Sequences first.</p>
+                      ))}
                       {a.type === 'assign' && (
                         <select className="input h-8 py-0 w-full" value={a.user_id || ''} onChange={(e) => updAction(i, { user_id: e.target.value })}>
                           <option value="">Select a teammate…</option>
@@ -180,6 +194,7 @@ export default function AutomationsPage() {
                       )}
                       {(a.type === 'set_status' || a.type === 'assign') && <p className="text-2xs text-muted2">Applies to the record that fired the trigger (task, deal or project).</p>}
                       {(a.type === 'send_sms' || a.type === 'send_email') && <p className="text-2xs text-muted2">Sends to the lead/contact from the trigger (SMS needs Messaging configured). Opt-outs respected.</p>}
+                      {a.type === 'enroll_sequence' && <p className="text-2xs text-muted2">Adds the lead from the trigger into a drip sequence — best paired with the Form submitted trigger. Will not double-enroll.</p>}
                     </div>
                   ))}
                 </div>
