@@ -239,6 +239,46 @@ function AddColHeader({ prefs }: { prefs: ListPrefs }) {
   );
 }
 
+// Grab-to-pan: drag any BLANK area of a horizontally-overflowing list to scroll it
+// left/right (ClickUp/Airtable style). Never hijacks headers (sort + column-drag live
+// on <th>), the row grip (its pointerdown stops propagation), or controls (links,
+// buttons, inputs, role=button). A real pan also swallows the trailing click, so a
+// drag can never accidentally open a row or start an inline edit.
+function ScrollPane({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const st = useRef({ active: false, startX: 0, startLeft: 0, moved: false });
+  const onPointerDown = (e: RPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const el = ref.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('a,button,input,select,textarea,label,th,[role="button"],[contenteditable="true"]')) return;
+    st.current = { active: true, startX: e.clientX, startLeft: el.scrollLeft, moved: false };
+    const move = (ev: PointerEvent) => {
+      if (!st.current.active) return;
+      const dx = ev.clientX - st.current.startX;
+      if (Math.abs(dx) > 3) st.current.moved = true;
+      el.scrollLeft = st.current.startLeft - dx;
+    };
+    const up = () => {
+      st.current.active = false;
+      el.style.cursor = ''; el.style.userSelect = '';
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (st.current.moved) {
+        const swallow = (ce: Event) => { ce.stopPropagation(); ce.preventDefault(); };
+        el.addEventListener('click', swallow, { capture: true, once: true });
+        setTimeout(() => el.removeEventListener('click', swallow, true), 0);
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    el.style.cursor = 'grabbing';
+    el.style.userSelect = 'none';
+  };
+  return <div ref={ref} onPointerDown={onPointerDown} className={className}>{children}</div>;
+}
+
 export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, onReorderGroups, dragRegroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf, sortBy, sortDir, onSort }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [gDrag, setGDrag] = useState<string | null>(null);
@@ -374,10 +414,12 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
           onDragEnd={() => setColDrag(null)}
           style={pinSty(ci)}
           className={`group/col relative px-4 py-2 text-left text-2xs font-semibold uppercase tracking-wider whitespace-nowrap overflow-hidden cursor-grab select-none transition ${pinCls(ci)} ${colDrag === id ? 'opacity-40' : 'hover:text-content'}`}>
-          <span onClick={(e) => { if (onSort) { e.stopPropagation(); onSort(id); } }} className={`inline-flex items-center gap-1 max-w-full ${onSort ? 'cursor-pointer' : ''}`}>
+          <span onClick={(e) => { if (onSort) { e.stopPropagation(); onSort(id); } }} title={onSort ? 'Sort by this column' : undefined} className={`inline-flex items-center gap-1 max-w-full ${onSort ? 'cursor-pointer' : ''}`}>
             <Icon name="ti-grip-vertical" className="text-2xs text-muted2 opacity-0 group-hover/col:opacity-60 shrink-0" />
             <span className="truncate">{labelOf(id)}</span>
-            {sortBy === id && <Icon name={sortDir === 'desc' ? 'ti-arrow-narrow-down' : 'ti-arrow-narrow-up'} className="text-2xs text-accentstrong shrink-0" />}
+            {onSort && (sortBy === id
+              ? <Icon name={sortDir === 'desc' ? 'ti-arrow-narrow-down' : 'ti-arrow-narrow-up'} className="text-2xs text-accentstrong shrink-0" />
+              : <Icon name="ti-arrows-sort" className="text-2xs text-muted2 opacity-40 group-hover/col:opacity-90 shrink-0" />)}
           </span>
           <span onPointerDown={(e) => startColResize(e, id, ci)} onDoubleClick={() => autoFit(id)} onClick={(e) => e.stopPropagation()} title="Drag to resize · double-click to fit"
             className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-accent/50 z-10" />
@@ -469,13 +511,13 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   });
 
   const tableCard = (rs: T[]) => (
-    <div className="overflow-x-auto">
+    <ScrollPane className="overflow-x-auto">
       <table className="text-sm" style={{ tableLayout: 'fixed', width: totalW }}>
         {colGroup}
         <thead>{headerRow(true)}</thead>
         <tbody>{renderRows(rs, 0)}</tbody>
       </table>
-    </div>
+    </ScrollPane>
   );
 
   // Floating chip that sticks to the cursor while dragging (rendered fixed to viewport).

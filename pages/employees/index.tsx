@@ -137,18 +137,23 @@ export default function EmployeesPage() {
     status: { type: 'select', options: STATUS_ORDER.map((st) => ({ value: st, label: titleCase(st) })) },
     department: { type: 'text' },
     role: { type: 'text' },
+    // Manager = reports_to (FK to users). Inline person picker over the employee list;
+    // saving routes through updateEmployeeProfile so users-update RLS/RBAC stays enforced.
+    manager: { type: 'person', options: rows.map((p) => ({ value: p.id, label: p.full_name || p.email || 'Unknown' })) },
   };
 
   const rawValue = (id: string, e: any) => {
     if (id === 'status') return e.status || '';
     if (id === 'department') return e.department || '';
     if (id === 'role') return e.role || '';
+    if (id === 'manager') return e.reports_to || '';
     return '';
   };
 
   const onInlineEdit = async (e: any, id: string, value: string) => {
     try {
-      await updateEmployeeProfile(e.id, { [id]: value || null } as any);
+      const col = id === 'manager' ? 'reports_to' : id;  // UI col -> DB column
+      await updateEmployeeProfile(e.id, { [col]: value || null } as any);
       qc.invalidateQueries({ queryKey: qk.employees(org?.id) });
     } catch (ex: any) { setErr(ex.message); }
   };
