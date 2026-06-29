@@ -7,7 +7,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon, EmptyState, HelpHint } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow, assistantGetStatus, assistantSetConfig, AssistantStatus, platformAgentBillingGet, platformAgentBillingSet, platformAgentRevenue, PlatformAgentRevenue, FeatureRollout, listFeatureRollouts, setFeatureRollout } from '@/lib/db';
+import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, emailGetLimits, emailSetLimits, EmailSendLimits, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow, assistantGetStatus, assistantSetConfig, AssistantStatus, platformAgentBillingGet, platformAgentBillingSet, platformAgentRevenue, PlatformAgentRevenue, FeatureRollout, listFeatureRollouts, setFeatureRollout } from '@/lib/db';
 import { Plan, Feature, PlanFeature, FEATURES } from '@/lib/supabase';
 import { ALL_ITEMS } from '@/lib/nav';
 import { formatPrice } from '@/lib/entitlements';
@@ -570,6 +570,44 @@ function EmailTab() {
         <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save email configuration'}</button>
         <p className="text-2xs text-muted2">Secrets are stored server-side and never shown back. The queue drains every minute.</p>
       </div>
+
+      <EmailLimitsCard />
+    </div>
+  );
+}
+
+function EmailLimitsCard() {
+  const [paused, setPaused] = useState(false);
+  const [monthly, setMonthly] = useState('');
+  const [daily, setDaily] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(''); const [err, setErr] = useState('');
+  useEffect(() => {
+    emailGetLimits().then((l: EmailSendLimits | null) => {
+      if (l) { setPaused(l.paused); setMonthly(l.monthly_cap_per_org ? String(l.monthly_cap_per_org) : ''); setDaily(l.daily_cap_global ? String(l.daily_cap_global) : ''); }
+    }).catch(() => {});
+  }, []);
+  const save = async () => {
+    setErr(''); setMsg(''); setSaving(true);
+    try { await emailSetLimits({ paused, monthlyCapPerOrg: parseInt(monthly || '0', 10) || 0, dailyCapGlobal: parseInt(daily || '0', 10) || 0 }); setMsg('Sending limits saved.'); }
+    catch (e: any) { setErr(e.message); }
+    finally { setSaving(false); }
+  };
+  return (
+    <div className="space-y-4 max-w-xl border-t border-line pt-5">
+      <div>
+        <p className="text-sm font-medium text-content">Sending limits & circuit-breaker</p>
+        <p className="text-2xs text-muted">All tenants share this sender, so a single abusive workspace can burn your budget and hurt your domain reputation. These caps stop that automatically, server-side.</p>
+      </div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-accent w-4 h-4" checked={paused} onChange={(e) => setPaused(e.target.checked)} /><span className={paused ? 'text-rose-600 font-medium' : 'text-content'}>{paused ? 'ALL email paused (kill-switch ON)' : 'Pause ALL email (emergency kill-switch)'}</span></label>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Field label="Per-tenant monthly cap" hint="Max emails one workspace can send / month. Blank = unlimited."><input className="input" type="number" min={0} value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="e.g. 10000" /></Field>
+        <Field label="Global daily cap" hint="Max emails across ALL tenants / day. Blank = unlimited."><input className="input" type="number" min={0} value={daily} onChange={(e) => setDaily(e.target.value)} placeholder="e.g. 50000" /></Field>
+      </div>
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+      <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save sending limits'}</button>
+      <p className="text-2xs text-muted2">Over-cap email stays queued (not lost) and resumes when the window resets or you raise the cap.</p>
     </div>
   );
 }

@@ -1431,6 +1431,18 @@ export async function setAppointmentStatus(id: string, status: 'confirmed' | 'ca
 }
 
 // ---- Comms / SMS (F3) — migrations comms_sms_substrate_* + edge fn sms-dispatch ----
+export interface EmailSendLimits { paused: boolean; monthly_cap_per_org: number | null; daily_cap_global: number | null }
+export async function emailGetLimits(): Promise<EmailSendLimits | null> {
+  const { data, error } = await sb.rpc('email_get_limits');
+  if (error) throw new Error(error.message);
+  const r = (data as any[] | null)?.[0];
+  return r ? { paused: !!r.paused, monthly_cap_per_org: r.monthly_cap_per_org, daily_cap_global: r.daily_cap_global } : null;
+}
+export async function emailSetLimits(p: { paused: boolean; monthlyCapPerOrg: number; dailyCapGlobal: number }): Promise<void> {
+  const { error } = await sb.rpc('email_set_limits', { p_paused: p.paused, p_monthly_cap_per_org: p.monthlyCapPerOrg, p_daily_cap_global: p.dailyCapGlobal });
+  if (error) throw new Error(error.message);
+}
+
 export interface SmsConfigStatus { provider: string; from_number: string | null; custom_url: string | null; enabled: boolean; monthly_cap_usd: number | null; has_token: boolean; has_account: boolean; configured: boolean; month_cost_usd: number; }
 export interface CommsMessage { id: string; org_id: string; channel: string; direction: string; to_addr: string; from_addr: string | null; body: string; status: string; provider: string | null; provider_msg_id: string | null; cost_usd: number; error: string | null; lead_id: string | null; created_by: string | null; created_at: string; }
 export interface SuppressionEntry { id: string; org_id: string; channel: string; address: string; reason: string | null; created_at: string; }
