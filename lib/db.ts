@@ -368,6 +368,16 @@ export async function deleteOption(id: string): Promise<void> {
 export async function reorderOptions(ids: string[]): Promise<void> {
   const { error } = await sb.rpc('option_reorder', { p_ids: ids }); if (error) throw new Error(error.message);
 }
+// Rollout layer: feature keys NOT yet released to this org (progressive delivery).
+// Fail-open — on any error return [] so a resolver hiccup never hides a paid feature.
+export async function getOrgDarkFeatures(orgId: string): Promise<string[]> {
+  try {
+    const { data, error } = await sb.rpc('org_dark_features', { p_org: orgId });
+    if (error) return [];
+    return (data as string[]) || [];
+  } catch { return []; }
+}
+
 export async function getOrgPlanFeatures(orgId: string): Promise<string[]> {
   const { data: sub } = await sb.from('subscriptions').select('plan_id, status').eq('org_id', orgId).maybeSingle();
   let planId = sub?.plan_id as string | undefined;

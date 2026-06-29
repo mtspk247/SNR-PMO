@@ -5,7 +5,7 @@ import type { AppProps } from 'next/app';
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { sb, FEATURES } from '@/lib/supabase';
-import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, isPlatformAdmin, isPlatformPrimary, ensurePersonalWorkspace, claimPendingInvite, touchLastLogin } from '@/lib/db';
+import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrgFeatures, getOrgPlanFeatures, getOrgDarkFeatures, isPlatformAdmin, isPlatformPrimary, ensurePersonalWorkspace, claimPendingInvite, touchLastLogin } from '@/lib/db';
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import { ErrorBoundary } from '@/components/ui';
@@ -77,7 +77,8 @@ export default function App({ Component, pageProps }: AppProps) {
             // Platform-home orgs get the full catalog — derive from the flag we
             // already loaded so the unlock never depends on a second (fragile) query.
             if ((o as any).is_platform_home) { const all = FEATURES.map((f) => f.key as string); return { ...o, features: all, planFeatures: all }; }
-            return { ...o, features: await getOrgFeatures(o.id), planFeatures: await getOrgPlanFeatures(o.id) };
+            const [feats, planFeats, dark] = await Promise.all([getOrgFeatures(o.id), getOrgPlanFeatures(o.id), getOrgDarkFeatures(o.id)]);
+            return { ...o, features: feats.filter((k) => !dark.includes(k)), planFeatures: planFeats };
           })),
           isPlatformAdmin(),
           isPlatformPrimary(),
