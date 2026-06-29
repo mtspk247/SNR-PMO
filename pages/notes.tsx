@@ -5,12 +5,26 @@ import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { listStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, archiveStickyNote, StickyNote } from '@/lib/db';
+import { ListView } from '@/components/ListView';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { EditSpec } from '@/components/DataList';
 
 const COLORS: Record<string, string> = {
   yellow: 'bg-amber-100 border-amber-200', green: 'bg-emerald-100 border-emerald-200',
   blue: 'bg-sky-100 border-sky-200', pink: 'bg-pink-100 border-pink-200',
 };
 const STRIP: Record<string, string> = { yellow: 'bg-amber-400', green: 'bg-emerald-400', blue: 'bg-sky-400', pink: 'bg-pink-400' };
+const DOT: Record<string, string> = { yellow: '#f59e0b', green: '#10b981', blue: '#0ea5e9', pink: '#ec4899' };
+const NOTE_COLS: ColDef[] = [
+  { id: 'title', label: 'Title', locked: true },
+  { id: 'color', label: 'Colour', width: 130 },
+  { id: 'body', label: 'Note', width: 360 },
+  { id: 'page', label: 'Created on', width: 170 },
+  { id: 'created', label: 'Created', width: 130 },
+  { id: 'updated', label: 'Updated', width: 130 },
+];
+const fmtD = (s?: string | null) => s ? new Date(s).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 export default function NotesPage() {
   const org = useActiveOrg();
@@ -20,14 +34,19 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<StickyNote[] | null>(null);
   const [edit, setEdit] = useState<StickyNote | null>(null);
   const [fabHidden, setFabHidden] = useState(false);
+  const [view, setView] = useState<'list' | 'grid'>('list');
 
   const load = () => { if (me) listStickyNotes(me.id, 'all').then(setNotes).catch(() => setNotes([])); };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [me?.id]);
   useEffect(() => { try { setFabHidden(localStorage.getItem('sn_fab_hidden') === '1'); } catch { /* ignore */ } }, []);
+  useEffect(() => { try { const v = localStorage.getItem('snrpmo.notes.view'); if (v === 'grid' || v === 'list') setView(v); } catch { /* ignore */ } }, []);
+  const setViewP = (v: 'list' | 'grid') => { setView(v); try { localStorage.setItem('snrpmo.notes.view', v); } catch { /* ignore */ } };
 
   const active = (notes || []).filter((n) => !n.archived_at);
   const archived = (notes || []).filter((n) => n.archived_at);
   const shown = tab === 'active' ? active : archived;
+  const lp = useListPrefs('snrpmo.notes.cols', NOTE_COLS);
+  const rs = useRowSelection(shown);
 
   const add = async () => {
     if (!org || !me) return;
@@ -45,10 +64,51 @@ export default function NotesPage() {
   };
   const showFab = () => { try { localStorage.removeItem('sn_fab_hidden'); } catch { /* ignore */ } window.dispatchEvent(new Event('sn-fab-show')); setFabHidden(false); };
 
+  const cell = (id: string, n: StickyNote) => {
+    switch (id) {
+      case 'title': return <span className="inline-flex items-center gap-2 min-w-0"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: DOT[n.color] || DOT.yellow }} /><span className="font-medium truncate">{n.title?.trim() || 'Untitled'}</span></span>;
+      case 'body': return <span className="text-muted">{n.body?.trim() || '—'}</span>;
+      case 'page': return n.page_path || '—';
+      case 'created': return fmtD(n.created_at);
+      case 'updated': return fmtD(n.updated_at);
+      case 'color': return n.color || 'yellow';
+      default: return '—';
+    }
+  };
+  const editable: Record<string, EditSpec> = {
+    title: { type: 'text' },
+    color: { type: 'select', options: Object.keys(DOT).map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1), dot: DOT[c] })) },
+  };
+  const rawValue = (id: string, n: StickyNote) => {
+    if (id === 'title') return n.title || '';
+    if (id === 'color') return n.color || '';
+    if (id === 'body') return n.body || '';
+    if (id === 'page') return n.page_path || '';
+    if (id === 'created') return n.created_at || '';
+    if (id === 'updated') return n.updated_at || '';
+    return '';
+  };
+  const onInlineEdit = async (n: StickyNote, id: string, value: string) => {
+    setNotes((prev) => (prev || []).map((x) => x.id === n.id ? { ...x, [id]: value } : x));
+    try { await updateStickyNote(n.id, { [id]: value } as any); } catch { load(); }
+  };
+  const exportValue = (id: string, n: StickyNote) => (id === 'created' || id === 'updated') ? fmtD(rawValue(id, n)) : rawValue(id, n);
+  const bulkDelete = async () => {
+    const sel = rs.selected; if (!sel.length || !confirm(`Delete ${sel.length} note${sel.length > 1 ? 's' : ''}? This can't be undone.`)) return;
+    const ids = new Set(sel.map((n) => n.id));
+    setNotes((prev) => (prev || []).filter((x) => !ids.has(x.id))); rs.clear();
+    await Promise.all(sel.map((n) => deleteStickyNote(n.id).catch(() => {}))); load();
+  };
+
   return (
     <Layout flat title="Notes">
       <PageHeader title="Notes" subtitle="Your personal sticky notes" icon="ti-notes"
         action={<div className="flex items-center gap-2">
+          <div className="flex items-center rounded-md border border-line overflow-hidden h-9">
+            {(['list', 'grid'] as const).map((v) => (
+              <button key={v} onClick={() => setViewP(v)} className={`h-full px-3 text-xs inline-flex items-center gap-1.5 transition ${view === v ? 'bg-surface2 text-content font-medium' : 'text-muted hover:text-content'}`}><Icon name={v === 'list' ? 'ti-list' : 'ti-layout-grid'} className="text-sm" />{v === 'list' ? 'List' : 'Grid'}</button>
+            ))}
+          </div>
           {fabHidden && <button className="btn btn-ghost border border-line" onClick={showFab}><Icon name="ti-pin" />Show floating button</button>}
           <button className="btn btn-primary" onClick={add}><Icon name="ti-plus" />New note</button>
         </div>} />
@@ -56,7 +116,12 @@ export default function NotesPage() {
       <Tabs tabs={[{ key: 'active', label: 'Active', icon: 'ti-note', count: active.length }, { key: 'archived', label: 'Archived', icon: 'ti-archive', count: archived.length }]}
         active={tab} onChange={(k) => setTab(k as 'active' | 'archived')} />
 
-      {notes === null ? <Spinner /> : shown.length === 0 ? (
+      {view === 'list' ? (
+        <ListView rows={notes === null ? null : shown} rowKey={(n) => n.id} cols={NOTE_COLS} prefs={lp} cell={cell} selection={rs}
+          searchPlaceholder="Search notes…" onRowClick={(n) => setEdit(n)} editable={editable} rawValue={rawValue} onEdit={onInlineEdit}
+          exportName="notes" exportValue={exportValue} onDelete={bulkDelete} canDelete
+          emptyIcon={tab === 'active' ? 'ti-notes' : 'ti-archive'} emptyText={tab === 'active' ? 'No notes yet' : 'Nothing archived'} />
+      ) : notes === null ? <Spinner /> : shown.length === 0 ? (
         <EmptyState icon={tab === 'active' ? 'ti-notes' : 'ti-archive'} title={tab === 'active' ? 'No notes yet' : 'Nothing archived'}
           text={tab === 'active' ? 'Create a note to get started.' : 'Archived notes will appear here.'} />
       ) : (
