@@ -122,6 +122,7 @@ export async function seedFullDemo(orgId: string, opts: { industry?: string | nu
     try { await seedStarterAgents(orgId, opts.userId); await seedBuiltinChatCommands(orgId); await seedAgentRoiDemo(orgId); } catch { /* non-fatal */ }
   }
   try { await seedCommsDemo(orgId); } catch { /* non-fatal */ }
+  try { await seedGrowthDemo(orgId); } catch { /* non-fatal */ }
   return counts;
 }
 // Demo agent Activity & ROI — populate a believable executed/auto/rolled-back/pending
@@ -134,6 +135,14 @@ export async function seedAgentRoiDemo(orgId: string): Promise<number> {
 // Demo Booking page + sample SMS conversation so a fresh trial shows Booking + Inbox alive (idempotent + gated).
 export async function seedCommsDemo(orgId: string): Promise<number> {
   const { data, error } = await sb.rpc('tenant_seed_demo_comms', { p_org: orgId }); if (error) throw new Error(error.message);
+  return (data as number) || 0;
+}
+// Demo growth loop — a published lead-capture form + a welcome drip sequence + the
+// form.submitted->enroll_sequence automation + sample enrollments, so a fresh trial SHOWS
+// Forms -> Automations -> Sequences working together (idempotent + owner/feature-gated;
+// cleared by tenant_wipe_data).
+export async function seedGrowthDemo(orgId: string): Promise<number> {
+  const { data, error } = await sb.rpc('tenant_seed_demo_growth', { p_org: orgId }); if (error) throw new Error(error.message);
   return (data as number) || 0;
 }
 
