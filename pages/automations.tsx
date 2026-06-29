@@ -11,6 +11,7 @@ const TRIGGERS = [
   { v: 'project.created', l: 'Project created' },
   { v: 'deal.created', l: 'Deal created' },
   { v: 'client.created', l: 'Client created' },
+  { v: 'lead.became_hot', l: 'Lead became hot' },
 ];
 const ACTION_TYPES = [
   { v: 'notify', l: 'Notify owners & admins' },
@@ -28,6 +29,7 @@ const FIELD_HINT: Record<string, string> = {
   'deal.created': 'e.g. stage',
   'project.created': 'e.g. status',
   'client.created': 'e.g. status',
+  'lead.became_hot': 'e.g. source',
 };
 
 type Member = { id: string; full_name: string | null; email: string | null };
