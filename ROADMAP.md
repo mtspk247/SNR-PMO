@@ -1,4 +1,7 @@
 
+## 2026-06-29 — Dashboard: API key rotation nudge (SHIPPED)
+- `components/KeyRotationNudge.tsx`: admin-only dashboard banner (mirrors the Install-app prompt) surfacing any integration key whose "rotate by" date is **Overdue** (rose) or **due within 30 days** (amber), deep-linking to `/keys`. Read-only — reads `org.key_rotation_reminders` already loaded with the org; **no secret, no new DB object/write path**. Extracted the `/keys` rotation thresholds into shared `lib/keyRotation.ts` (`rotInfo`+`rotState`+`keysNeedingRotation`) so the table badge and the nudge can't drift; `keys.tsx` imports it. Self-gates on `can.manageOrg`; dismissal keyed to the current due-set so a new/worsened key always re-surfaces (an overdue key is never permanently hidden). `/docs#api-keys` updated. Logic unit-tested 10/10; esbuild parse + Vercel preview `44a4229` READY → merged main, prod READY.
+
 ## 2026-06-25 — Keys: per-integration rotation reminders (SHIPPED)
 - `/keys` now supports a "rotate by" date per key (`c6bd89c`, migration `org_key_rotation_reminders`): shows "due in Nd" (amber) as it nears, "Overdue" (red) once passed — completes the expiry ask (provider keys have no intrinsic expiry). Storage = `organizations.key_rotation_reminders` jsonb (ungated UI pref, `org_update` RLS like theme_skin; no secrets). `setKeyRotations` + org-load + MyOrg type + patchOrg. RLS-sim: owner update allowed, non-member 0 rows.
 
