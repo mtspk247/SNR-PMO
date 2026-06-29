@@ -1,4 +1,11 @@
 
+## 2026-06-30 — CRM: automatic lead scoring (Hot / Warm / Cold) prioritizes the hottest leads
+- New `leads.score` (0–100), auto-computed by a cheap BEFORE INSERT/UPDATE-OF trigger from contactability (email +25 / phone +15 / contact +10), source (referral +25, form +20, import +5, other +10) and deal value (up to +25), capped. Pure **IMMUTABLE** `lead_score()` fn (pinned search_path) reused by trigger + backfill. Migration `leads_scoring` (applied to prod via MCP, expand-only); **no RLS/policy change**.
+- Leads list: sortable **Score** column with a Hot(≥60)/Warm(≥30)/Cold tier badge (matches the status-pill style). `Lead` interface += `score`. Docs (CRM section) updated. Demo + form-captured leads auto-score via the trigger → shows alive on day one.
+- **Verified:** formula sim exact (full-hot=95 / referral+phone=40 / bare=0 / email+import=30); **backfilled all existing snr leads** (avg 46.8, 3 hot / 11 warm); advisors clean; esbuild + secret-scan clean.
+- Shipped via **PR #13 → `1d0792e09`** (6/6 required checks green). **Flagged follow-up:** a `lead.scored` / hot-lead automation trigger (notify owner on crossing Hot) + optional recency decay.
+- **NOTE — stale-handoff correction (verified this session):** SMS send (`sms_drain`→`sms_kick`→deployed `sms-dispatch` edge fn + `sms-inbound`, cron every minute), lifecycle emails (`send_lifecycle_emails` + daily cron), the Sequences Builder, and Booking UI are **ALL already built** — blocked only on Tariq's provider/Resend keys, not on code.
+
 ## 2026-06-30 — Demo growth loop: Form → Automation → Welcome drip now self-demonstrates in every trial
 - New seed `tenant_seed_demo_growth` (applied to prod via MCP; idempotent + owner/feature-gated; cleared by `tenant_wipe_data`): seeds a **published lead-capture form** + a **3-step welcome drip sequence** + the **`form.submitted → enroll_sequence` automation** tying them, plus a live sample state — **4 form-sourced leads** with submissions, mid-drip enrollments, and automation activity-log rows. So a fresh demo SHOWS Forms → Automations → Sequences working as one machine (the GoHighLevel "automate your funnel" differentiator, sellable on day one).
 - Wired into `seedFullDemo` (after comms), non-fatal, mirroring `seedCommsDemo`. Full-demo path only (no DemoSeedTree leaf), like comms.
