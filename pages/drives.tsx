@@ -7,7 +7,7 @@ import { hasFeature } from '@/lib/entitlements';
 import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
-  getProjects, setDriveProject, moveFolder, moveFile, createDoc, createSheet, createSlides, saveDoc, getDriveLevel, getOrgUsers,
+  getProjects, moveFolder, moveFile, createDoc, createSheet, createSlides, saveDoc, getDriveLevel, getOrgUsers,
   archiveFile, restoreFile, archiveFolder, restoreFolder, listArchived, listAccessRequests,
   Drive, DriveFolder, DriveFile, DriveLevel,
 } from '@/lib/db';
@@ -19,6 +19,7 @@ const CollabDocEditor = dynamic(() => import('@/components/CollabDocEditor'), { 
 const CollabSheetEditor = dynamic(() => import('@/components/CollabSheetEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading sheet…</div> });
 const CollabSlideEditor = dynamic(() => import('@/components/CollabSlideEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading slides…</div> });
 import DriveShareModal from '@/components/DriveShareModal';
+import DriveSharedView from '@/components/DriveSharedView';
 import DriveComments from '@/components/DriveComments';
 import DriveActivityModal from '@/components/DriveActivityModal';
 import DriveAccessModal from '@/components/DriveAccessModal';
@@ -68,6 +69,7 @@ export default function DrivesPage() {
   const [level, setLevel] = useState<DriveLevel | null>(null);
   const [people, setPeople] = useState<OrgUser[]>([]);
   const [shareFor, setShareFor] = useState<Drive | null>(null);
+  const [view, setView] = useState<'files' | 'shared'>('files');
   const [commentsFor, setCommentsFor] = useState<{ id: string; name: string } | null>(null);
   const [query, setQuery] = useState('');
   const [adv, setAdv] = useState<{ type: string; owner: string; dated: string }>({ type: '', owner: '', dated: '' });
@@ -98,7 +100,7 @@ export default function DrivesPage() {
   const loadDrives = () => { if (!org) return; listDrives(org.id).then((d) => { setDrives(d); if (!active && d.length) selectDrive(d[0]); }).catch((e) => { setErr(e.message); setDrives([]); }); };
   useEffect(() => { if (org?.id && enabled) { loadDrives(); loadUsage(); } /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
-  const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); setDriveOpen((o) => ({ ...o, [d.id]: true })); setLevel(null); getDriveLevel(d.id).then(setLevel).catch(() => setLevel(null)); listAccessRequests({ driveId: d.id, status: 'pending' }).then((r) => setPendingReq(r.length)).catch(() => setPendingReq(0)); listFolders(d.id).then(setFolders).catch(() => {}); };
+  const selectDrive = (d: Drive) => { setActive(d); setView('files'); setPath([{ id: null, name: d.name }]); setExpanded({}); setDriveOpen((o) => ({ ...o, [d.id]: true })); setLevel(null); getDriveLevel(d.id).then(setLevel).catch(() => setLevel(null)); listAccessRequests({ driveId: d.id, status: 'pending' }).then((r) => setPendingReq(r.length)).catch(() => setPendingReq(0)); listFolders(d.id).then(setFolders).catch(() => {}); };
   useEffect(() => { if (active) { setFiles(null); listFiles(active.id, currentFolderId).then(setFiles).catch(() => setFiles([])); } /* eslint-disable-next-line */ }, [active?.id, currentFolderId]);
   useEffect(() => { setSelected(new Set()); setMenu(null); }, [active?.id, currentFolderId]);
   const searchSession = !!query.trim() || !!adv.type || !!adv.owner || !!adv.dated;
@@ -133,6 +135,7 @@ export default function DrivesPage() {
 
   const childFolders = useMemo(() => folders.filter((f) => f.parent_id === currentFolderId), [folders, currentFolderId]);
   const canEdit = (createdBy?: string | null) => isAdmin || (!!me && !!createdBy && createdBy === me.id);
+  const canManage = level === 'manage' || isAdmin;
 
   const refreshHere = () => { if (active) { listFiles(active.id, currentFolderId).then(setFiles).catch(() => {}); listFolders(active.id).then(setFolders).catch(() => {}); loadUsage(); } };
   useEffect(() => { const t = pendingFolder.current; if (t && folderById[t]) { navTo(t); pendingFolder.current = null; } /* eslint-disable-next-line */ }, [folderById]);
@@ -451,6 +454,17 @@ export default function DrivesPage() {
           <div className="card overflow-hidden">
             {!active ? <div className="p-8"><EmptyState icon="ti-folders" text="Select or create a drive." /></div> : (
               <>
+                {(() => { const TABS: { key: 'files' | 'shared'; label: string; icon: string }[] = [{ key: 'files', label: 'Files', icon: 'ti-folder' }]; if (canManage) TABS.push({ key: 'shared', label: 'Shared', icon: 'ti-user-share' }); return (
+                  <div className="flex items-center gap-1 px-3 border-b border-line overflow-x-auto">
+                    {TABS.map((t) => { const on = t.key === 'shared' ? (view === 'shared' && !searchSession) : (view === 'files' || searchSession); return (
+                      <button key={t.key} onClick={() => { if (t.key === 'shared') { clearSearch(); setView('shared'); } else setView('files'); }} className={`flex items-center gap-1.5 px-3 py-2 text-sm -mb-px border-b-2 whitespace-nowrap ${on ? 'border-accent text-content font-medium' : 'border-transparent text-muted hover:text-content'}`}><Icon name={t.icon} className="text-base" />{t.label}</button>
+                    ); })}
+                  </div>
+                ); })()}
+                {view === 'shared' && !searchSession ? (
+                  <DriveSharedView drive={active} people={people} projects={projects} canManage={canManage} folders={folders} onPortalChange={(pid) => { const did = active.id; setActive((a) => (a ? { ...a, project_id: pid } : a)); setDrives((ds) => (ds || []).map((x) => (x.id === did ? { ...x, project_id: pid } : x))); }} />
+                ) : (
+                <>
                 {searchSession ? (
                   <div className="flex items-center gap-2 px-4 py-2 border-b border-line text-sm bg-surface2/30">
                     <Icon name="ti-search" className="text-muted2 shrink-0" />
@@ -475,14 +489,6 @@ export default function DrivesPage() {
                 </div>
                 )}
                 <div className="flex items-center gap-2 px-4 py-2.5 border-b border-line flex-wrap">
-                  {isAdmin && (
-                    <div className="flex items-center gap-1.5 mr-1">
-                      <span className="text-2xs text-muted2 hidden sm:inline">Client portal:</span>
-                      <Select width={210} value={active?.project_id || ''}
-                        onChange={(v) => { if (!active) return; const did = active.id; const pid = v || null; setDriveProject(did, pid).then(() => { setActive((a) => (a ? { ...a, project_id: pid } : a)); setDrives((ds) => (ds || []).map((x) => (x.id === did ? { ...x, project_id: pid } : x))); }).catch((e) => setErr(e.message)); }}
-                        options={[{ value: '', label: 'Not shared' }, ...projects.map((pr) => ({ value: pr.id, label: pr.name }))]} />
-                    </div>
-                  )}
                   <Select width={120} value={sortKey} onChange={(v) => setSortKey(v as any)} options={[{ value: 'name', label: 'Name' }, { value: 'size', label: 'Size' }, { value: 'created', label: 'Created' }, { value: 'modified', label: 'Modified' }]} />
                   <button className="btn h-8 py-0 px-2" title={sortDir === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>
                   <button className="btn h-8 py-0 px-2" title="Select all" onClick={toggleAll}><Icon name={allSelected ? 'ti-checkbox' : 'ti-square'} className="text-sm" /></button>
@@ -577,6 +583,8 @@ export default function DrivesPage() {
                     )}
                   </div>
                 </div>
+                </>
+                )}
               </>
             )}
           </div>
