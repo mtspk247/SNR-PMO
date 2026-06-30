@@ -64,7 +64,7 @@ export default function SubscriptionsPage() {
   useEffect(() => { if (editor) initialRef.current = JSON.stringify(editor.draft); }, [!!editor]);
   const [detail, setDetail] = useState<VendorSubscription | null>(null);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  const [groupBy, setGroupBy] = useState<'status' | 'none'>('status');
+  const [groupBy, setGroupBy] = useState<'status' | 'none'>('none');
 
   const load = () => { if (!org) return; listVendorSubscriptions(org.id).then(setSubs).catch((e) => { setErr(e.message); setSubs([]); }); };
   useEffect(() => { if (org?.id && enabled) { load(); getOrgUsers(org.id).then(setUsers).catch(() => {}); } /* eslint-disable-next-line */ }, [org?.id, enabled]);

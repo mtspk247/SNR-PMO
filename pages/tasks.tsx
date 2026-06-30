@@ -11,6 +11,7 @@ import AgentPanel from '@/components/AgentPanel';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
 import StatusManager from '@/components/StatusManager';
 import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import SaveViewBar from '@/components/SaveViewBar';
 import { DataList, EditSpec, GroupMeta } from '@/components/DataList';
 import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
@@ -121,7 +122,7 @@ export default function Tasks() {
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [teamFilter, setTeamFilter] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
-  const [groupBy, setGroupBy] = useState<GroupBy>('status');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [view, setView] = useState<'list' | 'board'>('list');
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -169,7 +170,7 @@ export default function Tasks() {
       const raw = localStorage.getItem(`snr-tasks-view-${me.id}`);
       if (raw) {
         const v = JSON.parse(raw);
-        if (v.groupBy) setGroupBy(v.groupBy);
+        // grouping not restored — lists open ungrouped by default
         if (v.sort) setSort(v.sort);
         if (v.view) setView(v.view);
       }
@@ -707,6 +708,7 @@ export default function Tasks() {
                 </button>
               ))}
             </div>
+            <SaveViewBar prefs={prefs} />
             <div className="relative">
               <button onClick={() => setColMenu((v) => !v)} className="btn h-9"><Icon name="ti-columns-3" className="text-sm" /><span className="hidden md:inline">Columns</span></button>
               {colMenu && <div className="fixed inset-0 z-10" onClick={() => setColMenu(false)} aria-hidden />}

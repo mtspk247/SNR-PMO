@@ -91,7 +91,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
   const org = useActiveOrg();
   const canExportAll = !!p.exportName && can.manageMembers(org);  // RBAC: export = admin (matches nav adminOnly)
   const canGroup = !!p.groupField && !!p.groupOf && !!p.groups;
-  const [grouped, setGrouped] = useState<boolean>(canGroup ? (p.defaultGroup ?? true) : false);
+  const [grouped, setGrouped] = useState<boolean>(canGroup ? (p.defaultGroup ?? false) : false);
   const groupBy = canGroup && grouped ? p.groupField!.value : 'none';
   const [sortBy, setSortBy] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -105,8 +105,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
       const raw = localStorage.getItem(vsKey);
       if (raw) {
         const v = JSON.parse(raw);
-        // Sort is intentionally NOT restored — every visit defaults to newest-first.
-        if (canGroup && typeof v.grouped === 'boolean') setGrouped(v.grouped);
+        // Sort + grouping are NOT restored — lists open newest-first and ungrouped.
         if (canGroup && (v.view === 'list' || v.view === 'board')) setView(v.view);
       }
     } catch { /* ignore */ }

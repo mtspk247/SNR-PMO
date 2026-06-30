@@ -65,8 +65,8 @@ export default function TenantsPage() {
   const [invSource, setInvSource] = useState('website');
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const [impMsg, setImpMsg] = useState('');
-  const [groupBy, setGroupBy] = useState<TenantGroupBy>('category');
-  useEffect(() => { try { const v = localStorage.getItem('snr-tenants-groupby'); if (v) setGroupBy(v as TenantGroupBy); } catch { /* ignore */ } }, []);
+  const [groupBy, setGroupBy] = useState<TenantGroupBy>('none');
+  // Grouping is ephemeral — lists open ungrouped by default.
   useEffect(() => { try { localStorage.setItem('snr-tenants-groupby', groupBy); } catch { /* ignore */ } }, [groupBy]);
   // Filter-bar state (All tenants tab).
   const [q, setQ] = useState('');

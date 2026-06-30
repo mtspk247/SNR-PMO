@@ -127,6 +127,21 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'lists',
+    title: 'List views (sort, group, filter, save)',
+    icon: 'ti-list',
+    blocks: [
+      { kind: 'p', text: 'Every list shares the same controls. Lists open clean each visit: no filters applied, columns at their defaults, and rows newest-first by date of entry. Click any column header to sort by it (the up/down arrow shows the direction); click again to flip the direction.' },
+      { kind: 'steps', items: [
+        { title: 'Search & filter', body: 'Use the search box for quick text matches, or Filter for structured filters. Filters never stick between visits unless you save the view.' },
+        { title: 'Group', body: 'Use the grouping control to group rows (for example by status). Grouping is OFF by default — turn it on only when you need it.' },
+        { title: 'Columns', body: 'Open Columns to show, hide, reorder, resize, wrap or freeze columns. Drag a column edge to resize, or double-click it to fit the content.' },
+        { title: 'Save view', body: 'Changed the columns, filters, widths or grouping? A "View changed" bar appears with Save view / Reset. Save it and the list opens that way for you next time; Reset returns to the clean default.' },
+      ] },
+      { kind: 'callout', icon: 'ti-eye', text: 'You only ever see rows you are allowed to see — lists, global search and CSV exports all respect your role and the workspace permissions.' },
+    ],
+  },
+  {
     id: 'modules',
     title: 'Modules (turn features on/off)',
     icon: 'ti-apps',

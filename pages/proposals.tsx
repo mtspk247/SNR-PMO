@@ -70,7 +70,7 @@ export default function ProposalsPage() {
   const [detail, setDetail] = useState<Proposal | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [groupBy, setGroupBy] = useState<GroupBy>('status');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
 
   const load = () => {
     if (!org) return;
