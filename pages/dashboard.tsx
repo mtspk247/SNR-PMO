@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import OnboardingWizard from '@/components/OnboardingWizard';
 import FirstRunChecklist from '@/components/FirstRunChecklist';
+import QuickStart from '@/components/QuickStart';
 import WelcomeWizard from '@/components/WelcomeWizard';
 import ProfileCompletion from '@/components/ProfileCompletion';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -539,6 +540,7 @@ export default function Dashboard() {
       <KeyRotationNudge />
       <InstallPrompt />
       <OnboardingWizard />
+      <QuickStart />
       <FirstRunChecklist />
       <ProfileCompletion />
 
