@@ -72,7 +72,7 @@ export default function TenantsPage() {
   const [q, setQ] = useState('');
   const [fPlan, setFPlan] = useState('all');
   const [fType, setFType] = useState<'all' | 'direct' | 'reseller' | 'sub'>('all');
-  const [fStatus, setFStatus] = useState<'all' | 'active' | 'other'>('all');
+  const [fStatus, setFStatus] = useState<string>('all');
   const toggleReseller = async (orgId: string, on: boolean) => { try { await setTenantReseller(orgId, on); load(); } catch (e: any) { alert(e.message); } };
   const openAsOwner = async (orgId: string, nm: string) => { setImpMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ org: orgId }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setImpMsg(`Sign-in link for ${nm} copied — open it in a private/incognito window to view that workspace as its owner.`); setTimeout(() => setImpMsg(''), 8000); } catch (e: any) { setImpMsg(e.message || 'Failed'); } };
 
@@ -90,8 +90,7 @@ export default function TenantsPage() {
       if (fType === 'reseller' && !t.is_reseller) return false;
       if (fType === 'sub' && !t.parent_org_id) return false;
       if (fType === 'direct' && (t.is_reseller || t.parent_org_id)) return false;
-      if (fStatus === 'active' && t.sub_status !== 'active') return false;
-      if (fStatus === 'other' && t.sub_status === 'active') return false;
+      if (fStatus !== 'all' && ((t as any).lifecycle || 'active') !== fStatus) return false;
       return true;
     });
   }, [rows, q, fPlan, fType, fStatus]);
@@ -143,7 +142,7 @@ export default function TenantsPage() {
           </div>
           <div className="w-40"><Select value={fPlan} onChange={setFPlan} options={[{ value: 'all', label: 'All plans' }, ...plans.map((p) => ({ value: p.key, label: p.name }))]} /></div>
           <div className="w-40"><Select value={fType} onChange={(v) => setFType(v as any)} options={[{ value: 'all', label: 'All types' }, { value: 'direct', label: 'Direct' }, { value: 'reseller', label: 'Resellers' }, { value: 'sub', label: 'Sub-tenants' }]} /></div>
-          <div className="w-36"><Select value={fStatus} onChange={(v) => setFStatus(v as any)} options={[{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'other', label: 'Other' }]} /></div>
+          <div className="w-36"><Select value={fStatus} onChange={(v) => setFStatus(v as any)} options={[{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'suspended', label: 'Suspended' }, { value: 'pending_deletion', label: 'Pending deletion' }, { value: 'archived', label: 'Archived' }]} /></div>
           <div className="ml-auto flex items-center gap-1 text-2xs"><span className="text-muted mr-1">Group by:</span>
             {([['category', 'Category'], ['industry', 'Industry'], ['plan', 'Plan'], ['status', 'Status'], ['hierarchy', 'Reseller'], ['none', 'None']] as const).map(([v, l]) => (
               <button key={v} onClick={() => setGroupBy(v)} className={`btn-ghost ${groupBy === v ? 'text-accentstrong font-medium' : ''}`}>{l}</button>
@@ -172,7 +171,7 @@ export default function TenantsPage() {
           if (id === 'plan') return <PlanBadge planKey={t.plan_key} planName={t.plan_name} size="sm" />;
           if (id === 'members') return <span className="tabular-nums">{t.member_count ?? '—'}</span>;
           if (id === 'seats') return <span className="tabular-nums">{t.seats ?? 0}{t.seat_limit ? ` / ${t.seat_limit}` : ''}</span>;
-          if (id === 'status') return <span className={`pill ${t.sub_status === 'active' ? 'pill-green' : 'pill-gray'}`}>{t.sub_status || 'free'}</span>;
+          if (id === 'status') { const lc = (t as any).lifecycle || 'active'; const m: Record<string, [string, string]> = { active: ['pill-green', 'Active'], suspended: ['pill-amber', 'Suspended'], pending_deletion: ['pill-amber', 'Pending deletion'], archived: ['pill-red', 'Archived'] }; const mm = m[lc] || ['pill-gray', lc]; return <span className={`pill ${mm[0]}`}>{mm[1]}</span>; }
           if (id === 'joined') return <span className="text-2xs text-muted2 whitespace-nowrap">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}</span>;
           if (id === 'actions') return (
             <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
@@ -218,7 +217,7 @@ export default function TenantsPage() {
             groupBy === 'plan' ? (t.plan_name || t.plan_key || 'Free')
             : groupBy === 'category' ? (t.category || 'Uncategorized')
             : groupBy === 'industry' ? (t.industry || 'No industry')
-            : (t.sub_status || 'free');
+            : ((t as any).lifecycle || 'active');
           dlGroupOf = keyOf;
           // Build ordered GroupMeta list (same order as groupsFor: fallbacks last, else alpha).
           const FALLBACK = new Set(['Uncategorized', 'No industry']);

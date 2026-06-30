@@ -44,10 +44,11 @@ export default function TenantsOverview({
     const resellers = rows.filter((r) => r.is_reseller).length;
     const subTenants = rows.filter((r) => r.parent_org_id).length;
     const direct = rows.filter((r) => !r.is_reseller && !r.parent_org_id).length;
-    const active = rows.filter((r) => r.sub_status === 'active').length;
+    const active = rows.filter((r) => ((r as any).lifecycle || 'active') === 'active').length;
+    const archived = rows.filter((r) => (r as any).lifecycle === 'archived').length;
     const members = rows.reduce((a, r) => a + (r.member_count || 0), 0);
     const seats = rows.reduce((a, r) => a + (r.seats || 0), 0);
-    return { total, resellers, subTenants, direct, active, members, seats };
+    return { total, resellers, subTenants, direct, active, archived, members, seats };
   }, [rows]);
 
   // Plan distribution — count tenants per plan (matched by plan_key, falling back to plan_name).
@@ -98,6 +99,7 @@ export default function TenantsOverview({
     { label: 'Sub-tenants', value: stats.subTenants, icon: 'ti-sitemap' },
     { label: 'Direct tenants', value: stats.direct, icon: 'ti-building' },
     { label: 'Active', value: stats.active, icon: 'ti-circle-check' },
+    { label: 'Archived', value: stats.archived, icon: 'ti-archive' },
     { label: 'Total members', value: stats.members, icon: 'ti-users' },
     { label: 'Total seats', value: stats.seats, icon: 'ti-armchair' },
   ];

@@ -5,6 +5,7 @@ import { PageHeader, EmptyState, StatCard } from '@/components/ui';
 import { ListView } from '@/components/ListView';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection } from '@/components/RowSelection';
+import { GroupMeta } from '@/components/DataList';
 import { sb } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/store';
 
@@ -15,6 +16,7 @@ type TH = { id: string; org_id: string; name: string; plan: string; status: stri
 
 const title = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const STATUS_HEX: Record<string, string> = { active: '#10b981', suspended: '#f59e0b', archived: '#6b7280' };
+const INS_GROUPS: GroupMeta[] = [{ value: 'active', label: 'Active', color: '#10b981' }, { value: 'suspended', label: 'Suspended', color: '#f59e0b' }, { value: 'archived', label: 'Archived', color: '#6b7280' }];
 
 const COLS: ColDef[] = [
   { id: 'name', label: 'Tenant', locked: true },
@@ -107,6 +109,7 @@ export default function Insights() {
       </div>
       <ListView rows={th === null ? null : shown} rowKey={(r) => r.id} cols={COLS} prefs={prefs} cell={cell} selection={rs}
         filters={FILTERS} searchPlaceholder="Search tenants…" rawValue={rawValue}
+        groupField={{ value: 'status', label: 'Status' }} groupOf={(r) => r.status} groups={INS_GROUPS} defaultGroup={false}
         onRowClick={(r) => router.push(`/tenants/${r.org_id}`)} exportName="tenant-health" exportValue={rawValue}
         emptyIcon="ti-chart-histogram" emptyText="No tenant data yet." />
     </Layout>
