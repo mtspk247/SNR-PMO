@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION, PLATFORM_SECTION, ADMIN_SECTION, MODULE_GROUPS } from '@/lib/nav';
+import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION, PLATFORM_SECTION, ADMIN_SECTION } from '@/lib/nav';
 
 test('isPageHidden: not hidden by default', () => {
   assert.equal(isPageHidden([], '/tasks'), false);
