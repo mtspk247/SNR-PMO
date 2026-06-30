@@ -75,6 +75,7 @@ export default function DrivesPage() {
   const [query, setQuery] = useState('');
   const [adv, setAdv] = useState<{ type: string; owner: string; dated: string }>({ type: '', owner: '', dated: '' });
   const [dq, setDq] = useState('');  // debounced search text -> server-side drive_search RPC
+  const [scans, setScans] = useState<Record<string, string>>({});  // storage_path -> file_scans.status (malware-scan badge)
   const [advOpen, setAdvOpen] = useState(false);
   const [allFiles, setAllFiles] = useState<DriveFile[] | null>(null);
   const [allFolders, setAllFolders] = useState<DriveFolder[] | null>(null);
@@ -124,6 +125,17 @@ export default function DrivesPage() {
     return () => { cancelled = true; };
     /* eslint-disable-next-line */
   }, [dq, adv.type, adv.owner, adv.dated, org?.id]);
+  // Malware-scan status for the files in view (file_scans is org-staff RLS-readable) so we can badge
+  // clean / scanning / blocked. The download wall is RLS (obj_scan_clean_gate); this is display only.
+  useEffect(() => {
+    const paths = Array.from(new Set([...(files || []), ...(allFiles || [])].map((x) => x.storage_path).filter(Boolean))) as string[];
+    if (!org || paths.length === 0) { setScans({}); return; }
+    let cancelled = false;
+    sb.from('file_scans').select('path,status').eq('bucket', 'drives').in('path', paths)
+      .then(({ data }) => { if (!cancelled) { const m: Record<string, string> = {}; (data || []).forEach((r: any) => { m[r.path] = r.status; }); setScans(m); } });
+    return () => { cancelled = true; };
+    /* eslint-disable-next-line */
+  }, [files, allFiles, org?.id]);
 
   // ---- Tree helpers ----
   const childrenOf = (pid: string | null) => folders.filter((f) => f.parent_id === pid);
@@ -298,6 +310,14 @@ export default function DrivesPage() {
   const resFiles = searchSession ? (allFiles || []).filter((f) => advOk(f.name, f.created_by, f.updated_at || f.created_at, fileType(f))).slice().sort(cmp) : [];
   const dispFolders = searchSession ? resFolders : shownFolders;
   const dispFiles = searchSession ? resFiles : shownFiles;
+  // Small trust signal: every stored file is virus-scanned; show clean / scanning / blocked.
+  const scanBadge = (file: DriveFile) => {
+    if (!file.storage_path) return null; // native docs/sheets/slides are content rows, not storage objects
+    const st = scans[file.storage_path];
+    if (st === 'infected' || st === 'error') return <span className="ml-2 inline-flex items-center gap-0.5 text-2xs text-rose-600 shrink-0" title="Blocked by malware scan — not downloadable"><Icon name="ti-shield-x" className="text-xs" />Blocked</span>;
+    if (!st) return <span className="ml-2 inline-flex items-center gap-0.5 text-2xs text-amber-600 shrink-0" title="Awaiting virus scan — downloadable once it passes"><Icon name="ti-shield" className="text-xs" />Scanning…</span>;
+    return <span className="ml-1.5 shrink-0" title="Virus-scanned — clean"><Icon name="ti-shield-check" className="text-emerald-500 text-xs" /></span>;
+  };
   const clearSearch = () => { setQuery(''); setAdv({ type: '', owner: '', dated: '' }); setAdvOpen(false); };
   const goFolder = (id: string | null) => { clearSearch(); navTo(id); };
   const driveName = (id?: string | null) => (drives || []).find((d) => d.id === id)?.name || '';
@@ -577,7 +597,7 @@ export default function DrivesPage() {
                             className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50 ${isSel(kfile(f.id)) ? 'bg-accent/5' : ''}`}>
                             <input type="checkbox" className={`shrink-0 ${selected.size ? '' : 'opacity-0 group-hover:opacity-100'}`} checked={isSel(kfile(f.id))} onChange={() => toggleSel(kfile(f.id))} onClick={(e) => e.stopPropagation()} />
                             <Icon name={fileIcon(f)} className="text-muted" />
-                            <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => openFile(f)}>{f.name}{searchSession && <span className="ml-2 text-2xs text-muted2">· {driveName(f.drive_id)}</span>}</button>
+                            <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => openFile(f)}>{f.name}{searchSession && <span className="ml-2 text-2xs text-muted2">· {driveName(f.drive_id)}</span>}</button>{scanBadge(f)}
                             <span className="w-32 shrink-0 hidden lg:flex items-center gap-1.5 text-2xs text-muted truncate" title={nameOf(f.created_by)}><span className="w-5 h-5 rounded-full bg-accent/15 text-accentstrong grid place-items-center text-[9px] shrink-0">{(nameOf(f.created_by)[0] || '?').toUpperCase()}</span><span className="truncate">{nameOf(f.created_by)}</span></span>
                             <span className="w-28 shrink-0 hidden lg:block text-2xs text-muted2 tabular-nums">{fmtDate(f.updated_at || f.created_at)}</span>
                             <span className="w-16 shrink-0 text-2xs text-muted2 tabular-nums">{fmtBytes(f.size_bytes)}</span>

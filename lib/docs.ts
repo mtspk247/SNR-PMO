@@ -500,6 +500,7 @@ export const SECTIONS: Section[] = [
         { text: 'Comments & @mentions — open Comments on any file or document to discuss in threads, resolve items when done, and type @ to tag a teammate — they get a notification that links straight back to the file.' },
         { text: 'Shared tab — a manager’s control panel for one drive: see everyone who has access (people, roles, plus owners & admins) and every share link in one place, then revoke a person, revoke or delete a link, create a new link, or bulk-revoke several at once. The client-portal connection lives here too. Shown to drive managers — owners, admins and the drive’s creator.' },
         { text: 'Trash tab — deleting a folder or file moves it to the drive’s Trash instead of removing it straight away. Open Trash to Restore an item, Delete it forever, or Empty trash to clear everything you’re allowed to remove — a safety net against accidental deletes.' },
+        { text: 'Virus-scanned uploads — every file you upload is automatically checked for malware before it can be opened or downloaded. While a scan is pending you’ll see a “Scanning…” marker; anything flagged is “Blocked”. It’s enforced on the server, so an unscanned or infected file simply can’t be downloaded.' },
         { text: 'Share with a client — connect a drive to a project’s “Client portal” from the Shared tab to surface that drive’s files, read-only, to that project’s invited clients. Leave it “Not shared” to keep the drive internal.' },
       ] },
       { kind: 'steps', items: [
