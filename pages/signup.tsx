@@ -152,7 +152,9 @@ export default function SignupPage() {
     try {
       const { data, error: se } = await sb.auth.signUp({ email: ssEmail.trim(), password, options: { data: { full_name: fullName.trim() } } });
       if (se) throw new Error(se.message);
-      if (data.session) { await resellerSelfSignup(window.location.host, wsName.trim()); window.location.href = '/dashboard'; }
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setInfo('You already have an account with this email — please sign in instead.'); setBusy(false);
+      } else if (data.session) { await resellerSelfSignup(window.location.host, wsName.trim()); window.location.href = '/dashboard'; }
       else { setInfo('Account created. Check your email to confirm, then sign in to finish setting up your workspace.'); setBusy(false); }
     } catch (err: any) { setError(err.message || 'Something went wrong.'); setBusy(false); }
   };
@@ -167,7 +169,9 @@ export default function SignupPage() {
         options: { data: { full_name: fullName.trim() } },
       });
       if (se) throw new Error(se.message);
-      if (data.session) { await accept(); }
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setInfo('You already have an account with this email — sign in, then reopen this invitation link.'); setBusy(false);
+      } else if (data.session) { await accept(); }
       else { setInfo('Account created. Check your email to confirm, then reopen this invitation link to finish setup.'); setBusy(false); }
     } catch (err: any) { setError(err.message || 'Something went wrong.'); setBusy(false); }
   };

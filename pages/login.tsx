@@ -41,10 +41,22 @@ export default function Login() {
           options: { data: { full_name: fullName.trim() }, emailRedirectTo: `${window.location.origin}/dashboard` },
         });
         if (se) throw new Error(se.message);
-        if (data.session) router.replace('/dashboard');
-        else setInfo(`Almost there — we sent a verification link to ${email.trim()}. Open it to activate your account, and your workspace will be ready.`);
+        // Existing account: Supabase returns a user with no identities (anti-enumeration). Route to sign in.
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          setMode('signin'); setPassword('');
+          setInfo('You already have an account with this email — please sign in below. Forgot your password? Use the “Forgot password?” link.');
+        } else if (data.session) {
+          router.replace('/dashboard');
+        } else {
+          setInfo(`Almost there — we sent a verification link to ${email.trim()}. Open it to activate your account, and your workspace will be ready.`);
+        }
       }
-    } catch (err: any) { setError(err.message || 'Something went wrong.'); }
+    } catch (err: any) {
+      const m = String(err?.message || '');
+      setError(/rate limit|too many|429/i.test(m)
+        ? 'Too many email attempts right now — if you just signed up or asked for a reset, the link is already on its way (check spam). Otherwise wait a minute and try again.'
+        : (m || 'Something went wrong.'));
+    }
     finally { setLoading(false); }
   };
 
