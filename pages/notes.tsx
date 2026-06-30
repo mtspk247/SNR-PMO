@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, Tabs } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, Icon, Tabs, Avatar } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { listStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, archiveStickyNote, StickyNote } from '@/lib/db';
@@ -21,6 +21,7 @@ const NOTE_COLS: ColDef[] = [
   { id: 'color', label: 'Colour', width: 130 },
   { id: 'body', label: 'Note', width: 360 },
   { id: 'page', label: 'Created on', width: 170 },
+  { id: 'creator', label: 'Created by', width: 170 },
   { id: 'created', label: 'Created', width: 130 },
   { id: 'updated', label: 'Updated', width: 130 },
 ];
@@ -69,6 +70,7 @@ export default function NotesPage() {
       case 'title': return <span className="inline-flex items-center gap-2 min-w-0"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: DOT[n.color] || DOT.yellow }} /><span className="font-medium truncate">{n.title?.trim() || 'Untitled'}</span></span>;
       case 'body': return <span className="text-muted">{n.body?.trim() || '—'}</span>;
       case 'page': return n.page_path || '—';
+      case 'creator': { const nm = (n.user_id === me?.id ? (me?.full_name || me?.email) : '') || 'You'; return <span className="inline-flex items-center gap-2 min-w-0"><Avatar name={nm} size={22} /><span className="truncate">{nm}</span></span>; }
       case 'created': return fmtD(n.created_at);
       case 'updated': return fmtD(n.updated_at);
       case 'color': return n.color || 'yellow';
@@ -84,6 +86,7 @@ export default function NotesPage() {
     if (id === 'color') return n.color || '';
     if (id === 'body') return n.body || '';
     if (id === 'page') return n.page_path || '';
+    if (id === 'creator') return (n.user_id === me?.id ? (me?.full_name || me?.email || 'You') : 'You');
     if (id === 'created') return n.created_at || '';
     if (id === 'updated') return n.updated_at || '';
     return '';
