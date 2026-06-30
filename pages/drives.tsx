@@ -74,6 +74,7 @@ export default function DrivesPage() {
   const [commentsFor, setCommentsFor] = useState<{ id: string; name: string } | null>(null);
   const [query, setQuery] = useState('');
   const [adv, setAdv] = useState<{ type: string; owner: string; dated: string }>({ type: '', owner: '', dated: '' });
+  const [dq, setDq] = useState('');  // debounced search text -> server-side drive_search RPC
   const [advOpen, setAdvOpen] = useState(false);
   const [allFiles, setAllFiles] = useState<DriveFile[] | null>(null);
   const [allFolders, setAllFolders] = useState<DriveFolder[] | null>(null);
@@ -104,16 +105,25 @@ export default function DrivesPage() {
   useEffect(() => { if (active) { setFiles(null); listFiles(active.id, currentFolderId).then(setFiles).catch(() => setFiles([])); } /* eslint-disable-next-line */ }, [active?.id, currentFolderId]);
   useEffect(() => { setSelected(new Set()); setMenu(null); }, [active?.id, currentFolderId]);
   const searchSession = !!query.trim() || !!adv.type || !!adv.owner || !!adv.dated;
+  // Debounce typed query so we hit the search RPC at most ~3x/sec, not on every keystroke.
+  useEffect(() => { const t = setTimeout(() => setDq(query.trim()), 300); return () => clearTimeout(t); }, [query]);
+  // Server-side, RLS-enforced, BOUNDED search across every drive the user can access. Replaces the old
+  // org-wide sb.from(...).select('*') which pulled every row to the browser (no LIMIT -> egress/memory
+  // cost + silent truncation at the PostgREST row cap). drive_search_* are SECURITY INVOKER, so RLS is
+  // still the wall; the RPC only adds org scope + text/owner/recency filters + ordering + a hard cap.
   useEffect(() => {
-    if (!org || !searchSession) { setAllFiles(null); setAllFolders(null); return; }
+    const on = !!dq || !!adv.type || !!adv.owner || !!adv.dated;
+    if (!org || !on) { setAllFiles(null); setAllFolders(null); return; }
     let cancelled = false;
+    const days = adv.dated === 'today' ? 1 : adv.dated === '7d' ? 7 : adv.dated === '30d' ? 30 : adv.dated === 'year' ? 365 : 0;
+    const args = { p_org: org.id, p_q: dq || null, p_owner: adv.owner || null, p_after: days ? new Date(Date.now() - days * 86400000).toISOString() : null, p_limit: 500 };
     Promise.all([
-      sb.from('drive_files').select('*').eq('org_id', org.id).is('archived_at', null),
-      sb.from('drive_folders').select('*').eq('org_id', org.id).is('archived_at', null),
+      sb.rpc('drive_search_files', args),
+      sb.rpc('drive_search_folders', args),
     ]).then(([fr, dr]) => { if (!cancelled) { setAllFiles((fr.data as DriveFile[]) || []); setAllFolders((dr.data as DriveFolder[]) || []); } });
     return () => { cancelled = true; };
     /* eslint-disable-next-line */
-  }, [searchSession, org?.id]);
+  }, [dq, adv.type, adv.owner, adv.dated, org?.id]);
 
   // ---- Tree helpers ----
   const childrenOf = (pid: string | null) => folders.filter((f) => f.parent_id === pid);
@@ -470,7 +480,7 @@ export default function DrivesPage() {
                 {searchSession ? (
                   <div className="flex items-center gap-2 px-4 py-2 border-b border-line text-sm bg-surface2/30">
                     <Icon name="ti-search" className="text-muted2 shrink-0" />
-                    <span className="text-muted truncate">Search results · {dispFolders.length + dispFiles.length} found across your drives</span>
+                    <span className="text-muted truncate">{allFiles === null && allFolders === null ? 'Searching…' : <>Search results · {dispFolders.length + dispFiles.length} found across your drives{((allFiles?.length || 0) >= 500 || (allFolders?.length || 0) >= 500) ? ' · showing first 500, refine to narrow' : ''}</>}</span>
                     <button className="btn h-7 py-0 ml-auto shrink-0" onClick={() => clearSearch()}><Icon name="ti-x" className="text-sm" />Clear</button>
                   </div>
                 ) : (
