@@ -239,7 +239,7 @@ export default function TenantsPage() {
                 rows={dlRows}
                 rowKey={(t) => t.org_id}
                 cols={TENANT_COLS}
-                prefs={tenantPrefs}
+                prefs={tenantPrefs} showSaveBar
                 cell={tenantCell}
                 nameCol="org"
                 onRowClick={(t) => router.push(`/tenants/${t.org_id}`)}
@@ -279,7 +279,7 @@ export default function TenantsPage() {
             const invGroupOf = (iv: any) => iv.parent_org_id ? `${(rows || []).find((x: any) => x.org_id === iv.parent_org_id)?.org_name || 'Reseller'} · invitations` : 'Platform invitations';
             const invSeen: string[] = []; for (const iv of invites) { const k = invGroupOf(iv); if (!invSeen.includes(k)) invSeen.push(k); }
             const invGroups = invSeen.map((v) => ({ value: v, label: v }));
-            return <DataList rows={invites as any[]} rowKey={(iv: any) => iv.id} cols={INV_COLS} prefs={invPrefs} cell={invCell} nameCol="email" groupBy="parent" groupOf={invGroupOf} groups={invGroups} />;
+            return <DataList rows={invites as any[]} rowKey={(iv: any) => iv.id} cols={INV_COLS} prefs={invPrefs} showSaveBar cell={invCell} nameCol="email" groupBy="parent" groupOf={invGroupOf} groups={invGroups} />;
           })()
         )}
       </div>
@@ -296,7 +296,7 @@ export default function TenantsPage() {
               if (id === 'signedup') return <span className="text-2xs text-muted2">{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</span>;
               return null;
             };
-            return <DataList rows={orphans as any[]} rowKey={(a: any) => a.user_id} cols={ORPHAN_COLS} prefs={orphanPrefs} cell={orphanCell} nameCol="person" />;
+            return <DataList rows={orphans as any[]} rowKey={(a: any) => a.user_id} cols={ORPHAN_COLS} prefs={orphanPrefs} showSaveBar cell={orphanCell} nameCol="person" />;
           })()}
         </div>
       )}

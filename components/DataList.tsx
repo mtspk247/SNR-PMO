@@ -4,6 +4,7 @@ import { Icon, Avatar, INLINE_SELECT_CLS, StatusBadge } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
 import type { ColDef, ListPrefs } from '@/components/ListToolbar';
 import { HeadCheckbox, RowCheckbox } from '@/components/RowSelection';
+import SaveViewBar from '@/components/SaveViewBar';
 import AddColumnForm from '@/components/AddColumnForm';
 import { useAuthStore } from '@/lib/store';
 
@@ -82,6 +83,8 @@ export type DataListProps<T> = {
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
   onSort?: (colId: string) => void;
+  /** Render the Save view/Reset bar above the table (for pages without ListToolbar). */
+  showSaveBar?: boolean;
 };
 
 function PersonPicker({ options, value, onSave, multi, onInvite }: { options: { value: string; label: string; deactivated?: boolean }[]; value: string; onSave: (v: string) => void; multi?: boolean; onInvite?: (email: string) => void | Promise<void> }) {
@@ -288,7 +291,7 @@ function ScrollPane({ children, className }: { children: ReactNode; className?: 
   return <div ref={ref} onPointerDown={onPointerDown} className={className}>{children}</div>;
 }
 
-export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, onReorderGroups, dragRegroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf, sortBy, sortDir, onSort }: DataListProps<T>) {
+export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selection, groupBy = 'none', groupOf, groups, editable, rawValue, onEdit, onAddInGroup, groupAggregate, onReorderGroups, dragRegroup, orderKey, nameCol, onInvitePerson, onRename, onAddSubtask, childrenOf, sortBy, sortDir, onSort, showSaveBar }: DataListProps<T>) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [gDrag, setGDrag] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ id: string; label: string; x: number; y: number } | null>(null);
@@ -589,11 +592,13 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
     </div>
   ) : null;
 
+  const saveBar = showSaveBar ? <div className="flex justify-end mb-2"><SaveViewBar prefs={prefs} /></div> : null;
   const grouped = groupBy !== 'none' && !!groupOf && !!groups;
-  if (!grouped) return <>{tableCard(sortedRows)}{floatingChip}</>;
+  if (!grouped) return <>{saveBar}{tableCard(sortedRows)}{floatingChip}</>;
 
   return (
     <div>
+      {saveBar}
       {groups!.map((g) => {
         const gr = sortedRows.filter((r) => groupOf!(r) === g.value);
         if (gr.length === 0) return null;
