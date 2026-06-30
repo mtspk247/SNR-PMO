@@ -4,7 +4,7 @@
 // can grant + the risk / reversibility / required-RBAC each action carries.
 import type { PermKey } from './supabase';
 
-export type AgentDomainKey = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'people' | 'general';
+export type AgentDomainKey = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'people' | 'marketing' | 'general';
 export type RiskLevel = 'low' | 'medium' | 'high';
 
 export const AGENT_DOMAINS: { key: AgentDomainKey; label: string; icon: string }[] = [
@@ -14,13 +14,14 @@ export const AGENT_DOMAINS: { key: AgentDomainKey; label: string; icon: string }
   { key: 'crm', label: 'CRM', icon: 'ti-users' },
   { key: 'hr', label: 'HR', icon: 'ti-heart-handshake' },
   { key: 'support', label: 'Support', icon: 'ti-lifebuoy' },
+  { key: 'marketing', label: 'Marketing', icon: 'ti-speakerphone' },
   { key: 'general', label: 'General', icon: 'ti-robot' },
 ];
 
 // Maps a nav module group (lib/nav SECTIONS `key`) to its agent domain, so a module page
 // can mount <AgentPanel domain={DOMAIN_FOR_NAV[key]} />. 'general' agents are cross-module.
 export const DOMAIN_FOR_NAV: Record<string, AgentDomainKey> = {
-  work: 'tasks', tracking: 'accounting', people: 'people', crm: 'crm', hr: 'hr', support: 'support',
+  work: 'tasks', tracking: 'accounting', people: 'people', crm: 'crm', hr: 'hr', support: 'support', marketing: 'marketing',
 };
 
 export const AUTONOMY_LABELS: Record<string, string> = {
@@ -63,6 +64,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'post_comment', label: 'Post a comment / status update', domain: 'tasks', risk: 'low', reversible: true, description: 'Posts an update comment on a task, project, or idea. Reversible — removes the comment on rollback.' },
   { key: 'set_reminder', label: 'Set a reminder', domain: 'general', risk: 'low', reversible: true, description: 'Schedules a reminder for the owner, optionally linked to a record. Reversible — deletes the reminder on rollback.' },
   { key: 'draft_job_posting', label: 'Draft a job description', domain: 'hr', risk: 'low', reversible: true, description: 'Drafts a job description (summary, responsibilities, requirements) for review. Reversible — deletes the draft on rollback.' },
+  { key: 'draft_social_post', label: 'Draft a social post', domain: 'marketing', risk: 'low', reversible: true, description: 'Drafts a social post (text + optional channels) into the Social composer for review. Drafting only — scheduling and publishing stay a separate human step. Reversible — deletes the draft on rollback.' },
 ];
 
 export const toolsForDomain = (d: string) => AGENT_TOOLS.filter((t) => t.domain === d);
@@ -93,6 +95,9 @@ export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; r
   people: [
     { tool: 'flag_capacity_risk', summary: 'Flag that "Alex Kim" is over-allocated this week (7 open tasks, 3 overdue)', risk: 'low', payload: { person: 'Alex Kim' } },
   ],
+  marketing: [
+    { tool: 'draft_social_post', summary: 'Draft a LinkedIn post announcing a recent client onboarding win', risk: 'low', payload: { body: 'Thrilled to welcome our newest client aboard! Another team now runs projects, CRM, and back-office in one place — less tool-juggling, more momentum. 🚀' } },
+  ],
   general: [
     { tool: 'summarize_project', summary: 'Summarize this week of activity across active projects', risk: 'low', payload: {} },
   ],
@@ -108,4 +113,5 @@ export const STARTER_AGENTS: { name: string; domain: AgentDomainKey; autonomy: s
   { name: 'Support Triage', domain: 'support', autonomy: 'approve_first', description: 'Suggests an assignee and priority for new tickets, and drafts replies for review.', tools: ['triage_ticket', 'draft_reply'] },
   { name: 'Pipeline Mover', domain: 'crm', autonomy: 'approve_first', description: 'Creates contacts and deals, onboards won clients end-to-end (contact + project + tasks), proposes deal-stage moves, drafts follow-ups, and sends approved SMS. You approve each one.', tools: ['update_deal_stage', 'create_deal', 'create_contact', 'scaffold_client_onboarding', 'draft_followup', 'send_sms'] },
   { name: 'People Coordinator', domain: 'people', autonomy: 'draft_only', description: 'Surfaces capacity risks and drafts 1:1 / meeting briefs from workload. Draft-only - it proposes, you decide.', tools: ['flag_capacity_risk', 'draft_meeting_brief'] },
+  { name: 'Content Assistant', domain: 'marketing', autonomy: 'approve_first', description: 'Your content teammate — drafts social posts into the Social composer for you to review, schedule and publish. Approve-first; drafts only (publishing stays a human step).', tools: ['draft_social_post'] },
 ];

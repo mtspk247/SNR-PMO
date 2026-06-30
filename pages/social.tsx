@@ -7,6 +7,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { can } from '@/lib/authz';
 import { ListView } from '@/components/ListView';
+import AgentPanel from '@/components/AgentPanel';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection } from '@/components/RowSelection';
 import { GroupMeta } from '@/components/DataList';
@@ -230,6 +231,8 @@ export default function SocialPage() {
         canDelete={isAdmin}
         busy={busy}
       />
+
+      <div className="mt-6"><AgentPanel domain="marketing" /></div>
 
       {/* Composer */}
       <Modal open={composeOpen} onClose={() => setComposeOpen(false)} title="Compose post" icon="ti-pencil-plus" size="lg"

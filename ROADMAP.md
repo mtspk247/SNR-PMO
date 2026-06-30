@@ -1,4 +1,11 @@
 
+## 2026-06-30 — Phase 3B: agents as the content team (draft_social_post)
+- The moat compounds: agents now **draft social posts** into the Social composer through the approve-first queue. New `draft_social_post` tool (marketing domain, low-risk, **reversible**) in `lib/agents.ts` AGENT_TOOLS + `lib/agentExecutors.ts` EXECUTORS.
+- **Security (unchanged agent model):** the executor runs **client-side as the approving user** through the same `createSocialPost` a human uses → subject to that user's social-write RLS/RBAC (`is_org_staff` + `tenant_can('social')` + `page_allows('/social','c')`). The agent is a scoped principal, never a bypass. Approve-first; rollback deletes the draft (`deleteSocialPost`). Publishing stays a separate human step (OAuth, later).
+- **Wow + demo:** new **Content Assistant** starter agent (approve-first, marketing) + a marketing SAMPLE_PROPOSAL (works with no LLM key) + `<AgentPanel domain="marketing"/>` mounted on `/social`. New **marketing** agent domain (AGENT_DOMAINS + DOMAIN_FOR_NAV). Docs: `/docs#social` agent callout + SYSTEM_GUIDE.
+- Pure frontend (catalog/executor/UI) — deploys with the current backlog when Vercel publishes. esbuild green.
+- Next: provider OAuth live publishing + dispatcher; automations `post_social` action + `social.published` event.
+
 ## 2026-06-30 — IA refinements (Tariq's clarifications)
 - **Guests → "Portal Access"** (label only; route `/guests` unchanged) to disambiguate from CRM Clients and the Client Portal.
 - **Inbox menu → "Messages"** with sub-group headers: Team (Team Chat) and SMS (Send SMS = `/messaging`, SMS Inbox = `/inbox`) — clarifies the send-vs-replies pair.
