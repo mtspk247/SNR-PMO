@@ -264,7 +264,9 @@ function ScrollPane({ children, className }: { children: ReactNode; className?: 
     const el = ref.current;
     if (!el || el.scrollWidth <= el.clientWidth) return;
     const t = e.target as HTMLElement;
-    if (t.closest('a,button,input,select,textarea,label,th,[role="button"],[contenteditable="true"]')) return;
+    // Block panning only over real text fields, the header (sort/resize/col-drag), and editables.
+    // Buttons/links remain clickable: a <=3px press is a click; a real drag pans and swallows the click.
+    if (t.closest('input,select,textarea,th,[contenteditable="true"]')) return;
     st.current = { active: true, startX: e.clientX, startLeft: el.scrollLeft, moved: false };
     const move = (ev: PointerEvent) => {
       if (!st.current.active) return;
@@ -408,7 +410,9 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const primaryId = [nameCol, cols[0]?.id].find((x) => x && prefs.ordered.includes(x)) || prefs.ordered[0];
   const selCol = !!selection;
   const defW = (id: string) => (prefs.allCols || cols).find((c) => c.id === id)?.width;
-  const headMinW = (id: string) => { const l = (labelOf(id) || '').length; return Math.min(340, Math.max(64, l * 8 + 56)); };
+  // Min header width must always fit: grip + full column name + sort arrow + px-4 padding
+  // (never truncate the name or clip the sort arrows). Tuned for text-2xs uppercase tracking-wider.
+  const headMinW = (id: string) => { const l = (labelOf(id) || '').length; return Math.min(480, Math.max(96, Math.round(l * 9 + 82))); };
   // Content-aware DEFAULT widths: size each column to fit its header + a sample of cell
   // text (display-only — NOT written to prefs.widths, so it never marks the view dirty).
   // Explicit ColDef.width and user-set widths always win.
