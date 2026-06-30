@@ -10,6 +10,7 @@ import { NavItem as Item, NavSection as Section, SECTIONS, ADMIN_SECTION, PLATFO
 import { Icon, Avatar, Spinner } from '@/components/ui';
 import HeaderActions from '@/components/HeaderActions';
 import ShortcutsFab from '@/components/ShortcutsFab';
+import FeedbackWidget from '@/components/FeedbackWidget';
 import AppFooter from '@/components/AppFooter';
 import CheckInPopup from '@/components/CheckInPopup';
 import PollPopup from '@/components/PollPopup';
@@ -313,6 +314,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
       </div>
       {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
       <ShortcutsFab />
+      <FeedbackWidget />
       <HelpAssistant />
       <CheckInPopup />
       <PollPopup />
