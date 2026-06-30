@@ -364,14 +364,6 @@ export default function DrivesPage() {
         action={<button className="btn btn-primary" onClick={() => setNewDrive({ name: '', description: '' })}><Icon name="ti-plus" />New drive</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
-      <div className="card p-3 mb-4 max-w-md">
-        <div className="flex items-center justify-between text-2xs text-muted mb-1">
-          <span>Storage used</span>
-          <span>{fmtBytes(usage.used)}{limitBytes ? ` of ${fmtBytes(limitBytes)}` : ''}</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-surface2"><div className={`h-1.5 rounded-full ${pct > 90 ? 'bg-rose-500' : 'bg-accent'}`} style={{ width: `${pct}%` }} /></div>
-      </div>
-
       {drives === null ? <Spinner /> : (
         <div className="grid lg:grid-cols-[16rem_1fr] gap-4">
           <div className="card p-2 h-max">
@@ -393,6 +385,13 @@ export default function DrivesPage() {
                 )}
               </div>
             ))}
+            <div className="mt-2 pt-2 border-t border-line px-2">
+              <div className="flex items-center justify-between text-2xs text-muted mb-1">
+                <span>Storage</span>
+                <span className="tabular-nums">{fmtBytes(usage.used)}{limitBytes ? ` / ${fmtBytes(limitBytes)}` : ''}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-surface2"><div className={`h-1.5 rounded-full ${pct > 90 ? 'bg-rose-500' : 'bg-accent'}`} style={{ width: `${pct}%` }} /></div>
+            </div>
           </div>
 
           <div className="card overflow-hidden">
