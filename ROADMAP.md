@@ -1,4 +1,10 @@
 
+## 2026-06-30 — Drive: folder tree folded into the DRIVES sidebar + dedicated address bar (de-dup)
+- Per Tariq: the drive name + folder tree were shown twice (DRIVES-sidebar selection vs the content pane's tree column). Fixed to a Finder/Explorer/Drive layout: each drive in the **DRIVES sidebar** now has an **expand chevron** that reveals its folder tree inline (active drive auto-opens); the duplicate tree column is removed and the **file list is full-width**.
+- The content pane gains a dedicated **drive address bar** (current-location breadcrumb, still drag-droppable) above the toolbar. The **global app header is left untouched** (per the request). `pages/drives.tsx` only; RBAC/RLS, right-click menu, columns, multi-select, drag-drop, share/comments unchanged.
+- Shipped via **PR #34 → `222e784f4`** (6/6 checks). GOTCHA: `Icon` has no `onClick` prop — a typecheck-only error esbuild misses; CI caught it, fixed by moving the click onto the wrapping row div.
+- Concurrency: stayed entirely in `drives.tsx`; the other session remains on the shared list engine — no file overlap.
+
 ## 2026-06-30 — Drive: Google-Drive-style columns (Owner / Date modified / Size + clickable header)
 - Closed the main visual gap vs Google Drive on `/drives`: a clickable **column-header row** (Name / Owner / Date modified / Size → sort) + **Owner** (creator avatar + name, "me" for self) and **Date-modified** columns on file & folder rows; trailing row-actions wrapped in a fixed cell so columns stay aligned; Owner/Modified responsive (hidden < lg). **Display-only** — `created_by` resolved via the existing `getOrgUsers` people, dates from `updated_at`/`created_at`; **no RLS/RBAC change**. The existing right-click context menu, multi-select toolbar, sort, search, drag-drop, share, comments and realtime-collab editors are unchanged (the Drive was already largely Google-Drive-grade).
 - Shipped via **PR #30 → `8ac3bbea3`** (6/6 checks green), `pages/drives.tsx` only.
