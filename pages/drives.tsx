@@ -364,10 +364,10 @@ export default function DrivesPage() {
             <p className="text-2xs uppercase tracking-wide text-muted2 px-2 py-1.5">Drives</p>
             {drives.length === 0 ? <p className="text-2xs text-muted2 px-2 py-2">No drives yet.</p> : drives.map((d) => (
               <div key={d.id}>
-                <div className={`group flex items-center gap-1 rounded-md pr-1 cursor-pointer ${active?.id === d.id ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'}`}>
+                <div className={`group flex items-center gap-1 rounded-md pr-1 cursor-pointer ${active?.id === d.id ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'}`} onClick={() => selectDrive(d)}>
                   <button className="w-5 h-7 grid place-items-center text-muted2 shrink-0" title={driveOpen[d.id] && active?.id === d.id ? 'Collapse' : 'Expand'} onClick={(e) => { e.stopPropagation(); if (active?.id !== d.id) selectDrive(d); else setDriveOpen((o) => ({ ...o, [d.id]: !o[d.id] })); }}><Icon name={driveOpen[d.id] && active?.id === d.id ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-2xs" /></button>
-                  <Icon name="ti-folders" className="text-sm shrink-0" onClick={() => selectDrive(d)} />
-                  <span className="text-sm truncate flex-1 py-1.5 cursor-pointer" onClick={() => selectDrive(d)}>{d.name}</span>
+                  <Icon name="ti-folders" className="text-sm shrink-0" />
+                  <span className="text-sm truncate flex-1 py-1.5">{d.name}</span>
                   {d.project_id && <Icon name="ti-users" className="text-2xs text-accentstrong shrink-0" title="Shared with client portal" />}
                   {canEdit(d.created_by) && <button onClick={(e) => { e.stopPropagation(); delDrive(d); }} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500" title="Delete drive"><Icon name="ti-trash" className="text-xs" /></button>}
                 </div>
