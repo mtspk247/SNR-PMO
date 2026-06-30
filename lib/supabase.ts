@@ -124,6 +124,7 @@ export const FEATURES = [
   { key: 'sequences', label: 'Drip sequences' },
   { key: 'portal', label: 'Branded Client Portal' },
   { key: 'agents', label: 'AI Agents' },
+  { key: 'social', label: 'Social & Content' },
 ] as const;
 export type FeatureKey = typeof FEATURES[number]['key'];
 export type PricingModel = 'flat' | 'per_user' | 'white_label';
