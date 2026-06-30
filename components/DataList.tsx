@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, ReactNode } from 'react';
 import type { PointerEvent as RPointerEvent, CSSProperties } from 'react';
 import { Icon, Avatar, INLINE_SELECT_CLS, StatusBadge } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
@@ -406,7 +406,30 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const selCol = !!selection;
   const defW = (id: string) => (prefs.allCols || cols).find((c) => c.id === id)?.width;
   const headMinW = (id: string) => { const l = (labelOf(id) || '').length; return Math.min(340, Math.max(64, l * 8 + 56)); };
-  const colW = (id: string, i: number) => Math.max(prefs.widths[id] ?? defW(id) ?? (i === 0 ? 280 : 160), headMinW(id));
+  // Content-aware DEFAULT widths: size each column to fit its header + a sample of cell
+  // text (display-only — NOT written to prefs.widths, so it never marks the view dirty).
+  // Explicit ColDef.width and user-set widths always win.
+  const contentW = useMemo(() => {
+    const m = new Map<string, number>();
+    const sample = rows.slice(0, 60);
+    for (const cid of prefs.ordered) {
+      if (prefs.widths[cid] != null || defW(cid) != null) continue;
+      let maxLen = (labelOf(cid) || '').length + 2;
+      for (const r of sample) {
+        let txt = '';
+        try {
+          if (isCustomCol(cid) && prefs.cf) txt = prefs.cf.rawValue(cid, rowKey(r)) || '';
+          else txt = (rawValue ? (rawValue(cid, r) || '') : '') || nodeText(cell(cid, r));
+        } catch { txt = ''; }
+        if (txt.length > maxLen) maxLen = txt.length;
+      }
+      const isName = cid === primaryId;
+      m.set(cid, Math.round(Math.min(isName ? 440 : 320, Math.max(isName ? 180 : 90, maxLen * 7.2 + 36))));
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, prefs.ordered.join('|'), prefs.widths, prefs.cf]);
+  const colW = (id: string, i: number) => Math.max(prefs.widths[id] ?? defW(id) ?? contentW.get(id) ?? (i === 0 ? 280 : 160), headMinW(id));
   const totalW = (rowDnD ? 28 : 0) + (selCol ? 36 : 0) + prefs.ordered.reduce((a, id, i) => a + colW(id, i), 0) + 36;
   // Freeze / pin: the first `pinCount` data columns (plus grip/checkbox) stick to the left.
   const pinCount = Math.min(prefs.pinned || 0, prefs.ordered.length);
