@@ -186,6 +186,7 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
   { href: '/import', label: 'Import data', icon: 'ti-file-import', adminOnly: true },
   { href: '/export', label: 'Export data', icon: 'ti-file-export', adminOnly: true },
+  { href: '/feedback', label: 'Feedback', icon: 'ti-message-circle', adminOnly: true },
   { href: '/settings', label: 'Settings', icon: 'ti-settings' },
 ]};
 
