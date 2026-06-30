@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon, Avatar } from '@/components/ui';
-import { useActiveOrg } from '@/lib/store';
-import { SEARCH_SPECS, pageModuleFor, SearchHit, ALL_ITEMS, isPageHidden } from '@/lib/nav';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { pageModuleFor, SearchHit, SearchSpec, ALL_ITEMS, isPageHidden } from '@/lib/nav';
+import { SECTIONS as DOC_SECTIONS } from '@/lib/docs';
+import { navVisible, pageReadable } from '@/lib/entitlements';
+import { can } from '@/lib/authz';
 
 // Inline header search with a scope picker (All / a module / This page) + live
 // results dropdown. No modal. "/" or Cmd/Ctrl-K focuses the input.
@@ -11,11 +14,20 @@ import { SEARCH_SPECS, pageModuleFor, SearchHit, ALL_ITEMS, isPageHidden } from 
 type Scope = 'all' | 'page' | string;   // a module key, or 'all' / 'page'
 type Hit = SearchHit;
 
-const MODS = SEARCH_SPECS.map((s) => ({ key: s.key, label: s.label, icon: s.icon }));
-const MOD_LABEL: Record<string, string> = Object.fromEntries(SEARCH_SPECS.map((s) => [s.key, s.label]));
-const SPEC = new Map(SEARCH_SPECS.map((s) => [s.key, s]));
-// #10 map a search-module key to its nav href, so hidden pages drop out of search.
-const SPEC_HREF: Record<string, string> = Object.fromEntries(ALL_ITEMS.filter((i) => i.search).map((i) => [i.search!.key, i.href]));
+// Docs & help is searchable for any signed-in member (client-side over the live docs SECTIONS).
+const DOCS_SPEC: SearchSpec = {
+  key: 'docs', label: 'Docs & help', icon: 'ti-book-2',
+  run: async (_like, safe) => {
+    const q = safe.trim().toLowerCase(); if (q.length < 2) return [];
+    const out: SearchHit[] = [];
+    for (const s of DOC_SECTIONS) {
+      if (out.length >= 8) break;
+      const hay = (s.title + ' ' + JSON.stringify(s.blocks)).toLowerCase();
+      if (hay.includes(q)) out.push({ id: 'docs:' + s.id, key: 'docs', title: s.title, subtitle: 'Docs & help', href: '/docs#' + s.id, icon: 'ti-book-2' });
+    }
+    return out;
+  },
+};
 
 // Quick-create actions for the command palette (navigate to the create-capable page).
 const ACTIONS: { label: string; icon: string; href: string; kw: string }[] = [
@@ -34,21 +46,44 @@ const ACTIONS: { label: string; icon: string; href: string; kw: string }[] = [
   { label: 'New note', icon: 'ti-plus', href: '/notes', kw: 'create add' },
 ];
 
-async function runSearch(raw: string, mods: string[]): Promise<Hit[]> {
+async function runSearch(raw: string, mods: string[], specByKey: Map<string, SearchSpec>): Promise<Hit[]> {
   const q = raw.trim();
   const like = `%${q}%`;
   const safe = q.replace(/[,()*%]/g, ' ').trim();
-  const groups = await Promise.all(mods.map((k) => SPEC.get(k)!.run(like, safe)));
-  // Keep canonical MODS (nav) order regardless of resolution order.
-  const order = new Map(MODS.map((m, i) => [m.key, i]));
-  return groups.flat().sort((a, b) => (order.get(a.key)! - order.get(b.key)!));
+  const keys = mods.filter((k) => specByKey.has(k));
+  const groups = await Promise.all(keys.map((k) => specByKey.get(k)!.run(like, safe)));
+  const order = new Map(keys.map((k, i) => [k, i]));
+  return groups.flat().sort((a, b) => ((order.get(a.key) ?? 0) - (order.get(b.key) ?? 0)));
 }
 
 export default function GlobalSearch() {
   const router = useRouter();
   const pageMod = pageModuleFor(router.pathname);
   const activeOrg = useActiveOrg();
-  const availMods = useMemo(() => MODS.filter((m) => !isPageHidden(activeOrg?.hidden_pages, SPEC_HREF[m.key])), [activeOrg?.hidden_pages]);
+  const me = useAuthStore((s) => s.user);
+  const platformAdmin = useAuthStore((s) => s.platformAdmin);
+  // RBAC: only expose modules the user can actually reach (feature on, not hidden,
+  // page-readable, admin/platform-gated) — mirrors the sidebar nav gate. RLS is still
+  // the wall; this stops users even scoping/seeing modules they can't access.
+  const gatedItems = useMemo(() => ALL_ITEMS.filter((i) => i.search
+    && navVisible(activeOrg, i.feature)
+    && !isPageHidden(activeOrg?.hidden_pages, i.href)
+    && pageReadable(me, i.href)
+    && (!i.adminOnly || can.manageMembers(activeOrg))
+    && (!i.platformOnly || platformAdmin)
+  ), [activeOrg, me, platformAdmin]);
+  const docsOk = useMemo(() => !isPageHidden(activeOrg?.hidden_pages, '/docs') && pageReadable(me, '/docs'), [activeOrg?.hidden_pages, me]);
+  const availMods = useMemo(() => {
+    const a = gatedItems.map((i) => ({ key: i.search!.key, label: i.search!.label, icon: i.search!.icon }));
+    if (docsOk) a.push({ key: 'docs', label: 'Docs & help', icon: 'ti-book-2' });
+    return a;
+  }, [gatedItems, docsOk]);
+  const specByKey = useMemo(() => {
+    const m = new Map<string, SearchSpec>(gatedItems.map((i) => [i.search!.key, i.search!]));
+    if (docsOk) m.set('docs', DOCS_SPEC);
+    return m;
+  }, [gatedItems, docsOk]);
+  const modLabel = useMemo<Record<string, string>>(() => Object.fromEntries(availMods.map((m) => [m.key, m.label])), [availMods]);
   const [selMods, setSelMods] = useState<string[]>([]);   // empty = search everything
   const [scopeFilter, setScopeFilter] = useState('');
   const [q, setQ] = useState('');
@@ -68,7 +103,7 @@ export default function GlobalSearch() {
   const effectiveMods = useMemo<string[]>(() => (selMods.length ? selMods : allKeys), [selMods, allKeys]);
   const toggleMod = (k: string) => setSelMods((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
 
-  const scopeLabel = selMods.length === 0 ? 'All' : selMods.length === 1 ? MOD_LABEL[selMods[0]] : `${selMods.length} selected`;
+  const scopeLabel = selMods.length === 0 ? 'All' : selMods.length === 1 ? modLabel[selMods[0]] : `${selMods.length} selected`;
 
   // Command-palette: type a page name to jump there (nav manifest), shown above record hits.
   const q2 = q.trim().toLowerCase();
@@ -79,18 +114,19 @@ export default function GlobalSearch() {
       if (out.length >= 6) break;
       if (seen.has(it.href)) continue;
       if (isPageHidden(activeOrg?.hidden_pages, it.href)) continue;
+      if (!navVisible(activeOrg, it.feature) || !pageReadable(me, it.href) || (it.adminOnly && !can.manageMembers(activeOrg)) || (it.platformOnly && !platformAdmin)) continue;
       if (!it.label.toLowerCase().includes(q2)) continue;
       seen.add(it.href); out.push({ id: it.href, key: '__page', title: it.label, subtitle: 'Page', href: it.href, icon: it.icon });
     }
     return out;
-  }, [q2, activeOrg?.hidden_pages]);
+  }, [q2, activeOrg, me, platformAdmin]);
   const actionHits = useMemo<Hit[]>(() => {
     if (q2.length < 2) return [];
     const toks = q2.split(/\s+/).filter(Boolean);
-    return ACTIONS.filter((a) => !isPageHidden(activeOrg?.hidden_pages, a.href) && toks.every((t) => (a.label + ' ' + a.kw).toLowerCase().includes(t)))
+    return ACTIONS.filter((a) => !isPageHidden(activeOrg?.hidden_pages, a.href) && pageReadable(me, a.href) && toks.every((t) => (a.label + ' ' + a.kw).toLowerCase().includes(t)))
       .slice(0, 8)
       .map((a) => ({ id: 'act:' + a.label, key: '__action', title: a.label, subtitle: 'Action', href: a.href, icon: a.icon }));
-  }, [q2, activeOrg?.hidden_pages]);
+  }, [q2, activeOrg?.hidden_pages, me]);
   const combined = useMemo<Hit[]>(() => [...actionHits, ...navHits, ...hits], [actionHits, navHits, hits]);
 
   // Global hotkeys: "/" or Cmd/Ctrl-K focus the search (no modal).
@@ -126,11 +162,11 @@ export default function GlobalSearch() {
     setLoading(true);
     const id = ++reqId.current;
     const t = setTimeout(async () => {
-      try { const r = await runSearch(q, effectiveMods); if (id === reqId.current) { setHits(r); setActive(0); } }
+      try { const r = await runSearch(q, effectiveMods, specByKey); if (id === reqId.current) { setHits(r); setActive(0); } }
       finally { if (id === reqId.current) setLoading(false); }
     }, 200);
     return () => clearTimeout(t);
-  }, [q, effectiveMods]);
+  }, [q, effectiveMods, specByKey]);
 
   const go = (h?: Hit) => { if (!h) return; setResultsOpen(false); setScopeOpen(false); setMobileOpen(false); setDesktopOpen(false); setQ(''); router.push(h.href); };
 
