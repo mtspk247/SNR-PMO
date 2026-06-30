@@ -142,6 +142,19 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'search',
+    title: 'Global search',
+    icon: 'ti-search',
+    blocks: [
+      { kind: 'p', text: 'The search box in the header finds records across the whole workspace. Press "/" or Cmd/Ctrl-K to focus it. Type at least two characters; results group by module, and you can narrow to one or more modules with the scope picker, or to just the current page.' },
+      { kind: 'steps', items: [
+        { title: 'What it searches', body: 'Your records (projects, tasks, deals, clients, invoices, people and more), plus pages, quick actions and the Docs & help content. Administrators also search administration data, and platform operators can search tenants in the console.' },
+        { title: 'Permission-aware', body: 'Search only ever shows what you are allowed to see. Modules you cannot access never appear in the scope picker, and every result is filtered by your role and the workspace permissions \u2014 the same rules as the rest of the app.' },
+      ] },
+      { kind: 'callout', icon: 'ti-keyboard', text: 'Tip: "/" focuses search from anywhere; arrow keys move through results and Enter opens the highlighted one.' },
+    ],
+  },
+  {
     id: 'modules',
     title: 'Modules (turn features on/off)',
     icon: 'ti-apps',

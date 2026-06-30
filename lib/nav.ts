@@ -75,6 +75,7 @@ const searchDomains = simpleSpec({ key: 'domain', label: 'Domains', icon: 'ti-wo
 const searchAssets = simpleSpec({ key: 'asset', label: 'Assets', icon: 'ti-building-warehouse', table: 'assets', col: 'name', href: () => '/assets' });
 const searchBankAccounts = simpleSpec({ key: 'bank_account', label: 'Bank accounts', icon: 'ti-building-bank', table: 'bank_accounts', col: 'label', href: () => '/bank-accounts' });
 const searchTeams = simpleSpec({ key: 'team', label: 'Teams', icon: 'ti-users-group', table: 'teams', col: 'name', href: (r) => `/teams/${r.id}` });
+const searchTenants = simpleSpec({ key: 'tenant', label: 'Tenants', icon: 'ti-building-community', table: 'organizations', col: 'name', href: () => '/tenants' });
 // Newly-registered searchable modules (tables/cols verified against snrpmo schema).
 const searchBills = simpleSpec({ key: 'bill', label: 'Bills', icon: 'ti-file-dollar', table: 'bills', col: 'vendor_name', href: () => '/bills', subtitle: (r) => r.bill_number || undefined });
 const searchExpenseClaims = simpleSpec({ key: 'expense_claim', label: 'Expense claims', icon: 'ti-receipt-2', table: 'expense_claims', col: 'title', href: () => '/expense-claims' });
@@ -190,7 +191,7 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
 // Super-super-admin (cross-tenant) — gated by platformAdmin, not a plan feature.
 export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', label: 'Platform', icon: 'ti-building-skyscraper', items: [
   { href: '/platform', label: 'Console', icon: 'ti-dashboard' },
-  { href: '/tenants', label: 'Tenants', icon: 'ti-building-community' },
+  { href: '/tenants', label: 'Tenants', icon: 'ti-building-community', search: searchTenants, platformOnly: true },
 ] };
 
 export const RESELLER_LINK: NavSection = { kind: 'link', item: { href: '/reseller', label: 'Reseller', icon: 'ti-building-community' } };
