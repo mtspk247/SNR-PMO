@@ -261,7 +261,7 @@ export default function IntegrationsPage() {
             <p className="text-xs uppercase tracking-wide text-muted font-semibold">Connected</p>
             <span className="pill pill-green">{eps.length}</span>
           </div>
-          <DataList rows={eps} rowKey={(e) => e.id} cols={CONN_COLS} nameCol="integration" prefs={connPrefs} cell={connCell} />
+          <DataList rows={eps} rowKey={(e) => e.id} cols={CONN_COLS} nameCol="integration" prefs={connPrefs} showSaveBar cell={connCell} />
         </div>
       )}
 
@@ -304,7 +304,7 @@ export default function IntegrationsPage() {
               <button onClick={() => { setQ(''); setCat('All'); }} className="btn mt-1">Clear filters</button>
             </div>
           ) : vp.view === 'list' ? (
-            <DataList rows={visible} rowKey={(i) => i.key} cols={CAT_COLS} nameCol="name" prefs={catPrefs} cell={catCell} />
+            <DataList rows={visible} rowKey={(i) => i.key} cols={CAT_COLS} nameCol="name" prefs={catPrefs} showSaveBar cell={catCell} />
           ) : (
             groups.map(([c, list]) => (
               <div key={c} className="mb-8">

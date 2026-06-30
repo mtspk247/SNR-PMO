@@ -648,7 +648,7 @@ function ErrorsTab() {
             if (id === 'actions') return <div className="flex justify-end" onClick={(e) => e.stopPropagation()}><button className="btn btn-ghost h-7 px-2 text-xs" onClick={() => toggle(r)}>{r.resolved ? 'Reopen' : 'Resolve'}</button></div>;
             return null;
           };
-          return <DataList rows={rows} rowKey={(r) => r.id} cols={ERRORS_COLS} prefs={errorsPrefs} cell={errCell} nameCol="when" />;
+          return <DataList rows={rows} rowKey={(r) => r.id} cols={ERRORS_COLS} prefs={errorsPrefs} showSaveBar cell={errCell} nameCol="when" />;
         })()}
       </div>
     </div>
@@ -710,7 +710,7 @@ function BackupsTab() {
             if (id === 'actions') return <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>{b.file_path && b.status === 'completed' ? <button className="btn btn-ghost h-7 px-2 text-xs" onClick={() => download(b.file_path!)}><Icon name="ti-download" />Download</button> : (b.note ? <span className="text-2xs text-rose-500 truncate max-w-[12rem] inline-block" title={b.note}>{b.note}</span> : null)}</div>;
             return null;
           };
-          return <DataList rows={rows} rowKey={(b) => b.id} cols={BACKUPS_COLS} prefs={backupsPrefs} cell={backupCell} nameCol="created" />;
+          return <DataList rows={rows} rowKey={(b) => b.id} cols={BACKUPS_COLS} prefs={backupsPrefs} showSaveBar cell={backupCell} nameCol="created" />;
         })()}
       </div>
     </div>
@@ -889,7 +889,7 @@ function OwnersTab() {
           if (id === 'actions') return <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>{r.is_primary ? <span className="text-2xs text-muted2">Protected</span> : <button className="btn btn-danger h-8 py-0" disabled={busy} onClick={() => remove(r)}><Icon name="ti-user-minus" className="text-sm" />Remove</button>}</div>;
           return null;
         };
-        return <DataList rows={rows ?? []} rowKey={(r) => r.user_id} cols={OWNERS_COLS} prefs={ownersPrefs} cell={ownerCell} nameCol="owner" />;
+        return <DataList rows={rows ?? []} rowKey={(r) => r.user_id} cols={OWNERS_COLS} prefs={ownersPrefs} showSaveBar cell={ownerCell} nameCol="owner" />;
       })()}
     </div>
   );
@@ -1014,7 +1014,7 @@ function CampaignsTab() {
             if (id === 'when') return <span className="text-2xs text-muted2">{c.status === 'scheduled' && c.scheduled_for ? `⏱ ${new Date(c.scheduled_for).toLocaleString()}` : c.sent_at ? new Date(c.sent_at).toLocaleString() : new Date(c.created_at).toLocaleDateString()}</span>;
             return null;
           };
-          return <DataList rows={history} rowKey={(c) => c.id} cols={CAMPAIGNS_COLS} prefs={campaignsPrefs} cell={campaignCell} nameCol="subject" />;
+          return <DataList rows={history} rowKey={(c) => c.id} cols={CAMPAIGNS_COLS} prefs={campaignsPrefs} showSaveBar cell={campaignCell} nameCol="subject" />;
         })()}
       </div>
     </div>
@@ -1059,7 +1059,7 @@ function ActivityTab() {
           if (id === 'entity') return <span className="text-2xs text-muted2">{r.entity_type || ''}{r.entity_id ? ' · ' + String(r.entity_id).slice(0, 8) : ''}</span>;
           return null;
         };
-        return <DataList rows={filtered} rowKey={(r) => String(r.id)} cols={ACTIVITY_COLS} prefs={activityPrefs} cell={activityCell} nameCol="when" onRowClick={(r) => setDetail(r)} />;
+        return <DataList rows={filtered} rowKey={(r) => String(r.id)} cols={ACTIVITY_COLS} prefs={activityPrefs} showSaveBar cell={activityCell} nameCol="when" onRowClick={(r) => setDetail(r)} />;
       })()}
       {detail && (
         <Modal open={!!detail} onClose={() => setDetail(null)} title="Event detail" icon="ti-activity" size="md">
