@@ -4123,3 +4123,22 @@ export async function computeAiField(p: { text: string; transform: string; categ
   if (error) { let msg = (error as any).message || 'AI field failed'; try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* ignore */ } return { error: msg }; }
   return (data || {}) as any;
 }
+
+// --- Account / workspace self-deletion lifecycle (#4) ---
+export interface AccountDeletionStatus { state: 'none' | 'requested' | 'scheduled'; scheduled_for?: string | null; requested_at?: string | null; is_owner?: boolean }
+export async function requestAccountDeletion(orgId: string, reason?: string): Promise<{ ok: boolean; reason?: string }> {
+  const { data, error } = await sb.rpc('request_account_deletion', { p_org: orgId, p_reason: reason ?? null });
+  if (error) throw new Error(error.message); return data as { ok: boolean; reason?: string };
+}
+export async function cancelAccountDeletion(orgId: string): Promise<{ ok: boolean }> {
+  const { data, error } = await sb.rpc('cancel_account_deletion', { p_org: orgId });
+  if (error) throw new Error(error.message); return data as { ok: boolean };
+}
+export async function confirmAccountDeletion(token: string): Promise<{ ok: boolean; reason?: string; scheduled_for?: string }> {
+  const { data, error } = await sb.rpc('confirm_account_deletion', { p_token: token });
+  if (error) throw new Error(error.message); return data as { ok: boolean; reason?: string; scheduled_for?: string };
+}
+export async function accountDeletionStatus(orgId: string): Promise<AccountDeletionStatus> {
+  const { data, error } = await sb.rpc('account_deletion_status', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as AccountDeletionStatus) ?? { state: 'none' };
+}
