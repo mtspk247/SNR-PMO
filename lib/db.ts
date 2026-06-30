@@ -3764,6 +3764,19 @@ export interface AgentActionEvent { id: number; org_id: string; action_id: strin
 export interface AgentToolGrant { agent_id: string; org_id: string; tool_key: string; granted_by: string | null; granted_at: string; }
 
 export const listAgents = (orgId: string) => _list<AgentDefinition>('agent_definitions', orgId);
+// ABOS autonomous sensing config + org kill-switch (server-governed RPCs).
+export async function setAgentSensing(agentId: string, enabled: boolean, cadence: 'daily' | 'hourly' = 'daily', max = 8): Promise<void> {
+  const { error } = await sb.rpc('agent_set_sensing', { p_agent: agentId, p_enabled: enabled, p_cadence: cadence, p_max: max });
+  if (error) throw new Error(error.message);
+}
+export async function setOrgAgentsPaused(orgId: string, paused: boolean): Promise<void> {
+  const { error } = await sb.rpc('agent_set_org_paused', { p_org: orgId, p_paused: paused });
+  if (error) throw new Error(error.message);
+}
+export async function getOrgAgentsPaused(orgId: string): Promise<boolean> {
+  const { data } = await sb.from('organizations').select('agents_paused').eq('id', orgId).maybeSingle();
+  return !!(data as any)?.agents_paused;
+}
 export async function createAgent(row: { org_id: string; name: string; domain: AgentDomain; description?: string | null; autonomy_level?: AgentAutonomy; created_by?: string | null }): Promise<AgentDefinition[]> {
   const { error } = await sb.from('agent_definitions').insert(row);
   if (error) throw new Error(error.message);

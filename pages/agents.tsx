@@ -18,6 +18,7 @@ import { toast } from '@/lib/toast';
 import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
   listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, agentUsageSummary, runWorkScan,
+  setAgentSensing, setOrgAgentsPaused, getOrgAgentsPaused,
   listAgentActions, recordAgentExecution, autoApproveAgentAction,
   listChatCommands, createChatCommand, updateChatCommand, deleteChatCommand, seedBuiltinChatCommands,
   AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost, AgentUsageSummary,
@@ -32,8 +33,9 @@ const COLS: ColDef[] = [
   { id: 'created', label: 'Created' },
 ];
 
-type Draft = { id?: string; name: string; domain: AgentDomain; description: string; autonomy_level: AgentAutonomy; enabled: boolean };
-const emptyDraft = (): Draft => ({ name: '', domain: 'general', description: '', autonomy_level: 'approve_first', enabled: true });
+type Draft = { id?: string; name: string; domain: AgentDomain; description: string; autonomy_level: AgentAutonomy; enabled: boolean; sense_enabled?: boolean; sense_cadence?: 'daily' | 'hourly'; sense_max?: number };
+const SENSOR_DOMAINS = ['accounting', 'tasks', 'crm', 'people'];
+const emptyDraft = (): Draft => ({ name: '', domain: 'general', description: '', autonomy_level: 'approve_first', enabled: true, sense_enabled: false, sense_cadence: 'daily', sense_max: 8 });
 
 export default function AgentsPage() {
   const org = useActiveOrg();
@@ -49,6 +51,7 @@ export default function AgentsPage() {
   const [summary, setSummary] = useState<AgentUsageSummary | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [limits, setLimits] = useState<AgentCostLimit[]>([]);
+  const [orgPaused, setOrgPaused] = useState(false);
   const [editor, setEditor] = useState<{ mode: 'add' | 'edit'; draft: Draft; initial: string } | null>(null);
   const [grants, setGrants] = useState<Set<string>>(new Set());
   const [seeding, setSeeding] = useState(false);
@@ -66,6 +69,7 @@ export default function AgentsPage() {
     agentUsageCost(org.id).then(setCost).catch(() => {});
     agentUsageSummary(org.id).then(setSummary).catch(() => {});
     listAgentCostLimits(org.id).then(setLimits).catch(() => {});
+    getOrgAgentsPaused(org.id).then(setOrgPaused).catch(() => {});
     listChatCommands(org.id).then(setCommands).catch(() => {});
   };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
@@ -116,7 +120,7 @@ export default function AgentsPage() {
   };
 
   const openEdit = async (a: AgentDefinition) => {
-    setEditor({ mode: 'edit', draft: { id: a.id, name: a.name, domain: a.domain, description: a.description || '', autonomy_level: a.autonomy_level, enabled: a.enabled }, initial: JSON.stringify(a) });
+    setEditor({ mode: 'edit', draft: { id: a.id, name: a.name, domain: a.domain, description: a.description || '', autonomy_level: a.autonomy_level, enabled: a.enabled, sense_enabled: !!a.config?.sense?.enabled, sense_cadence: a.config?.sense?.cadence || 'daily', sense_max: a.config?.sense?.max_per_run ?? 8 }, initial: JSON.stringify(a) });
     try { const g = await listAgentTools(a.id); setGrants(new Set(g.map((x) => x.tool_key))); } catch { setGrants(new Set()); }
   };
   const setD = (patch: Partial<Draft>) => setEditor((e) => e && { ...e, draft: { ...e.draft, ...patch } });
@@ -126,12 +130,15 @@ export default function AgentsPage() {
     setBusy(true); setErr('');
     const d = editor.draft;
     try {
+      let aid = d.id;
       if (editor.mode === 'edit' && d.id) {
         await updateAgent(d.id, { name: d.name.trim(), domain: d.domain, description: d.description || null, autonomy_level: d.autonomy_level, enabled: d.enabled });
       } else {
         const [created] = await createAgent({ org_id: org.id, name: d.name.trim(), domain: d.domain, description: d.description || null, autonomy_level: d.autonomy_level, created_by: me.id });
+        aid = created?.id;
         if (created && d.enabled === false) await updateAgent(created.id, { enabled: false });
       }
+      if (aid) await setAgentSensing(aid, !!d.sense_enabled, d.sense_cadence || 'daily', d.sense_max || 8);
       setEditor(null); load();
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
@@ -262,7 +269,7 @@ export default function AgentsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-5">
         <StatCard label="Agents" value={String(kpis.total)} icon="ti-robot" />
         <StatCard label="Enabled" value={String(kpis.enabled)} icon="ti-circle-check" />
         <StatCard label="Runs this month" value={String(kpis.runs)} icon="ti-activity" />
@@ -273,6 +280,11 @@ export default function AgentsPage() {
             <button className="btn btn-sm" onClick={() => { const l = orgLimit('day'); setLimDraft({ period: 'day', max_runs: l?.max_runs != null ? String(l.max_runs) : '', max_usd: l?.max_usd != null ? String(l.max_usd) : '' }); }}>Day{orgLimit('day') ? ` · ${orgLimit('day')!.max_runs ?? '∞'} runs` : ''}</button>
             <button className="btn btn-sm" onClick={() => { const l = orgLimit('month'); setLimDraft({ period: 'month', max_runs: l?.max_runs != null ? String(l.max_runs) : '', max_usd: l?.max_usd != null ? String(l.max_usd) : '' }); }}>Month{orgLimit('month') ? ` · ${orgLimit('month')!.max_runs ?? '∞'} runs` : ''}</button>
           </div>
+        </div>
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-1"><span className="text-2xs uppercase tracking-wide text-muted2">Autonomy</span><Icon name={orgPaused ? 'ti-player-pause' : 'ti-player-play'} className={orgPaused ? 'text-rose-500' : 'text-emerald-500'} /></div>
+          <label className="flex items-center gap-2 text-xs cursor-pointer mt-1"><input type="checkbox" className="accent-rose-500 w-4 h-4" checked={orgPaused} onChange={async (e) => { const v = e.target.checked; setOrgPaused(v); try { await setOrgAgentsPaused(org!.id, v); } catch { setOrgPaused(!v); } }} />Pause all agents</label>
+          <p className="text-2xs text-muted2 mt-1">Instantly stops autonomous sensing org-wide.</p>
         </div>
       </div>
 
@@ -355,6 +367,20 @@ export default function AgentsPage() {
             {editor.draft.autonomy_level === 'auto_low_risk' && <p className="text-2xs text-muted sm:col-span-2 -mt-1.5"><Icon name="ti-bolt" className="text-amber-500" /> Low-risk, reversible actions run automatically — no approval click. Money, payroll and any medium/high-risk action still wait for approval. Everything stays audited and one-click reversible.</p>}
             <Field label="Description" className="sm:col-span-2"><textarea className="input min-h-[64px] resize-y" value={editor.draft.description} onChange={(e) => setD({ description: e.target.value })} placeholder="What this agent helps with…" /></Field>
             <label className="flex items-center gap-2 text-sm sm:col-span-2 cursor-pointer"><input type="checkbox" className="accent-accent w-4 h-4" checked={editor.draft.enabled} onChange={(e) => setD({ enabled: e.target.checked })} />Enabled</label>
+            <div className="sm:col-span-2 rounded-lg border border-line p-3 bg-surface2/40">
+              <label className="flex items-center gap-2 text-sm cursor-pointer font-medium">
+                <input type="checkbox" className="accent-accent w-4 h-4" checked={!!editor.draft.sense_enabled} onChange={(e) => setD({ sense_enabled: e.target.checked })} />
+                <Icon name="ti-radar" className="text-accent" />Autonomous sensing
+              </label>
+              <p className="text-2xs text-muted mt-1">When on, this agent watches your data on a schedule and <b>proposes</b> work to the approval queue — no clicking. Always approve-first; nothing executes itself. Capped, deduplicated, and stoppable from the org Pause switch.</p>
+              {editor.draft.sense_enabled && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <Select value={editor.draft.sense_cadence || 'daily'} onChange={(v) => setD({ sense_cadence: v as 'daily' | 'hourly' })} options={[{ value: 'daily', label: 'Once a day' }, { value: 'hourly', label: 'Hourly' }]} />
+                  <label className="text-2xs text-muted2 inline-flex items-center gap-1">Max/run <input type="number" min={1} max={25} className="input h-8 w-16" value={editor.draft.sense_max ?? 8} onChange={(e) => setD({ sense_max: Math.max(1, Math.min(25, parseInt(e.target.value) || 8)) })} /></label>
+                  {!SENSOR_DOMAINS.includes(editor.draft.domain) && <span className="text-2xs text-amber-600">Active for accounting, tasks, CRM and people agents — other domains coming soon.</span>}
+                </div>
+              )}
+            </div>
           </div>
 
           {editor.mode === 'edit' && editor.draft.id ? (
