@@ -676,6 +676,7 @@ export const SECTIONS: Section[] = [
       { kind: 'callout', icon: 'ti-camera', text: 'Snapshots capture configuration, not data — a new client starts with your setup but a clean slate. Keep several snapshots (e.g. one per client type) and choose the right one per invite.' },
       { kind: 'callout', icon: 'ti-bolt', text: 'Automations come across as inactive drafts: any reference to a specific person (such as an assignee) is cleared so nothing can misfire in the new workspace. Review each one and switch it on when ready.' },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'A reseller can only see and manage its own sub-tenants, and sub-tenants can never be put on the white-label or reseller plan. These limits are enforced on the server.' },
+      { kind: 'callout', icon: 'ti-layout-sidebar', text: 'The Reseller menu in the sidebar opens directly to each area — Console, Clients, Plans & Pricing, Payments & Signup, Snapshots and Co-owners — so you go straight to what you need. Old /reseller?tab= links still work (they redirect to the matching page).' },
     ],
   },
   {

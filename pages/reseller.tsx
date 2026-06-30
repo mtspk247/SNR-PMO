@@ -20,13 +20,28 @@ import {
 } from '@/lib/db';
 
 type TabKey = 'plans' | 'payments' | 'snapshots' | 'coowners';
+// Section ↔ route map (the console is decomposed into focused /reseller/<section> routes).
+const SECTION_PATHS: Record<TabKey, string> = { plans: '/reseller/plans', payments: '/reseller/payments', snapshots: '/reseller/snapshots', coowners: '/reseller/co-owners' };
+function routeSection(pathname: string): TabKey | null {
+  if (pathname.startsWith('/reseller/plans')) return 'plans';
+  if (pathname.startsWith('/reseller/payments')) return 'payments';
+  if (pathname.startsWith('/reseller/snapshots')) return 'snapshots';
+  if (pathname.startsWith('/reseller/co-owners')) return 'coowners';
+  return null;
+}
 
 export default function ResellerPage() {
   const org = useActiveOrg();
   const patchOrg = useAuthStore((s) => s.patchOrg);
-  const [tab, setTab] = useState<TabKey>('plans');
   const router = useRouter();
-  useEffect(() => { const t = router.query.tab; if (typeof t === 'string' && ['plans','payments','snapshots','coowners'].includes(t)) setTab(t as TabKey); }, [router.query.tab]);
+  const [tab, setTab] = useState<TabKey>(routeSection(router.pathname) || 'plans');
+  // Section is driven by the route (/reseller/<section>); legacy /reseller?tab=x deep-links redirect to the real route.
+  useEffect(() => {
+    const r = routeSection(router.pathname);
+    if (r) { setTab(r); return; }
+    const t = router.query.tab;
+    if (typeof t === 'string' && (['plans','payments','snapshots','coowners'] as string[]).includes(t)) router.replace(SECTION_PATHS[t as TabKey]);
+  }, [router.pathname, router.query.tab]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Co-owner invite
   const [coOpen, setCoOpen] = useState(false); const [coEmail, setCoEmail] = useState(''); const [coBusy, setCoBusy] = useState(false); const [coLink, setCoLink] = useState<string | null>(null); const [coErr, setCoErr] = useState(''); const [coCopied, setCoCopied] = useState(false);
@@ -180,7 +195,7 @@ export default function ResellerPage() {
 
       <Tabs
         active={tab}
-        onChange={(k) => setTab(k as TabKey)}
+        onChange={(k) => router.push(SECTION_PATHS[k as TabKey])}
         tabs={[
           { key: 'plans', label: 'Plans & features', icon: 'ti-package' },
           { key: 'payments', label: 'Payments & signup', icon: 'ti-credit-card' },

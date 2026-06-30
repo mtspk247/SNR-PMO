@@ -1,4 +1,12 @@
 
+## 2026-06-30 — IA Phase 2A: Reseller console decomposed into focused routes
+- **The buried-tabs fix:** the reseller console (one 4-tab page) is now **route-driven** — real routes `/reseller/plans`, `/reseller/payments`, `/reseller/snapshots`, `/reseller/co-owners` (thin re-export pages of the shared `pages/reseller.tsx` component) plus the existing `/reseller` (Console) and `/reseller/clients`. Each is **surfaced in the Reseller sidebar menu** (`RESELLER_SECTION` in `lib/nav.ts`): Console, Clients, Plans & Pricing, Payments & Signup, Snapshots, Co-owners.
+- **Behaviour-preserving:** all console state/handlers (pricing, Stripe Connect onboarding, agent metered rates/margin, self-signup, landing-page template, snapshots, co-owner invite) are unchanged — only section selection moved from `useState`/`?tab=` to `routeSection(router.pathname)`. The in-page Tabs now navigate (`router.push(SECTION_PATHS[k])`). **Legacy `/reseller?tab=x` deep-links redirect** to the matching route (back-compat).
+- **Security:** zero DB/RLS/RBAC change. The shared component keeps the single `org.is_reseller && can.manageMembers(org)` guard, so every re-export route inherits it; the section routes aren't in `TENANT_ITEMS`/`MODULE_GROUPS`, so no per-page tenant guard interferes — gating stays the in-component check + RLS on the reseller RPCs. Money paths (Connect/pricing) untouched.
+- **Verify:** esbuild parse green (reseller.tsx + 4 route files + nav.ts); `__tests__/nav.test.ts` extended → 22/22 (locks all 6 reseller routes + Console `exact`). Docs: `/docs#reselling` sidebar callout + `SYSTEM_GUIDE.md` route map.
+- **Follow-ups (Phase 3):** split Branding & Website out of Payments into its own `/reseller/branding` once the reseller **site/landing builder** lands; per-section lazy data-loading (today the shared component eager-loads all reseller endpoints on mount — fine at reseller-admin traffic, optimise when sub-tenant counts grow).
+- Next Phase 2 slice: decompose the **Platform Console** (10 tabs, 1309 lines) the same way.
+
 ## 2026-06-30 — IA Phase 1: navigation regroup (Marketing + Inbox menus, Finance rename, sub-group headers)
 - **Nav-only slice, zero route/RLS/RBAC change** — all in `lib/nav.ts` (the single nav+search+breadcrumb+permission-tree source) + `components/Layout.tsx` render.
 - **New menus:** **Marketing** (Forms, Sequences — moved out of CRM; Campaigns/Social/Blog land in Phase 3) and **Inbox** (Chat — moved out of Work; Messaging + Inbox — moved out of People). Internal comms separated from marketing per IA rec.
