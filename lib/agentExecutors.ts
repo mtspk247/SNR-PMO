@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -254,6 +254,82 @@ export const EXECUTORS: Record<string, Executor> = {
       if (cid) { try { await deleteContact(cid); } catch { /* noop */ } }
     },
   },
+  // --- Phase 1 expansion: more verbs per module (each reuses an RLS-safe db.ts
+  // write run as the approving user, and is one-click reversible). ---
+
+  // CRM — log a call/email/note on a deal or contact. Reversible by delete.
+  log_activity: {
+    label: 'Log the activity',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const body = String(p.body || a.summary || '').trim();
+      if (!body) throw new Error('log_activity needs a body');
+      const act = await createActivity({ org_id: ctx.orgId, deal_id: p.deal_id ?? null, contact_id: p.contact_id ?? null, kind: p.kind ? String(p.kind).slice(0, 40) : 'note', body: body.slice(0, 2000), created_by: ctx.userId });
+      return { target_table: 'crm_activities', target_id: act.id, result: { activity_id: act.id }, reversal: { op: 'delete_activity' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteActivity(a.target_id); },
+  },
+
+  // CRM — convert a qualified lead into a client (creates client + marks lead converted).
+  // Two-part reversal: delete the new client + restore the lead's prior status.
+  convert_lead: {
+    label: 'Convert the lead to a client',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      if (!p.lead_id) throw new Error('convert_lead needs lead_id in the payload');
+      const lead = (await listLeads(ctx.orgId)).find((l) => l.id === p.lead_id);
+      if (!lead) throw new Error('convert_lead: lead not found or not visible to you');
+      const prior = lead.status;
+      const client = await convertLeadToClient(lead, ctx.userId);
+      return { target_table: 'clients', target_id: client.id, result: { client_id: client.id, name: client.name, lead_id: lead.id }, reversal: { op: 'undo_convert_lead', lead_id: lead.id }, prior_state: { lead_id: lead.id, lead_status: prior } };
+    },
+    rollback: async (a) => {
+      if (a.target_id) { try { await deleteClient(a.target_id); } catch { /* keep going */ } }
+      const ps: any = a.prior_state || {};
+      if (ps.lead_id) { try { await updateLead(ps.lead_id, { status: ps.lead_status || 'new' }); } catch { /* noop */ } }
+    },
+  },
+
+  // Work — post a status/update comment on a task, project, or idea. Reversible (soft delete).
+  post_comment: {
+    label: 'Post the comment',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      if (!p.entity_id) throw new Error('post_comment needs entity_id + entity_type');
+      const et: 'task' | 'project' | 'idea' = (p.entity_type === 'project' || p.entity_type === 'idea') ? p.entity_type : 'task';
+      const body = String(p.body || a.summary || '').trim();
+      if (!body) throw new Error('post_comment needs a body');
+      const c = await addComment({ entity_type: et, entity_id: String(p.entity_id), org_id: ctx.orgId, author_id: ctx.userId, body: body.slice(0, 2000), mentions: Array.isArray(p.mentions) ? p.mentions.map(String) : [] });
+      return { target_table: 'comments', target_id: c.id, result: { comment_id: c.id }, reversal: { op: 'delete_comment' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteComment(a.target_id); },
+  },
+
+  // General — schedule a reminder for the owner (optionally linked to a record). Reversible.
+  set_reminder: {
+    label: 'Set the reminder',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const note = String(p.note || a.summary || '').trim();
+      if (!note) throw new Error('set_reminder needs a note');
+      const remind_at = (typeof p.remind_at === 'string' && p.remind_at) ? p.remind_at : new Date(Date.now() + 864e5).toISOString();
+      const r = await createReminder({ org_id: ctx.orgId, user_id: p.user_id ? String(p.user_id) : ctx.userId, note: note.slice(0, 500), remind_at, entity_type: p.entity_type ? String(p.entity_type) : undefined, entity_id: p.entity_id ? String(p.entity_id) : undefined });
+      return { target_table: 'reminders', target_id: r.id, result: { reminder_id: r.id, remind_at }, reversal: { op: 'delete_reminder' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteReminder(a.target_id); },
+  },
+
+  // HR — draft a job description (summary / responsibilities / requirements). Reversible by delete.
+  draft_job_posting: {
+    label: 'Create the job description',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const title = String(p.title || a.summary || 'New role').slice(0, 160);
+      const jd = await createJobDescription({ org_id: ctx.orgId, title, department: p.department ? String(p.department).slice(0, 80) : null, summary: p.summary ? String(p.summary).slice(0, 2000) : null, responsibilities: p.responsibilities ? String(p.responsibilities).slice(0, 4000) : null, requirements: p.requirements ? String(p.requirements).slice(0, 4000) : null, created_by: ctx.userId });
+      return { target_table: 'job_descriptions', target_id: jd.id, result: { job_description_id: jd.id, title }, reversal: { op: 'delete_job_description' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteJobDescription({ id: a.target_id }); },
+  },
 };
 
 export const executorFor = (toolKey: string): Executor | undefined => EXECUTORS[toolKey];
@@ -318,6 +394,16 @@ export function simulateAction(a: AgentAction): SimResult {
       return { ...base, blast: { records: 1, money: 0, irreversible: true }, effects: ['Sends 1 SMS to ' + _s(p.to)], warnings: ['This SMS cannot be unsent — the only agent action that is not reversible.'] };
     case 'draft_followup':
       return { ...base, blast: { records: 0, money: 0, irreversible: false }, effects: ['Drafts a follow-up for you to review and send'] };
+    case 'log_activity':
+      return { ...base, blast: { records: 1, money: 0, irreversible: false }, creates: [(_s(p.kind) === '—' ? 'Note' : _s(p.kind)) + ' on ' + (p.deal_id ? 'a deal' : p.contact_id ? 'a contact' : 'CRM')], effects: ['Logs 1 CRM activity', 'No money moves'] };
+    case 'convert_lead':
+      return { ...base, changes: [{ field: 'Lead status', from: _s(p.from_status) === '—' ? 'open' : _s(p.from_status), to: 'converted' }], creates: ['Client created from the lead'], blast: { records: 2, money: 0, irreversible: false }, effects: ['Creates a client + marks the lead converted'], warnings: ['Reversible: removes the new client and restores the lead.'] };
+    case 'post_comment':
+      return { ...base, creates: ['Comment on ' + _s(p.entity_type || 'task')], blast: { records: 1, money: 0, irreversible: false }, effects: ['Posts 1 comment'] };
+    case 'set_reminder':
+      return { ...base, creates: ['Reminder: ' + _s(p.note || a.summary)], blast: { records: 1, money: 0, irreversible: false }, effects: ['Sets 1 reminder' + (p.remind_at ? ' for ' + _s(p.remind_at) : '')] };
+    case 'draft_job_posting':
+      return { ...base, creates: ['Job description: ' + _s(p.title || a.summary)], blast: { records: 1, money: 0, irreversible: false }, effects: ['Drafts 1 job description for review'] };
     default: {
       const ch: SimChange[] = [];
       for (const k of Object.keys(p)) { if (k.startsWith('to_')) ch.push({ field: k.slice(3).replace(/_/g, ' '), from: _s(p['from_' + k.slice(3)]), to: _s(p[k]) }); }

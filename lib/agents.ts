@@ -57,6 +57,12 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'draft_reply', label: 'Draft a support reply', domain: 'support', risk: 'low', reversible: true, description: 'Drafts a reply for an agent to review and send.' },
   { key: 'flag_capacity_risk', label: 'Flag a capacity risk', domain: 'people', risk: 'low', reversible: true, description: 'Flags an over-allocated person or team as a reversible review task. Surfaces the risk for a human to act on; never reassigns work itself.' },
   { key: 'draft_meeting_brief', label: 'Draft a 1:1 / meeting brief', domain: 'people', risk: 'low', reversible: true, description: 'Drafts a 1:1 or team-meeting brief from recent activity. Draft only.' },
+  // --- Phase 1 expansion verbs (each reversible, RLS-enforced at execution) ---
+  { key: 'log_activity', label: 'Log a CRM activity (call / email / note)', domain: 'crm', risk: 'low', reversible: true, description: 'Logs a call, email, or note against a deal or contact so the timeline stays current. Reversible — deletes the activity on rollback.' },
+  { key: 'convert_lead', label: 'Convert a qualified lead to a client', domain: 'crm', risk: 'medium', reversible: true, noAuto: true, requires: 'can_edit_all_projects', description: 'Promotes a qualified lead to a client and marks the lead converted. Approve-first; reversible (removes the client, restores the lead).' },
+  { key: 'post_comment', label: 'Post a comment / status update', domain: 'tasks', risk: 'low', reversible: true, description: 'Posts an update comment on a task, project, or idea. Reversible — removes the comment on rollback.' },
+  { key: 'set_reminder', label: 'Set a reminder', domain: 'general', risk: 'low', reversible: true, description: 'Schedules a reminder for the owner, optionally linked to a record. Reversible — deletes the reminder on rollback.' },
+  { key: 'draft_job_posting', label: 'Draft a job description', domain: 'hr', risk: 'low', reversible: true, description: 'Drafts a job description (summary, responsibilities, requirements) for review. Reversible — deletes the draft on rollback.' },
 ];
 
 export const toolsForDomain = (d: string) => AGENT_TOOLS.filter((t) => t.domain === d);
