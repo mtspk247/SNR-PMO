@@ -109,16 +109,16 @@ export const SECTIONS: NavSection[] = [
     { href: '/workload', label: 'Workload', icon: 'ti-chart-bar', feature: 'teams' },
     { href: '/calendar', label: 'Calendar', icon: 'ti-calendar', feature: 'calendar' },
     { href: '/booking', label: 'Booking', icon: 'ti-calendar-plus', feature: 'booking', search: searchBooking },
-    { href: '/guests', label: 'Guests', icon: 'ti-user-question', adminOnly: true },
+    { href: '/guests', label: 'Portal Access', icon: 'ti-user-question', adminOnly: true },
   ]},
-  { kind: 'menu', key: 'inbox', label: 'Inbox', icon: 'ti-inbox', items: [
-    { href: '/chat', label: 'Chat', icon: 'ti-messages', feature: 'chat' },
-    { href: '/messaging', label: 'Messaging', icon: 'ti-message-2', feature: 'comms' },
-    { href: '/inbox', label: 'Inbox', icon: 'ti-inbox', feature: 'comms' },
+  { kind: 'menu', key: 'inbox', label: 'Messages', icon: 'ti-inbox', items: [
+    { href: '/chat', label: 'Team Chat', icon: 'ti-messages', feature: 'chat', group: 'Team' },
+    { href: '/messaging', label: 'Send SMS', icon: 'ti-message-2', feature: 'comms', group: 'SMS' },
+    { href: '/inbox', label: 'SMS Inbox', icon: 'ti-inbox', feature: 'comms', group: 'SMS' },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
-    { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm', search: searchDeals, group: 'Pipeline' },
     { href: '/leads', label: 'Leads', icon: 'ti-filter', feature: 'crm', search: searchLeads, group: 'Pipeline' },
+    { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm', search: searchDeals, group: 'Pipeline' },
     { href: '/clients', label: 'Clients', icon: 'ti-friends', feature: 'crm', search: searchClients, group: 'Accounts' },
     { href: '/proposals', label: 'Proposals', icon: 'ti-file-description', feature: 'crm', search: searchProposals, group: 'Accounts' },
     { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm', search: searchContracts, group: 'Accounts' },
@@ -202,8 +202,7 @@ export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', lab
   { href: '/platform/owners', label: 'Co-owners', icon: 'ti-users', platformOnly: true, group: 'Team' },
   { href: '/insights', label: 'Insights', icon: 'ti-chart-histogram', platformOnly: true, group: 'Insight' },
   { href: '/tenants', label: 'Tenants', icon: 'ti-building-community', search: searchTenants, platformOnly: true, group: 'Insight' },
-  { href: '/product-roadmap', label: 'Roadmap', icon: 'ti-map-2', platformOnly: true, group: 'Product & Feedback' },
-  { href: '/feedback', label: 'Feedback', icon: 'ti-message-circle', platformOnly: true, group: 'Product & Feedback' },
+  { href: '/feedback', label: 'Feedback', icon: 'ti-message-circle', platformOnly: true, group: 'Feedback' },
 ] };
 
 export const RESELLER_LINK: NavSection = { kind: 'link', item: { href: '/reseller', label: 'Reseller', icon: 'ti-building-community' } };
@@ -220,7 +219,7 @@ export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', labe
 export const ROADMAP_LINK: NavSection = { kind: 'link', item: { href: '/product-roadmap', label: 'Roadmap', icon: 'ti-map-2' } };
 
 // --- Derived lookups (do not hand-maintain) -----------------------------
-export const ALL_SECTIONS: NavSection[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK, PLATFORM_SECTION];
+export const ALL_SECTIONS: NavSection[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK, ROADMAP_LINK, PLATFORM_SECTION];
 
 // Flat list of every nav item across all sections.
 export const ALL_ITEMS: NavItem[] = ALL_SECTIONS.flatMap((s) => s.kind === 'link' ? [s.item] : s.items);
