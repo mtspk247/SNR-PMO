@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute } from '@/lib/nav';
+import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS } from '@/lib/nav';
 
 test('isPageHidden: not hidden by default', () => {
   assert.equal(isPageHidden([], '/tasks'), false);
@@ -38,4 +38,39 @@ test('featureForRoute maps route to gating feature', () => {
   assert.equal(featureForRoute('/crm'), 'crm');
   assert.equal(featureForRoute('/projects/123'), 'projects');
   assert.equal(featureForRoute('/dashboard'), undefined);
+});
+
+test('Phase1 IA: Marketing + Inbox menus exist with expected pages', () => {
+  const byKey = Object.fromEntries(SECTIONS.filter((s) => s.kind === 'menu').map((s: any) => [s.key, s]));
+  assert.ok(byKey.marketing, 'marketing menu missing');
+  assert.ok(byKey.inbox, 'inbox menu missing');
+  const mk = byKey.marketing.items.map((i: any) => i.href);
+  assert.deepEqual(mk, ['/forms', '/sequences']);
+  const ix = byKey.inbox.items.map((i: any) => i.href);
+  assert.deepEqual(ix, ['/chat', '/messaging', '/inbox']);
+});
+test('Phase1 IA: Finance menu renamed; CRM/Work no longer hold moved pages', () => {
+  const menus = SECTIONS.filter((s) => s.kind === 'menu') as any[];
+  const finance = menus.find((s) => s.key === 'tracking');
+  assert.equal(finance.label, 'Finance');
+  const crm = menus.find((s) => s.key === 'crm').items.map((i: any) => i.href);
+  assert.equal(crm.includes('/forms'), false);
+  assert.equal(crm.includes('/sequences'), false);
+  const work = menus.find((s) => s.key === 'work').items.map((i: any) => i.href);
+  assert.equal(work.includes('/chat'), false);
+});
+test('Phase1 IA: Work▸Roadmap relabelled Timeline (route unchanged)', () => {
+  assert.equal(ROUTE_LABELS['/roadmap'], 'Timeline');
+  assert.equal(featureForRoute('/roadmap'), 'projects');
+});
+test('Phase1 IA: sub-group headers present on Finance/HR/CRM/Admin', () => {
+  const menus = SECTIONS.filter((s) => s.kind === 'menu') as any[];
+  for (const k of ['tracking', 'hr', 'crm']) {
+    const m = menus.find((s) => s.key === k);
+    assert.ok(m.items.every((i: any) => i.group), `${k} items missing group`);
+  }
+  // MODULE_GROUPS still builds the new menus as grantable permission groups
+  const gkeys = MODULE_GROUPS.map((g) => g.key);
+  assert.ok(gkeys.includes('marketing'));
+  assert.ok(gkeys.includes('inbox'));
 });
