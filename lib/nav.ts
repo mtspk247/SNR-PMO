@@ -198,6 +198,10 @@ export const RESELLER_LINK: NavSection = { kind: 'link', item: { href: '/reselle
 export const RESELLER_SECTION: NavSection = { kind: 'menu', key: 'reseller', label: 'Reseller', icon: 'ti-building-community', items: [
   { href: '/reseller', label: 'Console', icon: 'ti-dashboard', exact: true },
   { href: '/reseller/clients', label: 'Clients', icon: 'ti-buildings' },
+  { href: '/reseller/plans', label: 'Plans & Pricing', icon: 'ti-package' },
+  { href: '/reseller/payments', label: 'Payments & Signup', icon: 'ti-credit-card' },
+  { href: '/reseller/snapshots', label: 'Snapshots', icon: 'ti-camera' },
+  { href: '/reseller/co-owners', label: 'Co-owners', icon: 'ti-users' },
 ] };
 
 export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } };

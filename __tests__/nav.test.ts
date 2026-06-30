@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS } from '@/lib/nav';
+import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION } from '@/lib/nav';
 
 test('isPageHidden: not hidden by default', () => {
   assert.equal(isPageHidden([], '/tasks'), false);
@@ -73,4 +73,15 @@ test('Phase1 IA: sub-group headers present on Finance/HR/CRM/Admin', () => {
   const gkeys = MODULE_GROUPS.map((g) => g.key);
   assert.ok(gkeys.includes('marketing'));
   assert.ok(gkeys.includes('inbox'));
+});
+
+test('Phase2A: Reseller console sections surfaced as real routes', () => {
+  assert.equal(RESELLER_SECTION.kind, 'menu');
+  const hrefs = RESELLER_SECTION.kind === 'menu' ? RESELLER_SECTION.items.map((i) => i.href) : [];
+  for (const h of ['/reseller', '/reseller/clients', '/reseller/plans', '/reseller/payments', '/reseller/snapshots', '/reseller/co-owners']) {
+    assert.ok(hrefs.includes(h), `reseller nav missing ${h}`);
+  }
+  // Console stays exact so deep section routes don't all mark it active.
+  const console = RESELLER_SECTION.kind === 'menu' ? RESELLER_SECTION.items.find((i) => i.href === '/reseller') : undefined;
+  assert.equal(console?.exact, true);
 });
