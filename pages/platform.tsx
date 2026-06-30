@@ -56,6 +56,7 @@ type Tab = 'plans' | 'billing' | 'email' | 'assistant' | 'backups' | 'errors' | 
 // Platform console is decomposed into focused /platform/<section> routes.
 const PLATFORM_SECTIONS: Tab[] = ['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'rollout', 'campaigns', 'activity'];
 const PLATFORM_PATHS: Record<Tab, string> = PLATFORM_SECTIONS.reduce((m, k) => { m[k] = k === 'plans' ? '/platform' : `/platform/${k}`; return m; }, {} as Record<Tab, string>);
+const PLATFORM_TITLES: Record<Tab, string> = { plans: 'Plans & features', billing: 'Billing (Stripe)', email: 'Email', assistant: 'AI assistant', backups: 'Backups', errors: 'Errors', owners: 'Co-owners', rollout: 'Feature rollout', campaigns: 'Campaigns', activity: 'Activity' };
 function platformRouteSection(pathname: string): Tab | null {
   for (const k of PLATFORM_SECTIONS) { if (k !== 'plans' && pathname.startsWith(`/platform/${k}`)) return k; }
   return null;
@@ -1219,29 +1220,13 @@ export default function PlatformPage() {
     <Layout title="Platform">
       {loading ? <Spinner /> : (
         <>
-          <PageHeader title="Plans & billing" subtitle="Cross-tenant administration — plans, seats, features, billing and ops. Manage individual tenants under Tenants."
+          <PageHeader title={PLATFORM_TITLES[tab]} subtitle={tab === 'plans' ? 'Cross-tenant administration — plans, seats, features, billing and ops. Manage individual tenants under Tenants.' : undefined}
             action={tab === 'plans' ? (
               <button className="btn btn-primary" onClick={() => setPlanModal('new')}>
                 <Icon name="ti-plus" className="text-base" /> New plan
               </button>
             ) : undefined} />
 
-          {/* Tabs */}
-          <div className="card rounded-b-none border-b-0 flex gap-1 px-4 bg-surface2/50 sticky top-0 z-10">
-            {(['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'rollout', 'campaigns', 'activity'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => router.push(PLATFORM_PATHS[t])}
-                className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  tab === t
-                    ? 'border-b-accent text-content'
-                    : 'border-b-transparent text-muted hover:text-content'
-                }`}
-              >
-                {t === 'plans' ? 'Plans & features' : t === 'billing' ? 'Billing (Stripe)' : t === 'email' ? 'Email' : t === 'assistant' ? 'AI assistant' : t === 'backups' ? 'Backups' : t === 'errors' ? 'Errors' : t === 'owners' ? 'Co-owners' : t === 'rollout' ? 'Feature rollout' : t === 'campaigns' ? 'Campaigns' : 'Activity'}
-              </button>
-            ))}
-          </div>
 
           {err && <p className="text-sm text-rose-600 mb-3 px-4 pt-4 card rounded-t-none">{err}</p>}
 
