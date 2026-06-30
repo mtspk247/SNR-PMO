@@ -53,6 +53,7 @@ export default function DrivesPage() {
   const [files, setFiles] = useState<DriveFile[] | null>(null);
   const [path, setPath] = useState<{ id: string | null; name: string }[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [driveOpen, setDriveOpen] = useState<Record<string, boolean>>({});
   const [usage, setUsage] = useState<{ used: number; limitMb: number | null }>({ used: 0, limitMb: null });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -90,7 +91,7 @@ export default function DrivesPage() {
   const loadDrives = () => { if (!org) return; listDrives(org.id).then((d) => { setDrives(d); if (!active && d.length) selectDrive(d[0]); }).catch((e) => { setErr(e.message); setDrives([]); }); };
   useEffect(() => { if (org?.id && enabled) { loadDrives(); loadUsage(); } /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
-  const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); setLevel(null); getDriveLevel(d.id).then(setLevel).catch(() => setLevel(null)); listAccessRequests({ driveId: d.id, status: 'pending' }).then((r) => setPendingReq(r.length)).catch(() => setPendingReq(0)); listFolders(d.id).then(setFolders).catch(() => {}); };
+  const selectDrive = (d: Drive) => { setActive(d); setPath([{ id: null, name: d.name }]); setExpanded({}); setDriveOpen((o) => ({ ...o, [d.id]: true })); setLevel(null); getDriveLevel(d.id).then(setLevel).catch(() => setLevel(null)); listAccessRequests({ driveId: d.id, status: 'pending' }).then((r) => setPendingReq(r.length)).catch(() => setPendingReq(0)); listFolders(d.id).then(setFolders).catch(() => {}); };
   useEffect(() => { if (active) { setFiles(null); listFiles(active.id, currentFolderId).then(setFiles).catch(() => setFiles([])); } /* eslint-disable-next-line */ }, [active?.id, currentFolderId]);
   useEffect(() => { setSelected(new Set()); setMenu(null); }, [active?.id, currentFolderId]);
 
@@ -362,11 +363,20 @@ export default function DrivesPage() {
           <div className="card p-2 h-max">
             <p className="text-2xs uppercase tracking-wide text-muted2 px-2 py-1.5">Drives</p>
             {drives.length === 0 ? <p className="text-2xs text-muted2 px-2 py-2">No drives yet.</p> : drives.map((d) => (
-              <div key={d.id} className={`group flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer ${active?.id === d.id ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'}`} onClick={() => selectDrive(d)}>
-                <Icon name="ti-folders" className="text-sm shrink-0" />
-                <span className="text-sm truncate flex-1">{d.name}</span>
-                {d.project_id && <Icon name="ti-users" className="text-2xs text-accentstrong shrink-0" title="Shared with client portal" />}
-                {canEdit(d.created_by) && <button onClick={(e) => { e.stopPropagation(); delDrive(d); }} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500" title="Delete drive"><Icon name="ti-trash" className="text-xs" /></button>}
+              <div key={d.id}>
+                <div className={`group flex items-center gap-1 rounded-md pr-1 cursor-pointer ${active?.id === d.id ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'}`}>
+                  <button className="w-5 h-7 grid place-items-center text-muted2 shrink-0" title={driveOpen[d.id] && active?.id === d.id ? 'Collapse' : 'Expand'} onClick={(e) => { e.stopPropagation(); if (active?.id !== d.id) selectDrive(d); else setDriveOpen((o) => ({ ...o, [d.id]: !o[d.id] })); }}><Icon name={driveOpen[d.id] && active?.id === d.id ? 'ti-chevron-down' : 'ti-chevron-right'} className="text-2xs" /></button>
+                  <Icon name="ti-folders" className="text-sm shrink-0" onClick={() => selectDrive(d)} />
+                  <span className="text-sm truncate flex-1 py-1.5 cursor-pointer" onClick={() => selectDrive(d)}>{d.name}</span>
+                  {d.project_id && <Icon name="ti-users" className="text-2xs text-accentstrong shrink-0" title="Shared with client portal" />}
+                  {canEdit(d.created_by) && <button onClick={(e) => { e.stopPropagation(); delDrive(d); }} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500" title="Delete drive"><Icon name="ti-trash" className="text-xs" /></button>}
+                </div>
+                {driveOpen[d.id] && active?.id === d.id && (
+                  <div className="pb-1 pl-1">
+                    {renderTree(null, 1)}
+                    {folders.length === 0 && <p className="text-2xs text-muted2 pl-7 py-1">No folders yet.</p>}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -374,21 +384,22 @@ export default function DrivesPage() {
           <div className="card overflow-hidden">
             {!active ? <div className="p-8"><EmptyState icon="ti-folders" text="Select or create a drive." /></div> : (
               <>
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-line flex-wrap">
-                  <div className="flex items-center gap-1 text-sm mr-auto min-w-0 flex-wrap">
-                    {path.map((c, i) => {
-                      const key = c.id === null ? '__root__' : c.id;
-                      return (
-                        <span key={i} className="inline-flex items-center gap-1">
-                          {i > 0 && <Icon name="ti-chevron-right" className="text-2xs text-muted2" />}
-                          <button onClick={() => setPath((p) => p.slice(0, i + 1))}
-                            onDragOver={overIf(key)} onDragLeave={() => setOver((o) => (o === key ? null : o))}
-                            onDrop={(e) => { if (dragRef.current) { e.preventDefault(); dragMoveTo(c.id); } }}
-                            className={`truncate max-w-[12rem] rounded px-1 ${i === path.length - 1 ? 'font-medium text-content' : 'text-muted hover:text-content'} ${over === key ? 'ring-2 ring-accent' : ''}`}>{c.name}</button>
-                        </span>
-                      );
-                    })}
-                  </div>
+                <div className="flex items-center gap-1 px-4 py-2 border-b border-line text-sm bg-surface2/30 overflow-x-auto" aria-label="Current location">
+                  <Icon name="ti-folder-open" className="text-amber-500 shrink-0 mr-1" />
+                  {path.map((c, i) => {
+                    const key = c.id === null ? '__root__' : c.id;
+                    return (
+                      <span key={i} className="inline-flex items-center gap-1 shrink-0">
+                        {i > 0 && <Icon name="ti-chevron-right" className="text-2xs text-muted2" />}
+                        <button onClick={() => setPath((p) => p.slice(0, i + 1))}
+                          onDragOver={overIf(key)} onDragLeave={() => setOver((o) => (o === key ? null : o))}
+                          onDrop={(e) => { if (dragRef.current) { e.preventDefault(); dragMoveTo(c.id); } }}
+                          className={`truncate max-w-[14rem] rounded px-1 ${i === path.length - 1 ? 'font-medium text-content' : 'text-muted hover:text-content'} ${over === key ? 'ring-2 ring-accent' : ''}`}>{c.name}</button>
+                      </span>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-line flex-wrap">
                   {isAdmin && (
                     <div className="flex items-center gap-1.5 mr-1">
                       <span className="text-2xs text-muted2 hidden sm:inline">Client portal:</span>
@@ -412,17 +423,7 @@ export default function DrivesPage() {
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onUpload(e.target.files)} />
                 </div>
 
-                <div className="grid md:grid-cols-[14rem_1fr]">
-                  <div className="border-b md:border-b-0 md:border-r border-line p-2 overflow-auto md:max-h-[calc(100vh-15rem)]">
-                    <button onClick={() => navTo(null)} onDragOver={overIf('__root__')} onDragLeave={() => setOver((o) => (o === '__root__' ? null : o))} onDrop={(e) => { if (dragRef.current) { e.preventDefault(); dragMoveTo(null); } }}
-                      className={`w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm ${currentFolderId === null ? 'bg-accent/10 text-accentstrong' : 'hover:bg-surface2'} ${over === '__root__' ? 'ring-2 ring-accent' : ''}`}>
-                      <Icon name="ti-folders" className="text-sm shrink-0" />
-                      <span className="truncate flex-1 text-left font-medium">{active.name}</span>
-                    </button>
-                    {renderTree(null, 0)}
-                    {folders.length === 0 && <p className="text-2xs text-muted2 px-2 py-2">No folders yet.</p>}
-                  </div>
-
+                <div>
                   <div onDragOver={(e) => { if (dragRef.current || dtHasFiles(e)) { e.preventDefault(); setOver('__pane__'); } }} onDragLeave={() => setOver((o) => (o === '__pane__' ? null : o))} onDrop={dropOnPane}
                     className={over === '__pane__' ? 'bg-accent/5 ring-2 ring-inset ring-accent/40' : ''}>
                     {selected.size > 0 && (
