@@ -73,6 +73,7 @@ export default function DrivesPage() {
   const [adv, setAdv] = useState<{ type: string; owner: string; dated: string }>({ type: '', owner: '', dated: '' });
   const [advOpen, setAdvOpen] = useState(false);
   const [allFiles, setAllFiles] = useState<DriveFile[] | null>(null);
+  const [allFolders, setAllFolders] = useState<DriveFolder[] | null>(null);
   const [sortKey, setSortKey] = useState<'name' | 'size' | 'created' | 'modified'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -88,6 +89,7 @@ export default function DrivesPage() {
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const dirInput = useRef<HTMLInputElement>(null);
+  const pendingFolder = useRef<string | null>(null);
 
   const currentFolderId = path.length ? path[path.length - 1].id : null;
   useEffect(() => { if (org?.id && enabled) { getProjects(org.id).then(setProjects).catch(() => {}); getOrgUsers(org.id).then(setPeople).catch(() => {}); } }, [org?.id, enabled]);
@@ -101,12 +103,15 @@ export default function DrivesPage() {
   useEffect(() => { setSelected(new Set()); setMenu(null); }, [active?.id, currentFolderId]);
   const searchSession = !!query.trim() || !!adv.type || !!adv.owner || !!adv.dated;
   useEffect(() => {
-    if (!active || !searchSession) { setAllFiles(null); return; }
+    if (!org || !searchSession) { setAllFiles(null); setAllFolders(null); return; }
     let cancelled = false;
-    sb.from('drive_files').select('*').eq('drive_id', active.id).is('archived_at', null).then(({ data }) => { if (!cancelled) setAllFiles((data as DriveFile[]) || []); });
+    Promise.all([
+      sb.from('drive_files').select('*').eq('org_id', org.id).is('archived_at', null),
+      sb.from('drive_folders').select('*').eq('org_id', org.id).is('archived_at', null),
+    ]).then(([fr, dr]) => { if (!cancelled) { setAllFiles((fr.data as DriveFile[]) || []); setAllFolders((dr.data as DriveFolder[]) || []); } });
     return () => { cancelled = true; };
     /* eslint-disable-next-line */
-  }, [searchSession, active?.id]);
+  }, [searchSession, org?.id]);
 
   // ---- Tree helpers ----
   const childrenOf = (pid: string | null) => folders.filter((f) => f.parent_id === pid);
@@ -130,6 +135,7 @@ export default function DrivesPage() {
   const canEdit = (createdBy?: string | null) => isAdmin || (!!me && !!createdBy && createdBy === me.id);
 
   const refreshHere = () => { if (active) { listFiles(active.id, currentFolderId).then(setFiles).catch(() => {}); listFolders(active.id).then(setFolders).catch(() => {}); loadUsage(); } };
+  useEffect(() => { const t = pendingFolder.current; if (t && folderById[t]) { navTo(t); pendingFolder.current = null; } /* eslint-disable-next-line */ }, [folderById]);
 
   const addDrive = async () => {
     if (!org || !me || !newDrive?.name.trim() || busy) return;
@@ -275,12 +281,14 @@ export default function DrivesPage() {
   const fileType = (f: DriveFile): string => { if (f.kind === 'doc') return 'doc'; if (f.kind === 'sheet') return 'sheet'; if (f.kind === 'slide') return 'slides'; const m = f.mime_type || ''; if (m.startsWith('image/')) return 'image'; if (m.includes('pdf')) return 'pdf'; if (m.includes('zip') || m.includes('compressed')) return 'archive'; return 'other'; };
   const dateOk = (str?: string | null): boolean => { if (!adv.dated) return true; if (!str) return false; const diff = Date.now() - new Date(str).getTime(); const day = 86400000; return adv.dated === 'today' ? diff < day : adv.dated === '7d' ? diff < 7 * day : adv.dated === '30d' ? diff < 30 * day : adv.dated === 'year' ? diff < 365 * day : true; };
   const advOk = (name: string, by: string | null, mod: string | null, type: string) => matchesQ(name) && (!adv.owner || adv.owner === by) && (!adv.type || adv.type === type) && dateOk(mod);
-  const resFolders = searchSession ? folders.filter((f) => advOk(f.name, f.created_by, f.updated_at || f.created_at, 'folder')).slice().sort(cmp) : [];
+  const resFolders = searchSession ? (allFolders || []).filter((f) => advOk(f.name, f.created_by, f.updated_at || f.created_at, 'folder')).slice().sort(cmp) : [];
   const resFiles = searchSession ? (allFiles || []).filter((f) => advOk(f.name, f.created_by, f.updated_at || f.created_at, fileType(f))).slice().sort(cmp) : [];
   const dispFolders = searchSession ? resFolders : shownFolders;
   const dispFiles = searchSession ? resFiles : shownFiles;
   const clearSearch = () => { setQuery(''); setAdv({ type: '', owner: '', dated: '' }); setAdvOpen(false); };
   const goFolder = (id: string | null) => { clearSearch(); navTo(id); };
+  const driveName = (id?: string | null) => (drives || []).find((d) => d.id === id)?.name || '';
+  const openSearchFolder = (f: DriveFolder) => { clearSearch(); if (f.drive_id === active?.id) { navTo(f.id); return; } const d = (drives || []).find((x) => x.id === f.drive_id); if (d) { pendingFolder.current = f.id; selectDrive(d); } };
   const kfile = (id: string) => 'f:' + id; const kfold = (id: string) => 'd:' + id;
   const nameOf = (uid?: string | null) => (uid && me && uid === me.id) ? 'me' : (people.find((p) => p.id === uid)?.full_name || '—');
   const fmtDate = (str?: string | null) => { if (!str) return '—'; const dt = new Date(str); return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); };
@@ -292,8 +300,8 @@ export default function DrivesPage() {
   const allKeys = [...dispFolders.map((f) => kfold(f.id)), ...dispFiles.map((f) => kfile(f.id))];
   const allSelected = allKeys.length > 0 && allKeys.every((k) => selected.has(k));
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(allKeys));
-  const selFiles = () => (files || []).filter((f) => selected.has(kfile(f.id)));
-  const selFolders = () => folders.filter((f) => selected.has(kfold(f.id)));
+  const selFiles = () => (searchSession ? (allFiles || []) : (files || [])).filter((f) => selected.has(kfile(f.id)));
+  const selFolders = () => (searchSession ? (allFolders || []) : folders).filter((f) => selected.has(kfold(f.id)));
   const bulkInvalid = (() => { const set = new Set<string>(); selFolders().forEach((f) => { set.add(f.id); descendantIds(f.id).forEach((d) => set.add(d)); }); return set; })();
   const bulkDownload = async () => { for (const f of selFiles()) { if (!f.storage_path) continue; try { const u = await driveFileUrl(f.storage_path); window.open(u, '_blank'); } catch { /* skip */ } } };
   const bulkDelete = async () => {
@@ -380,13 +388,39 @@ export default function DrivesPage() {
 
   return (
     <Layout flat title="Drives">
-      <PageHeader title="Drives" subtitle="Your team’s cloud storage — drag to move, drop files to upload" icon="ti-cloud" help="drives"
-        action={<button className="btn btn-primary" onClick={() => setNewDrive({ name: '', description: '' })}><Icon name="ti-plus" />New drive</button>} />
+      <PageHeader title="Drives" subtitle="Your team’s cloud storage — drag to move, drop files to upload" icon="ti-cloud" help="drives" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
       {drives === null ? <Spinner /> : (
         <div className="grid lg:grid-cols-[16rem_1fr] gap-4">
           <div className="card p-2 h-max">
+            <div className="px-1 pt-1 pb-2 space-y-1.5 border-b border-line mb-1">
+              <div className="flex items-center gap-1">
+                <div className="relative flex-1">
+                  <Icon name="ti-search" className="text-muted2 text-sm absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search all drives…" className="input h-8 py-0 w-full pl-7 pr-2" />
+                  {searchSession && <button className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted2 hover:text-content" title="Clear" onClick={() => clearSearch()}><Icon name="ti-x" className="text-sm" /></button>}
+                </div>
+                <div className="relative">
+                  <button className={`btn h-8 py-0 px-2 ${searchSession ? 'btn-primary' : ''}`} title="Advanced search" onClick={() => setAdvOpen((o) => !o)}><Icon name="ti-adjustments-horizontal" className="text-sm" /></button>
+                  {advOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setAdvOpen(false)} />
+                      <div className="absolute z-50 mt-1 left-0 w-72 rounded-lg border border-line bg-surface shadow-xl p-3 space-y-2">
+                        <p className="text-2xs uppercase tracking-wide text-muted2">Advanced search</p>
+                        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name or words in the file…" className="input h-8 py-0 w-full" />
+                        <div className="flex items-center justify-between gap-2"><span className="text-2xs text-muted shrink-0">Type</span><Select width={160} value={adv.type} onChange={(v) => setAdv((a) => ({ ...a, type: v }))} options={[{ value: '', label: 'Any' }, { value: 'folder', label: 'Folder' }, { value: 'doc', label: 'Document' }, { value: 'sheet', label: 'Sheet' }, { value: 'slides', label: 'Slides' }, { value: 'image', label: 'Image' }, { value: 'pdf', label: 'PDF' }, { value: 'archive', label: 'Archive' }, { value: 'other', label: 'Other' }]} /></div>
+                        <div className="flex items-center justify-between gap-2"><span className="text-2xs text-muted shrink-0">Owner</span><Select width={160} value={adv.owner} onChange={(v) => setAdv((a) => ({ ...a, owner: v }))} options={[{ value: '', label: 'Anyone' }, ...people.map((p) => ({ value: p.id, label: p.full_name }))]} /></div>
+                        <div className="flex items-center justify-between gap-2"><span className="text-2xs text-muted shrink-0">Modified</span><Select width={160} value={adv.dated} onChange={(v) => setAdv((a) => ({ ...a, dated: v }))} options={[{ value: '', label: 'Any time' }, { value: 'today', label: 'Today' }, { value: '7d', label: 'Last 7 days' }, { value: '30d', label: 'Last 30 days' }, { value: 'year', label: 'This year' }]} /></div>
+                        <p className="text-2xs text-muted2">Searches every drive you can access.</p>
+                        <div className="flex justify-between pt-1"><button className="btn h-7 py-0 text-xs" onClick={() => clearSearch()}>Reset</button><button className="btn btn-primary h-7 py-0 text-xs" onClick={() => setAdvOpen(false)}>Done</button></div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              <button className="btn btn-primary h-8 py-0 w-full justify-center" onClick={() => setNewDrive({ name: '', description: '' })}><Icon name="ti-plus" className="text-sm" />New drive</button>
+            </div>
             <p className="text-2xs uppercase tracking-wide text-muted2 px-2 py-1.5">Drives</p>
             {drives.length === 0 ? <p className="text-2xs text-muted2 px-2 py-2">No drives yet.</p> : drives.map((d) => (
               <div key={d.id}>
@@ -420,7 +454,7 @@ export default function DrivesPage() {
                 {searchSession ? (
                   <div className="flex items-center gap-2 px-4 py-2 border-b border-line text-sm bg-surface2/30">
                     <Icon name="ti-search" className="text-muted2 shrink-0" />
-                    <span className="text-muted truncate">Search results in <b className="text-content">{active.name}</b> · {dispFolders.length + dispFiles.length} found</span>
+                    <span className="text-muted truncate">Search results · {dispFolders.length + dispFiles.length} found across your drives</span>
                     <button className="btn h-7 py-0 ml-auto shrink-0" onClick={() => clearSearch()}><Icon name="ti-x" className="text-sm" />Clear</button>
                   </div>
                 ) : (
@@ -449,24 +483,6 @@ export default function DrivesPage() {
                         options={[{ value: '', label: 'Not shared' }, ...projects.map((pr) => ({ value: pr.id, label: pr.name }))]} />
                     </div>
                   )}
-                  <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="input h-8 py-0 w-36 hidden sm:block" />
-                  <div className="relative">
-                    <button className={`btn h-8 py-0 px-2 ${searchSession ? 'btn-primary' : ''}`} title="Advanced search" onClick={() => setAdvOpen((o) => !o)}><Icon name="ti-adjustments-horizontal" className="text-sm" /></button>
-                    {advOpen && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setAdvOpen(false)} />
-                        <div className="absolute z-50 mt-1 right-0 w-72 rounded-lg border border-line bg-surface shadow-xl p-3 space-y-2">
-                          <p className="text-2xs uppercase tracking-wide text-muted2">Advanced search</p>
-                          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name or words in the file…" className="input h-8 py-0 w-full" />
-                          <div className="flex items-center justify-between gap-2"><span className="text-2xs text-muted shrink-0">Type</span><Select width={160} value={adv.type} onChange={(v) => setAdv((a) => ({ ...a, type: v }))} options={[{ value: '', label: 'Any' }, { value: 'folder', label: 'Folder' }, { value: 'doc', label: 'Document' }, { value: 'sheet', label: 'Sheet' }, { value: 'slides', label: 'Slides' }, { value: 'image', label: 'Image' }, { value: 'pdf', label: 'PDF' }, { value: 'archive', label: 'Archive' }, { value: 'other', label: 'Other' }]} /></div>
-                          <div className="flex items-center justify-between gap-2"><span className="text-2xs text-muted shrink-0">Owner</span><Select width={160} value={adv.owner} onChange={(v) => setAdv((a) => ({ ...a, owner: v }))} options={[{ value: '', label: 'Anyone' }, ...people.map((p) => ({ value: p.id, label: p.full_name }))]} /></div>
-                          <div className="flex items-center justify-between gap-2"><span className="text-2xs text-muted shrink-0">Modified</span><Select width={160} value={adv.dated} onChange={(v) => setAdv((a) => ({ ...a, dated: v }))} options={[{ value: '', label: 'Any time' }, { value: 'today', label: 'Today' }, { value: '7d', label: 'Last 7 days' }, { value: '30d', label: 'Last 30 days' }, { value: 'year', label: 'This year' }]} /></div>
-                          <p className="text-2xs text-muted2">Searches this whole drive — only items you can access.</p>
-                          <div className="flex justify-between pt-1"><button className="btn h-7 py-0 text-xs" onClick={() => clearSearch()}>Reset</button><button className="btn btn-primary h-7 py-0 text-xs" onClick={() => setAdvOpen(false)}>Done</button></div>
-                        </div>
-                      </>
-                    )}
-                  </div>
                   <Select width={120} value={sortKey} onChange={(v) => setSortKey(v as any)} options={[{ value: 'name', label: 'Name' }, { value: 'size', label: 'Size' }, { value: 'created', label: 'Created' }, { value: 'modified', label: 'Modified' }]} />
                   <button className="btn h-8 py-0 px-2" title={sortDir === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>
                   <button className="btn h-8 py-0 px-2" title="Select all" onClick={toggleAll}><Icon name={allSelected ? 'ti-checkbox' : 'ti-square'} className="text-sm" /></button>
@@ -528,7 +544,7 @@ export default function DrivesPage() {
                             className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50 ${isSel(kfold(f.id)) ? 'bg-accent/5' : ''} ${over === f.id ? 'ring-2 ring-inset ring-accent' : ''}`}>
                             <input type="checkbox" className={`shrink-0 ${selected.size ? '' : 'opacity-0 group-hover:opacity-100'}`} checked={isSel(kfold(f.id))} onChange={() => toggleSel(kfold(f.id))} onClick={(e) => e.stopPropagation()} />
                             <Icon name="ti-folder" className="text-amber-500" />
-                            <button className="text-sm text-content font-medium truncate flex-1 text-left hover:text-accentstrong" onClick={() => goFolder(f.id)}>{f.name}</button>
+                            <button className="text-sm text-content font-medium truncate flex-1 text-left hover:text-accentstrong" onClick={() => (searchSession ? openSearchFolder(f) : goFolder(f.id))}>{f.name}{searchSession && <span className="ml-2 text-2xs text-muted2 font-normal">· {driveName(f.drive_id)}</span>}</button>
                             <span className="w-32 shrink-0 hidden lg:flex items-center gap-1.5 text-2xs text-muted truncate" title={nameOf(f.created_by)}><span className="w-5 h-5 rounded-full bg-accent/15 text-accentstrong grid place-items-center text-[9px] shrink-0">{(nameOf(f.created_by)[0] || '?').toUpperCase()}</span><span className="truncate">{nameOf(f.created_by)}</span></span>
                             <span className="w-28 shrink-0 hidden lg:block text-2xs text-muted2 tabular-nums">{fmtDate(f.updated_at || f.created_at)}</span>
                             <span className="w-16 shrink-0 text-2xs text-muted2">—</span>
@@ -544,7 +560,7 @@ export default function DrivesPage() {
                             className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-surface2/50 ${isSel(kfile(f.id)) ? 'bg-accent/5' : ''}`}>
                             <input type="checkbox" className={`shrink-0 ${selected.size ? '' : 'opacity-0 group-hover:opacity-100'}`} checked={isSel(kfile(f.id))} onChange={() => toggleSel(kfile(f.id))} onClick={(e) => e.stopPropagation()} />
                             <Icon name={fileIcon(f)} className="text-muted" />
-                            <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => openFile(f)}>{f.name}</button>
+                            <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => openFile(f)}>{f.name}{searchSession && <span className="ml-2 text-2xs text-muted2">· {driveName(f.drive_id)}</span>}</button>
                             <span className="w-32 shrink-0 hidden lg:flex items-center gap-1.5 text-2xs text-muted truncate" title={nameOf(f.created_by)}><span className="w-5 h-5 rounded-full bg-accent/15 text-accentstrong grid place-items-center text-[9px] shrink-0">{(nameOf(f.created_by)[0] || '?').toUpperCase()}</span><span className="truncate">{nameOf(f.created_by)}</span></span>
                             <span className="w-28 shrink-0 hidden lg:block text-2xs text-muted2 tabular-nums">{fmtDate(f.updated_at || f.created_at)}</span>
                             <span className="w-16 shrink-0 text-2xs text-muted2 tabular-nums">{fmtBytes(f.size_bytes)}</span>
