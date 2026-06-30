@@ -8,7 +8,7 @@ import {
   listDrives, createDrive, deleteDrive, listFolders, createFolder, deleteFolder,
   listFiles, uploadDriveFile, driveFileUrl, deleteDriveFile, getDriveUsage, tenantLimit,
   getProjects, moveFolder, moveFile, createDoc, createSheet, createSlides, saveDoc, getDriveLevel, getOrgUsers,
-  archiveFile, restoreFile, archiveFolder, restoreFolder, listArchived, listAccessRequests,
+  archiveFile, archiveFolder, listAccessRequests,
   Drive, DriveFolder, DriveFile, DriveLevel,
 } from '@/lib/db';
 import { Project, OrgUser, sb } from '@/lib/supabase';
@@ -20,6 +20,7 @@ const CollabSheetEditor = dynamic(() => import('@/components/CollabSheetEditor')
 const CollabSlideEditor = dynamic(() => import('@/components/CollabSlideEditor'), { ssr: false, loading: () => <div className="p-8 text-sm text-muted2">Loading slides…</div> });
 import DriveShareModal from '@/components/DriveShareModal';
 import DriveSharedView from '@/components/DriveSharedView';
+import DriveTrashView from '@/components/DriveTrashView';
 import DriveComments from '@/components/DriveComments';
 import DriveActivityModal from '@/components/DriveActivityModal';
 import DriveAccessModal from '@/components/DriveAccessModal';
@@ -69,7 +70,7 @@ export default function DrivesPage() {
   const [level, setLevel] = useState<DriveLevel | null>(null);
   const [people, setPeople] = useState<OrgUser[]>([]);
   const [shareFor, setShareFor] = useState<Drive | null>(null);
-  const [view, setView] = useState<'files' | 'shared'>('files');
+  const [view, setView] = useState<'files' | 'shared' | 'trash'>('files');
   const [commentsFor, setCommentsFor] = useState<{ id: string; name: string } | null>(null);
   const [query, setQuery] = useState('');
   const [adv, setAdv] = useState<{ type: string; owner: string; dated: string }>({ type: '', owner: '', dated: '' });
@@ -82,7 +83,6 @@ export default function DrivesPage() {
   const [menu, setMenu] = useState<{ x: number; y: number; kind: 'file' | 'folder'; item: any } | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [bulkMove, setBulkMove] = useState(false);
-  const [archived, setArchived] = useState<{ files: DriveFile[]; folders: DriveFolder[] } | null>(null);
   const [activityFor, setActivityFor] = useState<{ id: string; name: string; kind: 'file' | 'folder' } | null>(null);
   const [accessFor, setAccessFor] = useState<{ kind: 'file' | 'folder'; id: string; name: string; drive_id: string; folder_id?: string | null } | null>(null);
   const [requestsOpen, setRequestsOpen] = useState(false);
@@ -339,7 +339,7 @@ export default function DrivesPage() {
     out.push({ icon: 'ti-history', label: 'Activity', run: () => setActivityFor({ id: it.id, name: it.name, kind: m.kind }) });
     out.push({ icon: 'ti-shield-lock', label: 'Access', run: () => setAccessFor({ kind: m.kind, id: it.id, name: it.name, drive_id: it.drive_id, folder_id: m.kind === 'file' ? it.folder_id : null }) });
     if (ed) out.push({ icon: 'ti-arrows-move', label: 'Move', run: () => setMoving({ kind: m.kind, id: it.id, name: it.name, parent: m.kind === 'folder' ? it.parent_id : it.folder_id }) });
-    if (ed) out.push({ icon: 'ti-archive', label: 'Archive', run: () => (m.kind === 'folder' ? archiveFolder(it.id) : archiveFile(it.id)).then(refreshHere).catch((e: any) => setErr(e.message)) });
+    if (ed) out.push({ icon: 'ti-trash', label: 'Move to trash', run: () => (m.kind === 'folder' ? archiveFolder(it.id) : archiveFile(it.id)).then(refreshHere).catch((e: any) => setErr(e.message)) });
     if (ed) out.push({ icon: 'ti-trash', label: 'Delete', danger: true, run: () => (m.kind === 'folder' ? delFolder(it) : delFile(it)) });
     return out;
   };
@@ -454,15 +454,17 @@ export default function DrivesPage() {
           <div className="card overflow-hidden">
             {!active ? <div className="p-8"><EmptyState icon="ti-folders" text="Select or create a drive." /></div> : (
               <>
-                {(() => { const TABS: { key: 'files' | 'shared'; label: string; icon: string }[] = [{ key: 'files', label: 'Files', icon: 'ti-folder' }]; if (canManage) TABS.push({ key: 'shared', label: 'Shared', icon: 'ti-user-share' }); return (
+                {(() => { const TABS: { key: 'files' | 'shared' | 'trash'; label: string; icon: string }[] = [{ key: 'files', label: 'Files', icon: 'ti-folder' }]; if (canManage) TABS.push({ key: 'shared', label: 'Shared', icon: 'ti-user-share' }); TABS.push({ key: 'trash', label: 'Trash', icon: 'ti-trash' }); return (
                   <div className="flex items-center gap-1 px-3 border-b border-line overflow-x-auto">
-                    {TABS.map((t) => { const on = t.key === 'shared' ? (view === 'shared' && !searchSession) : (view === 'files' || searchSession); return (
-                      <button key={t.key} onClick={() => { if (t.key === 'shared') { clearSearch(); setView('shared'); } else setView('files'); }} className={`flex items-center gap-1.5 px-3 py-2 text-sm -mb-px border-b-2 whitespace-nowrap ${on ? 'border-accent text-content font-medium' : 'border-transparent text-muted hover:text-content'}`}><Icon name={t.icon} className="text-base" />{t.label}</button>
+                    {TABS.map((t) => { const on = t.key === 'files' ? (view === 'files' || searchSession) : (view === t.key && !searchSession); return (
+                      <button key={t.key} onClick={() => { if (t.key === 'files') setView('files'); else { clearSearch(); setView(t.key); } }} className={`flex items-center gap-1.5 px-3 py-2 text-sm -mb-px border-b-2 whitespace-nowrap ${on ? 'border-accent text-content font-medium' : 'border-transparent text-muted hover:text-content'}`}><Icon name={t.icon} className="text-base" />{t.label}</button>
                     ); })}
                   </div>
                 ); })()}
                 {view === 'shared' && !searchSession ? (
                   <DriveSharedView drive={active} people={people} projects={projects} canManage={canManage} folders={folders} onPortalChange={(pid) => { const did = active.id; setActive((a) => (a ? { ...a, project_id: pid } : a)); setDrives((ds) => (ds || []).map((x) => (x.id === did ? { ...x, project_id: pid } : x))); }} />
+                ) : view === 'trash' && !searchSession ? (
+                  <DriveTrashView drive={active} canEdit={canEdit} fileIcon={fileIcon} onChange={refreshHere} />
                 ) : (
                 <>
                 {searchSession ? (
@@ -509,7 +511,6 @@ export default function DrivesPage() {
                       </>
                     )}
                   </div>
-                  <button className="btn h-8 py-0" disabled={!active} onClick={() => { if (active) listArchived(active.id).then(setArchived).catch((e) => setErr(e.message)); }}><Icon name="ti-archive" className="text-sm" />Archived</button>
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => setRequestsOpen(true)}><Icon name="ti-inbox" className="text-sm" />Requests{pendingReq > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-white text-2xs">{pendingReq}</span>}</button>}
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => active && setShareFor(active)}><Icon name="ti-user-share" className="text-sm" />Share</button>}
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onUpload(e.target.files)} />
@@ -524,8 +525,8 @@ export default function DrivesPage() {
                         <span className="font-medium">{selected.size} selected</span>
                         <button className="btn h-7 py-0" disabled={busy} onClick={() => setBulkMove(true)}><Icon name="ti-arrows-move" className="text-sm" />Move</button>
                         <button className="btn h-7 py-0" disabled={busy} onClick={bulkDownload}><Icon name="ti-download" className="text-sm" />Download</button>
-                        <button className="btn h-7 py-0" disabled={busy} onClick={bulkArchive}><Icon name="ti-archive" className="text-sm" />Archive</button>
-                        <button className="btn h-7 py-0 text-rose-600" disabled={busy} onClick={bulkDelete}><Icon name="ti-trash" className="text-sm" />Delete</button>
+                        <button className="btn h-7 py-0" disabled={busy} onClick={bulkArchive}><Icon name="ti-trash" className="text-sm" />Trash</button>
+                        <button className="btn h-7 py-0 text-rose-600" disabled={busy} onClick={bulkDelete}><Icon name="ti-trash-x" className="text-sm" />Delete</button>
                         <button className="btn h-7 py-0 ml-auto" onClick={clearSel}>Clear</button>
                       </div>
                     )}
@@ -684,27 +685,6 @@ export default function DrivesPage() {
             </button>
             {renderBulkMoveTargets(null, 0)}
           </div>
-        </Modal>
-      )}
-      {archived && (
-        <Modal open onClose={() => setArchived(null)} size="md" icon="ti-archive" title="Archived items"
-          footer={<button className="btn" onClick={() => setArchived(null)}>Close</button>}>
-          {(archived.files.length === 0 && archived.folders.length === 0) ? <p className="text-2xs text-muted2 py-4 text-center">Nothing archived in this drive.</p> : (
-            <div className="rounded-lg border border-line divide-y divide-line max-h-[55vh] overflow-auto">
-              {archived.folders.map((f) => (
-                <div key={f.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                  <Icon name="ti-folder" className="text-amber-500 shrink-0" /><span className="flex-1 truncate">{f.name}</span>
-                  {canEdit(f.created_by) && <button className="btn h-7 py-0" onClick={() => restoreFolder(f.id).then(() => { if (active) listArchived(active.id).then(setArchived); refreshHere(); }).catch((e) => setErr(e.message))}><Icon name="ti-arrow-back-up" className="text-sm" />Restore</button>}
-                </div>
-              ))}
-              {archived.files.map((f) => (
-                <div key={f.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                  <Icon name={fileIcon(f)} className="text-muted shrink-0" /><span className="flex-1 truncate">{f.name}</span>
-                  {canEdit(f.created_by) && <button className="btn h-7 py-0" onClick={() => restoreFile(f.id).then(() => { if (active) listArchived(active.id).then(setArchived); refreshHere(); }).catch((e) => setErr(e.message))}><Icon name="ti-arrow-back-up" className="text-sm" />Restore</button>}
-                </div>
-              ))}
-            </div>
-          )}
         </Modal>
       )}
       {activityFor && (
