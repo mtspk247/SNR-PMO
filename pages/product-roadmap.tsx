@@ -19,7 +19,7 @@ export default function ProductRoadmap() {
   const vote = async (id: string) => { setBusy(id); try { const { error } = await sb.rpc('feedback_vote', { p_id: id }); if (error) throw new Error(error.message); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(''); } };
   return (
     <Layout title="Roadmap">
-      <PageHeader title="Product roadmap" subtitle="What we're considering, building and have shipped — vote for what matters to you" icon="ti-map-2" help="feedback" />
+      <PageHeader title="Product roadmap" subtitle="What we're considering, building and have shipped — vote for what matters to you" icon="ti-map-2" help="roadmap" />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {items === null ? <Spinner /> : items.length === 0 ? <EmptyState icon="ti-map-2" title="Nothing here yet" text="As we plan and ship improvements they'll appear here. Send ideas any time from the feedback button." /> : (
         <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">

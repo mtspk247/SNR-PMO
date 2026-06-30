@@ -840,6 +840,20 @@ export const SECTIONS: Section[] = [
       ] },
       { kind: 'callout', icon: 'ti-lock', text: 'Insights is platform-team only and read-only — every figure is computed live, and access is fail-closed for everyone else.' },
     ],
+  },
+  {
+    id: 'roadmap',
+    title: 'Product roadmap & voting',
+    icon: 'ti-map-2',
+    blocks: [
+      { kind: 'p', text: 'The Roadmap (sidebar) shows what is being considered, planned, built and shipped — and lets your team vote for what matters most. It is a curated, public view: nothing appears until it is promoted, so private feedback is never exposed.' },
+      { kind: 'bullets', items: [
+        { text: 'Anyone signed in can open the Roadmap, see the four columns (Considering, Planned, In progress, Shipped) and upvote items — one vote per person; click again to remove it. Items are ordered by votes so the most-wanted work rises to the top.' },
+        { text: 'Only the platform team can put an item on the roadmap: open Feedback (Administration menu), open a submission, and use “Add to public roadmap”. A clean public title is shown instead of the raw submission.' },
+        { text: 'To take something off the roadmap, open it in Feedback again and toggle it back off.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Access is role-based: viewing and voting are open to all signed-in users; promoting or removing items is platform-admin only. The roadmap only ever exposes the title, type, status and vote count — never the submitter, their workspace, or the original message.' },
+    ],
   }
 ];
 // ---------------------------------------------------------------------------
