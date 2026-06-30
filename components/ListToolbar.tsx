@@ -25,6 +25,7 @@ export type ListPrefs = {
   widths: Record<string, number>; setWidth: (id: string, w: number) => void;
   wrap: Record<string, boolean>; toggleWrap: (id: string) => void;
   pinned: number; setPinned: (n: number) => void; // # of leading columns frozen (sticky-left)
+  dirty: boolean; hasSaved: boolean; saveView: () => void; resetView: () => void;
   storageKey: string;
 };
 
@@ -50,29 +51,32 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   const [widths, setWidths] = useState<Record<string, number>>({});
   const [wrap, setWrap] = useState<Record<string, boolean>>({});
   const [pinned, setPinned] = useState(0);
+  const [saved, setSaved] = useState<any>(null);
   const loaded = useRef(false);
 
   useEffect(() => {
     loaded.current = false;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const v = JSON.parse(raw);
-        const kn: string[] = Array.isArray(v.known) ? v.known : ids;
-        setKnown(new Set(kn));
-        if (Array.isArray(v.order)) { const valid = v.order.filter((x: string) => ids.includes(x)); setOrder([...valid, ...ids.filter((x) => !valid.includes(x))]); }
-        else setOrder(ids);
-        if (Array.isArray(v.visible)) {
-          const vis = new Set<string>(v.visible.filter((x: string) => ids.includes(x)));
-          ids.forEach((x) => { if (!kn.includes(x)) vis.add(x); });
-          setVisible(vis);
-        } else setVisible(new Set(ids));
-        setFilters(v.filters && typeof v.filters === 'object' ? v.filters : {});
-        setWidths(v.widths && typeof v.widths === 'object' ? v.widths : {});
-        setWrap(v.wrap && typeof v.wrap === 'object' ? v.wrap : {});
-        setPinned(typeof v.pinned === 'number' ? v.pinned : 0);
-      } else { setOrder(ids); setVisible(new Set(ids)); setKnown(new Set(ids)); setFilters({}); setWidths({}); setWrap({}); setPinned(0); }
-    } catch { /* ignore */ }
+    let v: any = null;
+    try { const raw = localStorage.getItem(storageKey); if (raw) v = JSON.parse(raw); } catch { /* ignore */ }
+    // Only an explicitly SAVED view (v._v === 2) is restored; otherwise every visit
+    // starts clean — no sticky filters, default order, newest-first. Old auto-saved
+    // blobs (no _v) are ignored so legacy filters don't persist.
+    if (v && v._v === 2) {
+      const kn: string[] = Array.isArray(v.known) ? v.known : ids;
+      setKnown(new Set(kn));
+      const valid = Array.isArray(v.order) ? v.order.filter((x: string) => ids.includes(x)) : [];
+      setOrder([...valid, ...ids.filter((x) => !valid.includes(x))]);
+      const vis = Array.isArray(v.visible) ? new Set<string>(v.visible.filter((x: string) => ids.includes(x))) : new Set<string>(ids);
+      ids.forEach((x) => { if (!kn.includes(x)) vis.add(x); });
+      setVisible(vis);
+      setFilters(v.filters && typeof v.filters === 'object' ? v.filters : {});
+      setWidths(v.widths && typeof v.widths === 'object' ? v.widths : {});
+      setWrap(v.wrap && typeof v.wrap === 'object' ? v.wrap : {});
+      setPinned(typeof v.pinned === 'number' ? v.pinned : 0);
+      setSaved(v);
+    } else {
+      setOrder(ids); setVisible(new Set(ids)); setKnown(new Set(ids)); setFilters({}); setWidths({}); setWrap({}); setPinned(0); setSaved(null);
+    }
     loaded.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
@@ -88,10 +92,7 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
 
-  useEffect(() => {
-    if (!loaded.current) return;
-    try { localStorage.setItem(storageKey, JSON.stringify({ order, visible: [...visible], filters, known: [...known], widths, wrap, pinned })); } catch { /* ignore */ }
-  }, [storageKey, order, visible, filters, known, widths, wrap, pinned]);
+  // No silent persistence: changes live in memory until the user clicks "Save view".
 
   const setFilter = (id: string, v: string) => setFilters((pr) => ({ ...pr, [id]: v }));
   const clearFilters = () => setFilters({});
@@ -102,7 +103,21 @@ export function useListPrefs(storageKey: string, baseCols: ColDef[], cfOpts?: { 
   const setWidth = (id: string, w: number) => setWidths((pr) => ({ ...pr, [id]: Math.max(60, Math.round(w)) }));
   const toggleWrap = (id: string) => setWrap((pr) => ({ ...pr, [id]: !pr[id] }));
   const ordered = order.filter((id) => visible.has(id) && ids.includes(id));
-  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: effEntity ? cf : undefined, widths, setWidth, wrap, toggleWrap, pinned, setPinned, storageKey };
+  // ----- Save-view model: a view is dirty when it differs from the saved view (or, if none, from defaults).
+  const normF = (f: Record<string, string>) => JSON.stringify(Object.fromEntries(Object.entries(f || {}).filter(([, val]) => val && val !== 'all').sort()));
+  const sameArr = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const sameSet = (a: Set<string>, b: string[]) => a.size === b.length && b.every((x) => a.has(x));
+  const baseOrder = saved?.order ? [...saved.order.filter((x: string) => ids.includes(x)), ...ids.filter((x) => !saved.order.includes(x))] : ids;
+  const baseVisible = saved?.visible ? saved.visible.filter((x: string) => ids.includes(x)) : ids;
+  const dirty = !sameArr(order, baseOrder) || !sameSet(visible, baseVisible)
+    || normF(filters) !== normF(saved?.filters || {})
+    || JSON.stringify(widths) !== JSON.stringify(saved?.widths || {})
+    || JSON.stringify(wrap) !== JSON.stringify(saved?.wrap || {})
+    || pinned !== (saved?.pinned || 0);
+  const hasSaved = !!saved;
+  const saveView = () => { const snap = { _v: 2, order, visible: [...visible], filters, known: [...known], widths, wrap, pinned }; try { localStorage.setItem(storageKey, JSON.stringify(snap)); } catch { /* ignore */ } setSaved(snap); };
+  const resetView = () => { try { localStorage.removeItem(storageKey); } catch { /* ignore */ } setOrder(ids); setVisible(new Set(ids)); setKnown(new Set(ids)); setFilters({}); setWidths({}); setWrap({}); setPinned(0); setSaved(null); };
+  return { query, setQuery, filters, setFilter, clearFilters, activeCount, visible, toggle, order, move, setOrderArr, ordered, allCols: cols, cf: effEntity ? cf : undefined, widths, setWidth, wrap, toggleWrap, pinned, setPinned, dirty, hasSaved, saveView, resetView, storageKey };
 }
 
 export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', children, rightControls }:
@@ -186,6 +201,18 @@ export function ListToolbar({ prefs, cols, filters, placeholder = 'Search…', c
           </div>
         )}
       </div>
+      {(prefs.dirty || prefs.hasSaved) && (
+        <div className="inline-flex items-center gap-1.5 h-9 px-2 rounded-lg border border-line bg-surface shrink-0">
+          {prefs.dirty ? (<>
+            <span className="text-2xs text-muted2 hidden lg:inline">View changed</span>
+            <button onClick={prefs.saveView} className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-2xs font-medium text-accentstrong hover:bg-accent/10"><Icon name="ti-device-floppy" className="text-sm" />Save view</button>
+            <button onClick={prefs.resetView} title="Discard changes" className="text-2xs text-muted2 hover:text-content px-1">Reset</button>
+          </>) : (<>
+            <span className="text-2xs text-emerald-600 inline-flex items-center gap-1"><Icon name="ti-bookmark" className="text-sm" />Saved</span>
+            <button onClick={prefs.resetView} title="Reset to default" className="text-2xs text-muted2 hover:text-content px-1">Reset</button>
+          </>)}
+        </div>
+      )}
       {children}
       {rightControls}
     </div>

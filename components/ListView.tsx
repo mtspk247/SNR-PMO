@@ -105,8 +105,7 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
       const raw = localStorage.getItem(vsKey);
       if (raw) {
         const v = JSON.parse(raw);
-        if (typeof v.sortBy === 'string') setSortBy(v.sortBy);
-        if (v.sortDir === 'asc' || v.sortDir === 'desc') setSortDir(v.sortDir);
+        // Sort is intentionally NOT restored — every visit defaults to newest-first.
         if (canGroup && typeof v.grouped === 'boolean') setGrouped(v.grouped);
         if (canGroup && (v.view === 'list' || v.view === 'board')) setView(v.view);
       }
@@ -120,7 +119,12 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
   }, [vsKey, sortBy, sortDir, grouped, view]);
   const sorted = useMemo<T[] | null>(() => {
     if (rows === null) return null;
-    if (!sortBy) return rows;
+    if (!sortBy) {
+      // Default order = newest first by date of entry, when the rows carry one.
+      const dk = ['created_at', 'inserted_at', 'date', 'updated_at'].find((f) => rows.length > 0 && (rows[0] as any)[f] != null);
+      if (!dk) return rows;
+      return [...rows].sort((a, b) => String((b as any)[dk] ?? '').localeCompare(String((a as any)[dk] ?? '')));
+    }
     const get = (r: T) => (p.exportValue ? p.exportValue(sortBy, r) : p.rawValue ? p.rawValue(sortBy, r) : '');
     const arr = [...rows];
     arr.sort((a, b) => {
