@@ -3777,6 +3777,11 @@ export async function getOrgAgentsPaused(orgId: string): Promise<boolean> {
   const { data } = await sb.from('organizations').select('agents_paused').eq('id', orgId).maybeSingle();
   return !!(data as any)?.agents_paused;
 }
+export interface AgentBriefing { awaiting: number; watched_today: number; proposed_today: number; executed_today: number; rolled_back_today: number; top: { id: string; summary: string; domain: string; risk: string; agent: string | null; proposed_at: string }[]; }
+export async function getAgentBriefing(orgId: string): Promise<AgentBriefing | null> {
+  const { data, error } = await sb.rpc('agent_briefing', { p_org: orgId });
+  if (error) return null; return (data as AgentBriefing) || null;
+}
 export async function createAgent(row: { org_id: string; name: string; domain: AgentDomain; description?: string | null; autonomy_level?: AgentAutonomy; created_by?: string | null }): Promise<AgentDefinition[]> {
   const { error } = await sb.from('agent_definitions').insert(row);
   if (error) throw new Error(error.message);
