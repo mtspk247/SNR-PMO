@@ -826,6 +826,20 @@ export const SECTIONS: Section[] = [
       ] },
       { kind: 'callout', icon: 'ti-database-export', text: 'Archiving takes an automatic restore point first, and restore re-opens the workspace exactly as it was. Archived workspaces are retained securely until an operator explicitly purges them.' },
     ],
+  },
+  {
+    id: 'insights',
+    title: 'Insights (platform analytics)',
+    icon: 'ti-chart-histogram',
+    blocks: [
+      { kind: 'p', text: 'Insights (Platform menu) gives the platform team a cross-tenant view of how the product is adopted — so you can see what works and where tenants get stuck.' },
+      { kind: 'bullets', items: [
+        { text: 'Overview: total tenants, new tenants in the last 30 days, active users (7 and 30 days), resellers and suspended workspaces.' },
+        { text: 'Activation funnel: how many tenants reach each milestone — signed up, created a project, invited a teammate, added a contact, sent an invoice.' },
+        { text: 'New tenants per week, plus a per-tenant health table (members, last-active, and counts across projects, tasks, clients, deals and invoices). Click a tenant to open its admin page.' },
+      ] },
+      { kind: 'callout', icon: 'ti-lock', text: 'Insights is platform-team only and read-only — every figure is computed live, and access is fail-closed for everyone else.' },
+    ],
   }
 ];
 // ---------------------------------------------------------------------------
