@@ -56,7 +56,7 @@ export default function EmployeesPage() {
   }, [rows]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [groupBy, setGroupBy] = useState<GroupBy>('status');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
 
   // avatar signed-URL cache: path → url
   const [avatarMap, setAvatarMap] = useState<Map<string, string>>(new Map());

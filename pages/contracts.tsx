@@ -70,7 +70,7 @@ export default function ContractsPage() {
   const [detail, setDetail] = useState<Contract | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [groupBy, setGroupBy] = useState<'status' | 'none'>('status');
+  const [groupBy, setGroupBy] = useState<'status' | 'none'>('none');
 
   const load = () => {
     if (!org) return;

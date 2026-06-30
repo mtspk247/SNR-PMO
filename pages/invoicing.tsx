@@ -52,7 +52,7 @@ export default function InvoicingPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [groupBy, setGroupBy] = useState<GroupBy>('status');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
 
   const prefs = useListPrefs('snrpmo.invoicing.cols', COLS, { entity: 'invoicing', orgId: org?.id, canManage: ['owner', 'admin'].includes(org?.member_role || '') });
   const q = prefs.query;

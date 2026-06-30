@@ -63,7 +63,7 @@ export default function JobsPage() {
   useEffect(() => { if (editor) initialRef.current = JSON.stringify(editor.draft); }, [!!editor]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [groupBy, setGroupBy] = useState<'status' | 'none'>('status');
+  const [groupBy, setGroupBy] = useState<'status' | 'none'>('none');
 
   const load = () => {
     if (!org) return;
