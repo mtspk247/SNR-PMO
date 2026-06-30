@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Tabs, HelpHint } from '@/components/ui';
-import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, setOrgFab } from '@/lib/db';
+import { updateOrgSettings, setOrgTheme, setOrgAllowUserThemes, getNotificationPrefs, saveNotificationPrefs, getMyNotifSettings, NotifSetting, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, setOrgFab, requestAccountDeletion, cancelAccountDeletion, accountDeletionStatus, AccountDeletionStatus } from '@/lib/db';
 import { getOrgProfile, saveOrgProfile, setOrgHiddenPages } from '@/lib/db';
 import { MyOrg, FabCustomShortcut } from '@/lib/supabase';
 import { MODULE_GROUPS } from '@/lib/nav';
@@ -210,6 +210,49 @@ function WipeWorkspace({ org }: { org: { id: string; name: string } }) {
         <button className="btn btn-danger" disabled={wiping || name.trim() !== org.name} onClick={wipe}><Icon name="ti-trash-x" />{wiping ? 'Backing up & wiping…' : 'Back up & wipe data'}</button>
         {msg && <span className="text-2xs text-muted">{msg}</span>}
       </div>
+    </div>
+  );
+}
+
+function DeleteWorkspace({ org }: { org: { id: string; name: string } }) {
+  const [status, setStatus] = useState<AccountDeletionStatus | null>(null);
+  const [name, setName] = useState(''); const [busy, setBusy] = useState(false); const [msg, setMsg] = useState('');
+  const refresh = () => accountDeletionStatus(org.id).then(setStatus).catch(() => {});
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [org.id]);
+  const request = async () => {
+    if (name.trim() !== org.name) return;
+    setBusy(true); setMsg('');
+    try { await requestAccountDeletion(org.id); setName(''); setMsg('Check your email — we sent a confirmation link to verify this deletion.'); refresh(); }
+    catch (e: any) { setMsg(e.message || 'Could not start deletion'); } finally { setBusy(false); }
+  };
+  const cancel = async () => {
+    if (!confirm('Cancel the scheduled deletion and keep this workspace?')) return;
+    setBusy(true); setMsg('');
+    try { await cancelAccountDeletion(org.id); setMsg('Deletion cancelled — your workspace is safe.'); refresh(); }
+    catch (e: any) { setMsg(e.message); } finally { setBusy(false); }
+  };
+  const pending = status?.state === 'scheduled' || status?.state === 'requested';
+  return (
+    <div className="card p-6 max-w-4xl mb-6 border border-rose-200">
+      <div className="flex items-center gap-2 mb-1"><Icon name="ti-trash-x" className="text-rose-600" /><p className="text-sm font-semibold">Delete this workspace</p></div>
+      <p className="text-2xs text-muted mb-3">Permanently deletes the entire workspace — all data, members and settings. We email you to confirm, then keep everything recoverable for 30 days before removal. You can cancel anytime during those 30 days.</p>
+      {pending ? (
+        <div className="rounded-lg border border-line bg-surface2 p-3 text-2xs space-y-2">
+          {status?.state === 'scheduled'
+            ? <p><Icon name="ti-clock" className="mr-1 text-rose-600" />Scheduled for deletion on <span className="font-semibold text-rose-600">{status?.scheduled_for ? new Date(status.scheduled_for).toLocaleDateString() : 'the scheduled date'}</span>. Recoverable until then.</p>
+            : <p><Icon name="ti-mail" className="mr-1" />Deletion requested — check your email for the confirmation link to start the 30-day countdown.</p>}
+          <button className="btn btn-ghost h-7 py-0 border border-line" disabled={busy} onClick={cancel}><Icon name="ti-arrow-back-up" />Cancel deletion</button>
+        </div>
+      ) : (
+        <>
+          <label className="block text-2xs text-muted mb-1">Type <span className="font-mono font-semibold text-content">{org.name}</span> to confirm</label>
+          <input className="input mt-1 max-w-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder={org.name} />
+          <div className="mt-2 flex items-center gap-3">
+            <button className="btn btn-danger" disabled={busy || name.trim() !== org.name} onClick={request}><Icon name="ti-trash-x" />{busy ? 'Sending…' : 'Request workspace deletion'}</button>
+          </div>
+        </>
+      )}
+      {msg && <p className="text-2xs text-muted mt-2">{msg}</p>}
     </div>
   );
 }
@@ -474,6 +517,7 @@ export default function SettingsPage() {
         </div>
       )}
       {isOwner && tab === 'danger' && <WipeWorkspace org={org} />}
+      {isOwner && tab === 'danger' && <DeleteWorkspace org={org} />}
 
       {admin && tab === 'audit' && org && (
         <div className="max-w-5xl"><AuditLog /></div>
