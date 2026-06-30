@@ -9,7 +9,7 @@ import { sb } from '@/lib/supabase';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
 
-type FB = { id: string; org_id: string; org_name: string | null; kind: string; subject: string; body: string | null; status: string; priority: string | null; page_path: string | null; app_version: string | null; rating: number | null; meta: Record<string, any> | null; admin_note: string | null; created_at: string; updated_at: string | null; submitter: string | null; submitter_email: string | null; reply_count: number };
+type FB = { id: string; org_id: string; org_name: string | null; kind: string; subject: string; body: string | null; status: string; priority: string | null; page_path: string | null; app_version: string | null; rating: number | null; meta: Record<string, any> | null; admin_note: string | null; created_at: string; updated_at: string | null; submitter: string | null; submitter_email: string | null; public: boolean; public_title: string | null; votes: number; reply_count: number };
 type Reply = { id: string; author: string | null; message: string; created_at: string };
 
 const STATUSES = ['new', 'triaged', 'planned', 'in_progress', 'done', 'declined'];
@@ -72,6 +72,10 @@ function Detail({ fb, onClose, onChange }: { fb: FB; onClose: () => void; onChan
           <select value={fb.status} onChange={(e) => { sb.rpc('feedback_triage', { p_id: fb.id, p_status: e.target.value, p_priority: null, p_note: null }).then(onChange, () => {}); }} className="input h-8 py-0 text-2xs capitalize flex-1">{STATUSES.map((s) => <option key={s} value={s}>{title(s)}</option>)}</select></div>
         <div className="flex items-center gap-2"><label className="text-2xs text-muted2 w-16">Priority</label>
           <select value={fb.priority || ''} onChange={(e) => { sb.rpc('feedback_triage', { p_id: fb.id, p_status: null, p_priority: e.target.value, p_note: null }).then(onChange, () => {}); }} className="input h-8 py-0 text-2xs capitalize flex-1"><option value="">—</option>{PRIOS.map((p) => <option key={p} value={p}>{title(p)}</option>)}</select></div>
+        <div className="flex items-center gap-2"><label className="text-2xs text-muted2 w-16">Roadmap</label>
+          <button onClick={() => { sb.rpc('feedback_set_public', { p_id: fb.id, p_public: !fb.public, p_title: null }).then(onChange, () => {}); }} className={`btn h-8 py-0 text-2xs ${fb.public ? 'btn-primary' : 'border border-line text-muted'}`}><Icon name={fb.public ? 'ti-check' : 'ti-map-2'} />{fb.public ? 'On public roadmap' : 'Add to public roadmap'}</button>
+          {fb.votes > 0 && <span className="text-2xs text-muted2">{fb.votes} vote{fb.votes === 1 ? '' : 's'}</span>}
+        </div>
         <div>
           <p className="text-2xs font-semibold text-content mb-1.5">Conversation</p>
           {thread === null ? <p className="text-2xs text-muted">Loading…</p> : thread.length === 0 ? <p className="text-2xs text-muted2">No replies yet.</p> :

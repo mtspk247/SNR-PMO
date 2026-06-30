@@ -204,9 +204,10 @@ export const RESELLER_SECTION: NavSection = { kind: 'menu', key: 'reseller', lab
 ] };
 
 export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } };
+export const ROADMAP_LINK: NavSection = { kind: 'link', item: { href: '/product-roadmap', label: 'Roadmap', icon: 'ti-map-2' } };
 
 // --- Derived lookups (do not hand-maintain) -----------------------------
-export const ALL_SECTIONS: NavSection[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK, PLATFORM_SECTION];
+export const ALL_SECTIONS: NavSection[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK, ROADMAP_LINK, PLATFORM_SECTION];
 
 // Flat list of every nav item across all sections.
 export const ALL_ITEMS: NavItem[] = ALL_SECTIONS.flatMap((s) => s.kind === 'link' ? [s.item] : s.items);
