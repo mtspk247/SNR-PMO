@@ -1,4 +1,11 @@
 
+## 2026-06-30 — IA refinements (Tariq's clarifications)
+- **Guests → "Portal Access"** (label only; route `/guests` unchanged) to disambiguate from CRM Clients and the Client Portal.
+- **Inbox menu → "Messages"** with sub-group headers: Team (Team Chat) and SMS (Send SMS = `/messaging`, SMS Inbox = `/inbox`) — clarifies the send-vs-replies pair.
+- **CRM order:** Leads now listed before Sales Pipeline (correct funnel order).
+- **Roadmap placement (CTO call):** kept the product roadmap **user-facing** (the voting loop is a growth feature) and placed it next to Docs as an informational link, rather than hidden under Platform. Feedback stays under Platform. (Tradeoff noted: for white-label tenants we can later gate the roadmap to avoid brand-bleed.)
+- nav-only; tests 24/24; esbuild green. Rides with the still-unpublished batch — all live on the next production deploy/promote.
+
 ## 2026-06-30 — Reseller Insights + IA moves (Roadmap & Feedback → Platform)
 - **Reseller Insights** (`/reseller/insights`, surfaced in the Reseller sidebar Overview group): sub-tenant KPIs (total/active/suspended/members/seats), sub-tenants-by-plan bars, and AI-agent margin MTD with top sub-tenants — all from the reseller's OWN sub-tenants via existing RLS-scoped RPCs (`reseller_list_orgs`/`reseller_billing_summary`/`reseller_agent_margin`). No new backend, no new permission surface; read-only.
 - **Roadmap → Platform** (per Tariq): the product roadmap link moved from a top-level nav item into the Platform menu (Product & Feedback group). NOTE: it's now `platformOnly`, so tenants no longer see it in nav (the `/product-roadmap` page still exists; if tenant voting should stay surfaced, re-add a tenant entry).

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION, PLATFORM_SECTION, ADMIN_SECTION } from '@/lib/nav';
+import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION, PLATFORM_SECTION, ADMIN_SECTION, ROADMAP_LINK } from '@/lib/nav';
 
 test('isPageHidden: not hidden by default', () => {
   assert.equal(isPageHidden([], '/tasks'), false);
@@ -104,7 +104,9 @@ test('Phase2B: Platform console grouped routes; landing exact; no /platform/plan
 
 test('IA moves: Roadmap + Feedback under Platform; Feedback out of Administration; Reseller has Insights', () => {
   const pItems = PLATFORM_SECTION.kind === 'menu' ? PLATFORM_SECTION.items.map((i) => i.href) : [];
-  assert.ok(pItems.includes('/product-roadmap'), 'Roadmap should be under Platform');
+  assert.equal(pItems.includes('/product-roadmap'), false, 'Roadmap moved out of Platform (now user-facing)');
+  assert.equal(ROADMAP_LINK.kind === 'link' && ROADMAP_LINK.item.href, '/product-roadmap');
+  assert.ok(!(ROADMAP_LINK.kind === 'link' && ROADMAP_LINK.item.platformOnly), 'Roadmap link is user-facing');
   assert.ok(pItems.includes('/feedback'), 'Feedback should be under Platform');
   const aItems = ADMIN_SECTION.kind === 'menu' ? ADMIN_SECTION.items.map((i) => i.href) : [];
   assert.equal(aItems.includes('/feedback'), false, 'Feedback should no longer be in Administration');
