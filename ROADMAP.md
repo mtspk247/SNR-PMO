@@ -1,4 +1,11 @@
 
+## 2026-06-30 — Reseller Insights + IA moves (Roadmap & Feedback → Platform)
+- **Reseller Insights** (`/reseller/insights`, surfaced in the Reseller sidebar Overview group): sub-tenant KPIs (total/active/suspended/members/seats), sub-tenants-by-plan bars, and AI-agent margin MTD with top sub-tenants — all from the reseller's OWN sub-tenants via existing RLS-scoped RPCs (`reseller_list_orgs`/`reseller_billing_summary`/`reseller_agent_margin`). No new backend, no new permission surface; read-only.
+- **Roadmap → Platform** (per Tariq): the product roadmap link moved from a top-level nav item into the Platform menu (Product & Feedback group). NOTE: it's now `platformOnly`, so tenants no longer see it in nav (the `/product-roadmap` page still exists; if tenant voting should stay surfaced, re-add a tenant entry).
+- **Feedback → Platform** (per Tariq): moved `/feedback` management out of tenant Administration into the Platform menu (Product & Feedback). Reseller-side feedback deferred until the feedback RPCs are scoped to a reseller's own sub-tenants (RLS follow-up).
+- Cleanup: removed dead `RESELLER_LINK` import from Layout; `ALL_SECTIONS` no longer includes the standalone roadmap link. Tests 24/24; esbuild green.
+- NOTE: this rides on top of the still-unpublished console fixes (tab removal/grouping + reseller feature control) — all live the moment the Vercel build-rate-limit clears or a manual Redeploy runs.
+
 ## 2026-06-30 — Reseller feature control (resell features by choice) SHIPPED
 - **Per Tariq:** resellers can now choose which features each sub-tenant gets, independent of plan. New Features panel on `/reseller/clients/[id]` (Edit-mode gated) toggles features on/off per client.
 - **Security (the crux — it's a permission-granting surface):** writes go ONLY through SECURITY DEFINER RPCs `reseller_set_sub_feature(p_sub,p_feature,p_enabled)` + `reseller_sub_features(p_sub)` (migration `reseller_feature_control_rpcs`, pinned search_path, revoke public, grant authenticated). `org_feature_overrides` keeps SELECT-only grant + no write policy → direct writes fail-closed. Server enforces: (1) caller is owner/admin of the sub's **reseller parent**; (2) parent `is_reseller`; (3) feature exists; (4) ENABLE only when `org_has_feature(parent)` (can't resell what you don't own — parent-chain enforced); disabling always allowed.
