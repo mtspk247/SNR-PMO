@@ -191,7 +191,12 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
 ]};
 
 export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', label: 'Platform', icon: 'ti-building-skyscraper', items: [
-  { href: '/platform', label: 'Console', icon: 'ti-dashboard' },
+  { href: '/platform', label: 'Console', icon: 'ti-dashboard', exact: true },
+  { href: '/platform/plans', label: 'Plans & Features', icon: 'ti-license', platformOnly: true },
+  { href: '/platform/billing', label: 'Billing', icon: 'ti-credit-card', platformOnly: true },
+  { href: '/platform/rollout', label: 'Feature Rollout', icon: 'ti-rocket', platformOnly: true },
+  { href: '/platform/campaigns', label: 'Campaigns', icon: 'ti-speakerphone', platformOnly: true },
+  { href: '/platform/errors', label: 'Reliability', icon: 'ti-alert-triangle', platformOnly: true },
   { href: '/insights', label: 'Insights', icon: 'ti-chart-histogram', platformOnly: true },
   { href: '/tenants', label: 'Tenants', icon: 'ti-building-community', search: searchTenants, platformOnly: true },
 ] };

@@ -53,6 +53,13 @@ const ACTIVITY_COLS: ColDef[] = [
 ];
 
 type Tab = 'plans' | 'billing' | 'email' | 'assistant' | 'backups' | 'errors' | 'owners' | 'rollout' | 'campaigns' | 'activity';
+// Platform console is decomposed into focused /platform/<section> routes.
+const PLATFORM_SECTIONS: Tab[] = ['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'rollout', 'campaigns', 'activity'];
+const PLATFORM_PATHS: Record<Tab, string> = PLATFORM_SECTIONS.reduce((m, k) => { m[k] = k === 'plans' ? '/platform' : `/platform/${k}`; return m; }, {} as Record<Tab, string>);
+function platformRouteSection(pathname: string): Tab | null {
+  for (const k of PLATFORM_SECTIONS) { if (k !== 'plans' && pathname.startsWith(`/platform/${k}`)) return k; }
+  return null;
+}
 
 const PRICING_MODELS: { value: Plan['pricing_model']; label: string }[] = [
   { value: 'flat', label: 'Flat (per org / month)' },
@@ -1150,7 +1157,15 @@ export default function PlatformPage() {
   const [pf, setPf] = useState<PlanFeature[]>([]);
   const [planLimits, setPlanLimits] = useState<PlanLimit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>('plans');
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>(platformRouteSection(router.pathname) || 'plans');
+  // Section follows the route (/platform/<section>); legacy /platform?tab=x deep-links redirect to the real route.
+  useEffect(() => {
+    const r = platformRouteSection(router.pathname);
+    if (r) { setTab(r); return; }
+    const t = router.query.tab;
+    if (typeof t === 'string' && (PLATFORM_SECTIONS as string[]).includes(t)) router.replace(PLATFORM_PATHS[t as Tab]);
+  }, [router.pathname, router.query.tab]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [planModal, setPlanModal] = useState<Plan | 'new' | null>(null);
@@ -1216,7 +1231,7 @@ export default function PlatformPage() {
             {(['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'rollout', 'campaigns', 'activity'] as const).map((t) => (
               <button
                 key={t}
-                onClick={() => setTab(t)}
+                onClick={() => router.push(PLATFORM_PATHS[t])}
                 className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors ${
                   tab === t
                     ? 'border-b-accent text-content'

@@ -1,4 +1,11 @@
 
+## 2026-06-30 — IA Phase 2B: Platform Console decomposed into focused routes
+- Completes Phase 2 (after the Reseller console in 2A). The 10-tab `/platform` monolith is now **route-driven**: `/platform/{plans,billing,email,assistant,backups,errors,owners,rollout,campaigns,activity}` are thin re-export pages of the shared `pages/platform.tsx`; section comes from `platformRouteSection(router.pathname)` (was local `useState`); the in-page tab bar navigates via `router.push`; **legacy `/platform?tab=x` redirects** to the matching route.
+- **Sidebar surfacing (`PLATFORM_SECTION`):** Console (exact) + Plans & Features, Billing, Feature Rollout, Campaigns, Reliability(→/platform/errors) + the existing Insights, Tenants. The remaining tabs (email/assistant/backups/owners/activity) stay reachable from the in-page tab bar and as direct deep-links.
+- **Security:** zero DB/RLS/RBAC change. The page's `platformAdmin` early-return guards every re-export route; platform routes aren't in `SECTIONS`/`TENANT_ITEMS`/`MODULE_GROUPS`, so no tenant per-page guard interferes and `featureForRoute` stays undefined for them. All new hooks sit above the gate (rules-of-hooks safe).
+- **Verify:** esbuild parse green (platform.tsx + 9 route files + nav.ts); `__tests__/nav.test.ts` → 23/23 (locks the platform routes + Console `exact`). SYSTEM_GUIDE updated.
+- **Follow-up:** per-section lazy data-loading (the shared console eager-loads on mount, so switching sections reloads — fine at operator traffic, optimise later). Phase 2 (console decomposition) now complete; Phase 3 = Social live posting + agent drafting.
+
 ## 2026-06-30 — Phase 3A: Social & Content module (secure substrate + composer, shipped DARK)
 - **The moat begins.** New **Social & Content** module (Marketing ▸ Social & Content, `/social`): compose a post once, target channels, save as draft or schedule, and track drafts/scheduled/published/failed/cancelled in the shared **ListView** (search, filters, group-by-status, CSV export, bulk delete). Channel registry for FB/IG/LinkedIn/X/YouTube/TikTok/Threads/Pinterest/Google Business.
 - **DB substrate (migrations applied live via Supabase MCP):** `social_channels`, `social_posts`, `social_post_channels` in `snrpmo` — indexed (`org_id`, partial `scheduled_at` for scheduled), `updated_at` touch triggers, FK cascade.
