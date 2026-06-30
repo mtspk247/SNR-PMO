@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION, PLATFORM_SECTION } from '@/lib/nav';
+import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION, PLATFORM_SECTION, ADMIN_SECTION } from '@/lib/nav';
 
 test('isPageHidden: not hidden by default', () => {
   assert.equal(isPageHidden([], '/tasks'), false);
@@ -100,4 +100,17 @@ test('Phase2B: Platform console grouped routes; landing exact; no /platform/plan
   assert.equal(landing?.label, 'Plans & Features');
   assert.ok(items.every((i) => i.group), 'platform items must be grouped');
   assert.equal(featureForRoute('/platform/billing'), undefined);
+});
+
+test('IA moves: Roadmap + Feedback under Platform; Feedback out of Administration; Reseller has Insights', () => {
+  const pItems = PLATFORM_SECTION.kind === 'menu' ? PLATFORM_SECTION.items.map((i) => i.href) : [];
+  assert.ok(pItems.includes('/product-roadmap'), 'Roadmap should be under Platform');
+  assert.ok(pItems.includes('/feedback'), 'Feedback should be under Platform');
+  const aItems = ADMIN_SECTION.kind === 'menu' ? ADMIN_SECTION.items.map((i) => i.href) : [];
+  assert.equal(aItems.includes('/feedback'), false, 'Feedback should no longer be in Administration');
+  const rItems = RESELLER_SECTION.kind === 'menu' ? RESELLER_SECTION.items.map((i) => i.href) : [];
+  assert.ok(rItems.includes('/reseller/insights'), 'Reseller should have Insights');
+  // moved feedback is operator-only → not a tenant module group
+  const mg = MODULE_GROUPS.flatMap((g) => g.items.map((i) => i.href));
+  assert.equal(mg.includes('/feedback'), false);
 });

@@ -186,7 +186,6 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
   { href: '/automations', label: 'Automations', icon: 'ti-bolt', adminOnly: true, feature: 'automations', group: 'Configuration' },
   { href: '/templates', label: 'Templates', icon: 'ti-files', group: 'Configuration' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations', group: 'Configuration' },
-  { href: '/feedback', label: 'Feedback', icon: 'ti-message-circle', adminOnly: true, group: 'Configuration' },
   { href: '/settings', label: 'Settings', icon: 'ti-settings', group: 'Configuration' },
 ]};
 
@@ -203,10 +202,13 @@ export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', lab
   { href: '/platform/owners', label: 'Co-owners', icon: 'ti-users', platformOnly: true, group: 'Team' },
   { href: '/insights', label: 'Insights', icon: 'ti-chart-histogram', platformOnly: true, group: 'Insight' },
   { href: '/tenants', label: 'Tenants', icon: 'ti-building-community', search: searchTenants, platformOnly: true, group: 'Insight' },
+  { href: '/product-roadmap', label: 'Roadmap', icon: 'ti-map-2', platformOnly: true, group: 'Product & Feedback' },
+  { href: '/feedback', label: 'Feedback', icon: 'ti-message-circle', platformOnly: true, group: 'Product & Feedback' },
 ] };
 
 export const RESELLER_LINK: NavSection = { kind: 'link', item: { href: '/reseller', label: 'Reseller', icon: 'ti-building-community' } };
 export const RESELLER_SECTION: NavSection = { kind: 'menu', key: 'reseller', label: 'Reseller', icon: 'ti-building-community', items: [
+  { href: '/reseller/insights', label: 'Insights', icon: 'ti-chart-histogram', group: 'Overview' },
   { href: '/reseller', label: 'Plans & Pricing', icon: 'ti-package', exact: true, group: 'Selling' },
   { href: '/reseller/payments', label: 'Payments & Signup', icon: 'ti-credit-card', group: 'Selling' },
   { href: '/reseller/clients', label: 'Clients', icon: 'ti-buildings', group: 'Clients & Team' },
@@ -218,7 +220,7 @@ export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', labe
 export const ROADMAP_LINK: NavSection = { kind: 'link', item: { href: '/product-roadmap', label: 'Roadmap', icon: 'ti-map-2' } };
 
 // --- Derived lookups (do not hand-maintain) -----------------------------
-export const ALL_SECTIONS: NavSection[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK, ROADMAP_LINK, PLATFORM_SECTION];
+export const ALL_SECTIONS: NavSection[] = [...SECTIONS, ADMIN_SECTION, DOCS_LINK, PLATFORM_SECTION];
 
 // Flat list of every nav item across all sections.
 export const ALL_ITEMS: NavItem[] = ALL_SECTIONS.flatMap((s) => s.kind === 'link' ? [s.item] : s.items);
