@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { sb } from '@/lib/supabase';
@@ -181,7 +181,15 @@ export default function Layout({ title, children, flat = false }: { title: strin
         </button>
         {open && (
           <div className="ml-[1.05rem] pl-2 border-l border-line space-y-0.5 mt-0.5">
-            {s.items.map((i) => <NavLink key={i.href} {...i} sub />)}
+            {s.items.map((i, idx) => {
+              const showGroup = !collapsed && !!i.group && i.group !== s.items[idx - 1]?.group;
+              return (
+                <Fragment key={i.href}>
+                  {showGroup && <div className="px-2 pt-2 pb-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted2 select-none">{i.group}</div>}
+                  <NavLink {...i} sub />
+                </Fragment>
+              );
+            })}
           </div>
         )}
       </div>

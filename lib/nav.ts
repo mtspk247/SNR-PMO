@@ -23,7 +23,7 @@ export type SearchSpec = {
 // `search` (optional) makes the page searchable from the header.
 export type NavItem = {
   href: string; label: string; icon: string;
-  feature?: FeatureKey; adminOnly?: boolean; platformOnly?: boolean; exact?: boolean; search?: SearchSpec;
+  feature?: FeatureKey; adminOnly?: boolean; platformOnly?: boolean; exact?: boolean; search?: SearchSpec; group?: string;
 };
 export type NavSection =
   | { kind: 'link'; item: NavItem }
@@ -100,8 +100,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/portal', label: 'Client Portal', icon: 'ti-layout-dashboard', feature: 'portal' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox', feature: 'projects', search: searchTasks },
     { href: '/ideas', label: 'Ideas', icon: 'ti-bulb', feature: 'ideas', search: searchIdeas },
-    { href: '/roadmap', label: 'Roadmap', icon: 'ti-timeline', feature: 'projects' },
-    { href: '/chat', label: 'Chat', icon: 'ti-messages', feature: 'chat' },
+    { href: '/roadmap', label: 'Timeline', icon: 'ti-timeline', feature: 'projects' },
     { href: '/approvals', label: 'Approvals', icon: 'ti-checks', adminOnly: true },
   ]},
   { kind: 'menu', key: 'people', label: 'People', icon: 'ti-users', items: [
@@ -109,56 +108,55 @@ export const SECTIONS: NavSection[] = [
     { href: '/workload', label: 'Workload', icon: 'ti-chart-bar', feature: 'teams' },
     { href: '/calendar', label: 'Calendar', icon: 'ti-calendar', feature: 'calendar' },
     { href: '/booking', label: 'Booking', icon: 'ti-calendar-plus', feature: 'booking', search: searchBooking },
-    { href: '/messaging', label: 'Messaging', icon: 'ti-message-2', feature: 'comms' },
-    { href: '/inbox', label: 'Inbox', icon: 'ti-inbox', feature: 'comms' },
     { href: '/guests', label: 'Guests', icon: 'ti-user-question', adminOnly: true },
   ]},
-  { kind: 'menu', key: 'tracking', label: 'Accounting', icon: 'ti-report-money', items: [
-    // Core ledger & reporting
-    { href: '/ledger', label: 'General Ledger', icon: 'ti-book-2', feature: 'financial' },
-    { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial' },
-    // Receivables
-    { href: '/invoicing', label: 'Invoicing', icon: 'ti-file-invoice', feature: 'financial', search: searchInvoices },
-    { href: '/credit-notes', label: 'Credit notes', icon: 'ti-receipt-refund', feature: 'financial', search: searchCreditNotes },
-    { href: '/recurring-billing', label: 'Recurring Billing', icon: 'ti-refresh', feature: 'financial' },
-    { href: '/revenue-recognition', label: 'Revenue Recognition', icon: 'ti-calendar-stats', feature: 'financial' },
-    // Payables
-    { href: '/bills', label: 'Bills / Purchases', icon: 'ti-file-dollar', feature: 'financial', search: searchBills },
-    { href: '/expense-claims', label: 'Expense Claims', icon: 'ti-receipt-2', feature: 'financial', search: searchExpenseClaims },
-    { href: '/recurring', label: 'Recurring Expenses', icon: 'ti-repeat', feature: 'financial', search: searchRecurring },
-    { href: '/subscriptions', label: 'Vendor Subscriptions', icon: 'ti-credit-card', feature: 'subscriptions', search: searchSubscriptions },
-    // Catalog & stock
-    { href: '/products', label: 'Products & Services', icon: 'ti-box', feature: 'financial', search: searchProducts },
-    { href: '/inventory', label: 'Inventory', icon: 'ti-packages', feature: 'financial' },
-    // Registers (balance sheet)
-    { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial', search: searchBankAccounts },
-    { href: '/assets', label: 'Assets', icon: 'ti-building-warehouse', feature: 'financial', search: searchAssets },
-    { href: '/liabilities', label: 'Liabilities', icon: 'ti-businessplan', feature: 'financial' },
-    { href: '/domains', label: 'Domains', icon: 'ti-world-www', feature: 'financial', search: searchDomains },
-    // Analysis
-    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk', search: searchRisks },
+  { kind: 'menu', key: 'inbox', label: 'Inbox', icon: 'ti-inbox', items: [
+    { href: '/chat', label: 'Chat', icon: 'ti-messages', feature: 'chat' },
+    { href: '/messaging', label: 'Messaging', icon: 'ti-message-2', feature: 'comms' },
+    { href: '/inbox', label: 'Inbox', icon: 'ti-inbox', feature: 'comms' },
   ]},
   { kind: 'menu', key: 'crm', label: 'CRM', icon: 'ti-users', items: [
-    { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm', search: searchDeals },
-    { href: '/leads', label: 'Leads', icon: 'ti-filter', feature: 'crm', search: searchLeads },
+    { href: '/crm', label: 'Sales Pipeline', icon: 'ti-target-arrow', feature: 'crm', search: searchDeals, group: 'Pipeline' },
+    { href: '/leads', label: 'Leads', icon: 'ti-filter', feature: 'crm', search: searchLeads, group: 'Pipeline' },
+    { href: '/clients', label: 'Clients', icon: 'ti-friends', feature: 'crm', search: searchClients, group: 'Accounts' },
+    { href: '/proposals', label: 'Proposals', icon: 'ti-file-description', feature: 'crm', search: searchProposals, group: 'Accounts' },
+    { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm', search: searchContracts, group: 'Accounts' },
+  ]},
+  { kind: 'menu', key: 'marketing', label: 'Marketing', icon: 'ti-speakerphone', items: [
     { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms', search: searchForms },
-    { href: '/clients', label: 'Clients', icon: 'ti-friends', feature: 'crm', search: searchClients },
-    { href: '/proposals', label: 'Proposals', icon: 'ti-file-description', feature: 'crm', search: searchProposals },
-    { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm', search: searchContracts },
     { href: '/sequences', label: 'Sequences', icon: 'ti-mail-forward', feature: 'sequences', search: searchSequences },
   ]},
+  { kind: 'menu', key: 'tracking', label: 'Finance', icon: 'ti-report-money', items: [
+    { href: '/ledger', label: 'General Ledger', icon: 'ti-book-2', feature: 'financial', group: 'Ledger & Reporting' },
+    { href: '/financial', label: 'Financial Data', icon: 'ti-currency-dollar', feature: 'financial', group: 'Ledger & Reporting' },
+    { href: '/invoicing', label: 'Invoicing', icon: 'ti-file-invoice', feature: 'financial', search: searchInvoices, group: 'Receivables' },
+    { href: '/credit-notes', label: 'Credit notes', icon: 'ti-receipt-refund', feature: 'financial', search: searchCreditNotes, group: 'Receivables' },
+    { href: '/recurring-billing', label: 'Recurring Billing', icon: 'ti-refresh', feature: 'financial', group: 'Receivables' },
+    { href: '/revenue-recognition', label: 'Revenue Recognition', icon: 'ti-calendar-stats', feature: 'financial', group: 'Receivables' },
+    { href: '/bills', label: 'Bills / Purchases', icon: 'ti-file-dollar', feature: 'financial', search: searchBills, group: 'Payables' },
+    { href: '/expense-claims', label: 'Expense Claims', icon: 'ti-receipt-2', feature: 'financial', search: searchExpenseClaims, group: 'Payables' },
+    { href: '/recurring', label: 'Recurring Expenses', icon: 'ti-repeat', feature: 'financial', search: searchRecurring, group: 'Payables' },
+    { href: '/subscriptions', label: 'Vendor Subscriptions', icon: 'ti-credit-card', feature: 'subscriptions', search: searchSubscriptions, group: 'Payables' },
+    { href: '/products', label: 'Products & Services', icon: 'ti-box', feature: 'financial', search: searchProducts, group: 'Catalog & Stock' },
+    { href: '/inventory', label: 'Inventory', icon: 'ti-packages', feature: 'financial', group: 'Catalog & Stock' },
+    { href: '/bank-accounts', label: 'Bank accounts', icon: 'ti-building-bank', feature: 'financial', search: searchBankAccounts, group: 'Registers' },
+    { href: '/assets', label: 'Assets', icon: 'ti-building-warehouse', feature: 'financial', search: searchAssets, group: 'Registers' },
+    { href: '/liabilities', label: 'Liabilities', icon: 'ti-businessplan', feature: 'financial', group: 'Registers' },
+    { href: '/domains', label: 'Domains', icon: 'ti-world-www', feature: 'financial', search: searchDomains, group: 'Registers' },
+    { href: '/risk', label: 'Risk Analysis', icon: 'ti-alert-triangle', feature: 'risk', search: searchRisks, group: 'Analysis' },
+  ]},
   { kind: 'menu', key: 'hr', label: 'HR', icon: 'ti-heart-handshake', items: [
-    { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr' },
-    { href: '/jobs', label: 'Jobs', icon: 'ti-briefcase-2', feature: 'hr', search: searchJobs },
-    { href: '/applications', label: 'Applications', icon: 'ti-files', feature: 'hr', search: searchApplications },
-    { href: '/interviews', label: 'Interviews', icon: 'ti-calendar-event', feature: 'hr' },
-    { href: '/offers', label: 'Offer letters', icon: 'ti-mail-check', feature: 'hr', search: searchOffers },
-    { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr', search: searchPeople },
-    { href: '/appraisals', label: 'Appraisals', icon: 'ti-clipboard-check', feature: 'appraisals', search: searchAppraisals },
-    { href: '/training', label: 'Training & JDs', icon: 'ti-school', feature: 'hr' },
-    { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr' },
-    { href: '/attendance', label: 'Attendance', icon: 'ti-clock', feature: 'attendance' },
-    { href: '/leave', label: 'Leave', icon: 'ti-beach', feature: 'attendance' },
+    { href: '/jobs', label: 'Jobs', icon: 'ti-briefcase-2', feature: 'hr', search: searchJobs, group: 'Recruiting' },
+    { href: '/applications', label: 'Applications', icon: 'ti-files', feature: 'hr', search: searchApplications, group: 'Recruiting' },
+    { href: '/interviews', label: 'Interviews', icon: 'ti-calendar-event', feature: 'hr', group: 'Recruiting' },
+    { href: '/offers', label: 'Offer letters', icon: 'ti-mail-check', feature: 'hr', search: searchOffers, group: 'Recruiting' },
+    { href: '/onboarding', label: 'Onboarding', icon: 'ti-user-plus', feature: 'hr', group: 'People' },
+    { href: '/employees', label: 'Employees', icon: 'ti-id-badge', feature: 'hr', search: searchPeople, group: 'People' },
+    { href: '/appraisals', label: 'Appraisals', icon: 'ti-clipboard-check', feature: 'appraisals', search: searchAppraisals, group: 'People' },
+    { href: '/training', label: 'Training & JDs', icon: 'ti-school', feature: 'hr', group: 'People' },
+    { href: '/payroll', label: 'Payroll', icon: 'ti-cash', feature: 'hr', group: 'Time & Pay' },
+    { href: '/attendance', label: 'Attendance', icon: 'ti-clock', feature: 'attendance', group: 'Time & Pay' },
+    { href: '/leave', label: 'Leave', icon: 'ti-beach', feature: 'attendance', group: 'Time & Pay' },
   ]},
   { kind: 'link', item: { href: '/drives', label: 'Drives', icon: 'ti-cloud', feature: 'drives' } },
   { kind: 'menu', key: 'support', label: 'Support', icon: 'ti-lifebuoy', items: [
@@ -176,21 +174,20 @@ export const SECTIONS: NavSection[] = [
 ];
 
 export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
-  { href: '/users', label: 'Users', icon: 'ti-user-shield' },
-  { href: '/billing', label: 'Billing', icon: 'ti-credit-card' },
-  { href: '/developer', label: 'Developer', icon: 'ti-code', adminOnly: true, feature: 'api' },
-  { href: '/keys', label: 'API keys', icon: 'ti-key', adminOnly: true },
-  { href: '/admin/quarantine', label: 'File security', icon: 'ti-shield-check', adminOnly: true },
-  { href: '/automations', label: 'Automations', icon: 'ti-bolt', adminOnly: true, feature: 'automations' },
-  { href: '/templates', label: 'Templates', icon: 'ti-files' },
-  { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
-  { href: '/import', label: 'Import data', icon: 'ti-file-import', adminOnly: true },
-  { href: '/export', label: 'Export data', icon: 'ti-file-export', adminOnly: true },
-  { href: '/feedback', label: 'Feedback', icon: 'ti-message-circle', adminOnly: true },
-  { href: '/settings', label: 'Settings', icon: 'ti-settings' },
+  { href: '/users', label: 'Users', icon: 'ti-user-shield', group: 'Access & Billing' },
+  { href: '/billing', label: 'Billing', icon: 'ti-credit-card', group: 'Access & Billing' },
+  { href: '/developer', label: 'Developer', icon: 'ti-code', adminOnly: true, feature: 'api', group: 'Developer' },
+  { href: '/keys', label: 'API keys', icon: 'ti-key', adminOnly: true, group: 'Developer' },
+  { href: '/admin/quarantine', label: 'File security', icon: 'ti-shield-check', adminOnly: true, group: 'Developer' },
+  { href: '/import', label: 'Import data', icon: 'ti-file-import', adminOnly: true, group: 'Data' },
+  { href: '/export', label: 'Export data', icon: 'ti-file-export', adminOnly: true, group: 'Data' },
+  { href: '/automations', label: 'Automations', icon: 'ti-bolt', adminOnly: true, feature: 'automations', group: 'Configuration' },
+  { href: '/templates', label: 'Templates', icon: 'ti-files', group: 'Configuration' },
+  { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations', group: 'Configuration' },
+  { href: '/feedback', label: 'Feedback', icon: 'ti-message-circle', adminOnly: true, group: 'Configuration' },
+  { href: '/settings', label: 'Settings', icon: 'ti-settings', group: 'Configuration' },
 ]};
 
-// Super-super-admin (cross-tenant) — gated by platformAdmin, not a plan feature.
 export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', label: 'Platform', icon: 'ti-building-skyscraper', items: [
   { href: '/platform', label: 'Console', icon: 'ti-dashboard' },
   { href: '/insights', label: 'Insights', icon: 'ti-chart-histogram', platformOnly: true },
