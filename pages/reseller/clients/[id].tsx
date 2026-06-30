@@ -4,7 +4,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { resellerListOrgs, resellerListPrices, resellerSetSubPlan, resellerSetSubActive, adminImpersonateLink, ResellerOrg, ResellerPlanPrice, tenantArchive, tenantRestore, tenantLifecycleState, TenantLifecycle } from '@/lib/db';
+import { resellerListOrgs, resellerListPrices, resellerSetSubPlan, resellerSetSubActive, adminImpersonateLink, ResellerOrg, ResellerPlanPrice, tenantArchive, tenantRestore, tenantLifecycleState, TenantLifecycle, resellerSubFeatures, resellerSetSubFeature, ResellerSubFeature } from '@/lib/db';
 
 // Reseller-scoped sub-tenant management — mirrors the platform tenant detail, but a
 // reseller can only manage THEIR sub-tenants, only assign plans they offer, behind an
@@ -20,12 +20,14 @@ export default function ResellerClientDetail() {
   const [lc, setLc] = useState<TenantLifecycle | null>(null);
   const [planSel, setPlanSel] = useState('');
   const [viewMsg, setViewMsg] = useState('');
+  const [feats, setFeats] = useState<ResellerSubFeature[]>([]);
 
   const load = () => {
     if (!org || !subId) return;
     resellerListOrgs(org.id).then((list) => { const s = list.find((x) => x.org_id === subId) || null; setSub(s); setPlanSel(s?.plan_key || 'free'); }).catch((e) => { setErr(e.message); setSub(null); });
     resellerListPrices(org.id).then(setPrices).catch(() => {});
     tenantLifecycleState(subId).then(setLc).catch(() => {});
+    resellerSubFeatures(subId).then(setFeats).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id, subId]);
 
@@ -40,6 +42,14 @@ export default function ResellerClientDetail() {
   const toggleActive = async () => { if (!guard()) return; setBusy(true); setErr(''); try { await resellerSetSubActive(sub!.org_id, sub!.sub_status !== 'active'); flash('Updated'); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const doArchive = async () => { if (!guard()) return; setBusy(true); setErr(''); try { await tenantArchive(sub!.org_id); flash('Client archived (restorable).'); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const doRestore = async () => { if (!guard()) return; setBusy(true); setErr(''); try { await tenantRestore(sub!.org_id); flash('Client restored.'); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const toggleFeature = async (f: ResellerSubFeature) => {
+    if (!guard()) return;
+    const next = !f.effective;
+    if (next && !f.reseller_has) { flash('That feature is not in your plan.'); return; }
+    setBusy(true); setErr('');
+    try { await resellerSetSubFeature(sub!.org_id, f.feature_key, next); flash(next ? f.name + ' enabled' : f.name + ' disabled'); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const viewAs = async () => { setViewMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ sub: sub!.org_id }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setViewMsg('Sign-in link copied — open it in a private window.'); setTimeout(() => setViewMsg(''), 8000); } catch (e: any) { setViewMsg(e.message || 'Failed'); } };
 
   const suspended = !!sub.sub_status && sub.sub_status !== 'active';
@@ -74,6 +84,32 @@ export default function ResellerClientDetail() {
           </div>
           <button className="btn btn-primary" disabled={busy || !editMode || planSel === sub.plan_key} onClick={changePlan}>Update plan</button>
         </div>
+      </div>
+
+      <div className="card p-5 mb-4 max-w-xl">
+        <div className="flex items-center justify-between mb-1"><h3 className="text-sm font-semibold">Features</h3>{!editMode && <span className="text-2xs text-muted2">read-only</span>}</div>
+        <p className="text-2xs text-muted mb-3">Choose which features this client gets, independent of their plan. You can only enable features your own plan includes; you can always turn a feature off.</p>
+        {feats.length === 0 ? <p className="text-2xs text-muted2">Loading features…</p> : (
+          <div className="divide-y divide-line border border-line rounded-lg max-h-[26rem] overflow-y-auto">
+            {feats.map((f) => {
+              const on = f.effective;
+              const lockEnable = !on && !f.reseller_has;
+              return (
+                <div key={f.feature_key} className="flex items-center justify-between gap-3 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-content truncate">{f.name}</p>
+                    <p className="text-2xs text-muted2">{f.override === null ? 'follows plan' : 'custom'}{lockEnable ? ' · not in your plan' : ''}</p>
+                  </div>
+                  <button onClick={() => toggleFeature(f)} disabled={busy || !editMode || lockEnable}
+                    title={lockEnable ? 'Your plan does not include this feature' : on ? 'Turn off for this client' : 'Turn on for this client'}
+                    className={`btn h-7 py-0 text-2xs ${on ? 'border border-emerald-400 text-emerald-700 bg-emerald-500/10' : 'border border-line text-muted'} ${(!editMode || lockEnable) ? 'opacity-50' : ''}`}>
+                    <Icon name={on ? 'ti-check' : 'ti-x'} />{on ? 'On' : 'Off'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="card p-5 max-w-xl flex items-center justify-between gap-4">

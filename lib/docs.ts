@@ -696,6 +696,10 @@ export const SECTIONS: Section[] = [
       { kind: 'callout', icon: 'ti-camera', text: 'Snapshots capture configuration, not data — a new client starts with your setup but a clean slate. Keep several snapshots (e.g. one per client type) and choose the right one per invite.' },
       { kind: 'callout', icon: 'ti-bolt', text: 'Automations come across as inactive drafts: any reference to a specific person (such as an assignee) is cleared so nothing can misfire in the new workspace. Review each one and switch it on when ready.' },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'A reseller can only see and manage its own sub-tenants, and sub-tenants can never be put on the white-label or reseller plan. These limits are enforced on the server.' },
+      { kind: 'steps', items: [
+        { title: 'Curate a client\u2019s features', body: 'Open Reseller \u25b8 Clients, pick a client, turn on Edit mode, and use the Features panel to switch individual features on or off for that client \u2014 independent of their plan.' },
+      ] },
+      { kind: 'callout', icon: 'ti-adjustments', text: 'Feature control: you decide which features each sub-tenant gets. You can only ENABLE features your own plan includes (you can\u2019t resell what you don\u2019t own), and you can always turn a feature OFF. Every change goes through a server-side check that confirms you administer that client and own the feature \u2014 the UI never grants access on its own.' },
       { kind: 'callout', icon: 'ti-layout-sidebar', text: 'The Reseller menu in the sidebar opens directly to each area — Console, Clients, Plans & Pricing, Payments & Signup, Snapshots and Co-owners — so you go straight to what you need. Old /reseller?tab= links still work (they redirect to the matching page).' },
     ],
   },
