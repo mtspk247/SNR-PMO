@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -16,6 +16,22 @@ export type Executor = {
 };
 
 export const EXECUTORS: Record<string, Executor> = {
+  // MARKETING — agents as the content team. Drafts a social post into the Social
+  // composer (status='draft', source='agent') via the SAME createSocialPost a human
+  // uses, so RLS/RBAC apply (approver must hold social write access). Publishing stays
+  // a separate human step (OAuth). Reversible: deletes the draft on rollback.
+  draft_social_post: {
+    label: 'Save the draft post',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const body = String(p.body || a.summary || '').slice(0, 5000);
+      if (!body.trim()) throw new Error('draft_social_post needs post text in the payload');
+      const channel_ids = Array.isArray(p.channel_ids) ? p.channel_ids.map((x: any) => String(x)) : [];
+      const post = await createSocialPost({ org_id: ctx.orgId, created_by: ctx.userId, body, status: 'draft', source: 'agent', channel_ids });
+      return { target_table: 'social_posts', target_id: post.id, result: { social_post_id: post.id }, reversal: { op: 'delete_social_post' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteSocialPost(a.target_id); },
+  },
   // CREATE pattern — reversible by deleting the created row. Fully demonstrable.
   create_task: {
     label: 'Create the task',
