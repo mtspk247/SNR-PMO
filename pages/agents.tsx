@@ -57,6 +57,9 @@ export default function AgentsPage() {
   const [grants, setGrants] = useState<Set<string>>(new Set());
   const [seeding, setSeeding] = useState(false);
   const [runReq, setRunReq] = useState('');
+  const [askAgentId, setAskAgentId] = useState('');
+  const [askReq, setAskReq] = useState('');
+  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [commands, setCommands] = useState<ChatCommand[]>([]);
@@ -214,6 +217,27 @@ export default function AgentsPage() {
     } catch (e: any) { onRunError(e); } finally { setBusy(false); }
   };
 
+  // Top-level natural-language tasking: pick an enabled agent, type a request, the
+  // Groq-backed proposer reasons over the agent's GRANTED tools and queues approve-first
+  // proposals (server-side: manage-cap + cost ceiling enforced; dry-run preview on review).
+  const askAgent = async () => {
+    if (!org || !askReq.trim() || asking) return;
+    const agentId = askAgentId || (agents || []).find((a) => a.enabled)?.id || '';
+    if (!agentId) { toast('Create or enable an agent first.', 'info'); return; }
+    setAsking(true);
+    try {
+      const g = await listAgentTools(agentId);
+      const granted = new Set(g.map((x) => x.tool_key));
+      const tools = AGENT_TOOLS.filter((t) => granted.has(t.key)).map((t) => ({ key: t.key, label: t.label, description: t.description, risk: t.risk, reversible: t.reversible }));
+      if (tools.length === 0) { toast('That agent has no tools granted yet — add some on its card first.', 'info'); setAsking(false); return; }
+      const res = await runAgentProposer({ orgId: org.id, agentId, request: askReq.trim(), tools, brand: (org as any).name || '' });
+      if (res.configured === false) toast('Connect an LLM key under Console ▸ AI assistant first.', 'error');
+      else if (res.error) toast(res.error, 'error');
+      else if ((res.proposed || 0) > 0) { toast('Proposed ' + res.proposed + ' action' + (res.proposed === 1 ? '' : 's') + ' — review in approvals', 'success'); setAskReq(''); router.push('/agent-approvals'); }
+      else toast('The agent did not find an action for that — try rephrasing.', 'info');
+    } catch (e: any) { toast(e?.message || 'Could not run the agent', 'error'); } finally { setAsking(false); }
+  };
+
   // Org-wide cost ceiling editor (agent_id = null)
   const orgLimit = (period: 'day' | 'month') => limits.find((l) => l.agent_id === null && l.period === period);
   const [limDraft, setLimDraft] = useState<{ period: 'day' | 'month'; max_runs: string; max_usd: string } | null>(null);
@@ -271,6 +295,17 @@ export default function AgentsPage() {
       )}
 
       {org && <AgentBriefing orgId={org.id} />}
+      {canManage && agents && agents.some((a) => a.enabled) && (
+        <div className="card p-4 mb-5 border border-line bg-gradient-to-br from-accent/5 to-transparent">
+          <div className="flex items-center gap-2 mb-2"><Icon name="ti-sparkles" className="text-accentstrong" /><h3 className="text-sm font-semibold text-content">Ask your agent</h3><span className="text-2xs text-muted2 rounded-full bg-surface2 px-1.5 py-0.5">AI-powered</span></div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="sm:w-56 shrink-0"><Select value={askAgentId || (agents.find((a) => a.enabled)?.id || '')} onChange={setAskAgentId} options={agents.filter((a) => a.enabled).map((a) => ({ value: a.id, label: a.name + ' · ' + a.domain }))} /></div>
+            <input className="input flex-1" value={askReq} onChange={(e) => setAskReq(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') askAgent(); }} placeholder="e.g. draft follow-ups for my stalled deals" />
+            <button className="btn btn-primary shrink-0" disabled={asking || !askReq.trim()} onClick={askAgent}><Icon name="ti-send" className="text-sm" />{asking ? 'Thinking…' : 'Ask'}</button>
+          </div>
+          <p className="text-2xs text-muted2 mt-1.5">Your agent reasons over your data and proposes concrete, approve-first actions — nothing runs until you approve (with the dry-run preview).</p>
+        </div>
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-5">
         <StatCard label="Agents" value={String(kpis.total)} icon="ti-robot" />
         <StatCard label="Enabled" value={String(kpis.enabled)} icon="ti-circle-check" />
