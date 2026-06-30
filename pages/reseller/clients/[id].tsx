@@ -4,7 +4,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, StatCard, Icon } from '@/components/ui';
 import { useActiveOrg } from '@/lib/store';
 import { can } from '@/lib/authz';
-import { resellerListOrgs, resellerListPrices, resellerSetSubPlan, resellerSetSubActive, adminImpersonateLink, ResellerOrg, ResellerPlanPrice } from '@/lib/db';
+import { resellerListOrgs, resellerListPrices, resellerSetSubPlan, resellerSetSubActive, adminImpersonateLink, ResellerOrg, ResellerPlanPrice, tenantArchive, tenantRestore, tenantLifecycleState, TenantLifecycle } from '@/lib/db';
 
 // Reseller-scoped sub-tenant management — mirrors the platform tenant detail, but a
 // reseller can only manage THEIR sub-tenants, only assign plans they offer, behind an
@@ -17,6 +17,7 @@ export default function ResellerClientDetail() {
   const [prices, setPrices] = useState<ResellerPlanPrice[]>([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [msg, setMsg] = useState('');
   const [editMode, setEditMode] = useState(false);
+  const [lc, setLc] = useState<TenantLifecycle | null>(null);
   const [planSel, setPlanSel] = useState('');
   const [viewMsg, setViewMsg] = useState('');
 
@@ -24,6 +25,7 @@ export default function ResellerClientDetail() {
     if (!org || !subId) return;
     resellerListOrgs(org.id).then((list) => { const s = list.find((x) => x.org_id === subId) || null; setSub(s); setPlanSel(s?.plan_key || 'free'); }).catch((e) => { setErr(e.message); setSub(null); });
     resellerListPrices(org.id).then(setPrices).catch(() => {});
+    tenantLifecycleState(subId).then(setLc).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id, subId]);
 
@@ -36,6 +38,8 @@ export default function ResellerClientDetail() {
   const guard = () => { if (!editMode) { flash('Turn on Edit mode (top-right) to make changes.'); return false; } return true; };
   const changePlan = async () => { if (!guard() || planSel === sub.plan_key) return; setBusy(true); setErr(''); try { await resellerSetSubPlan(sub!.org_id, planSel); flash('Plan updated'); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const toggleActive = async () => { if (!guard()) return; setBusy(true); setErr(''); try { await resellerSetSubActive(sub!.org_id, sub!.sub_status !== 'active'); flash('Updated'); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const doArchive = async () => { if (!guard()) return; setBusy(true); setErr(''); try { await tenantArchive(sub!.org_id); flash('Client archived (restorable).'); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const doRestore = async () => { if (!guard()) return; setBusy(true); setErr(''); try { await tenantRestore(sub!.org_id); flash('Client restored.'); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const viewAs = async () => { setViewMsg('Generating sign-in link…'); try { const r = await adminImpersonateLink({ sub: sub!.org_id }); try { await navigator.clipboard?.writeText(r.link); } catch { /* */ } setViewMsg('Sign-in link copied — open it in a private window.'); setTimeout(() => setViewMsg(''), 8000); } catch (e: any) { setViewMsg(e.message || 'Failed'); } };
 
   const suspended = !!sub.sub_status && sub.sub_status !== 'active';
@@ -75,6 +79,10 @@ export default function ResellerClientDetail() {
       <div className="card p-5 max-w-xl flex items-center justify-between gap-4">
         <div><h3 className="text-sm font-semibold">{suspended ? 'Reactivate client' : 'Suspend client'}</h3><p className="text-2xs text-muted mt-0.5">{suspended ? 'Restore access for this client’s members.' : 'Members lose access until you reactivate.'}</p></div>
         <button onClick={toggleActive} disabled={busy || !editMode} className={`btn h-8 py-0 ${suspended ? 'btn-primary' : 'btn-danger'} ${!editMode ? 'opacity-50' : ''}`}><Icon name={suspended ? 'ti-circle-check' : 'ti-ban'} />{suspended ? 'Reactivate' : 'Suspend'}</button>
+      </div>
+      <div className="card p-5 mt-4 max-w-xl flex items-center justify-between gap-4 border border-rose-200">
+        <div><h3 className="text-sm font-semibold">{lc?.archived ? 'Restore client' : 'Delete client'}</h3><p className="text-2xs text-muted mt-0.5">{lc?.archived ? 'Bring this client back — members regain access; data was retained.' : 'Archive this client: members lose access immediately. Data is safely retained and fully restorable.'}</p></div>
+        <button onClick={lc?.archived ? doRestore : doArchive} disabled={busy || !editMode} className={`btn h-8 py-0 ${lc?.archived ? 'btn-primary' : 'btn-danger'} ${!editMode ? 'opacity-50' : ''}`}><Icon name={lc?.archived ? 'ti-refresh' : 'ti-archive'} />{lc?.archived ? 'Restore' : 'Delete'}</button>
       </div>
     </Layout>
   );

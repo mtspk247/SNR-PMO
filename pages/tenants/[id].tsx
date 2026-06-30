@@ -11,7 +11,7 @@ import { useAuthStore } from '@/lib/store';
 import { FEATURE_LABELS } from '@/lib/entitlements';
 import {
   listTenants, getTenantInfo, setTenantPlan, setTenantActive, getTenantEvents, addTenantNote, emailTenant, TenantEvent, setTenantFeatureOverride, setTenantLimitOverride,
-  listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getOrgImpersonation, setSubImpersonation,
+  listPlans, TenantInfo, tenantSnapshot, wipeTenantData, listTenantSnapshots, restoreTenantSnapshot, TenantSnapshot, getOrgImpersonation, setSubImpersonation, tenantArchive, tenantRestore, tenantLifecycleState, TenantLifecycle,
   getTenantUsage, getOrgActivity, TenantUsage, ActivityItem,
   getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain,
   getOrgFeatures, getOrgPlanFeatures, tenantUsers, TenantUser, avatarSrc,
@@ -52,6 +52,7 @@ export default function TenantDetail() {
   const [subs, setSubs] = useState<any[]>([]);
   const [impAllowed, setImpAllowed] = useState(false);
   const [info, setInfo] = useState<TenantInfo | null>(null);
+  const [lc, setLc] = useState<TenantLifecycle | null>(null);
   const [usage, setUsage] = useState<TenantUsage | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [snaps, setSnaps] = useState<TenantSnapshot[]>([]);
@@ -79,6 +80,8 @@ export default function TenantDetail() {
   useSetCrumbs(tenant ? [{ label: 'Tenants', href: '/tenants' }, { label: tenant.org_name }] : null);
 
   const refreshInfo = async () => setInfo(await getTenantInfo(orgId));
+  const refreshLc = () => { tenantLifecycleState(orgId).then(setLc).catch(() => {}); };
+  useEffect(() => { if (orgId) refreshLc(); /* eslint-disable-next-line */ }, [orgId]);
   const refreshEvents = () => getTenantEvents(orgId).then(setEvents).catch(() => {});
   const refreshUsage = () => getTenantUsage(orgId).then(setUsage).catch(() => {});
   const refreshSnaps = () => listTenantSnapshots(orgId).then(setSnaps).catch(() => setSnaps([]));
@@ -112,6 +115,8 @@ export default function TenantDetail() {
   const refreshSessionOrg = async (key?: string) => { try { const [features, planFeatures] = await Promise.all([getOrgFeatures(orgId), getOrgPlanFeatures(orgId)]); patchOrg({ id: orgId, ...(key ? { plan: key as MyOrg['plan'] } : {}), features, planFeatures }); } catch { /* not one of my orgs */ } };
   const changePlan = async (key: string, reason?: string) => { setBusy(true); try { await setTenantPlan(orgId, key, reason); await refreshInfo(); refreshUsage(); await refreshSessionOrg(key); refreshEvents(); setPlanReason(''); flash('Plan updated.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const toggleImp = async () => { if (!editMode) { flash('Turn on Edit mode (top-right) to change this.'); return; } try { await setSubImpersonation(orgId, !impAllowed); setImpAllowed((v) => !v); flash(impAllowed ? 'Impersonation revoked.' : 'Impersonation granted.'); } catch (e: any) { setErr(e.message); } };
+  const doArchiveTenant = async () => { setBusy(true); setErr(''); try { await tenantArchive(orgId); await refreshInfo(); refreshLc(); refreshEvents(); flash('Tenant archived. Data retained and fully restorable.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
+  const doRestoreTenant = async () => { setBusy(true); setErr(''); try { await tenantRestore(orgId); await refreshInfo(); refreshLc(); refreshEvents(); flash('Tenant restored.'); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const toggleActive = async () => { if (!info) return; setBusy(true); try { await setTenantActive(orgId, !info.active); await refreshInfo(); refreshUsage(); refreshEvents(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } };
   const addNote = async () => { if (!noteText.trim()) return; setSavingNote(true); try { await addTenantNote(orgId, noteText.trim()); setNoteText(''); refreshEvents(); flash('Note added.'); } catch (e: any) { setErr(e.message); } finally { setSavingNote(false); } };
   const emailOwner = async () => { if (!emSubj.trim() || !emBody.trim()) return; setEmailing(true); setErr(''); try { const n = await emailTenant(orgId, emSubj.trim(), emBody.trim(), emLink.trim() || undefined); setEmSubj(''); setEmBody(''); setEmLink(''); refreshEvents(); flash(`Queued ${n} email(s).`); } catch (e: any) { setErr(e.message); } finally { setEmailing(false); } };
@@ -170,11 +175,14 @@ export default function TenantDetail() {
       <PageHeader title={tenant.org_name} subtitle={tenant.slug} icon="ti-building-community"
         badge={<PlanBadge planKey={tenant.plan_key} planName={usage?.plan || tenant.plan_name} />}
         action={<div className="flex items-center gap-2">
-          <span className={`pill ${info?.active === false ? 'pill-red' : 'pill-green'}`}>{info?.active === false ? 'Suspended' : 'Active'}</span>
+          <span className={`pill ${lc?.archived ? 'pill-red' : info?.active === false ? 'pill-amber' : 'pill-green'}`}>{lc?.archived ? 'Archived' : info?.active === false ? 'Suspended' : 'Active'}</span>
           <button onClick={() => setEditMode((v) => !v)} title={editMode ? 'Changes are enabled — click to lock' : 'Locked (read-only). Click to enable changes to this tenant.'} className={`btn h-8 py-0 ${editMode ? 'border border-amber-400 text-amber-700 bg-amber-500/10' : 'border border-line text-muted'}`}><Icon name={editMode ? 'ti-lock-open' : 'ti-lock'} />{editMode ? 'Editing' : 'Locked'}</button>
           <button className={`btn h-8 py-0 ${info?.active === false ? 'btn-primary' : 'btn-danger'}`} disabled={busy || !info || !editMode} onClick={() => ask(info?.active === false ? 'Reactivate tenant?' : 'Suspend tenant?', info?.active === false ? `Reactivate ${tenant.org_name}? Members regain access.` : `Suspend ${tenant.org_name}? Members lose access until reactivated.`, toggleActive, info?.active !== false)}>
             <Icon name={info?.active === false ? 'ti-circle-check' : 'ti-ban'} />{info?.active === false ? 'Reactivate' : 'Suspend'}
           </button>
+          {lc?.allowed && (lc?.archived
+            ? <button className="btn btn-primary h-8 py-0" disabled={busy || !editMode} onClick={() => ask('Restore tenant?', `Restore ${tenant.org_name}? Members regain access and the workspace becomes active again.`, doRestoreTenant)}><Icon name="ti-refresh" />Restore</button>
+            : <button className="btn btn-danger h-8 py-0" disabled={busy || !editMode} onClick={() => ask('Archive (delete) tenant?', `Archive ${tenant.org_name}? Members lose all access immediately. Data is safely retained and fully restorable; a backup snapshot is taken first.`, doArchiveTenant, true)}><Icon name="ti-archive" />Delete</button>)}
           <button className="btn h-8 py-0" onClick={() => router.push('/tenants')}><Icon name="ti-arrow-left" />Back</button>
         </div>} />
 

@@ -4186,3 +4186,18 @@ export async function fileScanSetConfig(p: { enabled?: boolean | null; provider?
   if (error) throw new Error(error.message);
   return data as FileScanStatus;
 }
+
+// --- Tenant archive / restore (#3) ---
+export interface TenantLifecycle { allowed: boolean; archived?: boolean; archived_at?: string | null; scheduled_for?: string | null; requested_at?: string | null }
+export async function tenantArchive(orgId: string, reason?: string): Promise<{ ok: boolean; reason?: string }> {
+  const { data, error } = await sb.rpc('tenant_archive', { p_org: orgId, p_reason: reason ?? null });
+  if (error) throw new Error(error.message); return data as { ok: boolean; reason?: string };
+}
+export async function tenantRestore(orgId: string): Promise<{ ok: boolean }> {
+  const { data, error } = await sb.rpc('tenant_restore', { p_org: orgId });
+  if (error) throw new Error(error.message); return data as { ok: boolean };
+}
+export async function tenantLifecycleState(orgId: string): Promise<TenantLifecycle> {
+  const { data, error } = await sb.rpc('tenant_lifecycle_state', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as TenantLifecycle) ?? { allowed: false };
+}
