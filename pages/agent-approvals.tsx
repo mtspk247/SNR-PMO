@@ -15,7 +15,7 @@ import {
   listAgents, listAgentActions, listAgentActionEvents, decideAgentAction, rollbackAgentAction,
   AgentDefinition, AgentAction, AgentActionEvent, recordAgentExecution,
 } from '@/lib/db';
-import { executorFor } from '@/lib/agentExecutors';
+import { executorFor, simulateAction } from '@/lib/agentExecutors';
 
 const STATUS_COLOR: Record<string, string> = {
   proposed: '#d97706', approved: '#0284c7', executing: '#0284c7', executed: '#16a34a',
@@ -203,6 +203,37 @@ export default function AgentApprovalsPage() {
               <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1">Tool</h4>
               <p className="text-sm">{selTool?.label || sel.tool_key}{selTool?.description ? <span className="block text-2xs text-muted">{selTool.description}</span> : null}</p>
               {executorFor(sel.tool_key) ? <p className="text-2xs text-emerald-600 mt-1 inline-flex items-center gap-1"><Icon name="ti-bolt" className="text-xs" />On approval this runs automatically and can be rolled back.</p> : <p className="text-2xs text-muted mt-1">Draft only — approving records your sign-off; act on it manually.</p>}
+            </div>
+            <div>
+              <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1.5 inline-flex items-center gap-1.5"><Icon name="ti-flask" className="text-sm text-accentstrong" />Dry run — what will happen</h4>
+              {(() => { const sim = simulateAction(sel); return (
+                <div className="rounded-lg border border-line p-3 bg-surface2/40 space-y-2">
+                  {sim.changes.length > 0 && (
+                    <div className="space-y-1">
+                      {sim.changes.map((c, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <span className="text-2xs uppercase tracking-wide text-muted2 w-20 shrink-0">{c.field}</span>
+                          <span className="text-muted line-through">{c.from}</span>
+                          <Icon name="ti-arrow-right" className="text-2xs text-muted2 shrink-0" />
+                          <span className="font-medium text-content">{c.to}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {sim.creates.length > 0 && (
+                    <ul className="space-y-0.5">
+                      {sim.creates.map((c, i) => <li key={i} className="flex items-center gap-1.5 text-sm text-content"><Icon name="ti-plus" className="text-2xs text-emerald-600 shrink-0" />{c}</li>)}
+                    </ul>
+                  )}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-2xs text-muted border border-line"><Icon name="ti-stack-2" className="text-2xs" />{sim.blast.records} record{sim.blast.records === 1 ? '' : 's'}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs ${sim.blast.money > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}><Icon name="ti-coin" className="text-2xs" />{sim.blast.money > 0 ? `$${sim.blast.money.toLocaleString()} moves` : 'No money moves'}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs ${sim.blast.irreversible ? 'bg-rose-100 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}><Icon name={sim.blast.irreversible ? 'ti-alert-triangle' : 'ti-arrow-back-up'} className="text-2xs" />{sim.blast.irreversible ? 'Not reversible' : 'One-click reversible'}</span>
+                  </div>
+                  {sim.effects.length > 0 && <p className="text-2xs text-muted2">{sim.effects.join(' · ')}</p>}
+                  {sim.warnings.map((w, i) => <p key={i} className="text-2xs text-rose-600 inline-flex items-center gap-1"><Icon name="ti-alert-triangle" className="text-2xs shrink-0" />{w}</p>)}
+                </div>
+              ); })()}
             </div>
             <div>
               <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1">Payload</h4>

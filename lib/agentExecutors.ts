@@ -258,6 +258,74 @@ export const EXECUTORS: Record<string, Executor> = {
 
 export const executorFor = (toolKey: string): Executor | undefined => EXECUTORS[toolKey];
 
+// ---------------------------------------------------------------------------
+// Dry-run simulation (Phase 2): a READ-ONLY preview of exactly what an action will
+// do — before→after diff, what it creates, blast radius (records / money), and
+// reversibility — derived purely from the proposed payload (no DB writes, no reads),
+// so the reviewer (and a demo audience) sees the full picture before approving.
+// ---------------------------------------------------------------------------
+export type SimChange = { field: string; from: string; to: string };
+export type SimResult = { changes: SimChange[]; creates: string[]; effects: string[]; blast: { records: number; money: number; irreversible: boolean }; warnings: string[] };
+const _s = (v: any): string => (v == null || v === '' ? '—' : String(v));
+const _taskCount = (p: any): number => (Array.isArray(p?.tasks) && p.tasks.length ? Math.min(p.tasks.length, 12) : 5);
+
+export function simulateAction(a: AgentAction): SimResult {
+  const p = a.payload || {};
+  const base: SimResult = { changes: [], creates: [], effects: [], blast: { records: 1, money: 0, irreversible: !a.reversible }, warnings: [] };
+  switch (a.tool_key) {
+    case 'triage_task': {
+      const ch: SimChange[] = [];
+      if (p.to_priority) ch.push({ field: 'Priority', from: _s(p.from_priority), to: _s(p.to_priority) });
+      if (p.to_status) ch.push({ field: 'Status', from: _s(p.from_status), to: _s(p.to_status) });
+      return { ...base, changes: ch, effects: ['Updates 1 task', 'No money moves'] };
+    }
+    case 'update_deal_stage':
+      return { ...base, changes: [{ field: 'Stage', from: _s(p.from_stage), to: _s(p.to_stage) }], effects: ['Moves 1 deal'] };
+    case 'categorize_expense':
+      return { ...base, changes: [{ field: 'Category', from: _s(p.from_category) === '—' ? 'Uncategorized' : _s(p.from_category), to: _s(p.category) }], effects: ['Categorizes 1 ledger entry', 'No money moves'] };
+    case 'triage_ticket': {
+      const ch: SimChange[] = [];
+      if (p.to_status) ch.push({ field: 'Status', from: _s(p.from_status), to: _s(p.to_status) });
+      if (p.assignee_id !== undefined) ch.push({ field: 'Assignee', from: _s(p.from_assignee_id) === '—' ? 'Unassigned' : 'Reassigned', to: 'Assigned' });
+      return { ...base, changes: ch, effects: ['Updates 1 ticket'] };
+    }
+    case 'create_task':
+      return { ...base, creates: ['Task: ' + _s(p.title || a.summary)], effects: ['Creates 1 task' + (p.project_id ? ' in a project' : '')] };
+    case 'flag_capacity_risk':
+      return { ...base, creates: ['Review task: ' + _s(p.person || p.name || 'a team member')], effects: ['Creates 1 review task'] };
+    case 'create_contact':
+      return { ...base, creates: ['Contact: ' + _s(p.full_name || p.name || a.summary)], effects: ['Adds 1 CRM contact'] };
+    case 'create_deal':
+      return { ...base, creates: ['Deal: ' + _s(p.title || a.summary)], blast: { ...base.blast, money: Number(p.value) > 0 ? Number(p.value) : 0 }, effects: ['Opens 1 pipeline deal'] };
+    case 'draft_journal_entry': {
+      const amt = Number(p.amount) || 0;
+      return { ...base, creates: ['Ledger expense: $' + amt.toLocaleString() + ' → ' + _s(p.account || p.category || 'Uncategorized')], blast: { records: 1, money: amt, irreversible: false }, effects: ['Posts an expense to the ledger'], warnings: amt >= 1000 ? ['Posts $' + amt.toLocaleString() + ' to your books — confirm the amount.'] : [] };
+    }
+    case 'draft_onboarding': {
+      const n = _taskCount(p);
+      return { ...base, creates: ['~' + n + ' onboarding tasks' + (p.employee ? ' for ' + _s(p.employee) : '')], blast: { records: n, money: 0, irreversible: false }, effects: ['Creates a week-1 checklist'] };
+    }
+    case 'scaffold_project': {
+      const n = _taskCount(p);
+      return { ...base, creates: ['Project: ' + _s(p.name || a.summary), n + ' starter tasks'], blast: { records: 1 + n, money: 0, irreversible: false }, effects: ['Spins up a project + its tasks'] };
+    }
+    case 'scaffold_client_onboarding': {
+      const n = _taskCount(p);
+      const client = _s(p.client_name || p.name || a.summary);
+      return { ...base, creates: ['Contact: ' + _s(p.contact_name || client), 'Project: ' + client + ' — Onboarding', n + ' onboarding tasks'], blast: { records: 2 + n, money: 0, irreversible: false }, effects: ['Onboards a client end-to-end'] };
+    }
+    case 'send_sms':
+      return { ...base, blast: { records: 1, money: 0, irreversible: true }, effects: ['Sends 1 SMS to ' + _s(p.to)], warnings: ['This SMS cannot be unsent — the only agent action that is not reversible.'] };
+    case 'draft_followup':
+      return { ...base, blast: { records: 0, money: 0, irreversible: false }, effects: ['Drafts a follow-up for you to review and send'] };
+    default: {
+      const ch: SimChange[] = [];
+      for (const k of Object.keys(p)) { if (k.startsWith('to_')) ch.push({ field: k.slice(3).replace(/_/g, ' '), from: _s(p['from_' + k.slice(3)]), to: _s(p[k]) }); }
+      return { ...base, changes: ch, creates: ch.length ? [] : [a.summary], effects: [a.reversible ? 'One-click reversible' : 'Not reversible'] };
+    }
+  }
+}
+
 // Phase 3.5 graduated autonomy: an action may auto-execute (no human approval) ONLY
 // when the agent is in auto_low_risk mode AND the action is low-risk + reversible AND
 // the tool is not flagged noAuto (e.g. financial). The DB RPC re-enforces this.
