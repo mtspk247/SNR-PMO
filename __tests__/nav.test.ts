@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION } from '@/lib/nav';
+import { isPageHidden, UNHIDEABLE, navHrefForRoute, MODULE_GROUPS, TENANT_ITEMS, featureForRoute, ROUTE_LABELS, SECTIONS, RESELLER_SECTION, PLATFORM_SECTION } from '@/lib/nav';
 
 test('isPageHidden: not hidden by default', () => {
   assert.equal(isPageHidden([], '/tasks'), false);
@@ -84,4 +84,18 @@ test('Phase2A: Reseller console sections surfaced as real routes', () => {
   // Console stays exact so deep section routes don't all mark it active.
   const console = RESELLER_SECTION.kind === 'menu' ? RESELLER_SECTION.items.find((i) => i.href === '/reseller') : undefined;
   assert.equal(console?.exact, true);
+});
+
+test('Phase2B: Platform console sections surfaced as routes; Console exact', () => {
+  assert.equal(PLATFORM_SECTION.kind, 'menu');
+  const items = PLATFORM_SECTION.kind === 'menu' ? PLATFORM_SECTION.items : [];
+  const hrefs = items.map((i) => i.href);
+  for (const h of ['/platform', '/platform/plans', '/platform/billing', '/platform/rollout', '/platform/campaigns', '/platform/errors']) {
+    assert.ok(hrefs.includes(h), `platform nav missing ${h}`);
+  }
+  const consoleItem = items.find((i) => i.href === '/platform');
+  assert.equal(consoleItem?.exact, true);
+  // platform routes are not tenant module groups (operator-only, gated by platformAdmin)
+  // and carry no plan feature
+  assert.equal(featureForRoute('/platform/billing'), undefined);
 });
