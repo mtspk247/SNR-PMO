@@ -26,6 +26,7 @@ export const FAB_SHORTCUTS: FabShortcutDef[] = [
   { id: 'projects', label: 'Projects',       icon: 'ti-folder',     kind: 'route', href: '/projects' },
   { id: 'support',  label: 'Support',        icon: 'ti-lifebuoy',   kind: 'route', href: '/support' },
   { id: 'docs',     label: 'Help & docs',    icon: 'ti-help',       kind: 'route', href: '/docs' },
+  { id: 'feedback', label: 'Send feedback', icon: 'ti-message-circle', kind: 'event', event: 'snr:open-feedback' },
 ];
 export const FAB_DEFAULT_IDS = ['notes', 'checkin', 'chat', 'task'];
 
@@ -34,7 +35,7 @@ const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#0ea5e9', '#8b5cf6
 const FAB_COLORS: Record<string, string> = {
   notes: '#f59e0b', checkin: '#10b981', chat: '#0ea5e9', task: '#6366f1', calendar: '#f43f5e',
   ask: '#8b5cf6', dashboard: '#14b8a6', crm: '#f97316', clients: '#06b6d4', projects: '#6366f1',
-  support: '#ef4444', docs: '#0891b2',
+  support: '#ef4444', docs: '#0891b2', feedback: '#ec4899',
 };
 
 const COLORS: Record<string, string> = {
@@ -64,7 +65,9 @@ export default function ShortcutsFab() {
 
   // Resolve enabled entries (admin-set; sensible default otherwise). Each entry is either a
   // built-in id (string) or a custom { id,label,icon,href } object.
-  const entries: FabEntry[] = Array.isArray(org?.fab_shortcuts) ? org!.fab_shortcuts! : FAB_DEFAULT_IDS;
+  const baseEntries: FabEntry[] = Array.isArray(org?.fab_shortcuts) ? org!.fab_shortcuts! : FAB_DEFAULT_IDS;
+  // Always keep 'Send feedback' reachable from the single FAB cluster.
+  const entries: FabEntry[] = baseEntries.some((e) => (typeof e === 'string' ? e : (e as any)?.id) === 'feedback') ? baseEntries : [...baseEntries, 'feedback'];
   const shortcuts: FabShortcutDef[] = entries
     .map((e) => (typeof e === 'string'
       ? FAB_SHORTCUTS.find((s) => s.id === e)
