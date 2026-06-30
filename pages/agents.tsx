@@ -11,6 +11,7 @@ import { useRowSelection } from '@/components/RowSelection';
 import { GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS, AUTONOMY_LABELS, toolsForDomain, RISK_COLOR, AGENT_TOOLS } from '@/lib/agents';
+import AgentBriefing from '@/components/AgentBriefing';
 import { ChatCommand, CHAT_TOOLABLE } from '@/lib/chatCommands';
 import { executorFor, canAutoExecute, chatAutoEligible } from '@/lib/agentExecutors';
 import { SCANNABLE_DOMAINS } from '@/lib/agentScanner';
@@ -269,6 +270,7 @@ export default function AgentsPage() {
         </div>
       )}
 
+      {org && <AgentBriefing orgId={org.id} />}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-5">
         <StatCard label="Agents" value={String(kpis.total)} icon="ti-robot" />
         <StatCard label="Enabled" value={String(kpis.enabled)} icon="ti-circle-check" />
