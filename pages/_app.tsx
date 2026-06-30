@@ -84,6 +84,8 @@ export default function App({ Component, pageProps }: AppProps) {
           isPlatformPrimary(),
         ]);
         if (active) setSession({ ...user, is_platform_primary: platformPrimary }, withFeatures, platformAdmin);
+        // New signups (Confirm-email OFF) get instant access; send our branded verification email once.
+        if (active && typeof window !== 'undefined' && !sessionStorage.getItem('ev_req')) { sessionStorage.setItem('ev_req', '1'); try { sb.rpc('request_email_verification'); } catch { /* ignore */ } }
       } catch { if (active) clear(); }
     };
     load();
