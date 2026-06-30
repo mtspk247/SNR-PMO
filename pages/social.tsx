@@ -90,6 +90,10 @@ export default function SocialPage() {
       (!q || p.body.toLowerCase().includes(q))
     ), [posts, statusF, q]);
   const rs = useRowSelection(shown);
+  const counts = useMemo(() => {
+    const r = posts || [];
+    return { total: r.length, scheduled: r.filter((x) => x.status === 'scheduled').length, published: r.filter((x) => x.status === 'published').length, channels: channels.length };
+  }, [posts, channels]);
 
   if (org && !hasFeature(org, 'social')) {
     return (
@@ -166,10 +170,6 @@ export default function SocialPage() {
     }
   };
 
-  const counts = useMemo(() => {
-    const r = posts || [];
-    return { total: r.length, scheduled: r.filter((p) => p.status === 'scheduled').length, published: r.filter((p) => p.status === 'published').length, channels: channels.length };
-  }, [posts, channels]);
 
   return (
     <Layout flat title="Social & Content">
