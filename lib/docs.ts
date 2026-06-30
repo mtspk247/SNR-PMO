@@ -799,6 +799,34 @@ export const SECTIONS: Section[] = [
       { kind: 'callout', icon: 'ti-coin', text: 'Cost ceilings (on the Agents page) and metered billing are independent: ceilings stop runaway spend; billing prices the usage that does happen.' },
     ],
   },
+  {
+    id: 'feedback',
+    title: 'Sending & triaging feedback',
+    icon: 'ti-message-circle',
+    blocks: [
+      { kind: 'p', text: 'Every workspace has a built-in feedback channel so you can tell us what to improve — and so workspace admins can collect feedback from their own team.' },
+      { kind: 'steps', items: [
+        { title: 'Send feedback', body: 'Click the round message button at the bottom-left of any page. Pick a type (Idea, Bug, Praise or Other), add a short summary and optional detail, then Send. It is private: it goes to your workspace admins and the product team, never to other tenants.' },
+        { title: 'Review feedback (admins)', body: 'Open Feedback from the Administration menu. Workspace owners and admins see what their own team submitted; the platform team sees everything. Set each item’s status — New, Triaged, Planned, In progress, Done or Declined — to track it.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Submissions are rate-limited and length-capped, and isolated per workspace by row-level security — one tenant can never see another’s feedback.' },
+    ],
+  },
+  {
+    id: 'workspace-lifecycle',
+    title: 'Deleting or restoring a workspace',
+    icon: 'ti-archive',
+    blocks: [
+      { kind: 'p', text: 'Workspaces can be deleted safely. Nothing is destroyed immediately — data is retained and recoverable, so an accidental or unwanted delete can always be undone.' },
+      { kind: 'steps', items: [
+        { title: 'Delete your own workspace', body: 'Owners open Settings ▸ Danger zone ▸ Delete this workspace, type the workspace name to confirm, and request deletion. We email a confirmation link to verify it is really you. Once confirmed, the workspace is scheduled for deletion in 30 days.' },
+        { title: 'Change your mind', body: 'During the 30-day window the workspace keeps working normally. Return to Settings ▸ Danger zone and Cancel deletion at any time to keep it.' },
+        { title: 'After 30 days', body: 'The workspace is archived: members lose access and it is hidden, but the data is securely retained — not erased. It can still be restored by the platform operator or your reseller.' },
+        { title: 'Delete or restore a tenant (platform & reseller)', body: 'Platform owners open a tenant under Platform ▸ Tenants; resellers open a client under Reseller ▸ Clients. Turn on Edit mode, then Delete to archive (members are fenced out instantly and a backup snapshot is taken first) or Restore to bring an archived workspace back online.' },
+      ] },
+      { kind: 'callout', icon: 'ti-database-export', text: 'Archiving takes an automatic restore point first, and restore re-opens the workspace exactly as it was. Archived workspaces are retained securely until an operator explicitly purges them.' },
+    ],
+  }
 ];
 // ---------------------------------------------------------------------------
 // Search + retrieval helpers (lexical — read the live text on every call, so
