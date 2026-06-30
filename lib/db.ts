@@ -4241,3 +4241,14 @@ export async function updateSocialPost(id: string, patch: Partial<Pick<SocialPos
 export async function deleteSocialPost(id: string): Promise<void> {
   const { error } = await sb.from('social_posts').delete().eq('id', id); if (error) throw new Error(error.message);
 }
+
+// ── Reseller feature control (per-sub-tenant) ───────────────────────────────
+export interface ResellerSubFeature { feature_key: string; name: string; reseller_has: boolean; override: boolean | null; effective: boolean; }
+export async function resellerSubFeatures(subOrgId: string): Promise<ResellerSubFeature[]> {
+  const { data, error } = await sb.rpc('reseller_sub_features', { p_sub: subOrgId });
+  if (error) throw new Error(error.message); return (data as ResellerSubFeature[]) || [];
+}
+export async function resellerSetSubFeature(subOrgId: string, feature: string, enabled: boolean): Promise<void> {
+  const { error } = await sb.rpc('reseller_set_sub_feature', { p_sub: subOrgId, p_feature: feature, p_enabled: enabled });
+  if (error) throw new Error(error.message);
+}
