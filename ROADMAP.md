@@ -1,4 +1,12 @@
 
+## 2026-06-30 — ABOS Phase 3: per-tenant POLICY MEMORY (agents learn your approve/reject) SHIPPED
+- The compounding moat: agents now learn **each tenant's** approve/reject history and **rank + de-noise** the approval queue by it. Approve-first is unchanged — ranking + transparency only; nothing new auto-executes.
+- **DB (migration `abos_phase3_policy_memory`):** `agent_policy_memory(org_id, verb=tool_key, approve_count, reject_count, score, last_decision, …)` PK(org,verb); **RLS-on, member-read / SECURITY DEFINER-write, fail-closed** (authenticated = SELECT only; no anon; no writes). `agent_policy_record()` trains on each **human** decision (wired into `agent_decide_action`; `agent_auto_approve` never trains). `agent_policy_score()` resolver (0.5 neutral prior). `agent_propose_action` now **stamps `agent_actions.priority`** from the learned score. `agent_policy_reset()` (manage-gated) forgets a verb.
+- **Backfill:** seeded memory from real `agent_action_events` approve/reject history (auto-approvals excluded) → live for every tenant on day one (demo org: draft_journal_entry 4/0, create_task 2/0, categorize_expense 1/0).
+- **UI (`pages/agent-approvals.tsx` + `lib/db.ts`):** new **Signal** column (Usually approved / Often rejected / Learning / New), queue **default-ordered by learned priority**, a per-proposal **“Learned from your history”** panel (“you approved 9 of 10 of these”), and an admin **Reset learning** control. Reads via RLS (`listAgentPolicy`); renders through **ListView** (no hand-built table).
+- **Verify:** learning math (3a/1r → 0.667) + propose-stamp (learned 0.9 / neutral 0.5) functional; **RLS-sim** allow=1 / cross-tenant=0 / grants select-only / RLS enabled; **advisors clean** (only pre-existing pg_net + leaked-password). esbuild parse green on db.ts / agent-approvals.tsx / docs.ts.
+- Docs: `/docs#agents` policy-memory callout + `SYSTEM_GUIDE.md` bullet. Shipped via PR (UI + docs) on top of the already-live migration.
+
 ## 2026-06-30 — Drive: 'New ▾' menu, storage moved to sidebar, drive-wide advanced search
 - **New ▾ dropdown** (PR #36): folded the toolbar's New doc/sheet/slides/folder + Upload into one Google-Drive-style menu (New folder, File upload, **Folder upload**, New document/sheet/slides); declutters the toolbar. Folder upload creates a folder from the chosen directory and uploads its files.
 - **Storage meter → DRIVES sidebar** (PR #37): removed the top storage card; a compact meter now sits under the drives list — frees the top and widens the content area.

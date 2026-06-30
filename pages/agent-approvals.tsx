@@ -13,7 +13,8 @@ import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS, RISK_COLOR, toolByKey } from '@/lib/agents';
 import {
   listAgents, listAgentActions, listAgentActionEvents, decideAgentAction, rollbackAgentAction,
-  AgentDefinition, AgentAction, AgentActionEvent, recordAgentExecution,
+  listAgentPolicy, resetAgentPolicy,
+  AgentDefinition, AgentAction, AgentActionEvent, AgentPolicy, recordAgentExecution,
 } from '@/lib/db';
 import { executorFor, simulateAction } from '@/lib/agentExecutors';
 
@@ -30,6 +31,7 @@ const COLS: ColDef[] = [
   { id: 'agent', label: 'Agent' },
   { id: 'tool', label: 'Tool' },
   { id: 'risk', label: 'Risk', width: 80 },
+  { id: 'signal', label: 'Signal', width: 170 },
   { id: 'status', label: 'Status' },
   { id: 'proposed', label: 'Proposed' },
 ];
@@ -49,6 +51,7 @@ export default function AgentApprovalsPage() {
 
   const [actions, setActions] = useState<AgentAction[] | null>(null);
   const [agents, setAgents] = useState<AgentDefinition[]>([]);
+  const [policy, setPolicy] = useState<AgentPolicy[]>([]);
   const [sel, setSel] = useState<AgentAction | null>(null);
   const [events, setEvents] = useState<AgentActionEvent[]>([]);
   const [note, setNote] = useState('');
@@ -60,18 +63,42 @@ export default function AgentApprovalsPage() {
     if (!org) return;
     listAgentActions(org.id).then(setActions).catch((e) => { setErr(e.message); setActions([]); });
     listAgents(org.id).then(setAgents).catch(() => {});
+    listAgentPolicy(org.id).then(setPolicy).catch(() => {});
   };
   useEffect(() => { if (org?.id && enabled) { load(); prefs.setFilter('status', 'proposed'); } /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
   const agentName = (id: string | null) => agents.find((a) => a.id === id)?.name || '—';
+  // Phase 3 — per-tenant policy memory: rank + explain proposals by your own approve/reject history.
+  const policyMap = useMemo(() => new Map(policy.map((p) => [p.verb, p])), [policy]);
+  const totalDecisions = useMemo(() => policy.reduce((n, p) => n + p.approve_count + p.reject_count, 0), [policy]);
+  const signalCell = (a: AgentAction) => {
+    const p = policyMap.get(a.tool_key);
+    const n = p ? p.approve_count + p.reject_count : 0;
+    if (!p || n === 0) return <span className="text-2xs text-muted2 inline-flex items-center gap-1" title="No prior decisions for this action type — your agent learns from your call."><Icon name="ti-sparkles" className="text-2xs" />New</span>;
+    const obs = p.approve_count / n; const pct = Math.round(obs * 100);
+    let color = '#d97706', label = 'Mixed';
+    if (n < 3) { color = '#d97706'; label = 'Learning'; }
+    else if (obs >= 0.66) { color = '#16a34a'; label = 'Usually approved'; }
+    else if (obs <= 0.34) { color = '#dc2626'; label = 'Often rejected'; }
+    return <span title={`Approved ${p.approve_count} of ${n} \u00b7 queue ranked by learned acceptance`}>{chip(`${label} \u00b7 ${pct}%`, color)}</span>;
+  };
+  const resetThis = async () => {
+    if (!sel || !org || busy || !confirm('Forget the learned approve/reject history for this action type? Future proposals start neutral.')) return;
+    setBusy(true); setErr('');
+    try { await resetAgentPolicy(org.id, sel.tool_key); await listAgentPolicy(org.id).then(setPolicy); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const statusF = prefs.filters.status || 'all';
   const shown = useMemo(() => {
     const q = prefs.query.trim().toLowerCase();
-    return (actions || []).filter((a) =>
+    const f = (actions || []).filter((a) =>
       (statusF === 'all' || a.status === statusF) &&
       (!q || `${a.summary} ${a.tool_key} ${a.domain}`.toLowerCase().includes(q))
     );
-  }, [actions, statusF, prefs.query]);
+    // Learned ranking: agents surface what you most often approve first (ties -> newest).
+    const sc = (x: AgentAction) => { const pp = policyMap.get(x.tool_key); return pp ? Number(pp.score) : (x.priority != null ? Number(x.priority) : 0.5); };
+    return f.sort((a, b) => { const d = sc(b) - sc(a); return Math.abs(d) > 1e-9 ? d : String(b.proposed_at || '').localeCompare(String(a.proposed_at || '')); });
+  }, [actions, statusF, prefs.query, policyMap]);
   const rs = useRowSelection(shown);
 
   const STATUSES = ['proposed', 'approved', 'executed', 'rejected', 'rolled_back', 'failed', 'expired'];
@@ -83,6 +110,7 @@ export default function AgentApprovalsPage() {
       case 'agent': return <span className="text-sm">{agentName(a.agent_id)}</span>;
       case 'tool': return <span className="text-xs text-muted">{toolByKey(a.tool_key)?.label || a.tool_key}</span>;
       case 'risk': return chip(a.risk, RISK_COLOR[a.risk] || '#6b7280');
+      case 'signal': return signalCell(a);
       case 'status': return chip(titleCase(a.status.replace('_', ' ')), STATUS_COLOR[a.status] || '#6b7280');
       case 'proposed': return a.proposed_at?.slice(0, 16).replace('T', ' ') || '—';
       default: return '—';
@@ -143,6 +171,7 @@ export default function AgentApprovalsPage() {
       <PageHeader help="agents" title="Agent approvals" subtitle="Review, approve, and roll back actions proposed by your agents" icon="ti-checks" action={<Link href="/agent-activity" className="btn btn-sm"><Icon name="ti-chart-line" />Activity & ROI</Link>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {!canApprove && <p className="text-xs text-amber-600 mb-3">You can view the queue but need the <b>Approve agent actions</b> permission to approve, reject, or roll back.</p>}
+      {policy.length > 0 && <p className="text-xs text-muted mb-3 inline-flex items-center gap-1.5"><Icon name="ti-brain" className="text-sm text-accentstrong" />Your agents have learned from <b className="text-content">{totalDecisions}</b> decision{totalDecisions === 1 ? '' : 's'} across <b className="text-content">{policy.length}</b> action type{policy.length === 1 ? '' : 's'} — the queue is ranked by how often you approve each kind.</p>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatCard label="Pending" value={String(kpis.pending)} icon="ti-clock" />
@@ -165,7 +194,7 @@ export default function AgentApprovalsPage() {
         groups={GROUPS}
         onRowClick={(a) => openDetail(a)}
         exportName="agent-actions"
-        exportValue={(id, a) => id === 'summary' ? a.summary : id === 'agent' ? agentName(a.agent_id) : id === 'tool' ? a.tool_key : id === 'risk' ? a.risk : id === 'status' ? a.status : id === 'proposed' ? (a.proposed_at || '') : ''}
+        exportValue={(id, a) => id === 'summary' ? a.summary : id === 'agent' ? agentName(a.agent_id) : id === 'tool' ? a.tool_key : id === 'risk' ? a.risk : id === 'status' ? a.status : id === 'proposed' ? (a.proposed_at || '') : id === 'signal' ? (() => { const p = policyMap.get(a.tool_key); const n = p ? p.approve_count + p.reject_count : 0; return n ? Math.round((p!.approve_count / n) * 100) + '%' : 'new'; })() : ''}
         busy={busy}
         emptyIcon="ti-checks"
         emptyText="No actions in the queue. Agents propose actions here for your approval."
@@ -199,6 +228,13 @@ export default function AgentApprovalsPage() {
                 <span className="text-xs text-muted">· {agentName(sel.agent_id)}</span>
               </div>
             </div>
+            {(() => { const p = policyMap.get(sel.tool_key); const n = p ? p.approve_count + p.reject_count : 0; if (!p || n === 0) return null; const obs = p.approve_count / n; const pct = Math.round(obs * 100); return (
+              <div className="rounded-lg border border-line p-3 bg-surface2/40">
+                <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1 inline-flex items-center gap-1.5"><Icon name="ti-brain" className="text-sm text-accentstrong" />Learned from your history</h4>
+                <p className="text-sm text-content">You've approved <b>{p.approve_count}</b> of <b>{n}</b> ({pct}%) <b>{selTool?.label || sel.tool_key}</b> proposals. {obs >= 0.66 ? 'Your agent ranks these higher in the queue.' : obs <= 0.34 ? 'Your agent flags these as likely noise and ranks them lower.' : 'Your agent is still learning your preference here.'}</p>
+                {isAdmin && <button type="button" className="mt-2 text-2xs text-muted2 hover:text-rose-600 inline-flex items-center gap-1 disabled:opacity-50" onClick={resetThis} disabled={busy}><Icon name="ti-eraser" className="text-2xs" />Reset learning for this action type</button>}
+              </div>
+            ); })()}
             <div>
               <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1">Tool</h4>
               <p className="text-sm">{selTool?.label || sel.tool_key}{selTool?.description ? <span className="block text-2xs text-muted">{selTool.description}</span> : null}</p>

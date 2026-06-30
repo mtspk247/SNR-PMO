@@ -3756,11 +3756,21 @@ export type AgentDomain = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'p
 export type AgentAutonomy = 'draft_only' | 'approve_first' | 'auto_low_risk';
 export interface AgentDefinition { id: string; org_id: string; name: string; domain: AgentDomain; description: string | null; enabled: boolean; autonomy_level: AgentAutonomy; config: any; created_by: string | null; created_at: string; updated_at: string; }
 export type AgentActionStatus = 'proposed' | 'approved' | 'rejected' | 'executing' | 'executed' | 'failed' | 'rolled_back' | 'expired';
-export interface AgentAction { id: string; org_id: string; run_id: string | null; agent_id: string | null; tool_key: string; domain: string; summary: string; payload: any; risk: 'low' | 'medium' | 'high'; reversible: boolean; status: AgentActionStatus; target_table: string | null; target_id: string | null; result: any; reversal: any; prior_state: any; proposed_at: string; decided_by: string | null; decided_at: string | null; decision_note: string | null; executed_by: string | null; executed_at: string | null; rolled_back_by: string | null; rolled_back_at: string | null; expires_at: string | null; }
+export interface AgentAction { id: string; org_id: string; run_id: string | null; agent_id: string | null; tool_key: string; domain: string; summary: string; payload: any; risk: 'low' | 'medium' | 'high'; reversible: boolean; status: AgentActionStatus; target_table: string | null; target_id: string | null; result: any; reversal: any; prior_state: any; proposed_at: string; decided_by: string | null; decided_at: string | null; decision_note: string | null; executed_by: string | null; executed_at: string | null; rolled_back_by: string | null; rolled_back_at: string | null; expires_at: string | null; priority?: number | null; }
 export interface AgentRun { id: string; org_id: string; agent_id: string | null; initiated_by: string | null; trigger: string; input: any; status: string; error: string | null; cost_tokens: number; cost_usd: number; started_at: string | null; finished_at: string | null; created_at: string; }
 export interface AgentCostLimit { id: string; org_id: string; agent_id: string | null; period: 'day' | 'month'; max_runs: number | null; max_tokens: number | null; max_usd: number | null; enabled: boolean; created_at: string; updated_at: string; }
 export interface AgentUsage { id: string; org_id: string; agent_id: string | null; period_kind: 'day' | 'month'; period_start: string; runs: number; tokens: number; usd: number; updated_at: string; }
 export interface AgentActionEvent { id: number; org_id: string; action_id: string; event: string; actor: string | null; detail: any; at: string; }
+// Phase 3 — per-tenant policy memory: agents learn each tenant's approve/reject history.
+export interface AgentPolicy { org_id: string; verb: string; approve_count: number; reject_count: number; last_decision: string | null; last_decided_at: string | null; score: number; updated_at: string; }
+export async function listAgentPolicy(orgId: string): Promise<AgentPolicy[]> {
+  const { data, error } = await sb.from('agent_policy_memory').select('*').eq('org_id', orgId).order('score', { ascending: false });
+  if (error) throw new Error(error.message); return (data as AgentPolicy[]) || [];
+}
+export async function resetAgentPolicy(orgId: string, verb?: string): Promise<number> {
+  const { data, error } = await sb.rpc('agent_policy_reset', { p_org: orgId, p_verb: verb ?? null });
+  if (error) throw new Error(error.message); return (data as number) ?? 0;
+}
 export interface AgentToolGrant { agent_id: string; org_id: string; tool_key: string; granted_by: string | null; granted_at: string; }
 
 export const listAgents = (orgId: string) => _list<AgentDefinition>('agent_definitions', orgId);
