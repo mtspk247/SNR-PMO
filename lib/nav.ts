@@ -193,6 +193,7 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
 // Super-super-admin (cross-tenant) — gated by platformAdmin, not a plan feature.
 export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', label: 'Platform', icon: 'ti-building-skyscraper', items: [
   { href: '/platform', label: 'Console', icon: 'ti-dashboard' },
+  { href: '/insights', label: 'Insights', icon: 'ti-chart-histogram', platformOnly: true },
   { href: '/tenants', label: 'Tenants', icon: 'ti-building-community', search: searchTenants, platformOnly: true },
 ] };
 
