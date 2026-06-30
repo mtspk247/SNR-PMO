@@ -537,6 +537,26 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'social',
+    title: 'Social & Content',
+    icon: 'ti-speakerphone',
+    blocks: [
+      { kind: 'p', text: 'Social & Content is your content command centre: write a post once, target one or more social channels, save it as a draft or schedule it for later, and track everything in one list. Find it under Marketing > Social & Content. (Live publishing to each network turns on once provider sign-in is connected; until then scheduled posts queue safely here.)' },
+      { kind: 'bullets', items: [
+        { text: 'Compose — write your post, pick the channels to target, and either Save draft or Schedule it for a date and time.' },
+        { text: 'Channels — register the accounts you post to (Facebook, Instagram, LinkedIn, X, YouTube, TikTok, Threads, Pinterest, Google Business). Adding a channel for live posting (secure provider sign-in) is enabled in a later step.' },
+        { text: 'One list for everything — drafts, scheduled, published, failed and cancelled posts in the shared list view, with search, filters, grouping by status and CSV export.' },
+        { text: 'Agents as your content team (coming next) — agents draft posts for you to approve before anything is scheduled; approve-first, never auto-posted.' },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Add a channel', body: 'Marketing > Social & Content > Add channel. Pick the platform and the handle/page name. This registers it; connecting it for live posting comes later.' },
+        { title: 'Compose a post', body: 'Click Compose, write your content, tick the channels to target, and optionally set a schedule date/time.' },
+        { title: 'Draft or schedule', body: 'Save draft to keep it private, or Schedule to queue it. Scheduled posts show their send time in the list.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: posts and channels are workspace-scoped and protected by row-level security — only your staff can read them, editing or deleting is limited to the creator or a workspace owner/admin, and per-page permissions apply. Social & Content is plan-gated and rolls out cohort-by-cohort.' },
+    ],
+  },
+  {
     id: 'forms',
     title: 'Forms & lead capture',
     icon: 'ti-forms',

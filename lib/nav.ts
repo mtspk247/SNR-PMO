@@ -83,6 +83,7 @@ const searchProducts = simpleSpec({ key: 'product', label: 'Products', icon: 'ti
 const searchRisks = simpleSpec({ key: 'risk', label: 'Risks', icon: 'ti-alert-triangle', table: 'risks', col: 'title', href: () => '/risk' });
 const searchForms = simpleSpec({ key: 'form', label: 'Forms', icon: 'ti-forms', table: 'forms', col: 'name', href: () => '/forms' });
 const searchSequences = simpleSpec({ key: 'sequence', label: 'Sequences', icon: 'ti-mail-forward', table: 'email_sequences', col: 'name', href: () => '/sequences' });
+const searchSocial = simpleSpec({ key: 'social_post', label: 'Social posts', icon: 'ti-brand-x', table: 'social_posts', col: 'body', href: () => '/social' });
 const searchBooking = simpleSpec({ key: 'booking', label: 'Booking', icon: 'ti-calendar-plus', table: 'booking_pages', col: 'name', href: () => '/booking' });
 const searchAppraisals = simpleSpec({ key: 'appraisal', label: 'Appraisals', icon: 'ti-clipboard-check', table: 'appraisals', col: 'summary', href: () => '/appraisals' });
 // Notes: match title OR body, skip archived; show title or a body snippet.
@@ -123,6 +124,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm', search: searchContracts, group: 'Accounts' },
   ]},
   { kind: 'menu', key: 'marketing', label: 'Marketing', icon: 'ti-speakerphone', items: [
+    { href: '/social', label: 'Social & Content', icon: 'ti-brand-x', feature: 'social', search: searchSocial },
     { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms', search: searchForms },
     { href: '/sequences', label: 'Sequences', icon: 'ti-mail-forward', feature: 'sequences', search: searchSequences },
   ]},
