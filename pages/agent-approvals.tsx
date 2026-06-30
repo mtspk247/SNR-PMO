@@ -204,6 +204,25 @@ export default function AgentApprovalsPage() {
               <p className="text-sm">{selTool?.label || sel.tool_key}{selTool?.description ? <span className="block text-2xs text-muted">{selTool.description}</span> : null}</p>
               {executorFor(sel.tool_key) ? <p className="text-2xs text-emerald-600 mt-1 inline-flex items-center gap-1"><Icon name="ti-bolt" className="text-xs" />On approval this runs automatically and can be rolled back.</p> : <p className="text-2xs text-muted mt-1">Draft only — approving records your sign-off; act on it manually.</p>}
             </div>
+            {(sel.payload && (sel.payload.draft || sel.payload.rationale || sel.payload.note)) && (
+              <div>
+                <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1.5 inline-flex items-center gap-1.5"><Icon name="ti-pencil" className="text-sm text-accentstrong" />Drafted by agent</h4>
+                <div className="rounded-lg border border-line p-3 bg-surface2/40 space-y-2">
+                  {sel.payload.draft && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-2xs uppercase tracking-wide text-muted2">Message</span>
+                        <button type="button" className="text-2xs text-accentstrong inline-flex items-center gap-1 hover:underline" onClick={(e) => { try { navigator.clipboard?.writeText(String(sel.payload.draft || '')); const b = e.currentTarget; const t = b.innerText; b.innerText = 'Copied'; setTimeout(() => { try { b.innerText = t; } catch { /* gone */ } }, 1200); } catch { /* noop */ } }}><Icon name="ti-copy" className="text-2xs" />Copy</button>
+                      </div>
+                      <p className="text-sm text-content whitespace-pre-wrap leading-relaxed">{String(sel.payload.draft)}</p>
+                    </div>
+                  )}
+                  {(sel.payload.rationale || sel.payload.note) && (
+                    <p className="text-2xs text-muted2 inline-flex items-start gap-1"><Icon name="ti-bulb" className="text-2xs mt-0.5 shrink-0 text-amber-500" /><span><span className="font-medium text-muted">Why:</span> {String(sel.payload.rationale || sel.payload.note)}</span></p>
+                  )}
+                </div>
+              </div>
+            )}
             <div>
               <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1.5 inline-flex items-center gap-1.5"><Icon name="ti-flask" className="text-sm text-accentstrong" />Dry run — what will happen</h4>
               {(() => { const sim = simulateAction(sel); return (
