@@ -220,7 +220,7 @@ export default function GlobalSearch() {
           const head = h.key !== last ? (last = h.key) : null;
           return (
             <div key={h.key + h.id}>
-              {head && <p className="px-4 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{h.key === '__action' ? 'Actions' : h.key === '__page' ? 'Jump to' : MOD_LABEL[h.key]}</p>}
+              {head && <p className="px-4 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted2">{h.key === '__action' ? 'Actions' : h.key === '__page' ? 'Jump to' : modLabel[h.key]}</p>}
               <button onMouseDown={(e) => { e.preventDefault(); go(h); }} onMouseEnter={() => setActive(i)}
                 className={`w-full flex items-center gap-3 px-4 py-2 text-left transition ${i === active ? 'bg-surface2' : 'hover:bg-surface2'}`}>
                 {h.avatar ? <Avatar name={h.title} size={24} />
