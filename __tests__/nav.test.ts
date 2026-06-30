@@ -75,27 +75,29 @@ test('Phase1 IA: sub-group headers present on Finance/HR/CRM/Admin', () => {
   assert.ok(gkeys.includes('inbox'));
 });
 
-test('Phase2A: Reseller console sections surfaced as real routes', () => {
+test('Phase2A: Reseller console sections surfaced as grouped routes', () => {
   assert.equal(RESELLER_SECTION.kind, 'menu');
-  const hrefs = RESELLER_SECTION.kind === 'menu' ? RESELLER_SECTION.items.map((i) => i.href) : [];
-  for (const h of ['/reseller', '/reseller/clients', '/reseller/plans', '/reseller/payments', '/reseller/snapshots', '/reseller/co-owners']) {
+  const items = RESELLER_SECTION.kind === 'menu' ? RESELLER_SECTION.items : [];
+  const hrefs = items.map((i) => i.href);
+  for (const h of ['/reseller', '/reseller/payments', '/reseller/clients', '/reseller/co-owners', '/reseller/snapshots']) {
     assert.ok(hrefs.includes(h), `reseller nav missing ${h}`);
   }
-  // Console stays exact so deep section routes don't all mark it active.
-  const console = RESELLER_SECTION.kind === 'menu' ? RESELLER_SECTION.items.find((i) => i.href === '/reseller') : undefined;
-  assert.equal(console?.exact, true);
+  const landing = items.find((i) => i.href === '/reseller');
+  assert.equal(landing?.exact, true);
+  assert.ok(items.every((i) => i.group), 'reseller items must be grouped like Administration');
 });
 
-test('Phase2B: Platform console sections surfaced as routes; Console exact', () => {
+test('Phase2B: Platform console grouped routes; landing exact; no /platform/plans 404', () => {
   assert.equal(PLATFORM_SECTION.kind, 'menu');
   const items = PLATFORM_SECTION.kind === 'menu' ? PLATFORM_SECTION.items : [];
   const hrefs = items.map((i) => i.href);
-  for (const h of ['/platform', '/platform/plans', '/platform/billing', '/platform/rollout', '/platform/campaigns', '/platform/errors']) {
+  for (const h of ['/platform', '/platform/billing', '/platform/rollout', '/platform/campaigns', '/platform/errors']) {
     assert.ok(hrefs.includes(h), `platform nav missing ${h}`);
   }
-  const consoleItem = items.find((i) => i.href === '/platform');
-  assert.equal(consoleItem?.exact, true);
-  // platform routes are not tenant module groups (operator-only, gated by platformAdmin)
-  // and carry no plan feature
+  // 404 fix: nav must NOT point at /platform/plans as a primary item (plans = /platform landing)
+  const landing = items.find((i) => i.href === '/platform');
+  assert.equal(landing?.exact, true);
+  assert.equal(landing?.label, 'Plans & Features');
+  assert.ok(items.every((i) => i.group), 'platform items must be grouped');
   assert.equal(featureForRoute('/platform/billing'), undefined);
 });

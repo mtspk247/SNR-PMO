@@ -77,7 +77,8 @@ export default function Layout({ title, children, flat = false }: { title: strin
   // Manual toggles live until the next route change re-syncs to the active menu.
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   useEffect(() => {
-    const active = sections.find((s) => s.kind === 'menu' && s.items.some((i) => isActive(i.href)));
+    const operatorMenus = [RESELLER_SECTION, PLATFORM_SECTION].filter((s) => s.kind === 'menu');
+    const active = [...sections, ...operatorMenus].find((s) => s.kind === 'menu' && s.items.some((i) => isActive(i.href)));
     setOpenMenus(active && active.kind === 'menu' ? { [active.key]: true } : {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.pathname, sections.length]);
@@ -266,14 +267,12 @@ export default function Layout({ title, children, flat = false }: { title: strin
           })}
           {activeOrg?.is_reseller && can.manageMembers(activeOrg) && RESELLER_SECTION.kind === 'menu' && (
             <div className="mt-3 pt-3 border-t border-line">
-              {!collapsed && <p className="px-2.5 pb-1 text-2xs font-semibold uppercase tracking-wider text-violet-600/80 flex items-center gap-1.5"><Icon name="ti-building-community" className="text-xs" />Reseller</p>}
-              {RESELLER_SECTION.items.map((i) => <NavLink key={i.href} {...i} />)}
+              <Menu section={RESELLER_SECTION} />
             </div>
           )}
           {platformAdmin && PLATFORM_SECTION.kind === 'menu' && (
             <div className="mt-3 pt-3 border-t border-line">
-              {!collapsed && <p className="px-2.5 pb-1 text-2xs font-semibold uppercase tracking-wider text-amber-600/80 flex items-center gap-1.5"><Icon name="ti-building-skyscraper" className="text-xs" />Platform operator</p>}
-              {PLATFORM_SECTION.items.map((i) => <NavLink key={i.href} {...i} />)}
+              <Menu section={PLATFORM_SECTION} />
             </div>
           )}
         </nav>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { PageHeader, Spinner, EmptyState, Icon, Tabs, HelpHint } from '@/components/ui';
+import { PageHeader, Spinner, EmptyState, Icon, HelpHint } from '@/components/ui';
 import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -193,16 +193,6 @@ export default function ResellerPage() {
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
-      <Tabs
-        active={tab}
-        onChange={(k) => router.push(SECTION_PATHS[k as TabKey])}
-        tabs={[
-          { key: 'plans', label: 'Plans & features', icon: 'ti-package' },
-          { key: 'payments', label: 'Payments & signup', icon: 'ti-credit-card' },
-          { key: 'snapshots', label: 'Snapshots', icon: 'ti-camera', count: snaps.length || undefined },
-          { key: 'coowners', label: 'Co-owners', icon: 'ti-users' },
-        ]}
-      />
 
       {/* ── Pricing tab ── */}
       {tab === 'plans' && (

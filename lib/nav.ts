@@ -191,24 +191,27 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
 ]};
 
 export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', label: 'Platform', icon: 'ti-building-skyscraper', items: [
-  { href: '/platform', label: 'Console', icon: 'ti-dashboard', exact: true },
-  { href: '/platform/plans', label: 'Plans & Features', icon: 'ti-license', platformOnly: true },
-  { href: '/platform/billing', label: 'Billing', icon: 'ti-credit-card', platformOnly: true },
-  { href: '/platform/rollout', label: 'Feature Rollout', icon: 'ti-rocket', platformOnly: true },
-  { href: '/platform/campaigns', label: 'Campaigns', icon: 'ti-speakerphone', platformOnly: true },
-  { href: '/platform/errors', label: 'Reliability', icon: 'ti-alert-triangle', platformOnly: true },
-  { href: '/insights', label: 'Insights', icon: 'ti-chart-histogram', platformOnly: true },
-  { href: '/tenants', label: 'Tenants', icon: 'ti-building-community', search: searchTenants, platformOnly: true },
+  { href: '/platform', label: 'Plans & Features', icon: 'ti-license', exact: true, platformOnly: true, group: 'Plans & Billing' },
+  { href: '/platform/billing', label: 'Billing', icon: 'ti-credit-card', platformOnly: true, group: 'Plans & Billing' },
+  { href: '/platform/campaigns', label: 'Campaigns', icon: 'ti-speakerphone', platformOnly: true, group: 'Growth' },
+  { href: '/platform/rollout', label: 'Feature Rollout', icon: 'ti-rocket', platformOnly: true, group: 'Growth' },
+  { href: '/platform/email', label: 'Email', icon: 'ti-mail', platformOnly: true, group: 'Comms' },
+  { href: '/platform/assistant', label: 'AI Assistant', icon: 'ti-sparkles', platformOnly: true, group: 'Comms' },
+  { href: '/platform/errors', label: 'Errors', icon: 'ti-alert-triangle', platformOnly: true, group: 'Reliability' },
+  { href: '/platform/backups', label: 'Backups', icon: 'ti-database', platformOnly: true, group: 'Reliability' },
+  { href: '/platform/activity', label: 'Activity', icon: 'ti-history', platformOnly: true, group: 'Reliability' },
+  { href: '/platform/owners', label: 'Co-owners', icon: 'ti-users', platformOnly: true, group: 'Team' },
+  { href: '/insights', label: 'Insights', icon: 'ti-chart-histogram', platformOnly: true, group: 'Insight' },
+  { href: '/tenants', label: 'Tenants', icon: 'ti-building-community', search: searchTenants, platformOnly: true, group: 'Insight' },
 ] };
 
 export const RESELLER_LINK: NavSection = { kind: 'link', item: { href: '/reseller', label: 'Reseller', icon: 'ti-building-community' } };
 export const RESELLER_SECTION: NavSection = { kind: 'menu', key: 'reseller', label: 'Reseller', icon: 'ti-building-community', items: [
-  { href: '/reseller', label: 'Console', icon: 'ti-dashboard', exact: true },
-  { href: '/reseller/clients', label: 'Clients', icon: 'ti-buildings' },
-  { href: '/reseller/plans', label: 'Plans & Pricing', icon: 'ti-package' },
-  { href: '/reseller/payments', label: 'Payments & Signup', icon: 'ti-credit-card' },
-  { href: '/reseller/snapshots', label: 'Snapshots', icon: 'ti-camera' },
-  { href: '/reseller/co-owners', label: 'Co-owners', icon: 'ti-users' },
+  { href: '/reseller', label: 'Plans & Pricing', icon: 'ti-package', exact: true, group: 'Selling' },
+  { href: '/reseller/payments', label: 'Payments & Signup', icon: 'ti-credit-card', group: 'Selling' },
+  { href: '/reseller/clients', label: 'Clients', icon: 'ti-buildings', group: 'Clients & Team' },
+  { href: '/reseller/co-owners', label: 'Co-owners', icon: 'ti-users', group: 'Clients & Team' },
+  { href: '/reseller/snapshots', label: 'Snapshots', icon: 'ti-camera', group: 'Setup' },
 ] };
 
 export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } };
