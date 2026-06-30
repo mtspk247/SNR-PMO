@@ -247,6 +247,10 @@ export default function DrivesPage() {
   const shownFolders = childFolders.filter((f) => matchesQ(f.name)).slice().sort(cmp);
   const shownFiles = (files || []).filter((f) => matchesQ(f.name)).slice().sort(cmp);
   const kfile = (id: string) => 'f:' + id; const kfold = (id: string) => 'd:' + id;
+  const nameOf = (uid?: string | null) => (uid && me && uid === me.id) ? 'me' : (people.find((p) => p.id === uid)?.full_name || '—');
+  const fmtDate = (str?: string | null) => { if (!str) return '—'; const dt = new Date(str); return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); };
+  const sortBy = (k: 'name' | 'size' | 'created' | 'modified') => { setSortDir((dd) => (sortKey === k ? (dd === 'asc' ? 'desc' : 'asc') : 'asc')); setSortKey(k); };
+  const sortCaret = (k: string) => (sortKey === k ? <Icon name={sortDir === 'asc' ? 'ti-chevron-up' : 'ti-chevron-down'} className="text-2xs" /> : null);
   const isSel = (k: string) => selected.has(k);
   const toggleSel = (k: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const clearSel = () => setSelected(new Set());
@@ -434,6 +438,16 @@ export default function DrivesPage() {
                     {files === null ? <div className="p-8"><Spinner /></div> : (shownFolders.length === 0 && shownFiles.length === 0) ? (
                       <div className="p-10"><EmptyState icon="ti-folder-open" text={q ? 'No files or folders match your search.' : 'This folder is empty — drop files here to upload, or create a folder.'} /></div>
                     ) : (
+                      <>
+                      <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 border-b border-line text-2xs font-medium uppercase tracking-wide text-muted2 select-none">
+                        <span className="w-4 shrink-0" aria-hidden="true" />
+                        <Icon name="ti-file" className="opacity-0 shrink-0" />
+                        <button className="flex-1 text-left inline-flex items-center gap-1 hover:text-content" onClick={() => sortBy('name')}>Name {sortCaret('name')}</button>
+                        <span className="w-32 shrink-0">Owner</span>
+                        <button className="w-28 shrink-0 text-left inline-flex items-center gap-1 hover:text-content" onClick={() => sortBy('modified')}>Date modified {sortCaret('modified')}</button>
+                        <button className="w-16 shrink-0 text-left inline-flex items-center gap-1 hover:text-content" onClick={() => sortBy('size')}>Size {sortCaret('size')}</button>
+                        <span className="w-[6.5rem] shrink-0" aria-hidden="true" />
+                      </div>
                       <div className="divide-y divide-line">
                         {shownFolders.map((f) => (
                           <div key={f.id} draggable={canEdit(f.created_by)} onDragStart={startDrag({ kind: 'folder', id: f.id, parent: f.parent_id })} onDragEnd={endDrag}
@@ -443,8 +457,13 @@ export default function DrivesPage() {
                             <input type="checkbox" className={`shrink-0 ${selected.size ? '' : 'opacity-0 group-hover:opacity-100'}`} checked={isSel(kfold(f.id))} onChange={() => toggleSel(kfold(f.id))} onClick={(e) => e.stopPropagation()} />
                             <Icon name="ti-folder" className="text-amber-500" />
                             <button className="text-sm text-content font-medium truncate flex-1 text-left hover:text-accentstrong" onClick={() => navTo(f.id)}>{f.name}</button>
+                            <span className="w-32 shrink-0 hidden lg:flex items-center gap-1.5 text-2xs text-muted truncate" title={nameOf(f.created_by)}><span className="w-5 h-5 rounded-full bg-accent/15 text-accentstrong grid place-items-center text-[9px] shrink-0">{(nameOf(f.created_by)[0] || '?').toUpperCase()}</span><span className="truncate">{nameOf(f.created_by)}</span></span>
+                            <span className="w-28 shrink-0 hidden lg:block text-2xs text-muted2 tabular-nums">{fmtDate(f.updated_at || f.created_at)}</span>
+                            <span className="w-16 shrink-0 text-2xs text-muted2">—</span>
+                            <span className="w-[6.5rem] shrink-0 flex items-center justify-end gap-0.5">
                             {canEdit(f.created_by) && <button onClick={() => setMoving({ kind: 'folder', id: f.id, name: f.name, parent: f.parent_id })} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Move"><Icon name="ti-arrows-move" className="text-sm" /></button>}
                             {canEdit(f.created_by) && <button onClick={() => delFolder(f)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500" title="Delete"><Icon name="ti-trash" className="text-sm" /></button>}
+                            </span>
                           </div>
                         ))}
                         {shownFiles.map((f) => (
@@ -454,14 +473,19 @@ export default function DrivesPage() {
                             <input type="checkbox" className={`shrink-0 ${selected.size ? '' : 'opacity-0 group-hover:opacity-100'}`} checked={isSel(kfile(f.id))} onChange={() => toggleSel(kfile(f.id))} onClick={(e) => e.stopPropagation()} />
                             <Icon name={fileIcon(f)} className="text-muted" />
                             <button className="text-sm text-content truncate flex-1 text-left hover:text-accentstrong" onClick={() => openFile(f)}>{f.name}</button>
-                            <span className="text-2xs text-muted2 shrink-0 tabular-nums">{fmtBytes(f.size_bytes)}</span>
+                            <span className="w-32 shrink-0 hidden lg:flex items-center gap-1.5 text-2xs text-muted truncate" title={nameOf(f.created_by)}><span className="w-5 h-5 rounded-full bg-accent/15 text-accentstrong grid place-items-center text-[9px] shrink-0">{(nameOf(f.created_by)[0] || '?').toUpperCase()}</span><span className="truncate">{nameOf(f.created_by)}</span></span>
+                            <span className="w-28 shrink-0 hidden lg:block text-2xs text-muted2 tabular-nums">{fmtDate(f.updated_at || f.created_at)}</span>
+                            <span className="w-16 shrink-0 text-2xs text-muted2 tabular-nums">{fmtBytes(f.size_bytes)}</span>
+                            <span className="w-[6.5rem] shrink-0 flex items-center justify-end gap-0.5">
                             <button onClick={() => setCommentsFor({ id: f.id, name: f.name })} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Comments"><Icon name="ti-message-circle" className="text-sm" /></button>
                             <button onClick={() => download(f)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Download"><Icon name="ti-download" className="text-sm" /></button>
                             {canEdit(f.created_by) && <button onClick={() => setMoving({ kind: 'file', id: f.id, name: f.name, parent: f.folder_id })} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-content" title="Move"><Icon name="ti-arrows-move" className="text-sm" /></button>}
                             {canEdit(f.created_by) && <button onClick={() => delFile(f)} className="opacity-0 group-hover:opacity-100 text-muted2 hover:text-rose-500" title="Delete"><Icon name="ti-trash" className="text-sm" /></button>}
+                            </span>
                           </div>
                         ))}
                       </div>
+                      </>
                     )}
                   </div>
                 </div>
