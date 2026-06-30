@@ -74,6 +74,7 @@ export default function DrivesPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; kind: 'file' | 'folder'; item: any } | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
   const [bulkMove, setBulkMove] = useState(false);
   const [archived, setArchived] = useState<{ files: DriveFile[]; folders: DriveFolder[] } | null>(null);
   const [activityFor, setActivityFor] = useState<{ id: string; name: string; kind: 'file' | 'folder' } | null>(null);
@@ -83,6 +84,7 @@ export default function DrivesPage() {
   const [over, setOver] = useState<string | null>(null); // drop-target highlight: folder id or '__root__'
   const dragRef = useRef<{ kind: 'folder' | 'file'; id: string; parent: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const dirInput = useRef<HTMLInputElement>(null);
 
   const currentFolderId = path.length ? path[path.length - 1].id : null;
   useEffect(() => { if (org?.id && enabled) { getProjects(org.id).then(setProjects).catch(() => {}); getOrgUsers(org.id).then(setPeople).catch(() => {}); } }, [org?.id, enabled]);
@@ -138,6 +140,18 @@ export default function DrivesPage() {
     catch (e: any) { setErr(e.message); } finally { setBusy(false); if (fileInput.current) fileInput.current.value = ''; }
   };
   const onUpload = (list: FileList | null) => uploadFilesTo(currentFolderId, list);
+  // Folder upload: create a folder named after the chosen directory, then upload its files into it.
+  const uploadFolder = async (list: FileList | null) => {
+    if (!org || !me || !active || !list || !list.length) return;
+    setBusy(true); setErr('');
+    try {
+      const rel = list[0].webkitRelativePath || list[0].name;
+      const topName = rel.includes('/') ? rel.split('/')[0] : 'Uploaded folder';
+      const folder = await createFolder({ org_id: org.id, drive_id: active.id, parent_id: currentFolderId, name: topName, created_by: me.id });
+      for (const file of Array.from(list)) await uploadDriveFile({ org_id: org.id, drive_id: active.id, folder_id: folder.id, file, created_by: me.id });
+      setExpanded((e) => ({ ...e, [folder.id]: true })); refreshHere();
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); if (dirInput.current) dirInput.current.value = ''; }
+  };
 
   const openDoc = (f: DriveFile) => setDocEd({ id: f.id, name: f.name });
   const newDoc = async () => {
@@ -412,15 +426,28 @@ export default function DrivesPage() {
                   <Select width={120} value={sortKey} onChange={(v) => setSortKey(v as any)} options={[{ value: 'name', label: 'Name' }, { value: 'size', label: 'Size' }, { value: 'created', label: 'Created' }, { value: 'modified', label: 'Modified' }]} />
                   <button className="btn h-8 py-0 px-2" title={sortDir === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}><Icon name={sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} className="text-sm" /></button>
                   <button className="btn h-8 py-0 px-2" title="Select all" onClick={toggleAll}><Icon name={allSelected ? 'ti-checkbox' : 'ti-square'} className="text-sm" /></button>
-                  <button className="btn h-8 py-0" disabled={busy} onClick={newDoc}><Icon name="ti-file-text" className="text-sm" />New doc</button>
-                  <button className="btn h-8 py-0" disabled={busy} onClick={newSheet}><Icon name="ti-table" className="text-sm" />New sheet</button>
-                  <button className="btn h-8 py-0" disabled={busy} onClick={newSlides}><Icon name="ti-presentation" className="text-sm" />New slides</button>
-                  <button className="btn h-8 py-0" onClick={() => setShowFolder(true)}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
+                  <div className="relative">
+                    <button className="btn btn-primary h-8 py-0" disabled={busy} onClick={() => setNewOpen((o) => !o)}><Icon name="ti-plus" className="text-sm" />New<Icon name="ti-chevron-down" className="text-2xs" /></button>
+                    {newOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setNewOpen(false)} />
+                        <div className="absolute z-50 mt-1 left-0 min-w-[12rem] rounded-lg border border-line bg-surface shadow-xl py-1">
+                          <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-surface2 text-left" onClick={() => { setNewOpen(false); setShowFolder(true); }}><Icon name="ti-folder-plus" className="text-sm" />New folder</button>
+                          <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-surface2 text-left" disabled={busy} onClick={() => { setNewOpen(false); fileInput.current?.click(); }}><Icon name="ti-file-upload" className="text-sm" />File upload</button>
+                          <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-surface2 text-left" disabled={busy} onClick={() => { setNewOpen(false); dirInput.current?.click(); }}><Icon name="ti-folders" className="text-sm" />Folder upload</button>
+                          <div className="my-1 border-t border-line" />
+                          <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-surface2 text-left" disabled={busy} onClick={() => { setNewOpen(false); newDoc(); }}><Icon name="ti-file-text" className="text-sm" />New document</button>
+                          <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-surface2 text-left" disabled={busy} onClick={() => { setNewOpen(false); newSheet(); }}><Icon name="ti-table" className="text-sm" />New sheet</button>
+                          <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-surface2 text-left" disabled={busy} onClick={() => { setNewOpen(false); newSlides(); }}><Icon name="ti-presentation" className="text-sm" />New slides</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <button className="btn h-8 py-0" disabled={!active} onClick={() => { if (active) listArchived(active.id).then(setArchived).catch((e) => setErr(e.message)); }}><Icon name="ti-archive" className="text-sm" />Archived</button>
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => setRequestsOpen(true)}><Icon name="ti-inbox" className="text-sm" />Requests{pendingReq > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-white text-2xs">{pendingReq}</span>}</button>}
                   {(level === 'manage' || isAdmin) && <button className="btn h-8 py-0" onClick={() => active && setShareFor(active)}><Icon name="ti-user-share" className="text-sm" />Share</button>}
-                  <button className="btn btn-primary h-8 py-0" disabled={busy} onClick={() => fileInput.current?.click()}><Icon name="ti-upload" className="text-sm" />Upload</button>
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onUpload(e.target.files)} />
+                  <input ref={dirInput} type="file" multiple {...({ webkitdirectory: '', directory: '' } as any)} className="hidden" onChange={(e) => uploadFolder(e.target.files)} />
                 </div>
 
                 <div>
