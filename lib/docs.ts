@@ -417,6 +417,26 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'file-security',
+    title: 'File security & virus scanning',
+    icon: 'ti-shield-check',
+    blocks: [
+      { kind: 'p', text: 'Every file uploaded anywhere in the workspace — Drives, task and record attachments, employee and training documents, and guest uploads — is automatically scanned for malware before anyone can download it. This is on by default and needs no setup.' },
+      { kind: 'bullets', items: [
+        { text: 'Clean files behave normally and are downloadable immediately.' },
+        { text: 'Infected files are deleted automatically and can never be downloaded.' },
+        { text: 'Pending (scan in progress) or Error (scan could not finish) files stay un-downloadable until a clean result — the system fails safe, never open.' },
+      ] },
+      { kind: 'p', text: 'Admins can review anything the scanner flags under Administration ▸ File security. Owners and admins see their own workspace; platform staff can see every tenant.' },
+      { kind: 'steps', items: [
+        { title: 'Review flagged files', body: 'Open Administration ▸ File security. Filter by Infected, Error, or Pending. Each row shows the file, where it lives, the scanner verdict, and when it was seen.' },
+        { title: 'Re-scan', body: 'For a file held on Error or Pending, click Re-scan to check it again. A clean result releases it for download automatically. There is deliberately no manual "mark clean" — that would bypass the scanner.' },
+        { title: 'Delete or dismiss', body: 'Delete removes the file and its record. For an infected file that was already auto-removed, Dismiss just clears the leftover record.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Platform staff manage the antivirus engine on the API keys page (File scanning card): turn scanning on or off, rotate the provider key, and set per-organization and global daily scan limits that cap external scanning cost. If a daily limit is reached, new uploads are held (never marked clean) and admins are alerted.' },
+    ],
+  },
+  {
     id: 'connections',
     title: 'Module connections',
     icon: 'ti-arrows-exchange-2',

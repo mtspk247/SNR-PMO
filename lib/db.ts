@@ -4142,3 +4142,47 @@ export async function accountDeletionStatus(orgId: string): Promise<AccountDelet
   const { data, error } = await sb.rpc('account_deletion_status', { p_org: orgId });
   if (error) throw new Error(error.message); return (data as AccountDeletionStatus) ?? { state: 'none' };
 }
+
+// ===== File security / malware scanning (admin & platform) =====================
+// Backed by SECURITY DEFINER RPCs that self-enforce platform-admin / org owner-admin.
+export type QuarantineRow = {
+  bucket: string; path: string; org_id: string | null; org_name: string | null;
+  status: string; verdict: string | null; mime: string | null; size_bytes: number | null;
+  filename: string | null; created_at: string; scanned_at: string | null; object_present: boolean;
+};
+export async function fileScanQuarantineList(orgId?: string | null, limit = 200): Promise<QuarantineRow[]> {
+  const { data, error } = await sb.rpc('file_scan_quarantine_list', { p_org: orgId ?? null, p_limit: limit });
+  if (error) throw new Error(error.message);
+  return (data || []) as QuarantineRow[];
+}
+export async function fileScanRequestRescan(bucket: string, path: string): Promise<void> {
+  const { error } = await sb.rpc('file_scan_request_rescan', { p_bucket: bucket, p_path: path });
+  if (error) throw new Error(error.message);
+}
+export async function fileScanDismiss(bucket: string, path: string): Promise<void> {
+  const { error } = await sb.rpc('file_scan_dismiss', { p_bucket: bucket, p_path: path });
+  if (error) throw new Error(error.message);
+}
+export async function fileScanDeleteObject(bucket: string, path: string): Promise<void> {
+  // Remove the actual object (storage RLS gates delete to org owner/admin), then clear the record.
+  try { await sb.storage.from(bucket).remove([path]); } catch { /* object may already be gone */ }
+  await fileScanDismiss(bucket, path);
+}
+export type FileScanStatus = {
+  enabled: boolean; provider: string | null; has_key: boolean; updated_at: string | null;
+  av_daily_cap_org: number | null; av_daily_cap_global: number | null;
+  av_calls_today: number | null; av_alert_at: string | null;
+};
+export async function fileScanGetStatus(): Promise<FileScanStatus | null> {
+  const { data, error } = await sb.rpc('file_scan_get_config');
+  if (error) throw new Error(error.message);
+  return (data as FileScanStatus) || null;
+}
+export async function fileScanSetConfig(p: { enabled?: boolean | null; provider?: string | null; apiKey?: string | null; capOrg?: number | null; capGlobal?: number | null }): Promise<FileScanStatus> {
+  const { data, error } = await sb.rpc('file_scan_set_config', {
+    p_enabled: p.enabled ?? null, p_provider: p.provider ?? null, p_api_key: p.apiKey ?? null,
+    p_cap_org: p.capOrg ?? null, p_cap_global: p.capGlobal ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return data as FileScanStatus;
+}

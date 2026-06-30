@@ -6,6 +6,7 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
 import {
   assistantGetStatus, emailGetStatus, smsGetConfig, billingGetStatus, setKeyRotations,
+  fileScanGetStatus, fileScanSetConfig, FileScanStatus,
 } from '@/lib/db';
 import { rotInfo } from '@/lib/keyRotation';
 
@@ -33,9 +34,85 @@ type Row = {
   active: boolean | null; detail: string; updated: string | null; accessible: boolean;
 };
 
+function AvScanCard({ platformAdmin }: { platformAdmin: boolean }) {
+  const [st, setSt] = useState<FileScanStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [key, setKey] = useState('');
+  const [capOrg, setCapOrg] = useState('');
+  const [capGlobal, setCapGlobal] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const refresh = async () => {
+    try { const r = await fileScanGetStatus(); setSt(r); if (r) { setCapOrg(String(r.av_daily_cap_org ?? '')); setCapGlobal(String(r.av_daily_cap_global ?? '')); } }
+    catch { setSt(null); } finally { setLoading(false); }
+  };
+  useEffect(() => { if (platformAdmin) refresh(); else setLoading(false); }, [platformAdmin]);
+
+  const save = async (patch: { enabled?: boolean | null; apiKey?: string | null; capOrg?: number | null; capGlobal?: number | null }) => {
+    setBusy(true); setMsg('');
+    try { const r = await fileScanSetConfig(patch); setSt(r); setKey(''); setMsg('Saved'); setTimeout(() => setMsg(''), 1600); }
+    catch (e: any) { setMsg(e?.message || 'Could not save'); } finally { setBusy(false); }
+  };
+
+  const active = !!(st && st.enabled && st.has_key);
+  const alertRecent = !!(st?.av_alert_at && (Date.now() - new Date(st.av_alert_at).getTime() < 3600000));
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-surface2 shrink-0"><Icon name="ti-virus-search" className="text-accentstrong text-lg" /></span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-content">File scanning (Antivirus)</span>
+            {!platformAdmin
+              ? <span className="rounded-md px-1.5 py-0.5 text-2xs font-medium bg-surface2 text-muted2">Restricted</span>
+              : active
+                ? <span className="rounded-md px-1.5 py-0.5 text-2xs font-medium" style={{ backgroundColor: '#16a34a22', color: '#16a34a' }}>&#9679; Active</span>
+                : <span className="rounded-md px-1.5 py-0.5 text-2xs font-medium" style={{ backgroundColor: '#9ca3af22', color: '#6b7280' }}>&#9675; Off</span>}
+            {alertRecent && <span className="rounded-md px-1.5 py-0.5 text-2xs font-medium" style={{ backgroundColor: '#dc262622', color: '#dc2626' }}>Daily cap hit</span>}
+          </div>
+          <p className="text-2xs text-muted mt-0.5 font-mono truncate">{st ? [st.provider, st.has_key ? 'key set' : 'no key'].filter(Boolean).join(' · ') : 'Managed at the platform level'}</p>
+        </div>
+      </div>
+      <p className="text-2xs text-muted2 mt-3"><span className="text-muted">Powers:</span> virus scanning of every uploaded file before it can be downloaded. <Link href="/admin/quarantine" className="text-accentstrong hover:underline">View flagged files</Link></p>
+
+      {!platformAdmin ? (
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-line gap-2">
+          <span className="text-2xs text-muted2">Configured by platform staff</span>
+        </div>
+      ) : loading ? (
+        <div className="mt-3 pt-3 border-t border-line"><Spinner /></div>
+      ) : (
+        <div className="mt-3 pt-3 border-t border-line space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-2xs text-muted2">Scans today: <span className="text-content font-medium">{st?.av_calls_today ?? 0}</span></span>
+            <button disabled={busy} onClick={() => save({ enabled: !(st?.enabled) })} className="btn btn-sm">
+              <Icon name={st?.enabled ? 'ti-toggle-right' : 'ti-toggle-left'} className="text-sm" />{st?.enabled ? 'Disable' : 'Enable'}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder={st?.has_key ? 'Rotate API key' : 'Set API key'} className="input h-7 text-2xs flex-1" />
+            <button disabled={busy || !key.trim()} onClick={() => save({ apiKey: key.trim() })} className="btn btn-sm">Save key</button>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-2xs text-muted2">Cap/org-day</label>
+            <input type="number" value={capOrg} onChange={(e) => setCapOrg(e.target.value)} className="input h-7 text-2xs" style={{ maxWidth: 96 }} />
+            <label className="text-2xs text-muted2">Global/day</label>
+            <input type="number" value={capGlobal} onChange={(e) => setCapGlobal(e.target.value)} className="input h-7 text-2xs" style={{ maxWidth: 96 }} />
+            <button disabled={busy} onClick={() => save({ capOrg: capOrg === '' ? null : Number(capOrg), capGlobal: capGlobal === '' ? null : Number(capGlobal) })} className="btn btn-sm">Save</button>
+          </div>
+          {msg && <p className="text-2xs text-muted2">{msg}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function KeysPage() {
   const org = useActiveOrg();
   const admin = can.manageOrg(org);
+  const platformAdmin = useAuthStore((st) => st.platformAdmin);
   const patchOrg = useAuthStore((st) => st.patchOrg);
   const remOf = (k: string) => ((org?.key_rotation_reminders || {}) as Record<string, string>)[k] || '';
   const setRot = async (k: string, val: string) => {
@@ -141,6 +218,7 @@ export default function KeysPage() {
               )}
             </div>
           ))}
+          <AvScanCard platformAdmin={platformAdmin} />
           <div className="card p-4">
             <div className="flex items-start gap-3">
               <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-surface2 shrink-0"><Icon name="ti-code" className="text-accentstrong text-lg" /></span>

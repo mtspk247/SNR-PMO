@@ -180,6 +180,7 @@ export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'A
   { href: '/billing', label: 'Billing', icon: 'ti-credit-card' },
   { href: '/developer', label: 'Developer', icon: 'ti-code', adminOnly: true, feature: 'api' },
   { href: '/keys', label: 'API keys', icon: 'ti-key', adminOnly: true },
+  { href: '/admin/quarantine', label: 'File security', icon: 'ti-shield-check', adminOnly: true },
   { href: '/automations', label: 'Automations', icon: 'ti-bolt', adminOnly: true, feature: 'automations' },
   { href: '/templates', label: 'Templates', icon: 'ti-files' },
   { href: '/integrations', label: 'Integrations', icon: 'ti-plug', feature: 'integrations' },
