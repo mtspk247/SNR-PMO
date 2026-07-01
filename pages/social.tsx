@@ -15,7 +15,7 @@ import {
   listSocialPosts, createSocialPost, deleteSocialPost,
   listSocialChannels, createSocialChannel, deleteSocialChannel,
   SocialPost, SocialChannel, SocialPlatform,
-  getBrandVoice, setBrandVoice,
+  getBrandVoice, setBrandVoice, getApprovalPolicy, setApprovalPolicy, approveSocialPost,
 } from '@/lib/db';
 
 const PLATFORMS: { value: SocialPlatform; label: string; icon: string }[] = [
@@ -44,6 +44,7 @@ const GROUPS: GroupMeta[] = [
 const COLS: ColDef[] = [
   { id: 'content', label: 'Content', locked: true },
   { id: 'status', label: 'Status' },
+  { id: 'approval', label: 'Approval' },
   { id: 'channels', label: 'Channels' },
   { id: 'scheduled', label: 'Scheduled' },
   { id: 'source', label: 'Source' },
@@ -80,11 +81,13 @@ export default function SocialPage() {
   const [bvOpen, setBvOpen] = useState(false);
   const [bv, setBv] = useState<{ tone: string; audience: string; guidelines: string; cta: string; hashtags: string }>({ tone: '', audience: '', guidelines: '', cta: '', hashtags: '' });
   const [bvBusy, setBvBusy] = useState(false);
+  const [reqApproval, setReqApproval] = useState(false);
 
   const load = () => {
     if (!org) return;
     listSocialPosts(org.id).then(setPosts).catch((e) => { setErr(e.message); setPosts([]); });
     listSocialChannels(org.id).then(setChannels).catch(() => {});
+    getApprovalPolicy(org.id).then(setReqApproval).catch(() => {});
     getBrandVoice(org.id).then((v) => { if (v) setBv({ tone: v.tone || '', audience: v.audience || '', guidelines: v.guidelines || '', cta: v.cta || '', hashtags: (v.hashtags || []).join(' ') }); }).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
@@ -156,10 +159,22 @@ export default function SocialPage() {
     } catch (e: any) { setErr(e.message || 'Failed'); } finally { setBvBusy(false); }
   };
 
+  const toggleApproval = async () => {
+    if (!org || !me) return;
+    const next = !reqApproval; setReqApproval(next);
+    try { await setApprovalPolicy(org.id, me.id, next); } catch (e: any) { setErr(e.message); setReqApproval(!next); }
+  };
+  const bulkApprove = async () => {
+    if (!rs.count) return; setBusy(true); setErr('');
+    try { for (const p of rs.selected) if (!p.approved_at) await approveSocialPost(p.id); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
   const cell = (id: string, row: SocialPost) => {
     switch (id) {
       case 'content': return <span className="font-medium text-content">{row.body ? row.body.slice(0, 80) : '(empty)'}{row.body.length > 80 ? '…' : ''}</span>;
       case 'status': return <span className={`pill ${STATUS_PILL[row.status] || 'pill-gray'} capitalize`}>{row.status}</span>;
+      case 'approval': return row.approved_at ? <span className="pill pill-green">Approved</span> : reqApproval ? <span className="pill pill-amber">Needs approval</span> : <span className="text-muted2 text-2xs">\u2014</span>;
       case 'channels': {
         const cs = row.channels || [];
         if (!cs.length) return <span className="text-muted2 text-2xs">—</span>;
@@ -181,6 +196,7 @@ export default function SocialPage() {
       case 'status': return row.status;
       case 'channels': return String((row.channels || []).length);
       case 'scheduled': return row.scheduled_at || '';
+      case 'approval': return row.approved_at ? 'approved' : (reqApproval ? 'needs approval' : '');
       case 'source': return row.source;
       case 'created': return row.created_at;
       default: return '';
@@ -207,7 +223,7 @@ export default function SocialPage() {
       <div className="card p-3 mb-4">
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-1.5"><h3 className="text-sm font-semibold">Channels</h3><HelpHint anchor="social" /></div>
-          {isAdmin && <button className="btn btn-sm" onClick={() => setChanOpen(true)}><Icon name="ti-plus" />Add channel</button>}
+          <div className="flex items-center gap-2">{isAdmin && <label className="inline-flex items-center gap-1.5 text-2xs text-muted cursor-pointer select-none" title="Require owner/admin approval before a post can be scheduled or published"><input type="checkbox" checked={reqApproval} onChange={toggleApproval} />Require approval</label>}{isAdmin && <button className="btn btn-sm" onClick={() => setChanOpen(true)}><Icon name="ti-plus" />Add channel</button>}</div>
         </div>
         {channels.length === 0 ? (
           <p className="text-2xs text-muted2">No channels yet. Add the social accounts you post to. Live publishing connects via each platform once provider sign-in is enabled.</p>
@@ -245,6 +261,7 @@ export default function SocialPage() {
         exportValue={exportValue}
         onDelete={isAdmin ? bulkDelete : undefined}
         canDelete={isAdmin}
+        bulkActions={isAdmin ? () => <button className="btn h-8 text-xs" disabled={busy} onClick={bulkApprove}><Icon name="ti-circle-check" className="text-xs" />Approve</button> : undefined}
         busy={busy}
       />
 

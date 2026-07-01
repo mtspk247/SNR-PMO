@@ -1,4 +1,11 @@
 
+## 2026-06-30 — Social #34: Approval workflow + publish RBAC (RLS-enforced)
+- **Publish gate at the RLS layer:** new RESTRICTIVE policy `social_posts_publish_gate` — a post may only reach **scheduled/published** if approval isn't required, OR it's approved (`approved_at`), OR the editor is **owner/admin** (the approvers). Enforced server-side (ANDs with existing policies), not just UI.
+- **Per-org policy** `social_approval_policy` (require_approval), staff-read + owner/admin-write (`is_org_role` + `page_allows` + tenant gate). `social_approve_post(post)` SECURITY DEFINER RPC (owner/admin) stamps `approved_by/approved_at`. Added `social_posts.approved_by/approved_at`.
+- **Security Gate PASSED (RLS-sim):** non-admin schedule of an unapproved post under policy → DENIED (`social_posts_publish_gate` violation) ✓; owner bypass → scheduled ✓; non-admin scheduling an approved post → scheduled ✓; advisors clean.
+- **UI (`/social`):** admin "Require approval" toggle; Approval column (Approved / Needs approval); bulk **Approve** action for admins. db wrappers `getApprovalPolicy`/`setApprovalPolicy`/`approveSocialPost`.
+- Foundation for safe publishing + agent autonomy: agents/humans can draft freely, but going live is gated. Next: #29/#30 live publishing (dispatcher honors this gate).
+
 ## 2026-06-30 — Social #35: Brand Voice (agents draft on-brand)
 - **Brand Voice config** (`/social` → Brand voice, admin-only): tone, audience, guidelines, preferred CTA, default hashtags. New `social_brand_voice` table — staff-read RLS, **owner/admin-write only** (`is_org_role` + `page_allows('/social')` + `tenant_can('social')`), authenticated grants, anon revoked. **Security Gate:** owner-write allow ✓, non-admin write RLS-denied ✓, anon denied ✓.
 - **Wired into ABOS:** `runAgentProposer` now enriches the `brand` context sent to the `agent-propose` LLM edge fn via `composeBrandContext` (name + voice/tone + audience + guidelines + CTA + hashtags + banned words) — so agent-drafted posts/replies sound on-brand. No edge-fn change. db wrappers `getBrandVoice`/`setBrandVoice`.
