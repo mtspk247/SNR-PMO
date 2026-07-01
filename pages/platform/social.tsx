@@ -3,7 +3,7 @@ import Layout from '@/components/Layout';
 import { PageHeader, Icon } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
 import { useAuthStore } from '@/lib/store';
-import { socialProviderStatus, socialProviderSetConfig, SocialProviderStatus } from '@/lib/db';
+import { socialProviderStatus, socialProviderSetConfig, SocialProviderStatus, socialPublishConfigGet, socialPublishConfigSet, SocialPublishConfig } from '@/lib/db';
 
 const PROVIDERS: { key: string; label: string; icon: string; scopes: string }[] = [
   { key: 'linkedin', label: 'LinkedIn', icon: 'ti-brand-linkedin', scopes: 'openid profile w_member_social' },
@@ -24,9 +24,11 @@ export default function PlatformSocial() {
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState<string | null>(null);
   const [f, setF] = useState({ client_id: '', client_secret: '', redirect_uri: '', scopes: '', enabled: false });
+  const [pub, setPub] = useState<SocialPublishConfig | null>(null);
+  const [pubBusy, setPubBusy] = useState(false);
 
   const byProvider = useMemo(() => Object.fromEntries(rows.map((r) => [r.provider, r])), [rows]);
-  const load = () => { socialProviderStatus().then(setRows).catch((e) => setErr(e.message)); };
+  const load = () => { socialProviderStatus().then(setRows).catch((e) => setErr(e.message)); socialPublishConfigGet().then(setPub).catch(() => {}); };
   useEffect(() => { if (platformAdmin) load(); }, [platformAdmin]);
 
   if (!platformAdmin) {
@@ -71,6 +73,22 @@ export default function PlatformSocial() {
         })}
       </div>
       <p className="text-2xs text-muted2 mt-3">Once a provider is configured and enabled, tenants see a Connect button on their channels (Marketing ▸ Social &amp; Content) to authorize their own accounts. Access tokens are stored encrypted at rest and are never readable by tenant users or this console — only the publishing service uses them.</p>
+
+      {pub && (
+        <div className="card p-4 mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <div><h3 className="text-sm font-semibold flex items-center gap-1.5"><Icon name="ti-send" />Publishing controls</h3><p className="text-2xs text-muted2">Global kill-switch and rate caps for outbound posting. {pub.sent_today} sent today.</p></div>
+            <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input type="checkbox" checked={pub.enabled} disabled={pubBusy} onChange={async (e) => { setPubBusy(true); try { await socialPublishConfigSet({ enabled: e.target.checked, global: pub.global_daily_cap, tenant: pub.per_tenant_daily_cap }); load(); } catch (er: any) { setErr(er.message); } finally { setPubBusy(false); } }} />
+              {pub.enabled ? <span className="text-emerald-600">Publishing enabled</span> : <span className="text-rose-600">Paused (kill-switch on)</span>}
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Global daily cap"><input className="input" type="number" min={0} defaultValue={pub.global_daily_cap} onBlur={async (e) => { const v = Math.max(0, parseInt(e.target.value || '0', 10)); if (v === pub.global_daily_cap) return; setPubBusy(true); try { await socialPublishConfigSet({ enabled: pub.enabled, global: v, tenant: pub.per_tenant_daily_cap }); load(); } catch (er: any) { setErr(er.message); } finally { setPubBusy(false); } }} /></Field>
+            <Field label="Per-tenant daily cap"><input className="input" type="number" min={0} defaultValue={pub.per_tenant_daily_cap} onBlur={async (e) => { const v = Math.max(0, parseInt(e.target.value || '0', 10)); if (v === pub.per_tenant_daily_cap) return; setPubBusy(true); try { await socialPublishConfigSet({ enabled: pub.enabled, global: pub.global_daily_cap, tenant: v }); load(); } catch (er: any) { setErr(er.message); } finally { setPubBusy(false); } }} /></Field>
+          </div>
+        </div>
+      )}
 
       <Modal open={!!edit} onClose={() => setEdit(null)} title={`Configure ${PROVIDERS.find((p) => p.key === edit)?.label || ''}`} icon="ti-plug-connected"
         footer={<><button className="btn" onClick={() => setEdit(null)}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button></>}>
