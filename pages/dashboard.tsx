@@ -637,14 +637,23 @@ export default function Dashboard() {
   const setVariant = (key: string, vid: string) => { setVarOpen(''); setOrder((prev) => prev.map((e) => { const [k] = splitKey(e); if (k !== key) return e; const c = coordsOf(e); return c ? makeEntry(k, vid, c) : (vid && vid !== defVariant(k) ? `${k}:${vid}` : k); })); };
   // Persist drag/resize results back into the layout entries (key:variant:x:y:w:h).
   const applyLayout = (l: any[]) => { setOrder((prev) => prev.map((e) => { const it = l.find((x) => x.i === e); if (!it) return e; const [k, v] = splitKey(e); return makeEntry(k, v, { x: it.x, y: it.y, w: it.w, h: it.h }); })); };
-  // Build the free-form RGL layout from the order (auto-pack entries that lack coords).
-  let _cx = 0, _cy = 0;
+  // Build the RGL layout: keep placed (coord'd) widgets, and skyline-pack any coordless
+  // ones into the tightest available gap so nothing overlaps and there are no holes.
+  const colBottom = new Array(12).fill(0);
+  shown.forEach((entry) => {
+    const c = coordsOf(entry); if (!c) return;
+    for (let i = c.x; i < Math.min(12, c.x + c.w); i++) colBottom[i] = Math.max(colBottom[i], c.y + c.h);
+  });
   const rglLayout = shown.map((entry) => {
     const [k] = splitKey(entry); const c = coordsOf(entry);
-    const w = c?.w ?? defW(k); const h = c?.h ?? defH(k);
-    let x: number; let y: number;
-    if (c) { x = c.x; y = c.y; } else { if (_cx + w > 12) { _cx = 0; _cy += 4; } x = _cx; y = _cy; _cx += w; }
-    const minH = k.startsWith('kpi_') ? 2 : 3; return { i: entry, x, y, w, h, minW: 2, minH };
+    const w = Math.min(12, c?.w ?? defW(k)); const h = c?.h ?? defH(k);
+    const minH = k.startsWith('kpi_') ? 2 : 3;
+    if (c) return { i: entry, x: c.x, y: c.y, w, h, minW: 2, minH };
+    let bx = 0; let by = Infinity;
+    for (let x = 0; x <= 12 - w; x++) { let top = 0; for (let i = x; i < x + w; i++) top = Math.max(top, colBottom[i]); if (top < by) { by = top; bx = x; } }
+    if (by === Infinity) { by = Math.max(...colBottom, 0); bx = 0; }
+    for (let i = bx; i < bx + w; i++) colBottom[i] = by + h;
+    return { i: entry, x: bx, y: by, w, h, minW: 2, minH };
   });
   const flash = (m: string) => { setMsg(m); window.setTimeout(() => setMsg(''), 2200); };
   const savePersonal = async () => { if (!activeOrg) return; try { await saveUserDashboard(activeOrg.id, order); setSource('personal'); setEditing(false); flash('Saved your dashboard'); } catch (e: any) { flash(e.message || 'Save failed'); } };
