@@ -179,6 +179,9 @@ export const SECTIONS: NavSection[] = [
 ];
 
 export const ADMIN_SECTION: NavSection = { kind: 'menu', key: 'admin', label: 'Administration', icon: 'ti-shield-cog', items: [
+  { href: '/settings/profile', label: 'Profile', icon: 'ti-id-badge-2', group: 'Profile Setup' },
+  { href: '/settings/brand', label: 'Brand', icon: 'ti-palette', group: 'Profile Setup' },
+  { href: '/settings/themes', label: 'Themes', icon: 'ti-color-swatch', group: 'Profile Setup' },
   { href: '/users', label: 'Users', icon: 'ti-user-shield', group: 'Access & Billing' },
   { href: '/billing', label: 'Billing', icon: 'ti-credit-card', group: 'Access & Billing' },
   { href: '/developer', label: 'Developer', icon: 'ti-code', adminOnly: true, feature: 'api', group: 'Developer' },

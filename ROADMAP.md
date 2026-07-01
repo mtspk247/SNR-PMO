@@ -1,4 +1,9 @@
 
+## 2026-06-30 — Marketing nav groups + Administration "Profile Setup" segregation
+- **Marketing menu tagged** with sub-headers like other modules: **Social Media** (Social & Content, Content Calendar, Social Analytics, Competitor Watch), **Email Marketing** (Sequences → relabelled **Drip Email Marketing**), **Lead Capture** (Forms).
+- **Administration ▸ Profile Setup** (per Tariq): segregated Profile / Brand / Themes into their own nav pages under a `Profile Setup` group. Route-driven (`/settings/profile|brand|themes` re-export `pages/settings.tsx`; tab derived from `router.pathname`; legacy `?tab=` still works). Zero RLS/RBAC change; grantable via the roles tree automatically.
+- nav-only + settings route-awareness; tests green.
+
 ## 2026-06-30 — Phase 3G: continuous social/competitor sensor + CRITICAL agent-domain fix
 - **CRITICAL FIX (live via MCP):** `agent_definitions_domain_check` (and sibling `*_domain_check`s) had drifted and **never included `marketing`** — so no marketing agent (Content Assistant, Competitor Watcher) could be created; the Phase 3B/3E/3F marketing tools were effectively un-provisionable. Constraint now allows `marketing`. Enum CHECKs keep drifting — see memory.
 - **Continuous watching (no creds):** added a `marketing` branch to `agent_sensors_run` (the existing pg_cron `agent-sensors-tick`, */15m). When a marketing agent has **sensing enabled** (Agents page), it now continuously proposes — weekly-deduped, cost-ceiling-enforced, approve-first — `analyze_social_performance` insights (best channel, sub-2% engagement gap, cadence) + a `watch_competitors` competitor-cadence gap. Verified live (rolled back): proposed "Best channel: @yourco drives the most engagement". SECURITY DEFINER, org-scoped, dedup via `agent_already_proposed`; advisors clean.
