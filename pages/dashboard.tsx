@@ -649,7 +649,15 @@ export default function Dashboard() {
   const flash = (m: string) => { setMsg(m); window.setTimeout(() => setMsg(''), 2200); };
   const savePersonal = async () => { if (!activeOrg) return; try { await saveUserDashboard(activeOrg.id, order); setSource('personal'); setEditing(false); flash('Saved your dashboard'); } catch (e: any) { flash(e.message || 'Save failed'); } };
   const saveOrgDefault = async () => { if (!activeOrg) return; try { await saveOrgDashboard(activeOrg.id, order); flash('Saved as workspace default'); } catch (e: any) { flash(e.message || 'Save failed'); } };
-  const resetMine = async () => { if (!activeOrg) return; try { await resetUserDashboard(activeOrg.id); const dl = await getDashboardLayouts(activeOrg.id, user!.id); const base = dl.orgDefault || DEFAULT_KEYS; setOrder(base); setSource(dl.orgDefault ? 'org' : 'default'); setEditing(false); flash('Reset to workspace default'); } catch (e: any) { flash(e.message || 'Reset failed'); } };
+  const resetMine = async () => { if (!activeOrg) return; try {
+    await resetUserDashboard(activeOrg.id);
+    const dl = await getDashboardLayouts(activeOrg.id, user!.id);
+    // Reset always yields the full, current dashboard: workspace default (if any) plus every new default widget.
+    const b = dl.orgDefault || DEFAULT_KEYS;
+    const have = new Set(b.map((e) => splitKey(e)[0]));
+    const base = [...b, ...DEFAULT_KEYS.filter((k) => !have.has(k))];
+    setOrder(base); setSource(dl.orgDefault ? 'org' : 'default'); setEditing(false); flash('Reset to the latest default dashboard');
+  } catch (e: any) { flash(e.message || 'Reset failed'); } };
 
   const _hr = new Date().getHours();
   const greeting = _hr < 12 ? 'Good morning' : _hr < 18 ? 'Good afternoon' : 'Good evening';
