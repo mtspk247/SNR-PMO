@@ -1,4 +1,12 @@
 
+## 2026-06-30 — Phase 3E: Competitor Intelligence (live-agent watch) + nav active-state fix
+- **Nav bug fix (Tariq):** `/social` now `exact:true` — it no longer highlights while on `/social/analytics` or `/social/calendar` (two menu items were active at once). Sub-routes highlight individually.
+- **Competitor Watch (`/social/competitors`):** track competitors (name/platform/handle/url) and review an AI **insights feed** (trend / gap / threat / opportunity + recommendation, with review/action/dismiss + status). The **Competitor Watcher** agent (new ABOS starter agent, draft-only) drafts insights; `AgentPanel(marketing)` on the page.
+- **Secure substrate (live via MCP):** `social_competitors` (staff CRUD, forms-pattern RLS + RESTRICTIVE `page_allows('/social')`), `social_competitor_posts` (observed activity — **read-only to clients, ingestion via SECURITY DEFINER `social_record_competitor_post`**, org from competitor), `social_competitor_insights` (staff read/write + page_allows). Authenticated-only grants, anon revoked. **Security Gate PASSED (RLS-sim):** allow (competitor + ingest + insight) ✓; cross-tenant insert RLS-denied ✓; observed-post direct write denied (42501) ✓; advisors clean.
+- **ABOS:** new `watch_competitors` tool (marketing, low-risk, reversible) — executor persists a reviewable insight **as the approving user** (RLS applies), rollback deletes it. Content Assistant + **Competitor Watcher** starter agents.
+- **Vision captured:** `COMPETE_SOCIAL_PLATFORM_PLAN.md` §8b — the autonomous social command center (cross-platform posting, unified inbox, autonomous agents w/ configurable approval, video/creative, competitor loop, approvals/RBAC, white-label reporting) with the safe autonomy model + the continuous competitor-watch engine.
+- Pillars: P0✅ P1✅ P2✅ P3✅ P6✅ **+ competitor-intel✅**. Next: P4 live publishing (OAuth + rate/cost-capped dispatcher — needs creds), continuous competitor sensor (pg_cron), P5 unified inbox.
+
 ## 2026-06-30 — Phase 3D: Content Calendar (P6)
 - **Signature best-in-market surface:** `/social/calendar` — month grid of every scheduled + published post, colour-coded by status with per-channel platform icons, month nav + Today, channel filter, and an "unscheduled drafts" tray.
 - **Drag-to-reschedule:** drag a post to another day (keeps time-of-day) or drag a draft onto a day to schedule it — writes through the existing RLS-enforced `updateSocialPost` (creator-or-admin UPDATE policy), so RBAC/RLS hold with **zero new attack surface / no new tables**. Optimistic UI + reload-on-error.

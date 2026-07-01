@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, createCompetitorInsight, deleteCompetitorInsight, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -20,6 +20,21 @@ export const EXECUTORS: Record<string, Executor> = {
   // composer (status='draft', source='agent') via the SAME createSocialPost a human
   // uses, so RLS/RBAC apply (approver must hold social write access). Publishing stays
   // a separate human step (OAuth). Reversible: deletes the draft on rollback.
+  // MARKETING — competitor intelligence. The watcher proposes a competitive insight;
+  // on approval it persists a reviewable insight row (as the approving user → RLS applies).
+  // Reversible: deletes the insight on rollback.
+  watch_competitors: {
+    label: 'Save the competitive insight',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const summary = String(p.summary || a.summary || '').slice(0, 600);
+      if (!summary.trim()) throw new Error('watch_competitors needs an insight summary in the payload');
+      const kind = (['trend', 'gap', 'threat', 'opportunity', 'insight'] as const).includes(p.kind) ? p.kind : 'insight';
+      const ins = await createCompetitorInsight({ org_id: ctx.orgId, summary, kind, recommendation: p.recommendation ? String(p.recommendation).slice(0, 600) : undefined, competitor_id: p.competitor_id || null });
+      return { target_table: 'social_competitor_insights', target_id: ins.id, result: { insight_id: ins.id }, reversal: { op: 'delete_competitor_insight' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteCompetitorInsight(a.target_id); },
+  },
   draft_social_post: {
     label: 'Save the draft post',
     execute: async (a, ctx) => {

@@ -74,3 +74,21 @@
 Ships **dark** (`feature_rollouts` stage `internal`) → expand cohort-by-cohort. Plan-gated (`social` feature) + reseller-curatable. Docs in `/docs#social` (single source) + SYSTEM_GUIDE, contextual `help="social"` on every page.
 
 *Keep this current: check pillars off as they land; record any security/scale lesson here.*
+
+## 8b. Expanded vision — the autonomous social command center (Tariq, 2026-06-30)
+
+**Ambition:** not parity — *dominance*. A single place where a live AI social team does everything a human team does, in extensive, customizable detail, with configurable autonomy (approve-first **or** fully autonomous), and a dedicated agent that never stops watching the competition.
+
+| New pillar | What it is | Build note |
+|---|---|---|
+| **Cross-platform posting** | one composer → publish natively to every network from here | P4: per-provider OAuth adapters + dispatcher (rate/cost-capped) |
+| **Unified inbox** | every comment / DM / mention / reply across all networks in one stream, assignable, agent-draftable | reuse comms substrate; `social_conversations`/`social_messages`; `draft_social_reply` agent tool (approve-first or auto) |
+| **Autonomous agents** | agents create, schedule, publish, reply, report — **with or without approval** per policy | ABOS autonomy levels already exist (draft_only / approve_first / auto_low_risk); add `auto` publish gated by cost caps + kill-switch |
+| **Video/creative** | generate/assemble short-form video + images for posts | creative-gen agent tool → media stored in Drive (scanned) → attached to `social_posts.media` |
+| **Competitor intelligence** | a live agent continuously watches competitors, feeds insights to the AI team **and** to you, and plans to stay ahead | ✅ **Phase 3E substrate + `watch_competitors` agent** (this); next: continuous sensor (pg_cron) + provider/scrape ingestion + digest to owner |
+| **Approvals, roles, customization** | per-workspace approval chains, role-scoped who-can-publish, brand rules, per-channel defaults | RBAC (per-page CRUD we have) + `social_approval_policy` + brand-voice config |
+| **Reporting** | white-label PDF/scheduled reports per client/channel | build on Phase 3C analytics RPCs + the pdf skill |
+
+**Autonomy model (configurable, safe):** every social agent action flows through ABOS — `draft_only` (proposes), `approve_first` (human gates each), or `auto_low_risk` (reversible auto). **Publishing and spend are always cost-capped + kill-switchable**, never auto beyond policy; money/irreversible steps stay human-gated by default. Runs as the approving user → RLS/RBAC always apply.
+
+**Competitor-watch loop (the "nobody beats us" engine):** track competitors → a continuous ABOS sensor (pg_cron, like the existing agent sensors) ingests their public activity → the `watch_competitors` agent drafts trend/gap/threat/opportunity insights + recommendations → surfaced in Competitor Watch + digested to the owner → feeds the content agents' planning. Shipped: substrate + agent + UI. Next: the continuous sensor + live ingestion.
