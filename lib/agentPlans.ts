@@ -59,6 +59,23 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       }];
     },
   },
+  {
+    key: 'employee_onboarding', label: 'Onboard an employee', icon: 'ti-user-check', domain: 'hr',
+    description: 'Drafts a week-1 onboarding checklist for a new hire \u2014 welcome, accounts & access, intro 1:1s, training, payroll \u2014 as approve-first tasks.',
+    fields: [
+      { key: 'employee_name', label: 'Employee name', placeholder: 'Jordan Lee', required: true },
+      { key: 'tasks', label: 'Checklist items (optional, one per line)', kind: 'list', placeholder: 'Send welcome note\nCreate accounts & access' },
+    ],
+    build: (v) => {
+      const who = (v.employee_name || 'New hire').trim();
+      const tasks = listFrom(v.tasks);
+      return [{
+        tool: 'draft_onboarding', domain: 'hr', risk: 'low', reversible: true,
+        summary: `Onboard ${who} \u2014 week-1 checklist${tasks.length ? ` (${tasks.length} tasks)` : ''}`,
+        payload: { employee: who, ...(tasks.length ? { tasks } : {}) },
+      }];
+    },
+  },
 ];
 
 export const workflowByKey = (k: string): WorkflowTemplate | undefined => WORKFLOW_TEMPLATES.find((t) => t.key === k);
@@ -76,6 +93,17 @@ export function detectWorkflow(raw: string): WorkflowMatch | null {
   const text = (raw || '').trim();
   if (!text) return null;
   const low = text.toLowerCase();
+
+  // ---- Employee onboarding (checked before client — both say "onboard") ----
+  if (/\bonboard/.test(low) && /\b(employee|new hire|newhire|hire|staff|teammate|team ?member|colleague|worker)\b/.test(low)) {
+    let name = '';
+    const m = text.match(/(?:employee|new hire|hire|staff(?:\s*member)?|teammate|team\s*member|colleague|worker)\s+(.+?)(?:\s+(?:for|on|as|to|and|\u2014|-|:)\b.*)?$/i);
+    if (m) name = clean(m[1]);
+    if (name && /^(a|an|the|our|new|to|for|onboarding|checklist)$/i.test(name)) name = '';
+    const vals: Record<string, string> = {};
+    if (name) vals.employee_name = name;
+    return { key: 'employee_onboarding', vals, ready: !!name };
+  }
 
   // ---- Client onboarding ----
   if (/\bonboard(?:ing|ed|s)?\b/.test(low) || /\bnew client\b/.test(low)) {
