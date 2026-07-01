@@ -4343,6 +4343,20 @@ export async function socialChannelDisconnect(channelId: string): Promise<void> 
   const { error } = await sb.rpc('social_channel_disconnect', { p_channel: channelId });
   if (error) throw new Error(error.message);
 }
+// Begin OAuth connect: returns the provider authorize URL to redirect the user to.
+export async function socialOauthBegin(channelId: string, provider: string): Promise<string> {
+  const { data, error } = await sb.rpc('social_oauth_begin', { p_channel: channelId, p_provider: provider });
+  if (error) throw new Error(error.message);
+  const r = (data as any[] | null)?.[0];
+  if (!r || !r.client_id) throw new Error('This network is not connected yet — ask your platform admin to enable it.');
+  const u = new URL(r.authorize_endpoint);
+  u.searchParams.set('response_type', 'code');
+  u.searchParams.set('client_id', r.client_id);
+  u.searchParams.set('redirect_uri', r.redirect_uri);
+  u.searchParams.set('scope', r.scopes);
+  u.searchParams.set('state', r.state);
+  return u.toString();
+}
 export interface SocialPublishConfig { enabled: boolean; global_daily_cap: number; per_tenant_daily_cap: number; sent_today: number; updated_at: string | null; }
 export async function socialPublishConfigGet(): Promise<SocialPublishConfig | null> {
   const { data, error } = await sb.rpc('social_publish_config_get');

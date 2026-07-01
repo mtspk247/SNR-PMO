@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, EmptyState, Icon, StatCard, HelpHint } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -17,7 +18,7 @@ import {
   SocialPost, SocialChannel, SocialPlatform,
   getBrandVoice, setBrandVoice, getApprovalPolicy, setApprovalPolicy, approveSocialPost, updateSocialPost,
   listMediaAssets, SocialMediaAsset,
-  socialChannelConnStatus, socialChannelDisconnect, SocialChannelConn,
+  socialChannelConnStatus, socialChannelDisconnect, SocialChannelConn, socialOauthBegin,
 } from '@/lib/db';
 
 const PLATFORMS: { value: SocialPlatform; label: string; icon: string }[] = [
@@ -65,6 +66,7 @@ export default function SocialPage() {
   const [posts, setPosts] = useState<SocialPost[] | null>(null);
   const [channels, setChannels] = useState<SocialChannel[]>([]);
   const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
   // Composer
@@ -93,6 +95,7 @@ export default function SocialPage() {
   const [schedStart, setSchedStart] = useState('');
   const [schedEvery, setSchedEvery] = useState<'daily' | 'weekdays' | 'every2' | 'weekly'>('daily');
 
+  const router = useRouter();
   const load = () => {
     if (!org) return;
     listSocialPosts(org.id).then(setPosts).catch((e) => { setErr(e.message); setPosts([]); });
@@ -106,6 +109,14 @@ export default function SocialPage() {
     getBrandVoice(org.id).then((v) => { if (v) setBv({ tone: v.tone || '', audience: v.audience || '', guidelines: v.guidelines || '', cta: v.cta || '', hashtags: (v.hashtags || []).join(' ') }); }).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
+  useEffect(() => {
+    if (!router.isReady) return;
+    const c = router.query.connected as string | undefined;
+    const e = router.query.connect_error as string | undefined;
+    if (c) { setMsg(`${c} account connected.`); router.replace('/social', undefined, { shallow: true }); load(); }
+    else if (e) { setErr(`Couldn\u2019t connect: ${e.replace(/_/g, ' ')}`); router.replace('/social', undefined, { shallow: true }); }
+    /* eslint-disable-next-line */
+  }, [router.isReady]);
 
   const prefs = useListPrefs('snrpmo.social_posts.cols', COLS, { entity: 'social_posts', orgId: org?.id, canManage: isAdmin });
   const q = (prefs.query || '').toLowerCase();
@@ -183,6 +194,11 @@ export default function SocialPage() {
   const disconnectChannel = async (id: string) => {
     try { await socialChannelDisconnect(id); load(); } catch (e: any) { setErr(e.message); }
   };
+  const connectChannel = async (id: string, provider: string) => {
+    setErr('');
+    try { const url = await socialOauthBegin(id, provider); window.location.href = url; }
+    catch (e: any) { setErr(e.message); }
+  };
   const bulkApprove = async () => {
     if (!rs.count) return; setBusy(true); setErr('');
     try { for (const p of rs.selected) if (!p.approved_at) await approveSocialPost(p.id); rs.clear(); load(); }
@@ -251,6 +267,7 @@ export default function SocialPage() {
         action={<div className="flex items-center gap-2">{isAdmin && <button className="btn" onClick={() => setBvOpen(true)}><Icon name="ti-message-star" />Brand voice</button>}<button className="btn btn-primary" onClick={() => { resetComposer(); setComposeOpen(true); }}><Icon name="ti-pencil-plus" />Compose</button></div>}
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+      {msg && <p className="text-sm text-emerald-600 mb-3">{msg}</p>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <StatCard label="Posts" value={counts.total} icon="ti-news" />
@@ -279,6 +296,7 @@ export default function SocialPage() {
                 <span key={c.id} className="pill pill-gray inline-flex items-center gap-1.5">
                   <Icon name={m.icon} />{c.handle || m.label}
                   <span className={`text-2xs ${tone}`}>{label}</span>
+                  {isAdmin && !(conn?.connected && !expired) && <button onClick={() => connectChannel(c.id, c.platform)} className="text-2xs text-accent hover:text-accentstrong font-medium" title="Sign in and authorize this account">{expired ? 'Reconnect' : 'Connect'}</button>}
                   {isAdmin && conn?.connected && <button onClick={() => disconnectChannel(c.id)} className="text-2xs text-muted2 hover:text-rose-600" title="Disconnect account">Disconnect</button>}
                   {isAdmin && <button onClick={() => removeChannel(c.id)} className="text-muted2 hover:text-rose-600" title="Remove channel"><Icon name="ti-x" className="text-xs" /></button>}
                 </span>
