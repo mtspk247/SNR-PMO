@@ -555,6 +555,7 @@ export const SECTIONS: Section[] = [
       ] },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: posts and channels are workspace-scoped and protected by row-level security — only your staff can read them, editing or deleting is limited to the creator or a workspace owner/admin, and per-page permissions apply. Social & Content is plan-gated and rolls out cohort-by-cohort.' },
       { kind: 'steps', items: [
+        { title: 'Send a client-ready report', body: 'On Marketing > Social Analytics click Export report for a clean, branded one-page summary (KPIs, engagement trend, per-channel, top posts). Print or Save as PDF to share with clients — it carries your (or your reseller\u2019s) logo and colours automatically.' },
         { title: 'Handle every reply in one inbox', body: 'Open Marketing > Social Inbox for every comment, mention and DM across your channels in one stream. Reply, mark conversations open/pending/closed, and let an agent draft on-brand replies for you to approve.' },
         { title: 'Watch the competition', body: 'Open Marketing > Competitor Watch, add the competitors you care about, then run the Competitor Watcher agent — it drafts competitive insights (trends, gaps, threats, opportunities) with recommendations for your team to review and action.' },
         { title: 'Plan on the calendar', body: 'Open Marketing > Content Calendar for a month view of every scheduled and published post. Drag a post to another day to reschedule it, and drag an unscheduled draft onto a day to schedule it.' },

@@ -1,4 +1,9 @@
 
+## 2026-06-30 — Social #36: White-label client reports
+- **`/social/report`:** a clean, one-page **branded** social report (KPI summary, engagement trend, per-channel table, top posts) built on the Phase 3C analytics RPCs (real data, RLS-scoped, server-aggregated). "Export report" button on `/social/analytics`; **Print / Save as PDF** via the browser (reuses the app's `.print-area`/`.no-print` convention — no PDF lib/dep).
+- **White-label:** header auto-pulls the org's (or reseller's) `branding.logo_url` + `primary_color` + name — clients see the agency's brand, not ours. No new tables, no creds, no new attack surface (read-only over existing RLS-scoped RPCs).
+- Docs `/docs#social`. Next no-creds: media library (#32) or bulk scheduling (#37); the big unlock stays live publishing (#29/#30, needs provider OAuth).
+
 ## 2026-06-30 — Social #31: Unified engagement inbox (all networks)
 - **Signature best-in-market pillar:** `/social/inbox` — every comment / mention / DM across channels in one two-pane stream (conversation list + thread + reply), status (open/pending/closed), unread, per-platform icons. `AgentPanel(marketing)` in-context.
 - **Secure substrate (live via MCP):** `social_conversations` + `social_messages`. Staff-read RLS; staff may send **outbound** replies (tenant-gated, creator-stamped, conversation-scoped) + manage status; **inbound arrives only via SECURITY DEFINER `social_ingest_inbound`** (webhook dispatcher/service, org from channel). Authenticated grants, anon revoked. **Security Gate:** staff read+reply own org ✓, cross-tenant convs = 0 ✓, anon read denied ✓.
