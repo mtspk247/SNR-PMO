@@ -4403,7 +4403,7 @@ export async function listScreenRecordings(orgId: string): Promise<ScreenRecordi
   if (error) throw new Error(error.message); return (data as ScreenRecording[]) || [];
 }
 // Insert row first (so size counts toward the storage meter), then upload bytes, then stamp storage_path.
-export async function uploadScreenRecording(p: { org_id: string; created_by: string; title: string; description?: string | null; blob: Blob; duration_sec: number; mime?: string }): Promise<ScreenRecording> {
+export async function uploadScreenRecording(p: { org_id: string; created_by: string; title: string; description?: string | null; blob: Blob; duration_sec: number; mime?: string; thumb?: Blob | null }): Promise<ScreenRecording> {
   const size = p.blob.size;
   if (size > RECORDING_MAX_BYTES) throw new Error(`Recording is too large (max ${Math.round(RECORDING_MAX_BYTES / 1048576)} MB).`);
   const mime = p.mime || 'video/webm';
@@ -4416,9 +4416,22 @@ export async function uploadScreenRecording(p: { org_id: string; created_by: str
   const path = `${p.org_id}/${p.created_by}/${rec.id}.${ext}`;
   const { error: upErr } = await sb.storage.from('recordings').upload(path, p.blob, { upsert: false, contentType: mime });
   if (upErr) { await sb.from('screen_recordings').delete().eq('id', rec.id); throw new Error(upErr.message); }
-  const { error: updErr } = await sb.from('screen_recordings').update({ storage_path: path }).eq('id', rec.id);
+  // Upload safety: the recordings bucket is malware-scan-gated → fail-closed, only a clean verdict is downloadable.
+  try { await assertUploadClean('recordings', path, { org_id: p.org_id, mime, size, filename: `${rec.id}.${ext}` }); }
+  catch (e) { await sb.from('screen_recordings').delete().eq('id', rec.id); throw e; } // object already removed by assertUploadClean
+  // Optional poster thumbnail (also scan-gated → scan it; skip the thumb rather than fail the whole recording).
+  let thumbPath: string | null = null;
+  if (p.thumb) {
+    const tpath = `${p.org_id}/${p.created_by}/${rec.id}_thumb.jpg`;
+    const { error: tErr } = await sb.storage.from('recordings').upload(tpath, p.thumb, { upsert: false, contentType: 'image/jpeg' });
+    if (!tErr) {
+      try { await assertUploadClean('recordings', tpath, { org_id: p.org_id, mime: 'image/jpeg', size: p.thumb.size, filename: `${rec.id}_thumb.jpg` }); thumbPath = tpath; }
+      catch { thumbPath = null; }
+    }
+  }
+  const { error: updErr } = await sb.from('screen_recordings').update({ storage_path: path, thumb_path: thumbPath }).eq('id', rec.id);
   if (updErr) throw new Error(updErr.message);
-  return { ...rec, storage_path: path };
+  return { ...rec, storage_path: path, thumb_path: thumbPath };
 }
 export async function updateScreenRecording(id: string, patch: Partial<Pick<ScreenRecording, 'title'|'description'>>): Promise<void> {
   const { error } = await sb.from('screen_recordings').update(patch).eq('id', id); if (error) throw new Error(error.message);
@@ -4430,6 +4443,25 @@ export async function screenRecordingUrl(path: string): Promise<string> {
 export async function deleteScreenRecording(rec: ScreenRecording): Promise<void> {
   if (rec.storage_path) { try { await sb.storage.from('recordings').remove([rec.storage_path]); } catch { /* best-effort */ } }
   const { error } = await sb.from('screen_recordings').delete().eq('id', rec.id); if (error) throw new Error(error.message);
+}
+
+export interface ScreenRecordingLink { id: string; recording_id: string; task_id: string; task_name: string | null; created_at: string; }
+export async function listRecordingTaskLinks(recordingId: string): Promise<ScreenRecordingLink[]> {
+  const { data, error } = await sb.from('screen_recording_links').select('id, recording_id, task_id, created_at, tasks(name)').eq('recording_id', recordingId);
+  if (error) throw new Error(error.message);
+  return ((data as any[]) || []).map((r) => ({ id: r.id, recording_id: r.recording_id, task_id: r.task_id, task_name: r.tasks?.name ?? null, created_at: r.created_at }));
+}
+export async function linkRecordingToTask(p: { org_id: string; created_by: string; recording_id: string; task_id: string }): Promise<void> {
+  const { error } = await sb.from('screen_recording_links').insert({ org_id: p.org_id, created_by: p.created_by, recording_id: p.recording_id, task_id: p.task_id });
+  if (error) throw new Error(error.message);
+}
+export async function unlinkRecording(id: string): Promise<void> {
+  const { error } = await sb.from('screen_recording_links').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export interface TaskLite { id: string; name: string }
+export async function listTasksLite(orgId: string): Promise<TaskLite[]> {
+  const { data, error } = await sb.from('tasks').select('id, name').eq('org_id', orgId).order('created_at', { ascending: false }).limit(300);
+  if (error) throw new Error(error.message); return (data as TaskLite[]) || [];
 }
 
 export async function socialOauthBegin(channelId: string, provider: string): Promise<string> {
