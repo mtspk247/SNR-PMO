@@ -123,6 +123,7 @@ export async function seedFullDemo(orgId: string, opts: { industry?: string | nu
   }
   try { await seedCommsDemo(orgId); } catch { /* non-fatal */ }
   try { await seedGrowthDemo(orgId); } catch { /* non-fatal */ }
+  try { await seedSocialDemo(orgId); } catch { /* non-fatal */ }
   return counts;
 }
 // Demo agent Activity & ROI — populate a believable executed/auto/rolled-back/pending
@@ -144,6 +145,24 @@ export async function seedCommsDemo(orgId: string): Promise<number> {
 export async function seedGrowthDemo(orgId: string): Promise<number> {
   const { data, error } = await sb.rpc('tenant_seed_demo_growth', { p_org: orgId }); if (error) throw new Error(error.message);
   return (data as number) || 0;
+}
+// Demo Social & Content — a few channels + a mix of draft/scheduled/published posts (published
+// carry sample metrics) so a fresh trial shows the Social module, calendar and analytics ALIVE.
+// Idempotent (skips if the org already has posts), owner+feature-gated; cleared by tenant_wipe_data.
+export async function seedSocialDemo(orgId: string): Promise<Record<string, number>> {
+  const payload = { social: {
+    channels: [ { platform: 'linkedin', handle: '@yourbrand' }, { platform: 'x', handle: '@yourbrand' }, { platform: 'instagram', handle: '@yourbrand' } ],
+    posts: [
+      { body: 'We are now live on social \u2014 follow along for product updates, tips and behind-the-scenes.', status: 'published' },
+      { body: 'New feature drop: schedule a whole week of content in one click. Here is how.', status: 'published' },
+      { body: 'What should we build next? Reply and let us know.', status: 'scheduled' },
+      { body: 'Case study: how a client cut reporting time by 60%.', status: 'scheduled' },
+      { body: 'Draft: announcement copy for the fall launch.', status: 'draft' },
+    ],
+  } };
+  const { data, error } = await sb.rpc('tenant_seed_demo_social', { p_org: orgId, p_payload: payload });
+  if (error) throw new Error(error.message);
+  return (data as Record<string, number>) || {};
 }
 
 // Seed/remove the demo "smart columns" (relationship + multi-link + rollup + formula) on Clients,
