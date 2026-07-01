@@ -1,4 +1,10 @@
 
+## 2026-07-01 — Recording Studio Phase 1: studio setup UI + MP4 output
+- Redesigned the recorder setup (idle) into a studio layout (approved mockup): 16:9 preview area with **live webcam preview** bottom-right, Audio card (system + mic toggle switches), Camera card (webcam bubble toggle), segmented Quality selector, and a clear "saves as MP4/WebM · countdown · pause" note. System-audio is now a real toggle (begin() honors it).
+- **MP4 output where supported** (pickMime tries video/mp4 h264/aac first, else WebM); uploadScreenRecording already maps mime→ext and the recordings bucket allows video/mp4.
+- Kept proven recording/countdown/pause/preview/editor logic. Roadmap Phase 2-4 (annotations, background blur, AI captions, etc.) queued; native-only items (scheduled, multi-screen lock, GPU accel, green-screen, direct YouTube upload) = desktop-app track. NOTE: setup UI verified live; full record→export needs real-world test (screen-capture can't be granted in automation).
+
+
 ## 2026-07-01 — Screen Recorder: in-browser clip editor (trim/timelapse/watermark/brightness/crop/GIF)
 - New `components/RecordingEditor.tsx` — canvas-based post-record editor (no ffmpeg, no cross-origin-isolation): **trim** (in/out), **timelapse** (2×/4×/8×), **brightness**, **crop** (16:9/4:3/1:1), **watermark** text (bottom-right), keep/drop **audio**, export **WebM** (re-record via `canvas.captureStream`+MediaRecorder, audio via WebAudio MediaElementSource→dest) or **GIF** (gif.js from CDN, frame-sampled, best-effort). Wired an **Edit** step into the recorder preview: WebM replaces the clip to save; GIF downloads.
 - Native-only Screenflick items (ProRes/HEVC, system-wide overlays, scheduled, iPhone remote, Automator) remain out of scope for a browser app — CTO decision: web-only for now, desktop companion a separate future track.

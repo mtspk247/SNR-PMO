@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Field } from '@/components/Modal';
 import { Icon } from '@/components/ui';
-import Select from '@/components/Select';
 import RecordingEditor from '@/components/RecordingEditor';
 import { toast } from '@/lib/toast';
 import { uploadScreenRecording, RECORDING_MAX_SEC, RECORDING_MAX_BYTES, ScreenRecording } from '@/lib/db';
@@ -14,7 +13,7 @@ const QUALITY: Record<string, { fps: number; bitrate: number; scale: number; lab
   light: { fps: 15, bitrate: 2_000_000, scale: 0.66, label: 'Light — smaller file' },
 };
 function pickMime(): string {
-  const c = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  const c = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
   for (const m of c) { try { if ((window as any).MediaRecorder?.isTypeSupported?.(m)) return m; } catch { /* */ } }
   return 'video/webm';
 }
@@ -42,12 +41,22 @@ function captureThumb(blob: Blob): Promise<Blob | null> {
   });
 }
 
+const mp4Supported = typeof window !== 'undefined' && !!(window as any).MediaRecorder?.isTypeSupported?.('video/mp4');
+function ToggleRow({ icon, label, on, onToggle }: { icon: string; label: string; on: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" onClick={onToggle} className="w-full flex items-center justify-between py-1.5 text-left">
+      <span className="text-sm text-content inline-flex items-center gap-2"><Icon name={icon} className="text-muted2 text-base" />{label}</span>
+      <span className={`w-9 h-5 rounded-full relative transition-colors ${on ? 'bg-accentstrong' : 'bg-surface2 border border-line'}`}><span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${on ? 'right-0.5' : 'left-0.5'}`} /></span>
+    </button>
+  );
+}
 /** Screen recorder v2: countdown, pause/resume, quality presets, optional mic + webcam PiP. */
 export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
   orgId: string; userId: string; onClose: () => void; onSaved: (r: ScreenRecording) => void;
 }) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [mic, setMic] = useState(false);
+  const [sysAudio, setSysAudio] = useState(true);
   const [webcam, setWebcam] = useState(false);
   const [quality, setQuality] = useState<'high' | 'balanced' | 'light'>('balanced');
   const [count, setCount] = useState(3);
@@ -65,6 +74,7 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
   const rafRef = useRef<number | null>(null);
   const mimeRef = useRef<string>('video/webm');
   const timerRef = useRef<any>(null);
+  const camPreviewRef = useRef<HTMLVideoElement | null>(null);
 
   const stopAll = () => {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
@@ -73,6 +83,16 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
   };
   useEffect(() => () => { stopAll(); if (previewUrl) URL.revokeObjectURL(previewUrl); }, []); // eslint-disable-line
+  useEffect(() => {
+    let stream: MediaStream | null = null; let alive = true;
+    if (phase === 'idle' && webcam && navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video: { width: 320 } }).then((s) => {
+        if (!alive) { s.getTracks().forEach((t) => t.stop()); return; }
+        stream = s; if (camPreviewRef.current) { camPreviewRef.current.srcObject = s; camPreviewRef.current.play().catch(() => {}); }
+      }).catch(() => {});
+    }
+    return () => { alive = false; if (stream) stream.getTracks().forEach((t) => t.stop()); };
+  }, [phase, webcam]);
 
   const startTimer = () => { timerRef.current = setInterval(() => setElapsed((e) => {
     const n = e + 1; if (n >= RECORDING_MAX_SEC && recRef.current?.state === 'recording') recRef.current.stop(); return n;
@@ -83,10 +103,10 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
     if (!navigator.mediaDevices?.getDisplayMedia) { setErr('Screen recording is not supported in this browser.'); return; }
     const q = QUALITY[quality];
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: q.fps } as any, audio: true });
+      const display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: q.fps } as any, audio: sysAudio });
       streamsRef.current.push(display);
       const dTrack = display.getVideoTracks()[0];
-      let audioTracks = display.getAudioTracks();
+      let audioTracks = sysAudio ? display.getAudioTracks() : [];
 
       // microphone (mixed with any system audio)
       if (mic) {
@@ -199,10 +219,32 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
 
       {phase === 'idle' && (
         <div className="space-y-3">
-          <p className="text-sm text-muted">Capture a tab, window, or your whole screen. Max {Math.round(RECORDING_MAX_SEC / 60)} min · {Math.round(RECORDING_MAX_BYTES / 1048576)} MB.</p>
-          <Field label="Quality"><Select value={quality} onChange={(v) => setQuality(v as any)} options={Object.entries(QUALITY).map(([k, q]) => ({ value: k, label: q.label }))} /></Field>
-          <label className="flex items-center gap-2 text-sm text-content cursor-pointer"><input type="checkbox" checked={mic} onChange={(e) => setMic(e.target.checked)} /><Icon name="ti-microphone" className="text-muted2" />Include microphone (narrate)</label>
-          <label className="flex items-center gap-2 text-sm text-content cursor-pointer"><input type="checkbox" checked={webcam} onChange={(e) => setWebcam(e.target.checked)} /><Icon name="ti-user-circle" className="text-muted2" />Show webcam bubble (picture-in-picture)</label>
+          <div className="relative rounded-xl overflow-hidden border border-line" style={{ aspectRatio: '16 / 9', background: '#1c1c1f' }}>
+            <div className="absolute inset-0 grid place-items-center text-center px-4" style={{ color: '#8a8a90' }}>
+              <span className="text-xs"><Icon name="ti-device-desktop" className="text-3xl block mb-1" />You'll choose a screen, window, or tab when you press Start</span>
+            </div>
+            {webcam && <video ref={camPreviewRef} muted playsInline className="absolute right-3 bottom-3 w-20 h-20 rounded-full object-cover border-2 border-white" style={{ background: '#2b2b30' }} />}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="card p-3">
+              <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Audio</p>
+              <ToggleRow icon="ti-volume" label="System audio" on={sysAudio} onToggle={() => setSysAudio((v) => !v)} />
+              <ToggleRow icon="ti-microphone" label="Microphone" on={mic} onToggle={() => setMic((v) => !v)} />
+            </div>
+            <div className="card p-3">
+              <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Camera</p>
+              <ToggleRow icon="ti-user-circle" label="Webcam bubble" on={webcam} onToggle={() => setWebcam((v) => !v)} />
+              <p className="text-2xs text-muted2 mt-1">Adds a round webcam overlay, bottom-right.</p>
+            </div>
+          </div>
+          <Field label="Quality">
+            <div className="flex gap-2">
+              {Object.entries(QUALITY).map(([k, q]) => (
+                <button key={k} type="button" onClick={() => setQuality(k as any)} className={`flex-1 btn btn-sm ${quality === k ? 'btn-primary' : ''}`}>{q.label.split(' — ')[0]}</button>
+              ))}
+            </div>
+          </Field>
+          <p className="text-2xs text-muted2">Up to {QUALITY[quality].fps} fps · saves as {mp4Supported ? 'MP4' : 'WebM'} · 3-2-1 countdown · pause anytime · max {Math.round(RECORDING_MAX_SEC / 60)} min / {Math.round(RECORDING_MAX_BYTES / 1048576)} MB.</p>
         </div>
       )}
 
