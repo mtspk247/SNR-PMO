@@ -4026,6 +4026,22 @@ export async function simulateAgentProposal(orgId: string, agentId: string, doma
   await sb.rpc('agent_finish_run', { p_run: runId as string, p_status: 'awaiting_approval', p_tokens: 0, p_usd: 0, p_error: null });
   return runId as string;
 }
+
+// Propose a deterministic multi-step WORKFLOW plan as approve-first actions in one grouped run.
+// RLS-safe: agent_start_run/agent_propose_action are manage-gated SECURITY DEFINER RPCs, so a
+// non-manager call fails closed. Each step lands in the approvals queue (dry-run + preflighted).
+export async function proposeWorkflowPlan(orgId: string, agentId: string, goal: string, steps: { tool: string; domain: string; summary: string; payload: Record<string, unknown>; risk?: string; reversible?: boolean }[]): Promise<{ runId: string; count: number }> {
+  const { data: runId, error: e1 } = await sb.rpc('agent_start_run', { p_org: orgId, p_agent: agentId, p_trigger: 'manual', p_input: { kind: 'workflow', goal } });
+  if (e1) throw new Error(e1.message);
+  let count = 0;
+  for (const st of steps) {
+    const { error } = await sb.rpc('agent_propose_action', { p_org: orgId, p_run: runId as string, p_agent: agentId, p_tool: st.tool, p_domain: st.domain, p_summary: st.summary, p_payload: st.payload || {}, p_risk: st.risk || 'low', p_reversible: st.reversible ?? true });
+    if (error) throw new Error(error.message);
+    count++;
+  }
+  await sb.rpc('agent_finish_run', { p_run: runId as string, p_status: 'awaiting_approval', p_tokens: 0, p_usd: 0, p_error: null });
+  return { runId: runId as string, count };
+}
 // Phase 3.5 graduated autonomy: auto-approve a low-risk reversible action with no human
 // click. The RPC hard-enforces the policy (auto_low_risk + enabled agent, low risk,
 // reversible); execution still runs client-side as the user (never a bypass).
