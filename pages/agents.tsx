@@ -20,7 +20,7 @@ import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
   listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, agentUsageSummary, runWorkScan,
   setAgentSensing, setOrgAgentsPaused, getOrgAgentsPaused,
-  listAgentActions, recordAgentExecution, autoApproveAgentAction,
+  listAgentActions, recordAgentExecution, autoApproveAgentAction, agentPreflight,
   listChatCommands, createChatCommand, updateChatCommand, deleteChatCommand, seedBuiltinChatCommands,
   AgentDefinition, AgentDomain, AgentAutonomy, AgentCostLimit, AgentUsage, AgentUsageCost, AgentUsageSummary,
 } from '@/lib/db';
@@ -170,14 +170,18 @@ export default function AgentsPage() {
     let acts: any[] = [];
     try { acts = await listAgentActions(org.id, 'proposed'); } catch { return { auto: 0, failed: 0 }; }
     const eligible = acts.filter((a: any) => a.run_id === runId && canAutoExecute(draft.autonomy_level, a)).slice(0, 25);
-    let auto = 0, failed = 0;
+    let auto = 0, failed = 0, held = 0;
     for (const a of eligible) {
       try {
+        // Safety gate: never auto-execute an action the preflight says would fail (e.g. the target
+        // was changed/removed since it was proposed) — hold it for a human instead.
+        try { const pf = await agentPreflight(a.id); if (pf.checked && !pf.ok) { held++; continue; } } catch { /* preflight unavailable — fall through to normal execution */ }
         await autoApproveAgentAction(a.id);
         const ex = executorFor(a.tool_key);
         if (ex) { const r = await ex.execute(a, { orgId: org.id, userId: me.id }); await recordAgentExecution(a.id, r.target_table, r.target_id, r.result, r.reversal, r.prior_state); auto++; }
       } catch { failed++; }
     }
+    if (held > 0) toast(held + ' action' + (held === 1 ? '' : 's') + ' held for review — preflight found they would fail', 'info');
     return { auto, failed };
   };
 
