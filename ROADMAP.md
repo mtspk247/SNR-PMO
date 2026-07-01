@@ -1,4 +1,8 @@
 
+## 2026-07-02 — Recorder pro settings: explicit Resolution / FPS / Format
+- Replaced the High/Balanced/Light presets in RecorderController with pro dropdowns: **Resolution** 720p/1080p/1440p (canvas-downscaled to target height, bitrate 4/8/12 Mbps), **Frame rate** 30/60 fps, **Format** Auto/MP4/WebM (pickMime honors the choice, mp4-first on Auto where supported). getDisplayMedia requests `height:{ideal}`; canvas pipeline scales to target. Frontend; verify live. 4K + plan-gating deferred (needs a resolution capability in the plan system).
+
+
 ## 2026-07-02 — Recorder rebuild: global engine + non-blocking floating bar + edit-after-save
 - **App-wide recording engine** — `components/RecorderController.tsx` mounted in `_app`; recording now **survives route navigation** and is no longer a blocking modal. Triggered anywhere via `openRecorder()` (event bus); reloads /recordings on save via `snr:recording-saved`. Replaced + removed RecorderModal.
 - **Non-blocking floating toolbar** during recording (draggable): timer, pause/resume, stop, mic/webcam indicators. Setup + preview remain modals only at natural start/stop points; **only Stop ends recording** (closing/navigating won't). Fixes "modal blocks the app / closing kills the recording".

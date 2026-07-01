@@ -11,14 +11,16 @@ import { uploadScreenRecording, RECORDING_MAX_SEC, RECORDING_MAX_BYTES } from '@
 export function openRecorder() { try { window.dispatchEvent(new Event('snr:open-recorder')); } catch { /* */ } }
 
 type Phase = 'closed' | 'idle' | 'countdown' | 'recording' | 'paused' | 'preview' | 'saving';
-const QUALITY: Record<string, { fps: number; bitrate: number; scale: number; label: string }> = {
-  high: { fps: 30, bitrate: 8_000_000, scale: 1, label: 'High — best quality' },
-  balanced: { fps: 30, bitrate: 4_000_000, scale: 1, label: 'Balanced' },
-  light: { fps: 15, bitrate: 2_000_000, scale: 0.66, label: 'Light — smaller file' },
+const RESO: Record<string, { h: number; br: number; label: string }> = {
+  '720': { h: 720, br: 4_000_000, label: '720p' },
+  '1080': { h: 1080, br: 8_000_000, label: '1080p' },
+  '1440': { h: 1440, br: 12_000_000, label: '1440p' },
 };
 const mp4Supported = typeof window !== 'undefined' && !!(window as any).MediaRecorder?.isTypeSupported?.('video/mp4');
-function pickMime(): string {
-  const c = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+function pickMime(format: 'auto' | 'mp4' | 'webm'): string {
+  const mp4 = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4'];
+  const webm = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  const c = format === 'mp4' ? [...mp4, ...webm] : format === 'webm' ? webm : [...mp4, ...webm];
   for (const m of c) { try { if ((window as any).MediaRecorder?.isTypeSupported?.(m)) return m; } catch { /* */ } }
   return 'video/webm';
 }
@@ -64,7 +66,9 @@ export default function RecorderController() {
   const [showCursor, setShowCursor] = useState(true);
   const [camPos, setCamPos] = useState<'tl' | 'tr' | 'bl' | 'br'>('br');
   const [camSize, setCamSize] = useState<'sm' | 'md' | 'lg'>('md');
-  const [quality, setQuality] = useState<'high' | 'balanced' | 'light'>('balanced');
+  const [resolution, setResolution] = useState<'720' | '1080' | '1440'>('1080');
+  const [fps, setFps] = useState<30 | 60>(30);
+  const [format, setFormat] = useState<'auto' | 'mp4' | 'webm'>('auto');
   const [count, setCount] = useState(3);
   const [elapsed, setElapsed] = useState(0);
   const [err, setErr] = useState('');
@@ -122,9 +126,9 @@ export default function RecorderController() {
   const begin = async () => {
     setErr('');
     if (!navigator.mediaDevices?.getDisplayMedia) { setErr('Screen recording is not supported in this browser.'); return; }
-    const q = QUALITY[quality];
+    const rz = RESO[resolution]; const br = rz.br;
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: q.fps, cursor: showCursor ? 'always' : 'never' } as any, audio: sysAudio });
+      const display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: fps, height: { ideal: rz.h }, cursor: showCursor ? 'always' : 'never' } as any, audio: sysAudio });
       streamsRef.current.push(display);
       const dTrack = display.getVideoTracks()[0];
       let audioTracks = sysAudio ? display.getAudioTracks() : [];
@@ -140,10 +144,12 @@ export default function RecorderController() {
         } catch { /* mic denied */ }
       }
       let videoTrack = dTrack; let cam: HTMLVideoElement | null = null;
-      const useCanvas = webcam || q.scale < 1;
+      const scale0 = Math.min(1, rz.h / (((dTrack.getSettings().height as number) || rz.h)));
+      const useCanvas = webcam || scale0 < 1;
       if (useCanvas) {
         const st = dTrack.getSettings(); const sw = (st.width as number) || 1280, sh = (st.height as number) || 720;
-        const cw = Math.round(sw * q.scale), ch = Math.round(sh * q.scale);
+        const scale = Math.min(1, rz.h / sh);
+        const cw = Math.round(sw * scale), ch = Math.round(sh * scale);
         const dv = document.createElement('video'); dv.muted = true; (dv as any).playsInline = true; dv.srcObject = new MediaStream([dTrack]); await dv.play().catch(() => {});
         if (webcam) {
           try {
@@ -169,11 +175,11 @@ export default function RecorderController() {
           rafRef.current = requestAnimationFrame(draw);
         };
         draw();
-        videoTrack = (canvas as any).captureStream(q.fps).getVideoTracks()[0];
+        videoTrack = (canvas as any).captureStream(fps).getVideoTracks()[0];
       }
       const mixed = new MediaStream([videoTrack, ...audioTracks]);
-      mimeRef.current = pickMime();
-      const mr = new MediaRecorder(mixed, { mimeType: mimeRef.current, videoBitsPerSecond: q.bitrate });
+      mimeRef.current = pickMime(format);
+      const mr = new MediaRecorder(mixed, { mimeType: mimeRef.current, videoBitsPerSecond: br });
       chunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data && e.data.size) chunksRef.current.push(e.data); };
       mr.onstop = () => {
@@ -290,15 +296,31 @@ export default function RecorderController() {
               ) : <p className="text-2xs text-muted2 mt-1">Round webcam overlay you can position and size.</p>}
             </div>
           </div>
-          <Field label="Quality">
-            <div className="flex gap-2">
-              {Object.entries(QUALITY).map(([k, q]) => (
-                <button key={k} type="button" onClick={() => setQuality(k as any)} className={`flex-1 btn btn-sm ${quality === k ? 'btn-primary' : ''}`}>{q.label.split(' — ')[0]}</button>
-              ))}
-            </div>
-          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Resolution">
+              <div className="flex gap-1">
+                {(['720', '1080', '1440'] as const).map((r) => (
+                  <button key={r} type="button" onClick={() => setResolution(r)} className={`flex-1 btn btn-sm ${resolution === r ? 'btn-primary' : ''}`}>{RESO[r].label}</button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Frame rate">
+              <div className="flex gap-1">
+                {([30, 60] as const).map((fr) => (
+                  <button key={fr} type="button" onClick={() => setFps(fr)} className={`flex-1 btn btn-sm ${fps === fr ? 'btn-primary' : ''}`}>{fr} fps</button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Format">
+              <div className="flex gap-1">
+                {([['auto', 'Auto'], ['mp4', 'MP4'], ['webm', 'WebM']] as const).map(([fm, lbl]) => (
+                  <button key={fm} type="button" onClick={() => setFormat(fm)} className={`flex-1 btn btn-sm ${format === fm ? 'btn-primary' : ''}`}>{lbl}</button>
+                ))}
+              </div>
+            </Field>
+          </div>
           <div className="card p-3"><ToggleRow icon="ti-pointer" label="Show mouse cursor" on={showCursor} onToggle={() => setShowCursor((v) => !v)} /></div>
-          <p className="text-2xs text-muted2">Up to {QUALITY[quality].fps} fps · saves as {mp4Supported ? 'MP4' : 'WebM'} · 3-2-1 countdown · the recorder minimizes to a floating bar so you can keep using the app · max {Math.round(RECORDING_MAX_SEC / 60)} min / {Math.round(RECORDING_MAX_BYTES / 1048576)} MB.</p>
+          <p className="text-2xs text-muted2">{RESO[resolution].label} · {fps} fps · {format === 'auto' ? (mp4Supported ? 'MP4' : 'WebM') : format.toUpperCase()} · 3-2-1 countdown · the recorder minimizes to a floating bar so you can keep using the app · max {Math.round(RECORDING_MAX_SEC / 60)} min / {Math.round(RECORDING_MAX_BYTES / 1048576)} MB.</p>
         </div>
       )}
       {phase === 'countdown' && <div className="grid place-items-center py-12"><span className="text-6xl font-mono font-semibold text-accentstrong tabular-nums">{count > 0 ? count : 'Go'}</span></div>}
