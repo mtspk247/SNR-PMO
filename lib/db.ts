@@ -4394,6 +4394,29 @@ export async function dashboardCounts(orgId: string): Promise<DashboardCounts> {
   const { data, error } = await sb.rpc('dashboard_counts', { p_org: orgId });
   if (error) throw new Error(error.message); return (data as DashboardCounts) || {};
 }
+// ── Upsell / upgrade-prompt engine (platform defaults + reseller overrides) ──
+export interface UpsellPrompt { id: string; owner_org: string | null; slug: string; trigger_type: string; feature_key: string | null; metric: string | null; threshold_pct: number | null; placement: string; title: string; body: string; cta_label: string; cta_href: string; min_plan: string | null; audience: string; status: string; priority: number; style: any; created_at?: string; }
+export interface UpsellPromptInput { id?: string | null; owner_org: string | null; slug: string; trigger_type: string; feature_key?: string | null; metric?: string | null; threshold_pct?: number | null; placement: string; title: string; body: string; cta_label: string; cta_href: string; min_plan?: string | null; audience: string; priority: number; style?: any }
+// Management list (RLS: platform admin sees platform defaults; reseller owner/admin sees its own).
+export async function listUpsellPrompts(ownerOrg: string | null): Promise<UpsellPrompt[]> {
+  let q = sb.from('upsell_prompts').select('*');
+  q = ownerOrg === null ? q.is('owner_org', null) : q.eq('owner_org', ownerOrg);
+  const { data, error } = await q.neq('status', 'archived').order('priority', { ascending: true });
+  if (error) throw new Error(error.message); return (data as UpsellPrompt[]) || [];
+}
+// Resolved, merged, active prompts for an org (platform defaults + its reseller's overrides).
+export async function upsellPromptsFor(orgId: string): Promise<UpsellPrompt[]> {
+  const { data, error } = await sb.rpc('upsell_prompts_for', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as UpsellPrompt[]) || [];
+}
+export async function saveUpsellPrompt(p: UpsellPromptInput): Promise<string> {
+  const { data, error } = await sb.rpc('upsell_prompt_save', { p_id: p.id || null, p_owner: p.owner_org, p_slug: p.slug, p_trigger: p.trigger_type, p_feature: p.feature_key || null, p_metric: p.metric || null, p_threshold: p.threshold_pct ?? null, p_placement: p.placement, p_title: p.title, p_body: p.body, p_cta_label: p.cta_label, p_cta_href: p.cta_href, p_min_plan: p.min_plan || null, p_audience: p.audience, p_priority: p.priority, p_style: p.style || {} });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function setUpsellPromptStatus(id: string, status: 'active' | 'paused' | 'archived'): Promise<void> {
+  const { error } = await sb.rpc('upsell_prompt_set_status', { p_id: id, p_status: status }); if (error) throw new Error(error.message);
+}
+
 // ── Screen recordings (metadata + storage; recorder UI = slice 2) ───────────
 export interface ScreenRecording { id: string; org_id: string; title: string; description: string | null; storage_path: string | null; thumb_path: string | null; duration_sec: number | null; size_bytes: number | null; mime: string; created_by: string | null; created_at: string; updated_at: string; }
 export const RECORDING_MAX_BYTES = 209715200;   // 200 MB per recording (matches bucket cap)

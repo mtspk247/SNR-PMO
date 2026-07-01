@@ -6,6 +6,7 @@ import Select from '@/components/Select';
 import { Modal, Field } from '@/components/Modal';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { can } from '@/lib/authz';
+import UpsellPromptsManager from '@/components/UpsellPromptsManager';
 import {
   resellerListOrgs, resellerBillingSummary,
   snapshotList, snapshotCapture, snapshotDelete,
@@ -19,14 +20,15 @@ import {
   updateOrgSettings,
 } from '@/lib/db';
 
-type TabKey = 'plans' | 'payments' | 'snapshots' | 'coowners';
+type TabKey = 'plans' | 'payments' | 'snapshots' | 'coowners' | 'upsell';
 // Section ↔ route map (the console is decomposed into focused /reseller/<section> routes).
-const SECTION_PATHS: Record<TabKey, string> = { plans: '/reseller/plans', payments: '/reseller/payments', snapshots: '/reseller/snapshots', coowners: '/reseller/co-owners' };
+const SECTION_PATHS: Record<TabKey, string> = { plans: '/reseller/plans', payments: '/reseller/payments', snapshots: '/reseller/snapshots', coowners: '/reseller/co-owners', upsell: '/reseller/upsell' };
 function routeSection(pathname: string): TabKey | null {
   if (pathname.startsWith('/reseller/plans')) return 'plans';
   if (pathname.startsWith('/reseller/payments')) return 'payments';
   if (pathname.startsWith('/reseller/snapshots')) return 'snapshots';
   if (pathname.startsWith('/reseller/co-owners')) return 'coowners';
+  if (pathname.startsWith('/reseller/upsell')) return 'upsell';
   return null;
 }
 
@@ -40,7 +42,7 @@ export default function ResellerPage() {
     const r = routeSection(router.pathname);
     if (r) { setTab(r); return; }
     const t = router.query.tab;
-    if (typeof t === 'string' && (['plans','payments','snapshots','coowners'] as string[]).includes(t)) router.replace(SECTION_PATHS[t as TabKey]);
+    if (typeof t === 'string' && (['plans','payments','snapshots','coowners','upsell'] as string[]).includes(t)) router.replace(SECTION_PATHS[t as TabKey]);
   }, [router.pathname, router.query.tab]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Co-owner invite
@@ -426,6 +428,13 @@ export default function ResellerPage() {
       )}
 
       {/* Co-owner invite modal */}
+      {tab === 'upsell' && (
+        <div className="max-w-3xl">
+          <h2 className="text-sm font-semibold text-content mb-1">Upgrade prompts</h2>
+          <p className="text-2xs text-muted mb-3">Customize the upgrade nudges your sub-tenants see. Add your own, or pause/override the platform defaults for your clients.</p>
+          {org && <UpsellPromptsManager ownerOrg={org.id} />}
+        </div>
+      )}
       {tab === 'coowners' && (
         <div className="card p-5 max-w-2xl">
           <h3 className="text-sm font-semibold flex items-center gap-2"><Icon name="ti-users" />Co-owners</h3>
