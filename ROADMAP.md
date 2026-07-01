@@ -1,4 +1,8 @@
 
+## 2026-07-01 — Perf audit: index all unindexed FKs (schema-wide, DB-only)
+- Ran Supabase performance advisors. **Fixed all 22 `unindexed_foreign_keys`** (covering indexes) → category now 0. Mostly the new social tables (social_posts created_by/approved_by, social_post_channels/metrics channel_id, social_source_items drafted_post_id, social_oauth_state, competitors/messages/conversations, media_assets drive_file_id) + feedback (triaged_by/author_id/user_id) + organizations (archive_snapshot/archived_by/deletion_requested_by). Speeds joins + cascade-deletes (tenant wipe) at scale.
+- Remaining advisor state (accepted): `unused_index` = young-DB noise (incl. the 22 new — used at scale); **105 `multiple_permissive_policies`** = known low-impact RLS micro-opt (partially consolidated before, cf memory snr-pmo-rls-consolidation; rest deferred as low-value); 1 `no_primary_key` on `_feature_access_backup_20260625` (dated backup table — ignore).
+
 ## 2026-07-01 — Social #30b: LinkedIn publish adapter + cron (go-live code COMPLETE)
 - Edge fn **`social-publish`** (verify_jwt=false, DB-secret guarded via `social_publish_config.dispatch_secret`): drains the dispatcher = `social_publish_claim(50)` → LinkedIn REST Posts API (`/rest/posts`, `urn:li:person:{sub}`, LinkedIn-Version 202401) → `social_publish_report`. Handles **401 → refresh_token grant → retry** (token auto-refresh). Non-LinkedIn providers report a clear "adapter not implemented" (never claimed anyway).
 - Cron **`snrpmo_social_publish`** (every minute) → `social_publish_drain()` which fires the edge fn ONLY when due scheduled posts exist AND the kill-switch is on (saves idle calls). Verified: drain no-ops cleanly (0 due), cron active.
