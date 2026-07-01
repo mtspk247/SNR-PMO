@@ -4324,6 +4324,15 @@ export async function socialChannelDisconnect(channelId: string): Promise<void> 
   const { error } = await sb.rpc('social_channel_disconnect', { p_channel: channelId });
   if (error) throw new Error(error.message);
 }
+export interface SocialPublishConfig { enabled: boolean; global_daily_cap: number; per_tenant_daily_cap: number; sent_today: number; updated_at: string | null; }
+export async function socialPublishConfigGet(): Promise<SocialPublishConfig | null> {
+  const { data, error } = await sb.rpc('social_publish_config_get');
+  if (error) throw new Error(error.message); const r = (data as SocialPublishConfig[]) || []; return r[0] || null;
+}
+export async function socialPublishConfigSet(p: { enabled: boolean; global: number; tenant: number }): Promise<void> {
+  const { error } = await sb.rpc('social_publish_config_set', { p_enabled: p.enabled, p_global: p.global, p_tenant: p.tenant });
+  if (error) throw new Error(error.message);
+}
 
 // ── Reseller feature control (per-sub-tenant) ───────────────────────────────
 export interface ResellerSubFeature { feature_key: string; name: string; reseller_has: boolean; override: boolean | null; effective: boolean; }
