@@ -249,11 +249,11 @@ export const SECTIONS: Section[] = [
       {
         kind: 'bullets',
         items: [
-          { text: 'Open projects & overdue tasks at a glance' },
-          { text: 'Pipeline value from CRM (if enabled)' },
-          { text: 'Net ledger balance from Accounting (if enabled)' },
-          { text: 'Headcount from HR (if enabled)' },
-          { text: 'Tile links navigate directly to the relevant module' },
+          { text: 'KPI tiles — open projects, overdue tasks, pipeline value (CRM), net ledger balance (Accounting), headcount (HR), new leads, form submissions, social, inbox and agent approvals — each shown only if you have that module.' },
+          { text: 'Needs attention — one action list of everything waiting on you or your admins right now: overdue tasks, agent actions to review, leave and expense claims to approve, overdue invoices, and open inbox conversations. Each row shows a count and links straight to the exact place to act; when there is nothing outstanding it reads “You’re all caught up”.' },
+          { text: 'AI agent ROI — a 30-day summary of the value your AI agents created: estimated hours saved, dollar value, net of metered spend, actions completed, auto-run share, reliability and an ROI multiple. Opens the full Agent Activity view.' },
+          { text: 'Storage — how much of your plan’s storage quota is used (drive files + screen recordings) with a usage bar that turns amber then red as you approach the limit, plus file and recording counts. Opens Drives.' },
+          { text: 'Fully customisable — click Edit to drag, resize, add or remove any widget and switch chart variants; save your own layout or, as an admin, set the workspace default. Reset returns to the default at any time. Every tile links directly to the relevant module.' },
         ],
       },
     ],

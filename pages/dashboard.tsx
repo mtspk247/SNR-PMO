@@ -13,12 +13,13 @@ import KeyRotationNudge from '@/components/KeyRotationNudge';
 import { Pill, Spinner, EmptyState, Icon, Avatar, StatusBadge } from '@/components/ui';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
+import { computeRoi, AgentRoiSummary, DEFAULT_LABOR_RATE_USD } from '@/lib/agentRoi';
 import { atLeast, can } from '@/lib/authz';
 import {
   getProjects, getTasks, getDeals, getLedgerEntries,
   getEmployees, getLeaves, getOnboardingTasks,
   getDashboardLayouts, saveUserDashboard, saveOrgDashboard, resetUserDashboard,
-  dashboardCounts, DashboardCounts,
+  dashboardCounts, DashboardCounts, agentRoiSummary,
 } from '@/lib/db';
 import {
   Project, Task, Deal, LedgerEntry, Employee, Leave, OnboardingTask, OrgRole, FeatureKey,
@@ -131,6 +132,9 @@ const WIDGET_META: Record<string, WidgetMeta> = {
   kpi_leads:     { title: 'New leads', icon: 'ti-user-plus', span: 1, feature: 'crm' },
   kpi_forms:     { title: 'Form submissions', icon: 'ti-forms', span: 1, feature: 'forms' },
   kpi_inbox:     { title: 'Inbox', icon: 'ti-inbox', span: 1, feature: 'social' },
+  needs_attention: { title: 'Needs attention', icon: 'ti-alert-hexagon', span: 2 },
+  agent_roi:     { title: 'AI agent ROI', icon: 'ti-robot', span: 2, feature: 'agents' },
+  drive_storage: { title: 'Storage', icon: 'ti-cloud', span: 1, feature: 'drives' },
 };
 // Per-widget visual variants — first entry is the default.
 const VARIANTS: Record<string, { id: string; label: string; icon: string }[]> = {
@@ -151,10 +155,11 @@ const makeEntry = (k: string, variant: string, c: Coords): string => { const v =
 
 const DEFAULT_KEYS = [
   'kpi_projects', 'kpi_tasks', 'kpi_deals', 'kpi_pipeline',
-  'kpi_agent_approvals', 'kpi_social', 'kpi_leads', 'kpi_forms', 'kpi_inbox',
+  'kpi_agent_approvals', 'kpi_social', 'kpi_leads', 'kpi_forms', 'kpi_inbox', 'drive_storage',
+  'needs_attention',
   'kpi_income', 'kpi_expenses', 'kpi_net', 'kpi_spend_month',
   'finance_trend', 'project_status', 'pipeline_stage', 'task_progress',
-  'due_soon', 'my_tasks', 'projects_list', 'headcount', 'leave', 'onboarding',
+  'due_soon', 'agent_roi', 'my_tasks', 'projects_list', 'headcount', 'leave', 'onboarding',
 ];
 
 export default function Dashboard() {
@@ -170,6 +175,7 @@ export default function Dashboard() {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>([]);
   const [counts, setCounts] = useState<DashboardCounts>({});
+  const [roi, setRoi] = useState<AgentRoiSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [order, setOrder] = useState<string[]>(DEFAULT_KEYS);
@@ -198,8 +204,9 @@ export default function Dashboard() {
       getLeaves().catch(() => [] as Leave[]),
       getOnboardingTasks().catch(() => [] as OnboardingTask[]),
       dashboardCounts(activeOrg.id).catch(() => ({} as DashboardCounts)),
-    ]).then(([p, t, d, l, emp, lv, ob, dc]) => {
-      setProjects(p); setTasks(t); setDeals(d); setLedger(l); setEmployees(emp); setLeaves(lv); setOnboardingTasks(ob); setCounts(dc as DashboardCounts);
+      hasFeature(activeOrg, 'agents') ? agentRoiSummary(activeOrg.id, 30).catch(() => null) : Promise.resolve(null),
+    ]).then(([p, t, d, l, emp, lv, ob, dc, ri]) => {
+      setProjects(p); setTasks(t); setDeals(d); setLedger(l); setEmployees(emp); setLeaves(lv); setOnboardingTasks(ob); setCounts(dc as DashboardCounts); setRoi(ri as AgentRoiSummary | null);
     }).finally(() => setLoading(false));
   }, [activeOrg?.id]);
 
@@ -498,6 +505,80 @@ export default function Dashboard() {
         )}
       </ClickCard>
     ),
+    needs_attention: () => {
+      const items = [
+        { show: hasFeature(activeOrg, 'projects'), n: counts.tasks_overdue || 0, label: 'Overdue tasks', icon: 'ti-calendar-x', href: '/tasks', tone: 'down' },
+        { show: hasFeature(activeOrg, 'agents'), n: counts.agent_pending || 0, label: 'Agent actions to review', icon: 'ti-robot', href: '/agent-approvals', tone: 'down' },
+        { show: isAdmin && hasFeature(activeOrg, 'attendance'), n: counts.leave_pending || 0, label: 'Leave requests to approve', icon: 'ti-beach', href: '/approvals', tone: 'muted' },
+        { show: isAdmin && hasFeature(activeOrg, 'financial'), n: counts.expenses_pending || 0, label: 'Expense claims to approve', icon: 'ti-receipt-2', href: '/approvals', tone: 'muted' },
+        { show: isAdmin && hasFeature(activeOrg, 'financial'), n: counts.invoices_overdue || 0, label: 'Overdue invoices', icon: 'ti-file-invoice', href: '/invoicing', tone: 'down' },
+        { show: hasFeature(activeOrg, 'social'), n: counts.inbox_open || 0, label: 'Open inbox conversations', icon: 'ti-inbox', href: '/social/inbox', tone: 'muted' },
+      ].filter((i) => i.show && i.n > 0);
+      return (
+        <div className="card p-5 h-full">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-alert-hexagon" className="text-base text-muted2" />Needs attention</span>
+            {items.length > 0 && <span className="text-2xs font-medium text-muted2 tabular-nums">{items.reduce((s, i) => s + i.n, 0)} items</span>}
+          </div>
+          {items.length === 0 ? <EmptyState text="You're all caught up" icon="ti-circle-check" /> : (
+            <div className="-mx-2">
+              {items.map((i) => (
+                <Link key={i.label} href={i.href} className="flex items-center gap-3 px-2 py-2.5 rounded-lg transition hover:bg-surface2">
+                  <span className="w-8 h-8 rounded-md grid place-items-center bg-surface2 shrink-0"><Icon name={i.icon} className="text-muted2" /></span>
+                  <span className="flex-1 text-sm text-content truncate">{i.label}</span>
+                  <span className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-md text-2xs font-semibold tabular-nums ${i.tone === 'down' ? 'bg-rose-500/15 text-rose-600' : 'bg-accent/10 text-accentstrong'}`}>{i.n}</span>
+                  <Icon name="ti-chevron-right" className="text-muted2 text-sm shrink-0" />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    },
+    agent_roi: () => {
+      const r = computeRoi(roi, DEFAULT_LABOR_RATE_USD);
+      return (
+        <ClickCard href="/agent-activity" className="card p-5 h-full">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-robot" className="text-base text-muted2" />AI agent ROI &mdash; last 30 days</span>
+            <span className="text-xs font-medium text-accentstrong">Agent activity &rarr;</span>
+          </div>
+          {(!roi || r.executed === 0) ? <EmptyState text="No agent activity yet" icon="ti-robot" /> : (
+            <>
+              <div className="grid grid-cols-3 gap-4">
+                <div><p className="text-2xs uppercase tracking-wide text-muted2 font-medium">Hours saved</p><p className="text-2xl font-semibold mt-1 text-content tnum leading-none">{r.hoursSaved.toFixed(1)}</p></div>
+                <div><p className="text-2xs uppercase tracking-wide text-muted2 font-medium">Value created</p><p className="text-2xl font-semibold mt-1 text-content tnum leading-none">{money(r.valueCreated)}</p></div>
+                <div><p className="text-2xs uppercase tracking-wide text-muted2 font-medium">Net of spend</p><p className={`text-2xl font-semibold mt-1 tnum leading-none ${r.net >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{money(r.net)}</p></div>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-2xs text-muted2">
+                <span>{r.executed} actions done</span>
+                <span>{r.autoPct}% auto</span>
+                <span>{r.reliabilityPct}% reliable</span>
+                {r.roiX != null && <span className="font-medium text-accentstrong">{r.roiX.toFixed(1)}× ROI</span>}
+              </div>
+            </>
+          )}
+        </ClickCard>
+      );
+    },
+    drive_storage: () => {
+      const usedMb = (counts.drive_used_bytes || 0) / 1048576;
+      const limitMb = counts.drive_limit_mb ?? null;
+      const pct = limitMb && limitMb > 0 ? Math.min(100, Math.round((usedMb / limitMb) * 100)) : null;
+      const fmtMb = (m: number) => m >= 1024 ? `${(m / 1024).toFixed(1)} GB` : `${m.toFixed(m < 10 ? 1 : 0)} MB`;
+      return (
+        <ClickCard href="/drives" className="card p-4 h-full flex flex-col">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-2xs uppercase tracking-wide text-muted2 font-medium truncate">Storage</p>
+            <span className="w-7 h-7 rounded-md grid place-items-center bg-accent/10 text-accentstrong shrink-0"><Icon name="ti-cloud" className="text-sm" /></span>
+          </div>
+          <p className="text-2xl font-semibold mt-2 text-content tnum leading-none">{fmtMb(usedMb)}</p>
+          <p className="text-2xs text-muted2 mt-1">{limitMb ? `of ${fmtMb(limitMb)}` : 'Unlimited'}</p>
+          {pct != null && <div className="h-2 rounded-full bg-surface2 overflow-hidden mt-3"><div className={`h-full rounded-full ${pct >= 90 ? 'bg-rose-500' : pct >= 75 ? 'bg-amber-400' : 'bg-accent'}`} style={{ width: `${pct}%` }} /></div>}
+          <p className="text-2xs text-muted2 mt-auto pt-3">{counts.drive_files || 0} files · {counts.recordings_count || 0} recordings</p>
+        </ClickCard>
+      );
+    },
   };
 
   const visible = (entry: string) => {

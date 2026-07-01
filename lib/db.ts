@@ -4347,7 +4347,7 @@ export async function socialChannelDisconnect(channelId: string): Promise<void> 
   if (error) throw new Error(error.message);
 }
 // Begin OAuth connect: returns the provider authorize URL to redirect the user to.
-export interface DashboardCounts { agent_pending?: number; social_scheduled?: number; social_draft?: number; leads_new_7d?: number; forms_subs_7d?: number; inbox_open?: number; }
+export interface DashboardCounts { agent_pending?: number; social_scheduled?: number; social_draft?: number; leads_new_7d?: number; forms_subs_7d?: number; inbox_open?: number; tasks_overdue?: number; invoices_overdue?: number; expenses_pending?: number; leave_pending?: number; drive_used_bytes?: number; drive_limit_mb?: number | null; drive_files?: number; recordings_count?: number; }
 // Single-round-trip cockpit counts (org-scoped, member-gated). Cheap + cacheable.
 export async function dashboardCounts(orgId: string): Promise<DashboardCounts> {
   const { data, error } = await sb.rpc('dashboard_counts', { p_org: orgId });
