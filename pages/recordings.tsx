@@ -8,7 +8,7 @@ import { hasFeature } from '@/lib/entitlements';
 import { toast } from '@/lib/toast';
 import {
   listScreenRecordings, deleteScreenRecording, updateScreenRecording, screenRecordingUrl,
-  getOrgUsers, listRecordingTaskLinks, linkRecordingToTask, unlinkRecording, listTasksLite, createRecordingShare,
+  getOrgUsers, listRecordingTaskLinks, linkRecordingToTask, unlinkRecording, listTasksLite, createRecordingShare, revokeRecordingShare, listRecordingShares, RecordingShare,
   ScreenRecording, ScreenRecordingLink, TaskLite,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
@@ -47,6 +47,7 @@ export default function RecordingsPage() {
   const [recording, setRecording] = useState(false);
   const [viewer, setViewer] = useState<{ rec: ScreenRecording; url: string; poster: string } | null>(null);
   const [links, setLinks] = useState<ScreenRecordingLink[]>([]);
+  const [shares, setShares] = useState<RecordingShare[]>([]);
   const [tasks, setTasks] = useState<TaskLite[]>([]);
   const [linkTaskId, setLinkTaskId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -68,6 +69,7 @@ export default function RecordingsPage() {
       const poster = r.thumb_path ? await screenRecordingUrl(r.thumb_path).catch(() => '') : '';
       setViewer({ rec: r, url, poster }); setLinkTaskId('');
       listRecordingTaskLinks(r.id).then(setLinks).catch(() => setLinks([]));
+      listRecordingShares(r.id).then(setShares).catch(() => setShares([]));
     } catch (e: any) { setErr(e.message); }
   };
   const download = async (r: ScreenRecording) => {
@@ -93,6 +95,12 @@ export default function RecordingsPage() {
     try { await unlinkRecording(id); listRecordingTaskLinks(viewer.rec.id).then(setLinks); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
+  const shareUrl = (token: string) => `${window.location.origin}/r/${token}`;
+  const copyShare = async (token: string) => { try { await navigator.clipboard.writeText(shareUrl(token)); toast('Link copied', 'success'); } catch { window.prompt('Copy:', shareUrl(token)); } };
+  const revokeShare = async (id: string) => {
+    if (busy || !confirm('Revoke this share link? Anyone with it will lose access.')) return; setBusy(true);
+    try { await revokeRecordingShare(id); if (viewer) listRecordingShares(viewer.rec.id).then(setShares); } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const shareLink = async (r: ScreenRecording) => {
     if (busy) return; setBusy(true); setErr('');
     try {
@@ -100,6 +108,7 @@ export default function RecordingsPage() {
       const url = `${window.location.origin}/r/${token}`;
       try { await navigator.clipboard.writeText(url); toast('Share link copied to clipboard', 'success'); }
       catch { window.prompt('Copy this share link:', url); }
+      if (viewer) listRecordingShares(viewer.rec.id).then(setShares).catch(() => {});
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
   const bulkDelete = async () => {
@@ -212,6 +221,24 @@ export default function RecordingsPage() {
               <Select value={linkTaskId} onChange={setLinkTaskId} options={[{ value: '', label: 'Pick a task…' }, ...tasks.filter((t) => !links.some((l) => l.task_id === t.id)).map((t) => ({ value: t.id, label: t.name }))]} />
               <button className="btn btn-sm" disabled={!linkTaskId || busy} onClick={attach}>Attach</button>
             </div>
+          </div>
+          <div className="mt-4 border-t border-line pt-3">
+            <h3 className="text-sm font-semibold mb-2 inline-flex items-center gap-2"><Icon name="ti-link" className="text-muted2" />Share links</h3>
+            {shares.filter((sh) => !sh.revoked).length === 0 ? (
+              <p className="text-2xs text-muted2">No active share links. Use “Share link” below to create one.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {shares.filter((sh) => !sh.revoked).map((sh) => (
+                  <div key={sh.id} className="flex items-center gap-2 text-2xs">
+                    <Icon name="ti-world" className="text-muted2" />
+                    <span className="font-mono text-muted2 truncate flex-1">/r/{sh.token.slice(0, 12)}…</span>
+                    <span className="text-muted2"><Icon name="ti-eye" className="text-xs" /> {sh.views}</span>
+                    <button className="btn btn-sm py-0 h-6" onClick={() => copyShare(sh.token)}><Icon name="ti-copy" className="text-xs" />Copy</button>
+                    <button className="btn btn-sm btn-danger py-0 h-6" disabled={busy} onClick={() => revokeShare(sh.id)}>Revoke</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Modal>
       )}
