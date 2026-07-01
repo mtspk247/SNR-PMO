@@ -1,4 +1,9 @@
 
+## 2026-07-01 — Social module → GA (availability audit + fix)
+- **Audit finding:** the whole Social module was still rollout stage `internal` (dark) → visible ONLY to the platform-home org; every real tenant/reseller/sub-tenant was blocked despite plan_features enabling `social` on all 4 plans. Flipped `feature_rollouts.social` → **ga** (live via MCP). Verified: `feature_rolled_out`/`org_dark_features`/`org_has_feature` now TRUE for normal tenants; social no longer dark.
+- **Gating chain (confirmed correct):** subscription/plan (`org_has_feature` = active-sub plan_features, else free-plan default) × **reseller inheritance** (sub-tenant needs its reseller-parent to also have the feature — recursive `org_has_feature(parent)`) × rollout stage × per-sub reseller override (`reseller_set_sub_feature`→`org_feature_overrides`). `social` is in the FEATURES catalog so it shows in the Plans editor + reseller per-sub Features panel.
+- **RLS/RBAC (confirmed):** every social table is per-tenant isolated (`is_org_staff(org_id)`, cross-tenant/anon denied) + RESTRICTIVE `page_allows('/social', c/u/d)`; secret tables (provider config, channel tokens) are deny-all/service-role-only. Provider **OAuth apps are platform-level (shared)**; per-channel **tokens are per-tenant isolated**. Reseller-owned/white-label OAuth apps = follow-up (task #44).
+
 ## 2026-07-01 — Social #29a (tenant side): channel connection UI
 - Channels strip on `/social` now shows each channel's real connection state (connected / expired / not connected) via the live `social_channel_conn_status` RPC (structurally token-free), with a staff **Disconnect** action (`social_channel_disconnect`, deletes the secret token + marks the channel disconnected). Completes the tenant-facing half of the #29a secure foundation; live OAuth Connect = #29b (needs a provider registered at /platform/social).
 
