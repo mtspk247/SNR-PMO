@@ -1,4 +1,8 @@
 
+## 2026-07-01 — Dashboard uplift Slice 1: operator cockpit widgets (plan: DASHBOARD_UPLIFT_PLAN.md)
+- Evolved (not rewrote) the RGL dashboard: added 5 feature-gated, action-oriented widgets for modules shipped since the original catalog — **Agent approvals** (agents→/agent-approvals), **Social** (scheduled+drafts→/social), **New leads** (crm, 7d→/leads), **Form submissions** (forms, 7d→/forms), **Inbox** (social, open→/social/inbox). Added to WIDGET_META + renderers + DEFAULT_KEYS (auto-hidden where the tenant lacks the feature).
+- Scalable data: single **`dashboard_counts(p_org)`** RPC (org-scoped SECURITY DEFINER, `is_org_member` gate, STABLE, one round-trip over indexed org_id columns) → `dashboardCounts()` wrapper, fetched once in the existing Promise.all. Verified: member gets counts, non-member gets `{}` (no cross-tenant leak). Slice 2 (#50): Needs-attention panel + agent ROI + drive widgets.
+
 ## 2026-07-01 — Add "View as owner" (impersonate) to tenant profile
 - Tariq: the impersonate/"View as" action was only on the tenant LIST (`/tenants`), not the tenant PROFILE (`/tenants/[id]`) — which only had the sub-tenant impersonation TOGGLE. Surfaced by the new signup notification routing to the profile. Fixed: added a platform-admin **View as owner** button to the profile PageHeader (`adminImpersonateLink({ org: orgId })` → copies a private sign-in link, same as the list). Unchanged: security (edge fn admin-impersonate-link is platform-admin gated).
 
