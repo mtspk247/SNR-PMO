@@ -4229,9 +4229,9 @@ export async function listSocialPosts(orgId: string): Promise<SocialPost[]> {
   const { data, error } = await sb.from('social_posts').select('*, channels:social_post_channels(*)').eq('org_id', orgId).order('created_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as SocialPost[]) || [];
 }
-export async function createSocialPost(p: { org_id: string; body: string; created_by: string; status?: SocialPost['status']; scheduled_at?: string | null; channel_ids?: string[]; source?: SocialPost['source'] }): Promise<SocialPost> {
+export async function createSocialPost(p: { org_id: string; body: string; created_by: string; status?: SocialPost['status']; scheduled_at?: string | null; channel_ids?: string[]; source?: SocialPost['source']; media?: any[] }): Promise<SocialPost> {
   const status = p.status || (p.scheduled_at ? 'scheduled' : 'draft');
-  const { data, error } = await sb.from('social_posts').insert({ org_id: p.org_id, body: p.body, status, scheduled_at: p.scheduled_at || null, source: p.source || 'manual', created_by: p.created_by }).select('*').single();
+  const { data, error } = await sb.from('social_posts').insert({ org_id: p.org_id, body: p.body, status, scheduled_at: p.scheduled_at || null, source: p.source || 'manual', created_by: p.created_by, media: p.media || [] }).select('*').single();
   if (error) throw new Error(error.message);
   const post = data as SocialPost;
   if (p.channel_ids && p.channel_ids.length) {
@@ -4287,6 +4287,22 @@ export async function draftPostFromItem(item: SocialSourceItem, createdBy: strin
 export async function linkSourceItemDraft(itemId: string, postId: string): Promise<void> {
   const { error } = await sb.rpc('social_source_item_link_draft', { p_item: itemId, p_post: postId });
   if (error) throw new Error(error.message);
+}
+
+// ── Media library (reusable creatives) ──────────────────────────────────────
+export interface SocialMediaAsset { id: string; org_id: string; kind: 'image'|'video'|'gif'; title: string; url: string; thumb_url: string | null; source: 'url'|'drive'; drive_file_id: string | null; width: number | null; height: number | null; tags: string[]; created_by: string | null; created_at: string; }
+export async function listMediaAssets(orgId: string, opts?: { kind?: 'image'|'video'|'gif'; limit?: number }): Promise<SocialMediaAsset[]> {
+  let q = sb.from('social_media_assets').select('*').eq('org_id', orgId);
+  if (opts?.kind) q = q.eq('kind', opts.kind);
+  q = q.order('created_at', { ascending: false }).limit(opts?.limit ?? 500);
+  const { data, error } = await q; if (error) throw new Error(error.message); return (data as SocialMediaAsset[]) || [];
+}
+export async function createMediaAsset(p: { org_id: string; created_by: string; kind: 'image'|'video'|'gif'; title: string; url: string; thumb_url?: string | null; tags?: string[] }): Promise<void> {
+  const { error } = await sb.from('social_media_assets').insert({ org_id: p.org_id, created_by: p.created_by, kind: p.kind, title: p.title, url: p.url, thumb_url: p.thumb_url || null, source: 'url', tags: p.tags || [] });
+  if (error) throw new Error(error.message);
+}
+export async function deleteMediaAsset(id: string): Promise<void> {
+  const { error } = await sb.from('social_media_assets').delete().eq('id', id); if (error) throw new Error(error.message);
 }
 
 // ── Reseller feature control (per-sub-tenant) ───────────────────────────────

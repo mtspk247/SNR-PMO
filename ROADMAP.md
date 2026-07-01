@@ -1,4 +1,8 @@
 
+## 2026-07-01 — Social #32: Media Library
+- New **Media Library** page (Marketing ▸ Social Media ▸ `/social/media`): reusable images/video/GIF assets (add-by-URL v1), grid preview, kind filter, RBAC delete. Composer gained a **media picker strip** → attaches selected assets into `social_posts.media` (jsonb). `createSocialPost` now persists `media[]`.
+- DB: `social_media_assets` (forms-pattern RLS mirroring content sources; 2000-asset/org cap; url/thumb https-scheme checks; optional `drive_file_id` FK for a future Drive picker). Security Gate PASS (staff-allow / cross-tenant-deny / anon-no-grant); advisors clean. Nav + db wrappers + `/docs#social` + nav test updated. Follow-up #32b: pick from Drive (already-scanned files) + device upload via scan-gated bucket; video/creative generation (needs AI creds).
+
 ## 2026-07-01 — Social #40b: continuous autonomous feed-drafting
 - Extended the pg_cron `agent_sensors_run` marketing branch (already ticked every 15 min by `agent-sensors-tick`): a **sense-enabled** marketing agent now continuously proposes `draft_social_post` for fresh un-drafted `social_source_items` (approve-first, `v_cap`-limited, deduped via `agent_already_proposed` on `source_item_id`). Same executor path as the manual scan → on approval creates the draft under the approver's RLS + links the item (definer). Feeds→drafts loop is now fully autonomous end-to-end. DB-only (live via MCP), verified in-txn (proposal produced + rolled back). No new objects → advisors unchanged.
 

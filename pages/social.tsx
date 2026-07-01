@@ -16,6 +16,7 @@ import {
   listSocialChannels, createSocialChannel, deleteSocialChannel,
   SocialPost, SocialChannel, SocialPlatform,
   getBrandVoice, setBrandVoice, getApprovalPolicy, setApprovalPolicy, approveSocialPost, updateSocialPost,
+  listMediaAssets, SocialMediaAsset,
 } from '@/lib/db';
 
 const PLATFORMS: { value: SocialPlatform; label: string; icon: string }[] = [
@@ -69,6 +70,8 @@ export default function SocialPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [body, setBody] = useState('');
   const [pickedChannels, setPickedChannels] = useState<string[]>([]);
+  const [mediaAssets, setMediaAssets] = useState<SocialMediaAsset[]>([]);
+  const [pickedMedia, setPickedMedia] = useState<string[]>([]);
   const [scheduleAt, setScheduleAt] = useState('');
 
   // Channel connect
@@ -93,6 +96,7 @@ export default function SocialPage() {
     listSocialPosts(org.id).then(setPosts).catch((e) => { setErr(e.message); setPosts([]); });
     listSocialChannels(org.id).then(setChannels).catch(() => {});
     getApprovalPolicy(org.id).then(setReqApproval).catch(() => {});
+    listMediaAssets(org.id, { limit: 60 }).then(setMediaAssets).catch(() => {});
     getBrandVoice(org.id).then((v) => { if (v) setBv({ tone: v.tone || '', audience: v.audience || '', guidelines: v.guidelines || '', cta: v.cta || '', hashtags: (v.hashtags || []).join(' ') }); }).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
@@ -120,18 +124,19 @@ export default function SocialPage() {
     );
   }
 
-  const resetComposer = () => { setBody(''); setPickedChannels([]); setScheduleAt(''); };
+  const resetComposer = () => { setBody(''); setPickedChannels([]); setScheduleAt(''); setPickedMedia([]); };
 
   const submitPost = async (mode: 'draft' | 'schedule') => {
     if (!org || !me || !body.trim()) return;
     if (mode === 'schedule' && !scheduleAt) { setErr('Pick a date/time to schedule.'); return; }
     setBusy(true); setErr('');
     try {
+      const media = mediaAssets.filter((a) => pickedMedia.includes(a.id)).map((a) => ({ asset_id: a.id, url: a.url, kind: a.kind, thumb_url: a.thumb_url, title: a.title }));
       await createSocialPost({
         org_id: org.id, created_by: me.id, body: body.trim(),
         status: mode === 'schedule' ? 'scheduled' : 'draft',
         scheduled_at: mode === 'schedule' ? new Date(scheduleAt).toISOString() : null,
-        channel_ids: pickedChannels,
+        channel_ids: pickedChannels, media,
       });
       setComposeOpen(false); resetComposer(); load();
     } catch (e: any) { setErr(e.message || 'Failed to save'); } finally { setBusy(false); }
@@ -323,6 +328,26 @@ export default function SocialPage() {
                   const m = platMeta(c.platform); const on = pickedChannels.includes(c.id);
                   return <button key={c.id} type="button" onClick={() => setPickedChannels((s) => on ? s.filter((x) => x !== c.id) : [...s, c.id])}
                     className={`pill inline-flex items-center gap-1.5 ${on ? 'pill-green' : 'pill-gray'}`}><Icon name={m.icon} />{c.handle || m.label}</button>;
+                })}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="text-2xs text-muted block mb-1">Media <span className="text-muted2">(from your library)</span></label>
+            {mediaAssets.length === 0 ? (
+              <p className="text-2xs text-muted2">No media yet — add reusable creatives in <a className="text-accent underline" href="/social/media">Media Library</a>.</p>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {mediaAssets.map((a) => {
+                  const on = pickedMedia.includes(a.id);
+                  const preview = a.thumb_url || (a.kind === 'image' ? a.url : '');
+                  return (
+                    <button key={a.id} type="button" title={a.title} onClick={() => setPickedMedia((s) => on ? s.filter((x) => x !== a.id) : [...s, a.id])}
+                      className={`relative shrink-0 w-14 h-14 rounded overflow-hidden border-2 ${on ? 'border-accent' : 'border-transparent'} bg-surface2 flex items-center justify-center`}>
+                      {preview ? <img src={preview} alt={a.title} className="w-full h-full object-cover" loading="lazy" /> : <Icon name={a.kind === 'video' ? 'ti-video' : 'ti-photo'} className="text-lg text-muted2" />}
+                      {on && <span className="absolute top-0.5 right-0.5 bg-accent text-white rounded-full w-3.5 h-3.5 flex items-center justify-center"><Icon name="ti-check" className="text-2xs" /></span>}
+                    </button>
+                  );
                 })}
               </div>
             )}
