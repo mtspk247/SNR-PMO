@@ -1,4 +1,11 @@
 
+## 2026-07-01 — Social Media Library #32b: device upload + pick-from-Drive
+- **Two new media sources** for Marketing ▸ Social ▸ Media Library (was URL-only): **Upload** from device and **From Drive** picker, alongside **Add by URL**.
+- **Secure storage:** new **private, scan-gated `social-media` bucket** (image/video, 200MB cap) + storage.objects RLS (INSERT/SELECT/DELETE scoped to `<org_id>/…` path, staff-only + `tenant_can('social')` on insert, creator/admin delete, anon revoked); added to the RESTRICTIVE `obj_scan_clean_gate` (fail-closed until `file_is_clean`). Device uploads route through `assertUploadClean` (fail-closed — only a clean verdict is saved; object removed on reject). RLS-sim own-allow / cross-tenant-deny PASS; advisors unchanged. **Fix caught in review:** the gate had to stay RESTRICTIVE (a permissive recreate would have neutered the whole malware download-gate) — corrected before ship.
+- **Drive pick = reference, not copy** (no re-scan; Drive files are already gated). `social_media_assets`: +`storage_path`, `source` += `'upload'`, url CHECK relaxed to allow `''` for non-URL sources.
+- db: `uploadMediaAsset` (scan-gated), `createMediaAssetFromDrive`, `mediaAssetUrl` (signed-URL resolver for drive/upload; literal for url), `listDriveMediaFiles`. UI: Upload/From-Drive buttons + Drive picker modal + `MediaThumb`/`DriveThumb` signed-URL previews. Data-safety: `social_media_assets` already in `_wipe_tables`. Docs + SYSTEM_GUIDE + ROADMAP updated.
+
+
 ## 2026-07-01 — Notification deep-links: open the exact record (#48 tail — COMPLETE)
 - Extended item-level notification routing (`hrefFor` in components/NotificationBell.tsx) to the last list-only entity types: **lead** → `/leads?id=`, **client** → `/clients?id=`, **expense_claim** → `/expense-claims?id=`, **approval** → `/approvals?id=`.
 - Added `?id=` **open-effects** (mirror the `/tasks?task=` / `/feedback?id=` pattern; once-per-id guard via ref): **leads.tsx** + **clients.tsx** open the exact record editor; **expense-claims.tsx** opens the claim via `openEdit`; **approvals.tsx** (inbox, no record modal) switches to the *all* filter, scrolls the exact request into view and ring-highlights it briefly.

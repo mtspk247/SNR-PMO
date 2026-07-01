@@ -4312,7 +4312,7 @@ export async function linkSourceItemDraft(itemId: string, postId: string): Promi
 }
 
 // ── Media library (reusable creatives) ──────────────────────────────────────
-export interface SocialMediaAsset { id: string; org_id: string; kind: 'image'|'video'|'gif'; title: string; url: string; thumb_url: string | null; source: 'url'|'drive'; drive_file_id: string | null; width: number | null; height: number | null; tags: string[]; created_by: string | null; created_at: string; }
+export interface SocialMediaAsset { id: string; org_id: string; kind: 'image'|'video'|'gif'; title: string; url: string; thumb_url: string | null; source: 'url'|'drive'|'upload'; drive_file_id: string | null; storage_path: string | null; width: number | null; height: number | null; tags: string[]; created_by: string | null; created_at: string; }
 export async function listMediaAssets(orgId: string, opts?: { kind?: 'image'|'video'|'gif'; limit?: number }): Promise<SocialMediaAsset[]> {
   let q = sb.from('social_media_assets').select('*').eq('org_id', orgId);
   if (opts?.kind) q = q.eq('kind', opts.kind);
@@ -4325,6 +4325,47 @@ export async function createMediaAsset(p: { org_id: string; created_by: string; 
 }
 export async function deleteMediaAsset(id: string): Promise<void> {
   const { error } = await sb.from('social_media_assets').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+
+const mimeToKind = (m: string | null): 'image' | 'video' | 'gif' => m === 'image/gif' ? 'gif' : (m || '').startsWith('video/') ? 'video' : 'image';
+// Device upload → private, scan-gated 'social-media' bucket (fail-closed: only a clean verdict is saved), then a metadata row.
+export async function uploadMediaAsset(p: { org_id: string; created_by: string; file: File; title?: string }): Promise<void> {
+  const kind = mimeToKind(p.file.type || null);
+  const ext = (p.file.name.split('.').pop() || (kind === 'video' ? 'mp4' : 'jpg')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'bin';
+  const path = `${p.org_id}/${crypto.randomUUID()}.${ext}`;
+  const { error: upErr } = await sb.storage.from('social-media').upload(path, p.file, { upsert: false, contentType: p.file.type || undefined });
+  if (upErr) throw new Error(upErr.message);
+  try { await assertUploadClean('social-media', path, { org_id: p.org_id, mime: p.file.type || null, size: p.file.size, filename: p.file.name }); }
+  catch (e) { throw e; } // assertUploadClean already removed the object on rejection
+  const { error } = await sb.from('social_media_assets').insert({ org_id: p.org_id, created_by: p.created_by, kind, title: p.title?.trim() || p.file.name, url: '', source: 'upload', storage_path: path });
+  if (error) { await sb.storage.from('social-media').remove([path]).catch(() => {}); throw new Error(error.message); }
+}
+// Reference an already-scanned Drive file (no copy, no re-scan) as a reusable media asset.
+export async function createMediaAssetFromDrive(p: { org_id: string; created_by: string; file: DriveFile }): Promise<void> {
+  const { error } = await sb.from('social_media_assets').insert({ org_id: p.org_id, created_by: p.created_by, kind: mimeToKind(p.file.mime_type), title: p.file.name, url: '', source: 'drive', drive_file_id: p.file.id });
+  if (error) throw new Error(error.message);
+}
+// Resolve a previewable URL for any asset source (signed for private drive/upload; literal for url).
+export async function mediaAssetUrl(a: SocialMediaAsset): Promise<string> {
+  if (a.source === 'url') return a.url || '';
+  if (a.source === 'upload' && a.storage_path) {
+    const { data } = await sb.storage.from('social-media').createSignedUrl(a.storage_path, 3600); return data?.signedUrl || '';
+  }
+  if (a.source === 'drive' && a.drive_file_id) {
+    const { data: df } = await sb.from('drive_files').select('storage_path').eq('id', a.drive_file_id).maybeSingle();
+    const sp = (df as { storage_path?: string } | null)?.storage_path; if (!sp) return '';
+    const { data } = await sb.storage.from('drives').createSignedUrl(sp, 3600); return data?.signedUrl || '';
+  }
+  return '';
+}
+// List the org's Drive image/video files for the "pick from Drive" picker (already malware-scanned).
+export async function listDriveMediaFiles(orgId: string, limit = 60): Promise<DriveFile[]> {
+  const cols = 'id, org_id, drive_id, folder_id, name, kind, storage_path, mime_type, size_bytes, created_by, created_at, updated_at, archived_at';
+  const { data, error } = await sb.from('drive_files').select(cols)
+    .eq('org_id', orgId).is('archived_at', null).not('storage_path', 'is', null)
+    .or('mime_type.ilike.image/%,mime_type.ilike.video/%')
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as DriveFile[]) || [];
 }
 
 // ── Live publishing: provider config (platform) + per-channel connection (secret-isolated) ──
