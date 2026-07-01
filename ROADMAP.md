@@ -3,6 +3,10 @@
 
 
 
+
+## 2026-07-02 — Agents: "Onboard an employee" workflow + preflight coverage
+- New deterministic workflow template **Onboard an employee** (HR `draft_onboarding` → week-1 checklist tasks), on the Run-a-workflow launcher + natural language ("onboard new employee John Smith"), with employee-vs-client intent disambiguation in `detectWorkflow` (unit-tested 9/9). Extended `agent_preflight_replay` to cover `draft_onboarding` so its queue signal is real. RLS-sim allow + zero persistence; DB live via MCP.
+
 ## 2026-07-02 — GTM: homepage #agents section leads with the control tower
 - Refreshed the landing `#agents` feature cards to lead with this session's differentiators: **Preflight before you approve**, **Just say what you want** (NL workflows — "onboard Acme Corp" — merged with #commands), **Learns what you want** (queue ranking + noise control), alongside the existing approve-first + ROI messaging. Highest-traffic page now surfaces the moat. Content-only, SSG.
 
