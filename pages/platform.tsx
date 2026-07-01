@@ -6,6 +6,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, Icon, EmptyState, HelpHint } from '@/components/ui';
 import { Modal, Field, useModalTabs } from '@/components/Modal';
+import UpsellPromptsManager from '@/components/UpsellPromptsManager';
 import { useAuthStore } from '@/lib/store';
 import { listPlans, listFeatures, syncFeatures, listPlanFeatures, setPlanFeature, createPlan, updatePlan, deletePlan, PlanPatch, billingGetStatus, billingSetConfig, billingSetPlanPrice, BillingStatus, emailGetStatus, emailSetConfig, emailSetConfigFull, emailOauthParams, EmailStatus, emailGetLimits, emailSetLimits, EmailSendLimits, backupGetConfig, backupSetConfig, listBackups, runBackupNow, getBackupDownloadUrl, BackupConfig, BackupRow, listErrors, resolveError, clearErrors, ErrorRow, listPlatformAdmins, addPlatformAdmin, removePlatformAdmin, PlatformAdminRow, listPlatformInvites, createPlatformInvite, revokePlatformInvite, PlatformInvite, ownerDeletionPending, decideOwnerDeletion, OwnerDeletionRequest, campaignPreview, sendCampaign, listCampaigns, listCampaignTemplates, saveCampaignTemplate, deleteCampaignTemplate, CampaignRow, CampaignTemplate, listPlanLimits, setPlanLimit, PlanLimit, platformActivity, PlatformActivityRow, assistantGetStatus, assistantSetConfig, AssistantStatus, platformAgentBillingGet, platformAgentBillingSet, platformAgentRevenue, PlatformAgentRevenue, FeatureRollout, listFeatureRollouts, setFeatureRollout } from '@/lib/db';
 import { Plan, Feature, PlanFeature, FEATURES } from '@/lib/supabase';
@@ -52,11 +53,11 @@ const ACTIVITY_COLS: ColDef[] = [
   { id: 'entity', label: 'Entity', width: 180 },
 ];
 
-type Tab = 'plans' | 'billing' | 'email' | 'assistant' | 'backups' | 'errors' | 'owners' | 'rollout' | 'campaigns' | 'activity';
+type Tab = 'plans' | 'billing' | 'email' | 'assistant' | 'backups' | 'errors' | 'owners' | 'rollout' | 'upsell' | 'campaigns' | 'activity';
 // Platform console is decomposed into focused /platform/<section> routes.
-const PLATFORM_SECTIONS: Tab[] = ['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'rollout', 'campaigns', 'activity'];
+const PLATFORM_SECTIONS: Tab[] = ['plans', 'billing', 'email', 'assistant', 'backups', 'errors', 'owners', 'rollout', 'upsell', 'campaigns', 'activity'];
 const PLATFORM_PATHS: Record<Tab, string> = PLATFORM_SECTIONS.reduce((m, k) => { m[k] = k === 'plans' ? '/platform' : `/platform/${k}`; return m; }, {} as Record<Tab, string>);
-const PLATFORM_TITLES: Record<Tab, string> = { plans: 'Plans & features', billing: 'Billing (Stripe)', email: 'Email', assistant: 'AI assistant', backups: 'Backups', errors: 'Errors', owners: 'Co-owners', rollout: 'Feature rollout', campaigns: 'Campaigns', activity: 'Activity' };
+const PLATFORM_TITLES: Record<Tab, string> = { plans: 'Plans & features', billing: 'Billing (Stripe)', email: 'Email', assistant: 'AI assistant', backups: 'Backups', errors: 'Errors', owners: 'Co-owners', rollout: 'Feature rollout', upsell: 'Upgrade prompts', campaigns: 'Campaigns', activity: 'Activity' };
 function platformRouteSection(pathname: string): Tab | null {
   for (const k of PLATFORM_SECTIONS) { if (k !== 'plans' && pathname.startsWith(`/platform/${k}`)) return k; }
   return null;
@@ -1293,6 +1294,8 @@ export default function PlatformPage() {
             <OwnersTab />
           ) : tab === 'rollout' ? (
             <RolloutTab />
+          ) : tab === 'upsell' ? (
+            <UpsellPromptsManager ownerOrg={null} />
           ) : tab === 'campaigns' ? (
             <CampaignsTab />
           ) : (

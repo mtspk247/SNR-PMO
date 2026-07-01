@@ -225,6 +225,7 @@ export const RESELLER_SECTION: NavSection = { kind: 'menu', key: 'reseller', lab
   { href: '/reseller/clients', label: 'Clients', icon: 'ti-buildings', group: 'Clients & Team' },
   { href: '/reseller/co-owners', label: 'Co-owners', icon: 'ti-users', group: 'Clients & Team' },
   { href: '/reseller/snapshots', label: 'Snapshots', icon: 'ti-camera', group: 'Setup' },
+  { href: '/reseller/upsell', label: 'Upgrade Prompts', icon: 'ti-speakerphone', group: 'Selling' },
 ] };
 
 export const DOCS_LINK: NavSection = { kind: 'link', item: { href: '/docs', label: 'Docs', icon: 'ti-book-2' } };
