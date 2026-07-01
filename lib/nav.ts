@@ -124,12 +124,12 @@ export const SECTIONS: NavSection[] = [
     { href: '/contracts', label: 'Contracts', icon: 'ti-file-certificate', feature: 'crm', search: searchContracts, group: 'Accounts' },
   ]},
   { kind: 'menu', key: 'marketing', label: 'Marketing', icon: 'ti-speakerphone', items: [
-    { href: '/social', label: 'Social & Content', icon: 'ti-brand-x', feature: 'social', exact: true, search: searchSocial },
-    { href: '/social/calendar', label: 'Content Calendar', icon: 'ti-calendar-event', feature: 'social' },
-    { href: '/social/analytics', label: 'Social Analytics', icon: 'ti-chart-dots', feature: 'social' },
-    { href: '/social/competitors', label: 'Competitor Watch', icon: 'ti-binoculars', feature: 'social' },
-    { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms', search: searchForms },
-    { href: '/sequences', label: 'Sequences', icon: 'ti-mail-forward', feature: 'sequences', search: searchSequences },
+    { href: '/social', label: 'Social & Content', icon: 'ti-brand-x', feature: 'social', exact: true, search: searchSocial, group: 'Social Media' },
+    { href: '/social/calendar', label: 'Content Calendar', icon: 'ti-calendar-event', feature: 'social', group: 'Social Media' },
+    { href: '/social/analytics', label: 'Social Analytics', icon: 'ti-chart-dots', feature: 'social', group: 'Social Media' },
+    { href: '/social/competitors', label: 'Competitor Watch', icon: 'ti-binoculars', feature: 'social', group: 'Social Media' },
+    { href: '/sequences', label: 'Drip Email Marketing', icon: 'ti-mail-forward', feature: 'sequences', search: searchSequences, group: 'Email Marketing' },
+    { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms', search: searchForms, group: 'Lead Capture' },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Finance', icon: 'ti-report-money', items: [
     { href: '/ledger', label: 'General Ledger', icon: 'ti-book-2', feature: 'financial', group: 'Ledger & Reporting' },
