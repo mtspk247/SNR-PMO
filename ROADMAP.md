@@ -1,4 +1,9 @@
 
+## 2026-07-01 — Fix: notification click-through deep-links
+- Bug (Tariq): clicking a notification landed on a generic page (or nothing), not the respective item/options. Root causes: incomplete client `hrefFor` + several DB creators emitting generic/empty links.
+- **Client `hrefFor` (components/NotificationBell.tsx) made comprehensive:** item-level deep links for task (`?task=`), crm_deal/contact (`/crm/deal|contact/id`), employee (`/employees/id`); correct list pages for project/leave/chat/lead/client/company/contract/proposal/guest_request/approval/feedback/social/idea/invoice/bill/expense_claim/ticket/application/interview/job/offer/appraisal/subscription/reminder/booking/org; drive/comment prefer their stored precise link; then link fallback.
+- **DB creators fixed:** `generate_eod_reports` had NO link (dead click) → `/tasks`; `feedback_reply` `/dashboard` → `/feedback` + entity_type/entity_id (email link too); `submit_feedback` now sets entity_type='feedback'+entity_id. FOLLOW-UP (#48): 'New signup' link `/platform`→`/tenants`; add item-open params to leave/feedback/requests/ideas pages.
+
 ## 2026-07-01 — Social: proactive OAuth token-refresh sweep (reliability, DB+edge)
 - Edge fn **`social-token-refresh`** (DB-secret guarded): finds `social_channel_tokens` (status=connected, has refresh_token) within **5 days of expiry**, refreshes via the provider refresh_token grant (LinkedIn), updates access/refresh/expiry. If the refresh token itself is dead/revoked → marks token + channel **`expired`** (surfaces as "expired · Reconnect" in the /social UI). Batched (100/run), provider-creds cached.
 - SQL `social_token_refresh_drain()` + cron **`snrpmo_social_token_refresh`** (`0 */6 * * *`) — fires only when tokens are actually nearing expiry. Backstops the reactive 401→refresh already in `social-publish`, so connections never silently lapse at scale. Verified drain no-op (0 near expiry) + both social crons active.
