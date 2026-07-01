@@ -28,7 +28,7 @@ const isDoneStatus = (s?: string) => /done|complete|closed|cancel|archiv|won|los
 
 export function scanForWork(
   domain: string,
-  ctx: { tasks?: Task[]; deals?: Deal[]; ledger?: LedgerEntry[]; users?: { id: string; name: string }[]; tickets?: { id: string; subject: string; status: string; assignee_id: string | null }[]; agents?: { id: string; name: string }[]; analytics?: { overview?: { posts?: number; impressions?: number; engagement?: number; engagement_rate?: number }; channels?: { platform?: string; handle?: string | null; engagement?: number; followers?: number }[]; top?: { body?: string; engagement?: number; platform?: string | null }[] }; today: string },
+  ctx: { tasks?: Task[]; deals?: Deal[]; ledger?: LedgerEntry[]; users?: { id: string; name: string }[]; tickets?: { id: string; subject: string; status: string; assignee_id: string | null }[]; agents?: { id: string; name: string }[]; analytics?: { overview?: { posts?: number; impressions?: number; engagement?: number; engagement_rate?: number }; channels?: { platform?: string; handle?: string | null; engagement?: number; followers?: number }[]; top?: { body?: string; engagement?: number; platform?: string | null }[] }; sourceItems?: { id: string; title: string; url: string; summary: string }[]; today: string },
   cap = 8,
 ): WorkProposal[] {
   const out: WorkProposal[] = [];
@@ -108,6 +108,12 @@ export function scanForWork(
     }
     if ((ov.posts || 0) > 0 && (ov.posts || 0) < 8) {
       out.push({ tool: 'analyze_social_performance', summary: 'Only ' + ov.posts + ' posts in range — increase cadence to stay top-of-feed', risk: 'low', reversible: true, payload: { insight_key: 'cadence', kind: 'gap', summary: 'You published ' + ov.posts + ' posts in the period. Consistent cadence compounds reach.', recommendation: 'Aim for 3+ posts/week; use the content calendar to batch-schedule.' } });
+    }
+    // Draft posts from fresh content-source (RSS) items — approve-first, reversible, linked on approval.
+    for (const it of (ctx.sourceItems || []).slice(0, 5)) {
+      const title = (it.title || '').trim(); if (!title) continue;
+      const body = (it.url ? title + '\n\n' + it.url : title).slice(0, 5000);
+      out.push({ tool: 'draft_social_post', summary: 'Draft a post from “' + title.slice(0, 60) + (title.length > 60 ? '…' : '') + '”', risk: 'low', reversible: true, payload: { source_item_id: it.id, body, item_title: title } });
     }
   }
   return out;

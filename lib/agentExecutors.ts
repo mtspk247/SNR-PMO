@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, createCompetitorInsight, deleteCompetitorInsight, createSocialReplyDraft, deleteSocialMessage, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, linkSourceItemDraft, createCompetitorInsight, deleteCompetitorInsight, createSocialReplyDraft, deleteSocialMessage, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -72,7 +72,10 @@ export const EXECUTORS: Record<string, Executor> = {
       const body = String(p.body || a.summary || '').slice(0, 5000);
       if (!body.trim()) throw new Error('draft_social_post needs post text in the payload');
       const channel_ids = Array.isArray(p.channel_ids) ? p.channel_ids.map((x: any) => String(x)) : [];
-      const post = await createSocialPost({ org_id: ctx.orgId, created_by: ctx.userId, body, status: 'draft', source: 'agent', channel_ids });
+      const fromSource = !!p.source_item_id;
+      const post = await createSocialPost({ org_id: ctx.orgId, created_by: ctx.userId, body, status: 'draft', source: fromSource ? 'rss' : 'agent', channel_ids });
+      // Link back to the content-source item so it drops out of future scans (non-fatal on failure; FK auto-nulls on post delete).
+      if (fromSource) { try { await linkSourceItemDraft(String(p.source_item_id), post.id); } catch { /* draft still created */ } }
       return { target_table: 'social_posts', target_id: post.id, result: { social_post_id: post.id }, reversal: { op: 'delete_social_post' } };
     },
     rollback: async (a) => { if (a.target_id) await deleteSocialPost(a.target_id); },
