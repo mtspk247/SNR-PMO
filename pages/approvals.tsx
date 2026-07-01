@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, Spinner, EmptyState, Icon, Avatar } from '@/components/ui';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
@@ -23,11 +24,24 @@ export default function ApprovalsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [signoffs, setSignoffs] = useState<PortalApproval[] | null>(null);
   const [createDraft, setCreateDraft] = useState<{ project_id: string; title: string; body: string } | null>(null);
+  const router = useRouter();
+  const [hi, setHi] = useState<string | null>(null);
+  const hiRef = useRef<string | null>(null);
 
   const load = () => { if (!org) return; listApprovals(org.id).then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   const loadSignoffs = () => { if (org) listPortalApprovals(org.id).then(setSignoffs).catch(() => setSignoffs([])); };
   useEffect(() => { if (org?.id) { load(); getOrgUsers(org.id).then(setUsers).catch(() => {}); getProjects(org.id).then(setProjects).catch(() => {}); loadSignoffs(); } /* eslint-disable-next-line */ }, [org?.id]);
 
+  useEffect(() => {
+    const id = router.query.id;
+    if (!id || typeof id !== 'string' || !rows) return;
+    if (hiRef.current === id) return;
+    if (!rows.some((r) => r.id === id)) return;
+    hiRef.current = id; setFilter('all'); setHi(id);
+    setTimeout(() => { document.getElementById('appr-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60);
+    const t = setTimeout(() => setHi(null), 2600);
+    return () => clearTimeout(t);
+  }, [rows, router.query.id]);
   const name = (uid?: string | null) => users.find((u) => u.id === uid)?.full_name || 'Someone';
   const shown = useMemo(() => (rows || []).filter((r) => filter === 'all' || r.status === 'pending'), [rows, filter]);
   const canDecide = (r: ApprovalRequest) => isOrgAdmin || r.approver_id === me?.id;
@@ -68,7 +82,7 @@ export default function ApprovalsPage() {
       ) : (
         <div className="space-y-2.5 max-w-3xl">
           {shown.map((r) => (
-            <div key={r.id} className="card p-4">
+            <div key={r.id} id={`appr-${r.id}`} className={`card p-4 transition-shadow ${hi === r.id ? 'ring-2 ring-accent' : ''}`}>
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="chip capitalize">{r.entity_type}</span>
                 <span className={`pill ${PILL[r.status]}`}>{r.status}</span>

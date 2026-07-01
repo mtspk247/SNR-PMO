@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import AgentPanel from '@/components/AgentPanel';
 import { PageHeader, Icon, StatCard } from '@/components/ui';
@@ -53,6 +54,16 @@ export default function ExpenseClaimsPage() {
   const q = prefs.query;
   const statusF = prefs.filters.status || 'all';
 
+  const router = useRouter();
+  const openedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = router.query.id;
+    if (!id || typeof id !== 'string' || !rows) return;
+    if (openedRef.current === id) return;
+    const row = rows.find((c) => c.id === id);
+    if (row) { openedRef.current = id; openEdit(row); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, router.query.id]);
   const load = () => {
     if (!orgId) return;
     expenseClaims(orgId).then(setRows).catch((e) => { setErr(e.message); setRows([]); });
