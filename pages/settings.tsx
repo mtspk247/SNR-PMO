@@ -347,7 +347,13 @@ export default function SettingsPage() {
   const meUser = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'shortcuts' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger' | 'demo' | 'modules'>('business');
   const router = useRouter();
-  useEffect(() => { const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'shortcuts', 'workspace', 'notifications', 'lists', 'audit', 'danger', 'demo', 'modules'].includes(t)) setTab(t as any); } }, [router.query.tab]);
+  // Route-aware: /settings/profile|brand|themes render the matching tab (segregated nav pages).
+  useEffect(() => {
+    const pth = router.pathname;
+    const rt = pth.startsWith('/settings/profile') ? 'business' : pth.startsWith('/settings/brand') ? 'branding' : pth.startsWith('/settings/themes') ? 'themes' : null;
+    if (rt) { setTab(rt as any); return; }
+    const q = router.query.tab; if (typeof q === 'string') { const t = q === 'profile' ? 'business' : q; if (['business', 'branding', 'themes', 'shortcuts', 'workspace', 'notifications', 'lists', 'audit', 'danger', 'demo', 'modules'].includes(t)) setTab(t as any); }
+  }, [router.pathname, router.query.tab]);
 
   const [name, setName] = useState('');
   const [logo, setLogo] = useState('');
