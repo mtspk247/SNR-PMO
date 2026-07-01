@@ -205,6 +205,7 @@ export const PLATFORM_SECTION: NavSection = { kind: 'menu', key: 'platform', lab
   { href: '/platform/billing', label: 'Billing', icon: 'ti-credit-card', platformOnly: true, group: 'Plans & Billing' },
   { href: '/platform/campaigns', label: 'Campaigns', icon: 'ti-speakerphone', platformOnly: true, group: 'Growth' },
   { href: '/platform/rollout', label: 'Feature Rollout', icon: 'ti-rocket', platformOnly: true, group: 'Growth' },
+  { href: '/platform/upsell', label: 'Upgrade Prompts', icon: 'ti-arrow-up-circle', platformOnly: true, group: 'Growth' },
   { href: '/platform/email', label: 'Email', icon: 'ti-mail', platformOnly: true, group: 'Comms' },
   { href: '/platform/social', label: 'Social Providers', icon: 'ti-plug-connected', platformOnly: true, group: 'Comms' },
   { href: '/platform/assistant', label: 'AI Assistant', icon: 'ti-sparkles', platformOnly: true, group: 'Comms' },
