@@ -1,4 +1,7 @@
 
+## 2026-07-01 — Social #37 (part): Bulk scheduling
+- Bulk bar **Schedule** action on `/social`: spread selected draft/scheduled posts across a cadence (daily/weekdays/every-2/weekly) from a first slot. Uses RLS-safe `updateSocialPost` — approval policy still enforced server-side; admin-gated. No new tables/creds. Docs updated. RSS/import content sources = remaining part of #37.
+
 ## 2026-06-30 — Social #36: White-label client reports
 - **`/social/report`:** a clean, one-page **branded** social report (KPI summary, engagement trend, per-channel table, top posts) built on the Phase 3C analytics RPCs (real data, RLS-scoped, server-aggregated). "Export report" button on `/social/analytics`; **Print / Save as PDF** via the browser (reuses the app's `.print-area`/`.no-print` convention — no PDF lib/dep).
 - **White-label:** header auto-pulls the org's (or reseller's) `branding.logo_url` + `primary_color` + name — clients see the agency's brand, not ours. No new tables, no creds, no new attack surface (read-only over existing RLS-scoped RPCs).
