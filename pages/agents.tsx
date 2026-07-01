@@ -15,7 +15,7 @@ import AgentBriefing from '@/components/AgentBriefing';
 import { ChatCommand, CHAT_TOOLABLE } from '@/lib/chatCommands';
 import { executorFor, canAutoExecute, chatAutoEligible } from '@/lib/agentExecutors';
 import { SCANNABLE_DOMAINS } from '@/lib/agentScanner';
-import { WORKFLOW_TEMPLATES, workflowByKey } from '@/lib/agentPlans';
+import { WORKFLOW_TEMPLATES, workflowByKey, detectWorkflow } from '@/lib/agentPlans';
 import { toast } from '@/lib/toast';
 import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
@@ -232,6 +232,23 @@ export default function AgentsPage() {
     if (!org || !askReq.trim() || asking) return;
     const agentId = askAgentId || (agents || []).find((a) => a.enabled)?.id || '';
     if (!agentId) { toast('Create or enable an agent first.', 'info'); return; }
+    // Natural-language workflow intent -> deterministic, preflighted plan (no LLM needed).
+    const wf = detectWorkflow(askReq);
+    const wfTplMatch = wf ? workflowByKey(wf.key) : undefined;
+    if (wf && wfTplMatch) {
+      if (wf.ready) {
+        setAsking(true);
+        try {
+          const { count } = await proposeWorkflowPlan(org.id, agentId, wfTplMatch.label, wfTplMatch.build(wf.vals));
+          toast('Proposed a ' + count + '-step plan — review & approve', 'success');
+          setAskReq(''); router.push('/agent-approvals');
+        } catch (e: any) { toast(e?.message || 'Could not propose the plan', 'error'); } finally { setAsking(false); }
+      } else {
+        setWfKey(wf.key); setWfVals(wf.vals); setAskReq('');
+        toast('Looks like a workflow — fill in the details below and hit Propose.', 'info');
+      }
+      return;
+    }
     setAsking(true);
     try {
       const g = await listAgentTools(agentId);
@@ -325,10 +342,10 @@ export default function AgentsPage() {
           <div className="flex items-center gap-2 mb-2"><Icon name="ti-sparkles" className="text-accentstrong" /><h3 className="text-sm font-semibold text-content">Ask your agent</h3><span className="text-2xs text-muted2 rounded-full bg-surface2 px-1.5 py-0.5">AI-powered</span></div>
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="sm:w-56 shrink-0"><Select value={askAgentId || (agents.find((a) => a.enabled)?.id || '')} onChange={setAskAgentId} options={agents.filter((a) => a.enabled).map((a) => ({ value: a.id, label: a.name + ' · ' + a.domain }))} /></div>
-            <input className="input flex-1" value={askReq} onChange={(e) => setAskReq(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') askAgent(); }} placeholder="e.g. draft follow-ups for my stalled deals" />
+            <input className="input flex-1" value={askReq} onChange={(e) => setAskReq(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') askAgent(); }} placeholder="e.g. onboard Acme Corp — or — draft follow-ups for my stalled deals" />
             <button className="btn btn-primary shrink-0" disabled={asking || !askReq.trim()} onClick={askAgent}><Icon name="ti-send" className="text-sm" />{asking ? 'Thinking…' : 'Ask'}</button>
           </div>
-          <p className="text-2xs text-muted2 mt-1.5">Your agent reasons over your data and proposes concrete, approve-first actions — nothing runs until you approve (with the dry-run preview).</p>
+          <p className="text-2xs text-muted2 mt-1.5">Your agent reasons over your data and proposes concrete, approve-first actions — nothing runs until you approve (with the dry-run preview). Try a workflow in plain English, like <b>“onboard Acme Corp”</b> or <b>“kick off project Apollo”</b>.</p>
         </div>
       )}
 

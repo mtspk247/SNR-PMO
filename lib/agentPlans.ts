@@ -62,3 +62,51 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 ];
 
 export const workflowByKey = (k: string): WorkflowTemplate | undefined => WORKFLOW_TEMPLATES.find((t) => t.key === k);
+
+// Natural-language intent router: map a free-text request to a workflow template + best-effort
+// field extraction. PURE + deterministic (no LLM) so it is unit-testable and always available;
+// the "Ask your agent" box uses it first and falls through to the LLM proposer when it returns null.
+// `ready` = all required fields were extracted (propose immediately) vs pre-fill the launcher form.
+export interface WorkflowMatch { key: string; vals: Record<string, string>; ready: boolean; }
+
+const clean = (s: string): string =>
+  s.replace(/^["'`]+|["'`.!?,;:]+$/g, '').replace(/\s+/g, ' ').trim();
+
+export function detectWorkflow(raw: string): WorkflowMatch | null {
+  const text = (raw || '').trim();
+  if (!text) return null;
+  const low = text.toLowerCase();
+
+  // ---- Client onboarding ----
+  if (/\bonboard(?:ing|ed|s)?\b/.test(low) || /\bnew client\b/.test(low)) {
+    let client = '';
+    let project = '';
+    // "onboard [a|the|new] [client] <Name> [for|on|with|to|as ...]"
+    let m = text.match(/onboard(?:ing|ed|s)?\s+(?:a\s+|the\s+|our\s+|new\s+)*(?:client\s+|customer\s+)?(.+?)(?:\s+(?:for|on|with|to|as|and|—|-|:)\b.*)?$/i);
+    if (!m) m = text.match(/new client\s*[:\-]?\s*(.+?)$/i);
+    if (m) client = clean(m[1]);
+    // optional project name: "... for <Project>" / "project <Project>"
+    const pm = text.match(/\b(?:project|for(?:\s+the)?)\s+(.+?)(?:\s+project)?$/i);
+    if (pm) { const p = clean(pm[1]); if (p && p.toLowerCase() !== client.toLowerCase()) project = p; }
+    // guard: don't treat generic verbs as a client name
+    if (client && /^(a|the|our|new|client|customer|process|flow|them|it|this)$/i.test(client)) client = '';
+    const vals: Record<string, string> = {};
+    if (client) vals.client_name = client;
+    if (project) vals.project_name = project;
+    return { key: 'client_onboarding', vals, ready: !!client };
+  }
+
+  // ---- Project kickoff ----
+  if (/\bkick[\s-]?off\b/.test(low) || /\b(?:start|spin up|launch|create|set up|new)\b[^.]*\bproject\b/.test(low)) {
+    let name = '';
+    let m = text.match(/project\s+(?:called\s+|named\s+|titled\s+)?(.+?)$/i);
+    if (!m) m = text.match(/kick[\s-]?off\s+(?:the\s+|a\s+)?(.+?)(?:\s+project)?$/i);
+    if (m) name = clean(m[1]);
+    if (name && /^(a|the|our|new|project|this|it)$/i.test(name)) name = '';
+    const vals: Record<string, string> = {};
+    if (name) vals.project_name = name;
+    return { key: 'project_kickoff', vals, ready: !!name };
+  }
+
+  return null;
+}
