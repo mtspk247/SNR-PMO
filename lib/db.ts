@@ -3785,7 +3785,7 @@ export async function askAssistant(p: { question: string; brand?: string; histor
 // ---------------------------------------------------------------------------
 export type AgentDomain = 'accounting' | 'tasks' | 'crm' | 'hr' | 'support' | 'people' | 'marketing' | 'general';
 export type AgentAutonomy = 'draft_only' | 'approve_first' | 'auto_low_risk';
-export interface AgentDefinition { id: string; org_id: string; name: string; domain: AgentDomain; description: string | null; enabled: boolean; autonomy_level: AgentAutonomy; config: any; created_by: string | null; created_at: string; updated_at: string; }
+export interface AgentDefinition { id: string; org_id: string; name: string; domain: AgentDomain; description: string | null; enabled: boolean; autonomy_level: AgentAutonomy; config: any; created_by: string | null; created_at: string; updated_at: string; builtin?: boolean; archived_at?: string | null; }
 export type AgentActionStatus = 'proposed' | 'approved' | 'rejected' | 'executing' | 'executed' | 'failed' | 'rolled_back' | 'expired';
 export interface AgentAction { id: string; org_id: string; run_id: string | null; agent_id: string | null; tool_key: string; domain: string; summary: string; payload: any; risk: 'low' | 'medium' | 'high'; reversible: boolean; status: AgentActionStatus; target_table: string | null; target_id: string | null; result: any; reversal: any; prior_state: any; proposed_at: string; decided_by: string | null; decided_at: string | null; decision_note: string | null; executed_by: string | null; executed_at: string | null; rolled_back_by: string | null; rolled_back_at: string | null; expires_at: string | null; priority?: number | null; }
 export interface AgentRun { id: string; org_id: string; agent_id: string | null; initiated_by: string | null; trigger: string; input: any; status: string; error: string | null; cost_tokens: number; cost_usd: number; started_at: string | null; finished_at: string | null; created_at: string; }
@@ -3892,6 +3892,15 @@ export async function seedStarterAgents(orgId: string, userId: string): Promise<
 }
 export async function updateAgent(id: string, patch: Partial<AgentDefinition>): Promise<void> {
   const { error } = await sb.from('agent_definitions').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+// Built-in (default, non-deletable) agents + archive. Chief of Staff + a feature-aware team.
+export async function seedBuiltinAgents(orgId: string): Promise<number> {
+  const { data, error } = await sb.rpc('seed_builtin_agents', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as number) ?? 0;
+}
+export async function setAgentArchived(id: string, archived: boolean): Promise<void> {
+  const { error } = await sb.rpc('agent_set_archived', { p_agent: id, p_archived: archived });
   if (error) throw new Error(error.message);
 }
 export async function deleteAgent(id: string): Promise<void> {
