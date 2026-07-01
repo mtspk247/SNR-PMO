@@ -345,7 +345,7 @@ export default function SettingsPage() {
   const admin = can.manageOrg(org);
   const isOwner = org?.member_role === 'owner';
   const meUser = useAuthStore((s) => s.user);
-  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'shortcuts' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger' | 'demo' | 'modules'>('business');
+  const [tab, setTab] = useState<'business' | 'branding' | 'themes' | 'shortcuts' | 'workspace' | 'notifications' | 'lists' | 'audit' | 'danger' | 'demo' | 'modules'>('shortcuts');
   const router = useRouter();
   // Route-aware: /settings/profile|brand|themes render the matching tab (segregated nav pages).
   useEffect(() => {
@@ -503,9 +503,6 @@ export default function SettingsPage() {
       )}
       {admin && (
         <Tabs tabs={[
-          { key: 'business', label: 'Profile', icon: 'ti-id-badge-2' },
-          { key: 'branding', label: 'Brand', icon: 'ti-palette' },
-          { key: 'themes', label: 'Themes', icon: 'ti-color-swatch' },
           { key: 'shortcuts', label: 'Shortcuts', icon: 'ti-bolt' },
           { key: 'modules', label: 'Modules', icon: 'ti-apps' },
           { key: 'notifications', label: 'Notifications', icon: 'ti-bell' },
