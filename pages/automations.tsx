@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, Icon, Spinner, EmptyState } from '@/components/ui';
 import { useActiveOrg } from '@/lib/store';
+import { hasFeature } from '@/lib/entitlements';
 import { can } from '@/lib/authz';
 import { sb } from '@/lib/supabase';
 
@@ -22,6 +23,7 @@ const ACTION_TYPES = [
   { v: 'send_sms', l: 'Send an SMS to the lead' },
   { v: 'send_email', l: 'Send an email to the lead' },
   { v: 'enroll_sequence', l: 'Enroll the lead in a sequence' },
+  { v: 'draft_social_post', l: 'Draft a social post' },
 ];
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const FIELD_HINT: Record<string, string> = {
@@ -92,6 +94,7 @@ export default function AutomationsPage() {
         if (a.type === 'send_sms') return { type: 'send_sms', body: (a.body || '').trim() };
         if (a.type === 'send_email') return { type: 'send_email', subject: (a.subject || '').trim(), body: (a.body || '').trim() };
         if (a.type === 'enroll_sequence') return { type: 'enroll_sequence', sequence_id: a.sequence_id || '' };
+        if (a.type === 'draft_social_post') return { type: 'draft_social_post', body: (a.body || '').trim() };
         return { type: 'create_task', name: (a.name || '').trim() || 'Automation task', priority: a.priority || 'Medium' };
       });
       for (const a of cleanActions) {
@@ -118,6 +121,7 @@ export default function AutomationsPage() {
     if (a.type === 'send_email') return 'email the lead';
     if (a.type === 'enroll_sequence') return 'enroll lead in ' + (seqs.find((s) => s.id === a.sequence_id)?.name || 'a sequence');
     if (a.type === 'create_task') return `create task “${a.name || 'Automation task'}”`;
+    if (a.type === 'draft_social_post') return 'draft a social post';
     if (a.type === 'notify_owner') return 'notify the assigned owner';
     return 'notify owners/admins';
   };
@@ -162,7 +166,7 @@ export default function AutomationsPage() {
                   {actions.map((a, i) => (
                     <div key={i} className="rounded-lg border border-line p-2 space-y-2">
                       <div className="flex items-center gap-2">
-                        <select className="input h-8 py-0" value={a.type} onChange={(e) => updAction(i, { type: e.target.value })}>{ACTION_TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}</select>
+                        <select className="input h-8 py-0" value={a.type} onChange={(e) => updAction(i, { type: e.target.value })}>{ACTION_TYPES.filter((t) => t.v !== 'draft_social_post' || hasFeature(org, 'social')).map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}</select>
                         {actions.length > 1 && <button className="ml-auto text-muted2 hover:text-rose-500" onClick={() => rmAction(i)} title="Remove action"><Icon name="ti-trash" className="text-sm" /></button>}
                       </div>
                       {(a.type === 'notify' || a.type === 'notify_owner') && (
@@ -185,6 +189,7 @@ export default function AutomationsPage() {
                       ) : (
                         <p className="text-2xs text-amber-600">No active sequences yet — create one in Sequences first.</p>
                       ))}
+                      {a.type === 'draft_social_post' && <textarea className="input w-full min-h-[56px] resize-y" placeholder="Post text (a draft is created for you to review, schedule and publish)" value={a.body || ''} onChange={(e) => updAction(i, { body: e.target.value })} />}
                       {a.type === 'assign' && (
                         <select className="input h-8 py-0 w-full" value={a.user_id || ''} onChange={(e) => updAction(i, { user_id: e.target.value })}>
                           <option value="">Select a teammate…</option>
@@ -200,6 +205,7 @@ export default function AutomationsPage() {
                       {(a.type === 'set_status' || a.type === 'assign') && <p className="text-2xs text-muted2">Applies to the record that fired the trigger (task, deal or project).</p>}
                       {(a.type === 'send_sms' || a.type === 'send_email') && <p className="text-2xs text-muted2">Sends to the lead/contact from the trigger (SMS needs Messaging configured). Opt-outs respected.</p>}
                       {a.type === 'enroll_sequence' && <p className="text-2xs text-muted2">Adds the lead from the trigger into a drip sequence — best paired with the Form submitted trigger. Will not double-enroll.</p>}
+                      {a.type === 'draft_social_post' && <p className="text-2xs text-muted2">Creates a draft in Social &amp; Content for review — never auto-publishes, so your approval policy stays in control.</p>}
                     </div>
                   ))}
                 </div>

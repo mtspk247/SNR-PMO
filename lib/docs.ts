@@ -462,6 +462,7 @@ export const SECTIONS: Section[] = [
           ['Time tracking + Attendance', 'Payroll', '"Load active employees" pulls logged hours and attendance days into each payslip'],
           ['Reminders + @mentions', 'Notification bell', 'Due reminders and chat mentions create notifications; clicking one deep-links to the task/leave/deal/employee'],
           ['Form submitted', 'Drip sequence', 'Automation action “Enroll the lead in a sequence” starts a nurture drip for the new lead'],
+          ['Any trigger', 'Social draft', 'Automation action “Draft a social post” creates a review-first draft in Social & Content (never auto-publishes)'],
         ],
       },
     ],
