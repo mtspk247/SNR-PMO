@@ -34,6 +34,11 @@ export default function MediaLibrary() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
 
   const shown = useMemo(() => (assets || []).filter((a) => kindF === 'all' || a.kind === kindF), [assets, kindF]);
+  const counts = useMemo(() => {
+    const r = assets || [];
+    return { total: r.length, image: r.filter((x) => x.kind === 'image').length, video: r.filter((x) => x.kind === 'video').length };
+  }, [assets]);
+
 
   if (org && !hasFeature(org, 'social')) {
     return <Layout flat title="Media Library"><EmptyState icon="ti-photo" title="Social & Content not enabled" text="Ask an admin to enable Social on your plan." /></Layout>;
@@ -48,11 +53,6 @@ export default function MediaLibrary() {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
   const remove = async (id: string) => { try { await deleteMediaAsset(id); load(); } catch (e: any) { setErr(e.message); } };
-
-  const counts = useMemo(() => {
-    const r = assets || [];
-    return { total: r.length, image: r.filter((x) => x.kind === 'image').length, video: r.filter((x) => x.kind === 'video').length };
-  }, [assets]);
 
   return (
     <Layout flat title="Media Library">
