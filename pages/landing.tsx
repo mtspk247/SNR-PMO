@@ -744,7 +744,9 @@ SNR-PMO runs projects, CRM, HR &amp; payroll and real accounting in one workspac
                 {[
                   { t: 'Real back-office actions', d: 'Create & assign tasks, draft journal entries from bills, build onboarding checklists, triage tickets and move deals — across Projects, CRM, HR, Accounting and Support.' },
                   { t: 'Approve-first, always', d: 'Agents propose; a person approves with one click. Money, payroll and anything risky always wait for you. Every action is audited and one-click reversible.' },
-                  { t: 'Type a command in chat', d: 'Drop #task, #onboard or #expense in any channel and the right agent drafts it for approval — and you can define your own #commands.' },
+                  { t: 'Preflight before you approve', d: 'Before you approve, the agent replays the action against your live data — under your own permissions, then rolled back — and tells you plainly: it will run, or it would fail and why. No approving something that errors a second later.' },
+                  { t: 'Just say what you want', d: 'Type “onboard Acme Corp” or “kick off project Apollo” and the agent turns the sentence into a complete, reviewable plan — the contact, project, tasks and deal — ready to approve. Or drop #task, #onboard or #expense in chat, and define your own #commands.' },
+                  { t: 'Learns what you want', d: 'Your agents rank the queue by what you usually approve and quietly mute the kinds you keep rejecting — opt-in and reversible. The busywork gets out of your way; the signal rises to the top.' },
                   { t: 'Measured, not hype', d: 'A live ROI dashboard shows actions executed, hours saved and dollar value created — net of agent cost. No black box.' },
                 ].map((f) => (
                   <div key={f.t} className="flex gap-3.5">
