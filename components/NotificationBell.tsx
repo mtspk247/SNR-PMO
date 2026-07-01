@@ -33,12 +33,32 @@ function bucket(iso: string): 'Today' | 'Yesterday' | 'Earlier' {
   return days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : 'Earlier';
 }
 
+// Route a notification to its exact page/item. Item-level deep links where the
+// target page supports opening the record; otherwise the correct list page.
+// Falls back to the stored link, then null (dead clicks are avoided upstream).
+const NOTIF_PAGE: Record<string, string> = {
+  project: '/projects', leave: '/leave', chat: '/chat', lead: '/leads', client: '/clients',
+  company: '/companies', contract: '/contracts', proposal: '/proposals',
+  guest_request: '/requests', request: '/requests', approval: '/approvals', feedback: '/feedback',
+  social: '/social', social_post: '/social', idea: '/ideas', invoice: '/invoicing', bill: '/bills',
+  expense_claim: '/expense-claims', ticket: '/admin/support', support: '/admin/support',
+  application: '/applications', interview: '/interviews', job: '/jobs', offer: '/offers',
+  appraisal: '/appraisals', subscription: '/recurring-billing', reminder: '/calendar',
+  org: '/tenants', tenant: '/tenants', notice: '/dashboard', booking: '/booking', appointment: '/booking',
+};
 function hrefFor(n: AppNotification): string | null {
-  if (n.entity_type === 'task' && n.entity_id) return `/tasks?task=${n.entity_id}`;
-  if (n.entity_type === 'leave') return '/leave';
-  if (n.entity_type === 'chat') return '/chat';
-  if (n.entity_type === 'crm_deal' && n.entity_id) return `/crm/deal/${n.entity_id}`;
-  if (n.entity_type === 'employee' && n.entity_id) return `/employees/${n.entity_id}`;
+  const et = (n.entity_type || '').toLowerCase();
+  const id = n.entity_id;
+  // item-level deep links (page opens the specific record)
+  if (et === 'task') return id ? `/tasks?task=${id}` : '/tasks';
+  if (et === 'crm_deal' || et === 'deal') return id ? `/crm/deal/${id}` : '/crm';
+  if (et === 'contact' || et === 'crm_contact') return id ? `/crm/contact/${id}` : '/crm';
+  if (et === 'employee') return id ? `/employees/${id}` : '/employees';
+  // drive/comment carry a precise link already — prefer it
+  if (et === 'drive' || et === 'drive_file' || et === 'drive_comment' || et === 'comment') return n.link || '/drives';
+  // list-level pages (correct destination even without an item param)
+  if (NOTIF_PAGE[et]) return NOTIF_PAGE[et];
+  // finally, any stored link
   return n.link || null;
 }
 
