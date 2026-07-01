@@ -1,4 +1,10 @@
 
+## 2026-06-30 — Phase 3G: continuous social/competitor sensor + CRITICAL agent-domain fix
+- **CRITICAL FIX (live via MCP):** `agent_definitions_domain_check` (and sibling `*_domain_check`s) had drifted and **never included `marketing`** — so no marketing agent (Content Assistant, Competitor Watcher) could be created; the Phase 3B/3E/3F marketing tools were effectively un-provisionable. Constraint now allows `marketing`. Enum CHECKs keep drifting — see memory.
+- **Continuous watching (no creds):** added a `marketing` branch to `agent_sensors_run` (the existing pg_cron `agent-sensors-tick`, */15m). When a marketing agent has **sensing enabled** (Agents page), it now continuously proposes — weekly-deduped, cost-ceiling-enforced, approve-first — `analyze_social_performance` insights (best channel, sub-2% engagement gap, cadence) + a `watch_competitors` competitor-cadence gap. Verified live (rolled back): proposed "Best channel: @yourco drives the most engagement". SECURITY DEFINER, org-scoped, dedup via `agent_already_proposed`; advisors clean.
+- This makes the AI social team **autonomous** — it watches and plans on a schedule, not just on a button. Runs through ABOS: approve-first (or auto per policy), reversible, audited, cost-capped.
+- All DB-side (live). Next (no-creds): unified engagement inbox; (creds): live cross-platform publishing.
+
 ## 2026-06-30 — Phase 3F: agents analyze real performance (analyze_social_performance)
 - **Functional-now AI loop (no creds):** the marketing agent now reads your REAL social analytics and drafts concrete performance insights — best channel, sub-2% engagement-rate gaps, top-content themes, cadence — each with a recommendation.
 - **Reuses the proven deterministic "Find work in my data" engine:** extended `lib/agentScanner.ts` with a `marketing` branch + analytics ctx; `runWorkScan` fetches the analytics RPCs for marketing agents and dedupes by `insight_key`; proposals flow through the **existing approve-first RPCs** (no LLM key needed). Marketing added to `SCANNABLE_DOMAINS`.
