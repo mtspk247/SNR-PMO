@@ -1,4 +1,10 @@
 
+## 2026-07-01 — Screen Recorder: in-browser clip editor (trim/timelapse/watermark/brightness/crop/GIF)
+- New `components/RecordingEditor.tsx` — canvas-based post-record editor (no ffmpeg, no cross-origin-isolation): **trim** (in/out), **timelapse** (2×/4×/8×), **brightness**, **crop** (16:9/4:3/1:1), **watermark** text (bottom-right), keep/drop **audio**, export **WebM** (re-record via `canvas.captureStream`+MediaRecorder, audio via WebAudio MediaElementSource→dest) or **GIF** (gif.js from CDN, frame-sampled, best-effort). Wired an **Edit** step into the recorder preview: WebM replaces the clip to save; GIF downloads.
+- Native-only Screenflick items (ProRes/HEVC, system-wide overlays, scheduled, iPhone remote, Automator) remain out of scope for a browser app — CTO decision: web-only for now, desktop companion a separate future track.
+- NOTE: editor UI verified live; full record→edit→export needs real-world test (screen-capture can't be granted in automation).
+
+
 ## 2026-07-01 — Upsell engine: config-driven lock screens (nudge system COMPLETE)
 - `components/UpgradeScreen.tsx` (the feature lock screen shown when a plan lacks a route's feature) is now driven by the upsell engine's resolved `feature_locked` prompt (prefers a prompt whose `feature_key` matches the locked feature, else the generic one) — title/body/CTA/icon, with `{feature}` templating and a safe default fallback. So ALL three upsell surfaces are config-controlled: **banners** (UpsellPrompts), **dashboard locked cards**, and **lock screens** (UpgradeScreen).
 - Nudge/upgrade system now COMPLETE with **RBAC** (writes via SECURITY DEFINER RPCs gated by is_platform_admin / is_org_role; manager routes platform-admin / reseller-admin gated), **RLS** (table policies + member-gated `upsell_prompts_for` resolver; RLS-sim proven), and **CRUD** (create/edit via upsell_prompt_save, pause/resume/remove via upsell_prompt_set_status, read via listUpsellPrompts + resolver) — manageable by platform owner AND resellers, extensible per feature. Docs updated earlier.

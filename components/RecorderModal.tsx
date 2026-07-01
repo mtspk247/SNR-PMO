@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Field } from '@/components/Modal';
 import { Icon } from '@/components/ui';
 import Select from '@/components/Select';
+import RecordingEditor from '@/components/RecordingEditor';
 import { toast } from '@/lib/toast';
 import { uploadScreenRecording, RECORDING_MAX_SEC, RECORDING_MAX_BYTES, ScreenRecording } from '@/lib/db';
 
@@ -55,6 +56,7 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
   const [title, setTitle] = useState('');
   const [blob, setBlob] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
+  const [editing, setEditing] = useState(false);
 
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -188,6 +190,7 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
           <button className="btn btn-danger" onClick={stop}><Icon name="ti-player-stop" />Stop</button>
         </>) : phase === 'preview' || phase === 'saving' ? (<>
           <button className="btn mr-auto" disabled={phase === 'saving'} onClick={discard}><Icon name="ti-refresh" />Re-record</button>
+          <button className="btn" disabled={phase === 'saving' || !blob} onClick={() => setEditing(true)}><Icon name="ti-scissors" />Edit</button>
           <button className="btn" disabled={phase === 'saving'} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" disabled={phase === 'saving' || !blob || blob.size > RECORDING_MAX_BYTES} onClick={save}>{phase === 'saving' ? 'Saving…' : 'Save recording'}</button>
         </>) : null
@@ -225,6 +228,16 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
           </div>
           <Field label="Title"><input className="input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`Screen recording ${new Date().toLocaleDateString()}`} /></Field>
         </div>
+      )}
+      {editing && blob && (
+        <RecordingEditor src={blob} onCancel={() => setEditing(false)}
+          onDone={(b, ext) => {
+            if (ext === 'gif') {
+              const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `${(title.trim() || 'recording')}.gif`; document.body.appendChild(a); a.click(); a.remove(); setEditing(false); return;
+            }
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setBlob(b); setPreviewUrl(URL.createObjectURL(b)); setEditing(false);
+          }} />
       )}
     </Modal>
   );
