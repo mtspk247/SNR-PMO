@@ -1,4 +1,9 @@
 
+## 2026-07-02 — Recording share links: rate-limiting + management panel
+- **Hardened the anon `recording-share` edge fn (v2):** per-IP + global rate limiting via `rate_limit_ok` (60/min per IP, 3000/min global, fail-closed → 429) on top of token entropy. Directly addresses the API-rate gap.
+- **Share management panel** in the /recordings viewer: lists active share links with view counts, per-link Copy + Revoke (creator/admin via `screen_recording_share_revoke`). db wrappers revokeRecordingShare/listRecordingShares. Docs updated.
+
+
 ## 2026-07-01 — Recording share links (Loom-style public viewer)
 - **DB:** `screen_recording_shares` (token, expires_at, revoked, views) + forms-pattern RLS (staff-read; writes via SECURITY DEFINER RPCs) + `screen_recording_share_create` (staff+`tenant_can('recordings')`, reuses active share, 36-hex token) / `screen_recording_share_revoke` (creator/admin). RLS-sim own-allow/cross-deny PASS.
 - **Anon edge fn `recording-share`** (verify_jwt=false, CORS): token → validates share (not revoked/expired) via service_role → short-lived (1h) signed URL + org name + view count. Token = 36-hex high-entropy (brute-force-infeasible); never exposes storage paths.
