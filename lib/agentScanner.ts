@@ -6,7 +6,7 @@
 import type { Task, Deal, LedgerEntry } from './supabase';
 
 export type WorkProposal = { tool: string; summary: string; risk: 'low' | 'medium' | 'high'; reversible: boolean; payload: any };
-export const SCANNABLE_DOMAINS = ['accounting', 'tasks', 'crm', 'people', 'support'];
+export const SCANNABLE_DOMAINS = ['accounting', 'tasks', 'crm', 'people', 'support', 'marketing'];
 
 const CAT_RULES: [RegExp, string][] = [
   [/aws|cloud|hosting|server|vercel|supabase|\bs3\b|ec2|digitalocean|heroku/i, 'Cloud Hosting'],
@@ -28,7 +28,7 @@ const isDoneStatus = (s?: string) => /done|complete|closed|cancel|archiv|won|los
 
 export function scanForWork(
   domain: string,
-  ctx: { tasks?: Task[]; deals?: Deal[]; ledger?: LedgerEntry[]; users?: { id: string; name: string }[]; tickets?: { id: string; subject: string; status: string; assignee_id: string | null }[]; agents?: { id: string; name: string }[]; today: string },
+  ctx: { tasks?: Task[]; deals?: Deal[]; ledger?: LedgerEntry[]; users?: { id: string; name: string }[]; tickets?: { id: string; subject: string; status: string; assignee_id: string | null }[]; agents?: { id: string; name: string }[]; analytics?: { overview?: { posts?: number; impressions?: number; engagement?: number; engagement_rate?: number }; channels?: { platform?: string; handle?: string | null; engagement?: number; followers?: number }[]; top?: { body?: string; engagement?: number; platform?: string | null }[] }; today: string },
   cap = 8,
 ): WorkProposal[] {
   const out: WorkProposal[] = [];
@@ -89,6 +89,25 @@ export function scanForWork(
       const a = staff[i % staff.length]; i++;
       out.push({ tool: 'triage_ticket', summary: 'Unassigned ticket "' + (t.subject || '').slice(0, 40) + '" \u2192 assign to ' + a.name, risk: 'low', reversible: true, payload: { ticket_id: t.id, assignee_id: a.id, from_assignee_id: null } });
       if (out.length >= cap) break;
+    }
+  } else if (domain === 'marketing') {
+    const a = ctx.analytics || {};
+    const ov = a.overview || {};
+    const chans = (a.channels || []).filter((c) => (c.engagement || 0) > 0).slice().sort((x, y) => (y.engagement || 0) - (x.engagement || 0));
+    if (chans.length) {
+      const b = chans[0];
+      out.push({ tool: 'analyze_social_performance', summary: 'Best channel: ' + (b.handle || b.platform) + ' drives the most engagement — lean into it', risk: 'low', reversible: true, payload: { insight_key: 'best_channel', kind: 'opportunity', summary: (b.handle || b.platform) + ' is your highest-engagement channel (' + (b.engagement || 0) + ' engagement). Publish more there and repurpose winners.', recommendation: 'Shift more posts to ' + (b.platform || 'it') + ' and test one extra post per week.' } });
+    }
+    if ((ov.impressions || 0) > 0 && (ov.engagement_rate || 0) < 2) {
+      out.push({ tool: 'analyze_social_performance', summary: 'Engagement rate is ' + ov.engagement_rate + '% — below 2%; tighten hooks & CTAs', risk: 'low', reversible: true, payload: { insight_key: 'low_eng_rate', kind: 'gap', summary: 'Engagement rate is ' + ov.engagement_rate + '% across ' + ov.impressions + ' impressions — below the ~2% healthy mark.', recommendation: 'Open with a hook, ask one clear question, and add a single CTA per post.' } });
+    }
+    const top = (a.top || []).filter((t) => (t.engagement || 0) > 0);
+    if (top.length) {
+      const t = top[0];
+      out.push({ tool: 'analyze_social_performance', summary: 'Your top post earned ' + (t.engagement || 0) + ' engagement — make more like it', risk: 'low', reversible: true, payload: { insight_key: 'top_post', kind: 'opportunity', summary: 'Top post (\u201c' + String(t.body || '').slice(0, 60) + '\u201d) earned ' + (t.engagement || 0) + ' engagement on ' + (t.platform || 'social') + '. That theme resonates.', recommendation: 'Draft two or three variations on this theme this week.' } });
+    }
+    if ((ov.posts || 0) > 0 && (ov.posts || 0) < 8) {
+      out.push({ tool: 'analyze_social_performance', summary: 'Only ' + ov.posts + ' posts in range — increase cadence to stay top-of-feed', risk: 'low', reversible: true, payload: { insight_key: 'cadence', kind: 'gap', summary: 'You published ' + ov.posts + ' posts in the period. Consistent cadence compounds reach.', recommendation: 'Aim for 3+ posts/week; use the content calendar to batch-schedule.' } });
     }
   }
   return out;
