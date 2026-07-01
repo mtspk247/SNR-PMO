@@ -4355,3 +4355,36 @@ export async function approveSocialPost(postId: string): Promise<void> {
   const { error } = await sb.rpc('social_approve_post', { p_post: postId });
   if (error) throw new Error(error.message);
 }
+
+// ── Social inbox (#31) ──────────────────────────────────────────────────────
+export interface SocialConversation { id: string; org_id: string; channel_id: string | null; platform: string | null; kind: 'comment'|'dm'|'mention'|'reply'; participant_name: string | null; participant_handle: string | null; subject: string | null; status: 'open'|'pending'|'closed'; assigned_to: string | null; unread: boolean; last_message_at: string; }
+export interface SocialMessage { id: string; org_id: string; conversation_id: string; direction: 'inbound'|'outbound'; body: string; author: string | null; status: 'draft'|'pending'|'sent'|'failed'; created_by: string | null; created_at: string; }
+
+export async function listConversations(orgId: string, status?: string): Promise<SocialConversation[]> {
+  let q = sb.from('social_conversations').select('*').eq('org_id', orgId).order('last_message_at', { ascending: false }).limit(200);
+  if (status && status !== 'all') q = q.eq('status', status);
+  const { data, error } = await q; if (error) throw new Error(error.message); return (data as SocialConversation[]) || [];
+}
+export async function listSocialMessages(convId: string): Promise<SocialMessage[]> {
+  const { data, error } = await sb.from('social_messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true });
+  if (error) throw new Error(error.message); return (data as SocialMessage[]) || [];
+}
+export async function sendSocialReply(orgId: string, convId: string, body: string, userId: string): Promise<void> {
+  const { error } = await sb.from('social_messages').insert({ org_id: orgId, conversation_id: convId, direction: 'outbound', body, created_by: userId, status: 'sent' });
+  if (error) throw new Error(error.message);
+  await sb.from('social_conversations').update({ unread: false, last_message_at: new Date().toISOString() }).eq('id', convId);
+}
+export async function setConversationStatus(convId: string, status: 'open'|'pending'|'closed'): Promise<void> {
+  const { error } = await sb.from('social_conversations').update({ status }).eq('id', convId); if (error) throw new Error(error.message);
+}
+export async function markConversationRead(convId: string): Promise<void> {
+  await sb.from('social_conversations').update({ unread: false }).eq('id', convId);
+}
+export async function deleteSocialMessage(id: string): Promise<void> {
+  const { error } = await sb.from('social_messages').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+// Agent draft reply (approve-first): outbound message in 'draft' status; reversible.
+export async function createSocialReplyDraft(orgId: string, convId: string, body: string, userId: string): Promise<SocialMessage> {
+  const { data, error } = await sb.from('social_messages').insert({ org_id: orgId, conversation_id: convId, direction: 'outbound', body, created_by: userId, status: 'draft' }).select('*').single();
+  if (error) throw new Error(error.message); return data as SocialMessage;
+}

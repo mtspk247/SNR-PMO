@@ -45,7 +45,7 @@ test('Phase1 IA: Marketing + Inbox menus exist with expected pages', () => {
   assert.ok(byKey.marketing, 'marketing menu missing');
   assert.ok(byKey.inbox, 'inbox menu missing');
   const mk = byKey.marketing.items.map((i: any) => i.href);
-  assert.deepEqual(mk, ['/social', '/social/calendar', '/social/analytics', '/social/competitors', '/sequences', '/forms']);
+  assert.deepEqual(mk, ['/social', '/social/calendar', '/social/analytics', '/social/competitors', '/social/inbox', '/sequences', '/forms']);
   const ix = byKey.inbox.items.map((i: any) => i.href);
   assert.deepEqual(ix, ['/chat', '/messaging', '/inbox']);
 });

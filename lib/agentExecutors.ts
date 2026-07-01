@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, createCompetitorInsight, deleteCompetitorInsight, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, createCompetitorInsight, deleteCompetitorInsight, createSocialReplyDraft, deleteSocialMessage, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -37,6 +37,21 @@ export const EXECUTORS: Record<string, Executor> = {
       return { target_table: 'social_competitor_insights', target_id: ins.id, result: { insight_id: ins.id }, reversal: { op: 'delete_competitor_insight' } };
     },
     rollback: async (a) => { if (a.target_id) await deleteCompetitorInsight(a.target_id); },
+  },
+  // MARKETING — community manager. Drafts an on-brand reply into an inbox conversation
+  // (outbound message, status 'draft') as the approving user (RLS applies). Reversible.
+  draft_social_reply: {
+    label: 'Save the reply draft',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const conv = String(p.conversation_id || '');
+      const body = String(p.body || a.summary || '').slice(0, 3000);
+      if (!conv) throw new Error('draft_social_reply needs conversation_id in the payload');
+      if (!body.trim()) throw new Error('draft_social_reply needs reply text');
+      const m = await createSocialReplyDraft(ctx.orgId, conv, body, ctx.userId);
+      return { target_table: 'social_messages', target_id: m.id, result: { message_id: m.id }, reversal: { op: 'delete_social_message' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteSocialMessage(a.target_id); },
   },
   watch_competitors: {
     label: 'Save the competitive insight',
