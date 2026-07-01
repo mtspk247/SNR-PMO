@@ -1,4 +1,8 @@
 
+## 2026-07-01 — Recording Studio Phase 2: facecam position/size + cursor toggle
+- Studio: webcam bubble now has **4-corner position** + **S/M/L size** controls (applied in the canvas compositor); **Show mouse cursor** capture toggle via getDisplayMedia `cursor` constraint. Web-achievable roadmap Phase-2 items. Keystroke display, live annotation over other apps, separate audio tracks = native/deferred. Frontend-only; verify live.
+
+
 ## 2026-07-01 — Recording Studio Phase 1: studio setup UI + MP4 output
 - Redesigned the recorder setup (idle) into a studio layout (approved mockup): 16:9 preview area with **live webcam preview** bottom-right, Audio card (system + mic toggle switches), Camera card (webcam bubble toggle), segmented Quality selector, and a clear "saves as MP4/WebM · countdown · pause" note. System-audio is now a real toggle (begin() honors it).
 - **MP4 output where supported** (pickMime tries video/mp4 h264/aac first, else WebM); uploadScreenRecording already maps mime→ext and the recordings bucket allows video/mp4.

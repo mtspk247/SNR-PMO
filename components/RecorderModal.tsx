@@ -57,6 +57,9 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
   const [phase, setPhase] = useState<Phase>('idle');
   const [mic, setMic] = useState(false);
   const [sysAudio, setSysAudio] = useState(true);
+  const [showCursor, setShowCursor] = useState(true);
+  const [camPos, setCamPos] = useState<'tl' | 'tr' | 'bl' | 'br'>('br');
+  const [camSize, setCamSize] = useState<'sm' | 'md' | 'lg'>('md');
   const [webcam, setWebcam] = useState(false);
   const [quality, setQuality] = useState<'high' | 'balanced' | 'light'>('balanced');
   const [count, setCount] = useState(3);
@@ -103,7 +106,7 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
     if (!navigator.mediaDevices?.getDisplayMedia) { setErr('Screen recording is not supported in this browser.'); return; }
     const q = QUALITY[quality];
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: q.fps } as any, audio: sysAudio });
+      const display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: q.fps, cursor: showCursor ? 'always' : 'never' } as any, audio: sysAudio });
       streamsRef.current.push(display);
       const dTrack = display.getVideoTracks()[0];
       let audioTracks = sysAudio ? display.getAudioTracks() : [];
@@ -143,7 +146,8 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
           try {
             ctx.drawImage(dv, 0, 0, cw, ch);
             if (cam && cam.videoWidth) {
-              const d = Math.round(cw * 0.2), r = d / 2, cx = cw - d - 16, cy = ch - d - 16;
+              const frac = camSize === 'sm' ? 0.14 : camSize === 'lg' ? 0.28 : 0.2; const m = Math.max(12, Math.round(cw * 0.02));
+              const d = Math.round(cw * frac), r = d / 2; const cx = camPos.includes('r') ? cw - d - m : m; const cy = camPos[0] === 'b' ? ch - d - m : m;
               ctx.save(); ctx.beginPath(); ctx.arc(cx + r, cy + r, r, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
               const ar = cam.videoWidth / cam.videoHeight; let sw2 = cam.videoWidth, sh2 = cam.videoHeight;
               if (ar > 1) { sw2 = cam.videoHeight; } else { sh2 = cam.videoWidth; }
@@ -234,7 +238,20 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
             <div className="card p-3">
               <p className="text-2xs uppercase tracking-wide text-muted2 mb-1">Camera</p>
               <ToggleRow icon="ti-user-circle" label="Webcam bubble" on={webcam} onToggle={() => setWebcam((v) => !v)} />
-              <p className="text-2xs text-muted2 mt-1">Adds a round webcam overlay, bottom-right.</p>
+              {webcam ? (
+                <div className="mt-2 space-y-2">
+                  <div className="grid grid-cols-4 gap-1">
+                    {([['tl', 'ti-arrow-up-left'], ['tr', 'ti-arrow-up-right'], ['bl', 'ti-arrow-down-left'], ['br', 'ti-arrow-down-right']] as const).map(([p, ic]) => (
+                      <button key={p} type="button" onClick={() => setCamPos(p)} className={`btn btn-sm ${camPos === p ? 'btn-primary' : ''}`} title="Corner"><Icon name={ic} className="text-sm" /></button>
+                    ))}
+                  </div>
+                  <div className="flex gap-1">
+                    {([['sm', 'S'], ['md', 'M'], ['lg', 'L']] as const).map(([sz, lbl]) => (
+                      <button key={sz} type="button" onClick={() => setCamSize(sz)} className={`flex-1 btn btn-sm ${camSize === sz ? 'btn-primary' : ''}`}>{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : <p className="text-2xs text-muted2 mt-1">Round webcam overlay you can position and size.</p>}
             </div>
           </div>
           <Field label="Quality">
@@ -244,6 +261,7 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
               ))}
             </div>
           </Field>
+          <div className="card p-3"><ToggleRow icon="ti-pointer" label="Show mouse cursor" on={showCursor} onToggle={() => setShowCursor((v) => !v)} /></div>
           <p className="text-2xs text-muted2">Up to {QUALITY[quality].fps} fps · saves as {mp4Supported ? 'MP4' : 'WebM'} · 3-2-1 countdown · pause anytime · max {Math.round(RECORDING_MAX_SEC / 60)} min / {Math.round(RECORDING_MAX_BYTES / 1048576)} MB.</p>
         </div>
       )}
