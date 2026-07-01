@@ -305,3 +305,4 @@
 - #5 **In-app feedback**: table + RLS + `submit_feedback`/`feedback_triage`/`platform_feedback_list`; app-wide widget (PR #57) + `/feedback` admin triage (PR #60). LIVE.
 - #1 Email signup "rate limit exceeded" = Supabase Auth shared-SMTP cap → configure custom Resend SMTP + raise auth email rate limit (dashboard; not code). PENDING (operator action).
 - Docs: `/docs` `feedback` + `workspace-lifecycle` sections; SYSTEM_GUIDE updated.
+
