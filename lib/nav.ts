@@ -130,6 +130,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/social/competitors', label: 'Competitor Watch', icon: 'ti-binoculars', feature: 'social', group: 'Social Media' },
     { href: '/social/inbox', label: 'Social Inbox', icon: 'ti-inbox', feature: 'social', group: 'Social Media' },
     { href: '/social/sources', label: 'Content Sources', icon: 'ti-rss', feature: 'social', group: 'Social Media' },
+    { href: '/social/media', label: 'Media Library', icon: 'ti-photo', feature: 'social', group: 'Social Media' },
     { href: '/sequences', label: 'Drip Email Marketing', icon: 'ti-mail-forward', feature: 'sequences', search: searchSequences, group: 'Email Marketing' },
     { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms', search: searchForms, group: 'Lead Capture' },
   ]},
