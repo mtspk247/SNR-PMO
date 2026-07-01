@@ -1,4 +1,7 @@
 
+## 2026-07-01 — Social #40b: continuous autonomous feed-drafting
+- Extended the pg_cron `agent_sensors_run` marketing branch (already ticked every 15 min by `agent-sensors-tick`): a **sense-enabled** marketing agent now continuously proposes `draft_social_post` for fresh un-drafted `social_source_items` (approve-first, `v_cap`-limited, deduped via `agent_already_proposed` on `source_item_id`). Same executor path as the manual scan → on approval creates the draft under the approver's RLS + links the item (definer). Feeds→drafts loop is now fully autonomous end-to-end. DB-only (live via MCP), verified in-txn (proposal produced + rolled back). No new objects → advisors unchanged.
+
 ## 2026-07-01 — Social #40: agents auto-draft from content sources
 - Marketing agents now propose a `draft_social_post` per fresh un-drafted `social_source_item` (approve-first, reversible). `scanForWork` marketing branch reads undrafted items; `runWorkScan` fetches them (undraftedOnly, 20-cap) + dedupes on `payload.source_item_id`. On approval the `draft_social_post` executor creates the draft (source='rss') under the approver's RLS, then calls definer `social_source_item_link_draft` so the item drops out of future scans; deleting the draft auto-nulls the link (FK) and re-surfaces the item. Closes the autonomous feeds→drafts loop. Docs + scanner logic-tested. Follow-up #40b (optional): extend the pg_cron `agent_sensors_run` marketing branch to propose feed drafts continuously.
 
