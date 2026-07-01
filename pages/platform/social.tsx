@@ -37,7 +37,7 @@ export default function PlatformSocial() {
 
   const openEdit = (key: string) => {
     const cur = byProvider[key]; const def = PROVIDERS.find((p) => p.key === key);
-    setF({ client_id: '', client_secret: '', redirect_uri: cur?.redirect_uri || (typeof window !== 'undefined' ? `${window.location.origin}/api/social/oauth/${key}/callback` : ''), scopes: cur?.scopes || def?.scopes || '', enabled: cur?.enabled || false });
+    setF({ client_id: '', client_secret: '', redirect_uri: cur?.redirect_uri || 'https://dkjdtyzjdkumnpdyezbs.supabase.co/functions/v1/social-oauth-callback', scopes: cur?.scopes || def?.scopes || '', enabled: cur?.enabled || false });
     setEdit(key);
   };
   const save = async () => {
