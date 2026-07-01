@@ -22,7 +22,7 @@ export const MINUTES_SAVED_BY_TOOL: Record<string, number> = {
   draft_meeting_brief: 10,
 };
 // Fallback when a tool isn't in the catalog (e.g. future scanners), by domain.
-export const MINUTES_SAVED_BY_DOMAIN: Record<AgentDomainKey, number> = {
+export const MINUTES_SAVED_BY_DOMAIN: Partial<Record<AgentDomainKey, number>> = {
   accounting: 8, tasks: 5, crm: 6, hr: 12, support: 6, people: 6, marketing: 7, general: 6,
 };
 export const DEFAULT_MINUTES_SAVED = 5;
