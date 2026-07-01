@@ -4211,7 +4211,7 @@ export async function tenantLifecycleState(orgId: string): Promise<TenantLifecyc
 export type SocialPlatform = 'facebook'|'instagram'|'linkedin'|'x'|'youtube'|'tiktok'|'threads'|'pinterest'|'google_business';
 export interface SocialChannel { id: string; org_id: string; platform: SocialPlatform; display_name: string | null; handle: string | null; status: 'connected'|'disconnected'|'error'; created_by: string | null; created_at: string; updated_at: string; }
 export interface SocialPostChannel { id: string; org_id: string; post_id: string; channel_id: string | null; status: 'pending'|'published'|'failed'|'skipped'; external_id: string | null; error: string | null; created_at: string; }
-export interface SocialPost { id: string; org_id: string; body: string; media: any[]; status: 'draft'|'scheduled'|'published'|'failed'|'cancelled'; scheduled_at: string | null; published_at: string | null; source: 'manual'|'agent'|'automation'; created_by: string | null; created_at: string; updated_at: string; channels?: SocialPostChannel[]; }
+export interface SocialPost { id: string; org_id: string; body: string; media: any[]; status: 'draft'|'scheduled'|'published'|'failed'|'cancelled'; scheduled_at: string | null; published_at: string | null; source: 'manual'|'agent'|'automation'; created_by: string | null; created_at: string; updated_at: string; approved_by?: string | null; approved_at?: string | null; channels?: SocialPostChannel[]; }
 
 export async function listSocialChannels(orgId: string): Promise<SocialChannel[]> {
   const { data, error } = await sb.from('social_channels').select('*').eq('org_id', orgId).order('created_at', { ascending: true });
@@ -4340,4 +4340,18 @@ export function composeBrandContext(name: string, v: BrandVoice | null): string 
   if (v.hashtags && v.hashtags.length) parts.push('Hashtags: ' + v.hashtags.join(' '));
   if (v.banned_words && v.banned_words.length) parts.push('Never use: ' + v.banned_words.join(', '));
   return parts.join(' — ');
+}
+
+// ── Social approval workflow (#34) ──────────────────────────────────────────
+export async function getApprovalPolicy(orgId: string): Promise<boolean> {
+  const { data, error } = await sb.from('social_approval_policy').select('require_approval').eq('org_id', orgId).maybeSingle();
+  if (error) throw new Error(error.message); return !!(data && (data as any).require_approval);
+}
+export async function setApprovalPolicy(orgId: string, userId: string, require: boolean): Promise<void> {
+  const { error } = await sb.from('social_approval_policy').upsert({ org_id: orgId, require_approval: require, updated_by: userId, updated_at: new Date().toISOString() }, { onConflict: 'org_id' });
+  if (error) throw new Error(error.message);
+}
+export async function approveSocialPost(postId: string): Promise<void> {
+  const { error } = await sb.rpc('social_approve_post', { p_post: postId });
+  if (error) throw new Error(error.message);
 }
