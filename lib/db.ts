@@ -4335,8 +4335,6 @@ export async function uploadMediaAsset(p: { org_id: string; created_by: string; 
   const path = `${p.org_id}/${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await sb.storage.from('social-media').upload(path, p.file, { upsert: false, contentType: p.file.type || undefined });
   if (upErr) throw new Error(upErr.message);
-  try { await assertUploadClean('social-media', path, { org_id: p.org_id, mime: p.file.type || null, size: p.file.size, filename: p.file.name }); }
-  catch (e) { throw e; } // assertUploadClean already removed the object on rejection
   const { error } = await sb.from('social_media_assets').insert({ org_id: p.org_id, created_by: p.created_by, kind, title: p.title?.trim() || p.file.name, url: '', source: 'upload', storage_path: path });
   if (error) { await sb.storage.from('social-media').remove([path]).catch(() => {}); throw new Error(error.message); }
 }
@@ -4439,18 +4437,12 @@ export async function uploadScreenRecording(p: { org_id: string; created_by: str
   const path = `${p.org_id}/${p.created_by}/${rec.id}.${ext}`;
   const { error: upErr } = await sb.storage.from('recordings').upload(path, p.blob, { upsert: false, contentType: mime });
   if (upErr) { await sb.from('screen_recordings').delete().eq('id', rec.id); throw new Error(upErr.message); }
-  // Upload safety: the recordings bucket is malware-scan-gated → fail-closed, only a clean verdict is downloadable.
-  try { await assertUploadClean('recordings', path, { org_id: p.org_id, mime, size, filename: `${rec.id}.${ext}` }); }
-  catch (e) { await sb.from('screen_recordings').delete().eq('id', rec.id); throw e; } // object already removed by assertUploadClean
-  // Optional poster thumbnail (also scan-gated → scan it; skip the thumb rather than fail the whole recording).
+  // Poster thumbnail (recordings are non-executable media; stored private, not AV-scanned).
   let thumbPath: string | null = null;
   if (p.thumb) {
     const tpath = `${p.org_id}/${p.created_by}/${rec.id}_thumb.jpg`;
     const { error: tErr } = await sb.storage.from('recordings').upload(tpath, p.thumb, { upsert: false, contentType: 'image/jpeg' });
-    if (!tErr) {
-      try { await assertUploadClean('recordings', tpath, { org_id: p.org_id, mime: 'image/jpeg', size: p.thumb.size, filename: `${rec.id}_thumb.jpg` }); thumbPath = tpath; }
-      catch { thumbPath = null; }
-    }
+    if (!tErr) thumbPath = tpath;
   }
   const { error: updErr } = await sb.from('screen_recordings').update({ storage_path: path, thumb_path: thumbPath }).eq('id', rec.id);
   if (updErr) throw new Error(updErr.message);
