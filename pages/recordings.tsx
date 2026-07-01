@@ -8,14 +8,24 @@ import { hasFeature } from '@/lib/entitlements';
 import { toast } from '@/lib/toast';
 import {
   listScreenRecordings, deleteScreenRecording, updateScreenRecording, screenRecordingUrl,
-  getOrgUsers, ScreenRecording,
+  getOrgUsers, listRecordingTaskLinks, linkRecordingToTask, unlinkRecording, listTasksLite,
+  ScreenRecording, ScreenRecordingLink, TaskLite,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
 import { useListPrefs, ColDef } from '@/components/ListToolbar';
 import { useRowSelection } from '@/components/RowSelection';
 import { EditSpec } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
+import Select from '@/components/Select';
 
+// Lazy signed-URL thumbnail for a recording row / poster.
+function RecThumb({ path, className = '' }: { path: string | null; className?: string }) {
+  const [src, setSrc] = useState('');
+  useEffect(() => { let a = true; if (path) screenRecordingUrl(path).then((u) => { if (a) setSrc(u); }).catch(() => {}); return () => { a = false; }; }, [path]);
+  if (!src) return <span className={`grid place-items-center bg-surface2 ${className}`}><Icon name="ti-video" className="text-muted2 text-sm" /></span>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className={`object-cover ${className}`} loading="lazy" />;
+}
 const COLS: ColDef[] = [
   { id: 'title', label: 'Title', locked: true },
   { id: 'duration', label: 'Length' },
@@ -35,12 +45,15 @@ export default function RecordingsPage() {
   const [recs, setRecs] = useState<ScreenRecording[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [recording, setRecording] = useState(false);
-  const [viewer, setViewer] = useState<{ rec: ScreenRecording; url: string } | null>(null);
+  const [viewer, setViewer] = useState<{ rec: ScreenRecording; url: string; poster: string } | null>(null);
+  const [links, setLinks] = useState<ScreenRecordingLink[]>([]);
+  const [tasks, setTasks] = useState<TaskLite[]>([]);
+  const [linkTaskId, setLinkTaskId] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const load = () => { if (org) listScreenRecordings(org.id).then(setRecs).catch((e) => { setErr(e.message); setRecs([]); }); };
-  useEffect(() => { if (org?.id && enabled) { load(); getOrgUsers(org.id).then(setUsers).catch(() => {}); } /* eslint-disable-line */ }, [org?.id, enabled]);
+  useEffect(() => { if (org?.id && enabled) { load(); getOrgUsers(org.id).then(setUsers).catch(() => {}); listTasksLite(org.id).then(setTasks).catch(() => {}); } /* eslint-disable-line */ }, [org?.id, enabled]);
 
   const nameOf = (id: string | null) => users.find((u) => u.id === id)?.full_name || '—';
   const canDeleteRec = (r: ScreenRecording) => isAdmin || r.created_by === me?.id;
@@ -50,8 +63,12 @@ export default function RecordingsPage() {
 
   const play = async (r: ScreenRecording) => {
     if (!r.storage_path) { toast('This recording is still uploading.', 'error'); return; }
-    try { const url = await screenRecordingUrl(r.storage_path); setViewer({ rec: r, url }); }
-    catch (e: any) { setErr(e.message); }
+    try {
+      const url = await screenRecordingUrl(r.storage_path);
+      const poster = r.thumb_path ? await screenRecordingUrl(r.thumb_path).catch(() => '') : '';
+      setViewer({ rec: r, url, poster }); setLinkTaskId('');
+      listRecordingTaskLinks(r.id).then(setLinks).catch(() => setLinks([]));
+    } catch (e: any) { setErr(e.message); }
   };
   const download = async (r: ScreenRecording) => {
     if (!r.storage_path) return;
@@ -66,6 +83,16 @@ export default function RecordingsPage() {
     setBusy(true); setErr('');
     try { await deleteScreenRecording(r); setViewer(null); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
+  const attach = async () => {
+    if (!org || !me || !viewer || !linkTaskId || busy) return; setBusy(true); setErr('');
+    try { await linkRecordingToTask({ org_id: org.id, created_by: me.id, recording_id: viewer.rec.id, task_id: linkTaskId }); setLinkTaskId(''); toast('Attached to task', 'success'); listRecordingTaskLinks(viewer.rec.id).then(setLinks); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const detach = async (id: string) => {
+    if (!viewer || busy) return; setBusy(true); setErr('');
+    try { await unlinkRecording(id); listRecordingTaskLinks(viewer.rec.id).then(setLinks); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
   const bulkDelete = async () => {
     const del = rs.selected.filter(canDeleteRec);
     if (!del.length) { toast('You can only delete recordings you own.', 'error'); return; }
@@ -77,7 +104,7 @@ export default function RecordingsPage() {
 
   const cell = (id: string, r: ScreenRecording) => {
     switch (id) {
-      case 'title': return <span className="font-medium text-content inline-flex items-center gap-2"><Icon name="ti-video" className="text-accentstrong" />{r.title}</span>;
+      case 'title': return <span className="font-medium text-content inline-flex items-center gap-2"><RecThumb path={r.thumb_path} className="w-9 h-6 rounded shrink-0" />{r.title}</span>;
       case 'duration': return fmtDur(r.duration_sec);
       case 'size': return fmtSize(r.size_bytes);
       case 'by': return <PersonTag name={nameOf(r.created_by)} />;
@@ -153,11 +180,28 @@ export default function RecordingsPage() {
             <button className="btn" onClick={() => download(viewer.rec)}><Icon name="ti-download" />Download</button>
             <button className="btn btn-primary" onClick={() => setViewer(null)}>Close</button>
           </>}>
-          <video src={viewer.url} controls autoPlay className="w-full rounded-lg bg-black max-h-[60vh]" />
+          <video src={viewer.url} poster={viewer.poster || undefined} controls autoPlay className="w-full rounded-lg bg-black max-h-[60vh]" />
           <div className="flex items-center gap-3 text-2xs text-muted2 mt-2">
             <span><Icon name="ti-clock" className="text-sm" /> {fmtDur(viewer.rec.duration_sec)}</span>
             <span><Icon name="ti-database" className="text-sm" /> {fmtSize(viewer.rec.size_bytes)}</span>
             <span><Icon name="ti-user" className="text-sm" /> {nameOf(viewer.rec.created_by)}</span>
+          </div>
+          <div className="mt-4 border-t border-line pt-3">
+            <h3 className="text-sm font-semibold mb-2 inline-flex items-center gap-2"><Icon name="ti-checkbox" className="text-muted2" />Attached tasks</h3>
+            {links.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {links.map((l) => (
+                  <span key={l.id} className="inline-flex items-center gap-1 rounded-md bg-surface2 px-2 py-1 text-2xs text-content">
+                    <Icon name="ti-checkbox" className="text-muted2 text-xs" />{l.task_name || 'Task'}
+                    <button className="text-muted2 hover:text-rose-500" title="Detach" onClick={() => detach(l.id)}><Icon name="ti-x" className="text-xs" /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2 max-w-md">
+              <Select value={linkTaskId} onChange={setLinkTaskId} options={[{ value: '', label: 'Pick a task…' }, ...tasks.filter((t) => !links.some((l) => l.task_id === t.id)).map((t) => ({ value: t.id, label: t.name }))]} />
+              <button className="btn btn-sm" disabled={!linkTaskId || busy} onClick={attach}>Attach</button>
+            </div>
           </div>
         </Modal>
       )}

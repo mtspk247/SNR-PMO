@@ -13,6 +13,29 @@ function pickMime(): string {
 }
 const fmtDur = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
+// Capture a poster frame from the recorded blob (mid-clip) → small JPEG for the library thumbnail.
+function captureThumb(blob: Blob): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    try {
+      const v = document.createElement('video'); v.muted = true; (v as any).playsInline = true; v.preload = 'auto';
+      const url = URL.createObjectURL(blob); v.src = url;
+      const done = (b: Blob | null) => { try { URL.revokeObjectURL(url); } catch { /* */ } resolve(b); };
+      const safety = setTimeout(() => done(null), 5000);
+      v.onloadeddata = () => { try { v.currentTime = Math.min(1, (v.duration || 2) / 2); } catch { clearTimeout(safety); done(null); } };
+      v.onseeked = () => {
+        try {
+          const w = Math.min(640, v.videoWidth || 640); const scale = w / (v.videoWidth || w);
+          const c = document.createElement('canvas'); c.width = w; c.height = Math.max(1, Math.round((v.videoHeight || 360) * scale));
+          const ctx = c.getContext('2d'); if (!ctx) { clearTimeout(safety); return done(null); }
+          ctx.drawImage(v, 0, 0, c.width, c.height);
+          c.toBlob((b) => { clearTimeout(safety); done(b); }, 'image/jpeg', 0.7);
+        } catch { clearTimeout(safety); done(null); }
+      };
+      v.onerror = () => { clearTimeout(safety); done(null); };
+    } catch { resolve(null); }
+  });
+}
+
 /** Screen recorder: getDisplayMedia -> MediaRecorder -> preview -> upload (fully client-side). */
 export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
   orgId: string; userId: string; onClose: () => void; onSaved: (r: ScreenRecording) => void;
@@ -101,10 +124,11 @@ export default function RecorderModal({ orgId, userId, onClose, onSaved }: {
     if (blob.size > RECORDING_MAX_BYTES) return;
     setPhase('saving'); setErr('');
     try {
+      const thumb = await captureThumb(blob).catch(() => null);
       const rec = await uploadScreenRecording({
         org_id: orgId, created_by: userId,
         title: title.trim() || `Screen recording ${new Date().toLocaleString()}`,
-        blob, duration_sec: elapsed, mime: mimeRef.current.split(';')[0],
+        blob, duration_sec: elapsed, mime: mimeRef.current.split(';')[0], thumb,
       });
       toast('Recording saved', 'success');
       onSaved(rec);
