@@ -14,8 +14,8 @@ import { AGENT_DOMAINS, RISK_COLOR, toolByKey } from '@/lib/agents';
 import {
   listAgents, listAgentActions, listAgentActionEvents, decideAgentAction, rollbackAgentAction,
   listAgentPolicy, resetAgentPolicy,
-  getAgentPolicyConfig, setAgentPolicyConfig, isVerbSuppressed, agentPreflight,
-  AgentDefinition, AgentAction, AgentActionEvent, AgentPolicy, AgentPolicyConfig, AgentPreflight, recordAgentExecution,
+  getAgentPolicyConfig, setAgentPolicyConfig, isVerbSuppressed, agentPreflight, agentPreflightPending,
+  AgentDefinition, AgentAction, AgentActionEvent, AgentPolicy, AgentPolicyConfig, AgentPreflight, AgentPreflightRow, recordAgentExecution,
 } from '@/lib/db';
 import { executorFor, simulateAction } from '@/lib/agentExecutors';
 
@@ -32,6 +32,7 @@ const COLS: ColDef[] = [
   { id: 'agent', label: 'Agent' },
   { id: 'tool', label: 'Tool' },
   { id: 'risk', label: 'Risk', width: 80 },
+  { id: 'check', label: 'Preflight', width: 120 },
   { id: 'signal', label: 'Signal', width: 170 },
   { id: 'status', label: 'Status' },
   { id: 'proposed', label: 'Proposed' },
@@ -58,6 +59,8 @@ export default function AgentApprovalsPage() {
   const [savingCfg, setSavingCfg] = useState(false);
   const [pf, setPf] = useState<AgentPreflight | null>(null);
   const [pfBusy, setPfBusy] = useState(false);
+  const [pfMap, setPfMap] = useState<Map<string, AgentPreflightRow>>(new Map());
+  const [pfRunning, setPfRunning] = useState(false);
   const [sel, setSel] = useState<AgentAction | null>(null);
   const [events, setEvents] = useState<AgentActionEvent[]>([]);
   const [note, setNote] = useState('');
@@ -86,6 +89,20 @@ export default function AgentApprovalsPage() {
     try { const c = await setAgentPolicyConfig(org.id, on); setCfg(c); }
     catch (e: any) { setErr(e.message); } finally { setSavingCfg(false); }
   };
+  // Queue-level preflight: validate every pending proposal against live data in one capped call.
+  const runBatchPreflight = async () => {
+    if (!org || pfRunning) return; setPfRunning(true);
+    try { const rows = await agentPreflightPending(org.id, 200); setPfMap(new Map(rows.map((r) => [r.id, r]))); }
+    catch { /* non-fatal */ } finally { setPfRunning(false); }
+  };
+  const pendingCount = useMemo(() => (actions || []).filter((a) => a.status === 'proposed').length, [actions]);
+  useEffect(() => { if (org?.id && enabled && canApprove && pendingCount > 0 && pendingCount <= 25) runBatchPreflight(); /* eslint-disable-next-line */ }, [actions, org?.id, enabled, canApprove]);
+  const pfStats = useMemo(() => {
+    const pend = (actions || []).filter((a) => a.status === 'proposed');
+    let ready = 0, fail = 0, checked = 0;
+    for (const a of pend) { const p = pfMap.get(a.id); if (p && p.checked) { checked++; if (p.ok) ready++; else fail++; } }
+    return { ready, fail, checked, pend: pend.length };
+  }, [actions, pfMap]);
   const signalCell = (a: AgentAction) => {
     const p = policyMap.get(a.tool_key);
     const n = p ? p.approve_count + p.reject_count : 0;
@@ -126,6 +143,15 @@ export default function AgentApprovalsPage() {
       case 'agent': return <span className="text-sm">{agentName(a.agent_id)}</span>;
       case 'tool': return <span className="text-xs text-muted">{toolByKey(a.tool_key)?.label || a.tool_key}</span>;
       case 'risk': return chip(a.risk, RISK_COLOR[a.risk] || '#6b7280');
+      case 'check': {
+        if (a.status !== 'proposed') return <span className="text-2xs text-muted2">—</span>;
+        const p = pfMap.get(a.id);
+        if (!p) return <span className="text-2xs text-muted2">{pfRunning ? '…' : '—'}</span>;
+        if (!p.checked) return <span className="text-2xs text-muted2" title="No transactional preflight for this action type">n/a</span>;
+        return p.ok
+          ? <span title="Verified against live data — would run"><span className="inline-flex items-center gap-1">{chip('Ready', '#16a34a')}</span></span>
+          : <span title={PF_REASON[p.reason || 'error'] || 'Would fail if approved'}>{chip('Would fail', '#dc2626')}</span>;
+      }
       case 'signal': return signalCell(a);
       case 'status': return chip(titleCase(a.status.replace('_', ' ')), STATUS_COLOR[a.status] || '#6b7280');
       case 'proposed': return a.proposed_at?.slice(0, 16).replace('T', ' ') || '—';
@@ -229,6 +255,18 @@ export default function AgentApprovalsPage() {
         <StatCard label="Rolled back" value={String(kpis.rolledBack)} icon="ti-arrow-back-up" />
       </div>
 
+      {canApprove && pendingCount > 0 && (
+        <div className="flex items-center flex-wrap gap-2 mb-3 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-muted"><Icon name="ti-shield-check" className="text-sm text-accentstrong" />Preflight</span>
+          {pfRunning && <span className="text-muted2 inline-flex items-center gap-1"><Icon name="ti-loader-2" className="text-2xs animate-spin" />Checking {pendingCount} pending against live data…</span>}
+          {!pfRunning && pfStats.checked > 0 && <>
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5"><Icon name="ti-circle-check" className="text-2xs" />{pfStats.ready} ready</span>
+            {pfStats.fail > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5"><Icon name="ti-alert-triangle" className="text-2xs" />{pfStats.fail} would fail</span>}
+          </>}
+          {!pfRunning && pfStats.checked === 0 && pendingCount > 25 && <span className="text-muted2">{pendingCount} pending — large queue, run on demand</span>}
+          <button type="button" className="btn btn-sm ml-auto" disabled={pfRunning} onClick={runBatchPreflight}><Icon name="ti-refresh" className="text-2xs" />{pfStats.checked > 0 ? 'Re-check all' : 'Check all pending'}</button>
+        </div>
+      )}
       <ListView
         rows={actions === null ? null : shown}
         rowKey={(a) => a.id}
@@ -243,7 +281,7 @@ export default function AgentApprovalsPage() {
         groups={GROUPS}
         onRowClick={(a) => openDetail(a)}
         exportName="agent-actions"
-        exportValue={(id, a) => id === 'summary' ? a.summary : id === 'agent' ? agentName(a.agent_id) : id === 'tool' ? a.tool_key : id === 'risk' ? a.risk : id === 'status' ? a.status : id === 'proposed' ? (a.proposed_at || '') : id === 'signal' ? (() => { const p = policyMap.get(a.tool_key); const n = p ? p.approve_count + p.reject_count : 0; return n ? Math.round((p!.approve_count / n) * 100) + '%' : 'new'; })() : ''}
+        exportValue={(id, a) => id === 'summary' ? a.summary : id === 'agent' ? agentName(a.agent_id) : id === 'tool' ? a.tool_key : id === 'risk' ? a.risk : id === 'status' ? a.status : id === 'proposed' ? (a.proposed_at || '') : id === 'check' ? (() => { const p = pfMap.get(a.id); return a.status !== 'proposed' || !p ? '' : !p.checked ? 'n/a' : p.ok ? 'ready' : 'would-fail'; })() : id === 'signal' ? (() => { const p = policyMap.get(a.tool_key); const n = p ? p.approve_count + p.reject_count : 0; return n ? Math.round((p!.approve_count / n) * 100) + '%' : 'new'; })() : ''}
         busy={busy}
         emptyIcon="ti-checks"
         emptyText="No actions in the queue. Agents propose actions here for your approval."

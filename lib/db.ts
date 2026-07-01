@@ -3830,6 +3830,15 @@ export async function agentPreflight(actionId: string): Promise<AgentPreflight> 
   const { data, error } = await sb.rpc('agent_preflight_action', { p_action: actionId });
   if (error) throw new Error(error.message); return data as AgentPreflight;
 }
+// Batch preflight: validate every pending proposal in one capped call -> the queue shows
+// ready / would-fail at a glance. Each action runs in its own rolled-back subtransaction.
+export interface AgentPreflightRow { id: string; ok: boolean; checked: boolean; reason: string | null; }
+export async function agentPreflightPending(orgId: string, limit = 50): Promise<AgentPreflightRow[]> {
+  const { data, error } = await sb.rpc('agent_preflight_pending', { p_org: orgId, p_limit: limit });
+  if (error) throw new Error(error.message);
+  const d = data as { results?: AgentPreflightRow[] } | null;
+  return (d && d.results) || [];
+}
 export interface AgentToolGrant { agent_id: string; org_id: string; tool_key: string; granted_by: string | null; granted_at: string; }
 
 export const listAgents = (orgId: string) => _list<AgentDefinition>('agent_definitions', orgId);
