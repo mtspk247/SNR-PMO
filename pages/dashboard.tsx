@@ -18,6 +18,7 @@ import {
   getProjects, getTasks, getDeals, getLedgerEntries,
   getEmployees, getLeaves, getOnboardingTasks,
   getDashboardLayouts, saveUserDashboard, saveOrgDashboard, resetUserDashboard,
+  dashboardCounts, DashboardCounts,
 } from '@/lib/db';
 import {
   Project, Task, Deal, LedgerEntry, Employee, Leave, OnboardingTask, OrgRole, FeatureKey,
@@ -125,6 +126,11 @@ const WIDGET_META: Record<string, WidgetMeta> = {
   headcount:     { title: 'Headcount', icon: 'ti-users', span: 1, feature: 'hr', minRole: 'admin' },
   leave:         { title: 'Leave', icon: 'ti-beach', span: 1, feature: 'attendance' },
   onboarding:    { title: 'Onboarding', icon: 'ti-user-plus', span: 1, feature: 'hr', minRole: 'admin' },
+  kpi_agent_approvals: { title: 'Agent approvals', icon: 'ti-robot', span: 1, feature: 'agents' },
+  kpi_social:    { title: 'Social', icon: 'ti-speakerphone', span: 1, feature: 'social' },
+  kpi_leads:     { title: 'New leads', icon: 'ti-user-plus', span: 1, feature: 'crm' },
+  kpi_forms:     { title: 'Form submissions', icon: 'ti-forms', span: 1, feature: 'forms' },
+  kpi_inbox:     { title: 'Inbox', icon: 'ti-inbox', span: 1, feature: 'social' },
 };
 // Per-widget visual variants — first entry is the default.
 const VARIANTS: Record<string, { id: string; label: string; icon: string }[]> = {
@@ -145,6 +151,7 @@ const makeEntry = (k: string, variant: string, c: Coords): string => { const v =
 
 const DEFAULT_KEYS = [
   'kpi_projects', 'kpi_tasks', 'kpi_deals', 'kpi_pipeline',
+  'kpi_agent_approvals', 'kpi_social', 'kpi_leads', 'kpi_forms', 'kpi_inbox',
   'kpi_income', 'kpi_expenses', 'kpi_net', 'kpi_spend_month',
   'finance_trend', 'project_status', 'pipeline_stage', 'task_progress',
   'due_soon', 'my_tasks', 'projects_list', 'headcount', 'leave', 'onboarding',
@@ -162,6 +169,7 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>([]);
+  const [counts, setCounts] = useState<DashboardCounts>({});
   const [loading, setLoading] = useState(true);
 
   const [order, setOrder] = useState<string[]>(DEFAULT_KEYS);
@@ -189,8 +197,9 @@ export default function Dashboard() {
       getEmployees().catch(() => [] as Employee[]),
       getLeaves().catch(() => [] as Leave[]),
       getOnboardingTasks().catch(() => [] as OnboardingTask[]),
-    ]).then(([p, t, d, l, emp, lv, ob]) => {
-      setProjects(p); setTasks(t); setDeals(d); setLedger(l); setEmployees(emp); setLeaves(lv); setOnboardingTasks(ob);
+      dashboardCounts(activeOrg.id).catch(() => ({} as DashboardCounts)),
+    ]).then(([p, t, d, l, emp, lv, ob, dc]) => {
+      setProjects(p); setTasks(t); setDeals(d); setLedger(l); setEmployees(emp); setLeaves(lv); setOnboardingTasks(ob); setCounts(dc as DashboardCounts);
     }).finally(() => setLoading(false));
   }, [activeOrg?.id]);
 
@@ -263,6 +272,11 @@ export default function Dashboard() {
     kpi_expenses: () => <Kpi href="/accounting" label="Expenses" value={money(expense)} hint="Incl. payroll" icon="ti-trending-down" series={trendBuckets.map((b) => b.expense)} seriesColor="#f43f5e" />,
     kpi_net: () => <Kpi href="/accounting" label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" series={trendBuckets.map((b) => b.income - b.expense)} />,
     kpi_spend_month: () => <Kpi href="/accounting" label="Spend / month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" series={trendBuckets.map((b) => b.expense)} seriesColor="#f43f5e" />,
+    kpi_agent_approvals: () => <Kpi href="/agent-approvals" label="Agent approvals" value={counts.agent_pending || 0} hint={(counts.agent_pending || 0) > 0 ? 'awaiting your review' : 'all clear'} hintTone={(counts.agent_pending || 0) > 0 ? 'down' : 'up'} icon="ti-robot" />,
+    kpi_social: () => <Kpi href="/social" label="Social" value={(counts.social_scheduled || 0) + (counts.social_draft || 0)} hint={`${counts.social_scheduled || 0} scheduled · ${counts.social_draft || 0} drafts`} icon="ti-speakerphone" />,
+    kpi_leads: () => <Kpi href="/leads" label="New leads" value={counts.leads_new_7d || 0} hint="last 7 days" hintTone={(counts.leads_new_7d || 0) > 0 ? 'up' : 'muted'} icon="ti-user-plus" />,
+    kpi_forms: () => <Kpi href="/forms" label="Form submissions" value={counts.forms_subs_7d || 0} hint="last 7 days" icon="ti-forms" />,
+    kpi_inbox: () => <Kpi href="/social/inbox" label="Inbox" value={counts.inbox_open || 0} hint={(counts.inbox_open || 0) > 0 ? 'open conversations' : 'no open threads'} icon="ti-inbox" />,
     finance_trend: (v) => (
       <ClickCard href="/accounting" className="card p-5 h-full">
         <div className="flex items-center justify-between mb-4">
