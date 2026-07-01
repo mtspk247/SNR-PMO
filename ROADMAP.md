@@ -1,4 +1,9 @@
 
+## 2026-06-30 — Social #35: Brand Voice (agents draft on-brand)
+- **Brand Voice config** (`/social` → Brand voice, admin-only): tone, audience, guidelines, preferred CTA, default hashtags. New `social_brand_voice` table — staff-read RLS, **owner/admin-write only** (`is_org_role` + `page_allows('/social')` + `tenant_can('social')`), authenticated grants, anon revoked. **Security Gate:** owner-write allow ✓, non-admin write RLS-denied ✓, anon denied ✓.
+- **Wired into ABOS:** `runAgentProposer` now enriches the `brand` context sent to the `agent-propose` LLM edge fn via `composeBrandContext` (name + voice/tone + audience + guidelines + CTA + hashtags + banned words) — so agent-drafted posts/replies sound on-brand. No edge-fn change. db wrappers `getBrandVoice`/`setBrandVoice`.
+- Foundation for all content agents (draft_social_post, draft_social_reply). Frontend deploys with the batch. Next: #34 approval workflow + publish RBAC.
+
 ## 2026-06-30 — Marketing nav groups + Administration "Profile Setup" segregation
 - **Marketing menu tagged** with sub-headers like other modules: **Social Media** (Social & Content, Content Calendar, Social Analytics, Competitor Watch), **Email Marketing** (Sequences → relabelled **Drip Email Marketing**), **Lead Capture** (Forms).
 - **Administration ▸ Profile Setup** (per Tariq): segregated Profile / Brand / Themes into their own nav pages under a `Profile Setup` group. Route-driven (`/settings/profile|brand|themes` re-export `pages/settings.tsx`; tab derived from `router.pathname`; legacy `?tab=` still works). Zero RLS/RBAC change; grantable via the roles tree automatically.

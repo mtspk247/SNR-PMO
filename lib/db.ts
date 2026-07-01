@@ -4051,7 +4051,9 @@ export async function recordAgentExecution(actionId: string, targetTable: string
 // provider key is set. Errors from the fn (cost ceiling, provider, auth) come back
 // as { error }. Nothing executes here — it only writes proposals for approval.
 export async function runAgentProposer(p: { orgId: string; agentId: string; request: string; tools: { key: string; label: string; description: string; risk: string; reversible: boolean }[]; brand?: string }): Promise<{ configured?: boolean; proposed?: number; considered?: number; run_id?: string; error?: string }> {
-  const { data, error } = await sb.functions.invoke('agent-propose', { body: { org_id: p.orgId, agent_id: p.agentId, request: p.request, tools: p.tools, brand: p.brand || '' } });
+  let brand = p.brand || '';
+  try { const bv = await getBrandVoice(p.orgId); if (bv) brand = composeBrandContext(brand, bv); } catch { /* brand voice optional */ }
+  const { data, error } = await sb.functions.invoke('agent-propose', { body: { org_id: p.orgId, agent_id: p.agentId, request: p.request, tools: p.tools, brand } });
   if (error) {
     let msg = (error as any).message || 'Agent run failed';
     try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* ignore */ }
@@ -4312,4 +4314,30 @@ export async function deleteCompetitorInsight(id: string): Promise<void> {
 }
 export async function setCompetitorInsightStatus(id: string, status: SocialCompetitorInsight['status']): Promise<void> {
   const { error } = await sb.from('social_competitor_insights').update({ status }).eq('id', id); if (error) throw new Error(error.message);
+}
+
+// ── Brand Voice (Phase 3 / #35) — feeds the content agents so drafts sound on-brand ──
+export interface BrandVoice { org_id: string; tone: string | null; audience: string | null; guidelines: string | null; cta: string | null; hashtags: string[]; banned_words: string[]; updated_at: string; }
+export async function getBrandVoice(orgId: string): Promise<BrandVoice | null> {
+  const { data, error } = await sb.from('social_brand_voice').select('*').eq('org_id', orgId).maybeSingle();
+  if (error) throw new Error(error.message); return (data as BrandVoice) || null;
+}
+export async function setBrandVoice(orgId: string, userId: string, patch: Partial<BrandVoice>): Promise<void> {
+  const { error } = await sb.from('social_brand_voice').upsert({
+    org_id: orgId, tone: patch.tone ?? null, audience: patch.audience ?? null, guidelines: patch.guidelines ?? null,
+    cta: patch.cta ?? null, hashtags: patch.hashtags ?? [], banned_words: patch.banned_words ?? [],
+    updated_by: userId, updated_at: new Date().toISOString(),
+  }, { onConflict: 'org_id' });
+  if (error) throw new Error(error.message);
+}
+export function composeBrandContext(name: string, v: BrandVoice | null): string {
+  if (!v) return name;
+  const parts = [name];
+  if (v.tone) parts.push('Voice/tone: ' + v.tone);
+  if (v.audience) parts.push('Audience: ' + v.audience);
+  if (v.guidelines) parts.push('Guidelines: ' + v.guidelines);
+  if (v.cta) parts.push('Preferred CTA: ' + v.cta);
+  if (v.hashtags && v.hashtags.length) parts.push('Hashtags: ' + v.hashtags.join(' '));
+  if (v.banned_words && v.banned_words.length) parts.push('Never use: ' + v.banned_words.join(', '));
+  return parts.join(' — ');
 }
