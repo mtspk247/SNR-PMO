@@ -38,6 +38,8 @@ const TRUST: string[] = [
   'Per-tenant cost ceilings so spend can never run away',
   'RBAC-scoped — agents respect each role and permission',
   'Multi-tenant isolation — one workspace can never touch another',
+  'Preflight — every action is dry-run against your live data before you approve',
+  'Agents learn your approve/reject history and mute the noise — opt-in, reversible',
 ];
 
 const FAQS: { q: string; a: string }[] = [
@@ -47,6 +49,14 @@ const FAQS: { q: string; a: string }[] = [
   { q: 'Do I need my own AI provider key?', a: 'The approve-first queue, audit trail, rollback and cost ceilings are built in. Live agent proposals turn on when your workspace connects an AI provider key, so you stay in control of the model and the spend.' },
   { q: 'Can I resell this under my own brand?', a: 'Yes. SNR-PMO is white-label: run the whole platform, agents included, under your own brand and bill your clients directly.' },
   { q: 'How is this different from GoHighLevel or other tools?', a: 'Most tools automate front-office marketing. SNR-PMO puts approve-first AI agents on the back office — projects, CRM, HR and real accounting — in one white-label workspace. That combination is the wedge no single competitor matches.' },
+  { q: 'How do I know an action will actually work before I approve it?', a: 'Every create and update proposal is preflighted: the agent replays it against your live data under your own permissions inside a rolled-back transaction, then shows a clear Verified or Would-fail with the reason. Nothing is written during the check, and the queue can validate everything pending at once — so you approve with confidence, not hope.' },
+];
+
+const CONTROL_TOWER: { t: string; d: string }[] = [
+  { t: 'Preflight before you approve', d: 'The agent replays the action against your live data first and tells you plainly: it will run, or it would fail and why. No more approving something that errors out a second later.' },
+  { t: 'Learns your judgment', d: 'Your agents remember what you approve and reject. The queue is ranked by what you usually accept, and the kinds you keep rejecting are muted automatically \u2014 opt-in and reversible.' },
+  { t: 'Just say what you want', d: 'Type \u201conboard Acme Corp\u201d or \u201ckick off project Apollo\u201d and the agent turns the sentence into a complete, reviewable plan \u2014 the contact, the project, the tasks, the deal \u2014 ready to approve.' },
+  { t: 'Never fires blind', d: 'Even hands-off, low-risk automation is preflighted first. If an action would fail, it is held for a human instead of firing into an error.' },
 ];
 
 const WEDGE: { t: string; d: string }[] = [
@@ -69,7 +79,7 @@ export default function AiAgentsPage() {
     <>
       <Head>
         <title>AI agents for your back office — approve-first &amp; governed | SNR-PMO</title>
-        <meta name="description" content="SNR-PMO puts approve-first AI agents on your back office — projects, CRM, HR and real accounting. Agents propose the work; you approve. Full audit, one-click rollback, per-tenant cost ceilings. White-label." />
+        <meta name="description" content="SNR-PMO puts approve-first AI agents on your back office — projects, CRM, HR and real accounting. Say onboard Acme Corp in plain English and the agent builds the plan; every action is preflighted against your live data, audited, and reversible. White-label." />
         <meta name="keywords" content="AI agents back office, approve-first AI, agentic SaaS, AI for operations, AI project management, AI CRM, white-label AI agents, GoHighLevel alternative" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="canonical" href={`${BASE}/ai-agents`} />
@@ -132,6 +142,21 @@ export default function AiAgentsPage() {
                 </li>
               ))}
             </ol>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-5 sm:px-8 py-16">
+          <div className="text-center max-w-2xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">A control tower, not a black box</h2>
+            <p className="mt-4 text-white/60">The newest layer: your agents show their work, prove it before it runs, and learn what you actually want.</p>
+          </div>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {CONTROL_TOWER.map((c) => (
+              <div key={c.t} className="rounded-2xl border border-white/10 bg-[#101010] p-6">
+                <div className="text-[15px] font-semibold text-[#3ECF8E]">{c.t}</div>
+                <p className="mt-2 text-sm text-white/60 leading-relaxed">{c.d}</p>
+              </div>
+            ))}
           </div>
         </section>
 
