@@ -17,6 +17,7 @@ import {
   SocialPost, SocialChannel, SocialPlatform,
   getBrandVoice, setBrandVoice, getApprovalPolicy, setApprovalPolicy, approveSocialPost, updateSocialPost,
   listMediaAssets, SocialMediaAsset,
+  socialChannelConnStatus, socialChannelDisconnect, SocialChannelConn,
 } from '@/lib/db';
 
 const PLATFORMS: { value: SocialPlatform; label: string; icon: string }[] = [
@@ -72,6 +73,7 @@ export default function SocialPage() {
   const [pickedChannels, setPickedChannels] = useState<string[]>([]);
   const [mediaAssets, setMediaAssets] = useState<SocialMediaAsset[]>([]);
   const [pickedMedia, setPickedMedia] = useState<string[]>([]);
+  const [conns, setConns] = useState<Record<string, SocialChannelConn>>({});
   const [scheduleAt, setScheduleAt] = useState('');
 
   // Channel connect
@@ -94,7 +96,11 @@ export default function SocialPage() {
   const load = () => {
     if (!org) return;
     listSocialPosts(org.id).then(setPosts).catch((e) => { setErr(e.message); setPosts([]); });
-    listSocialChannels(org.id).then(setChannels).catch(() => {});
+    listSocialChannels(org.id).then(async (chs) => {
+      setChannels(chs);
+      const rs = await Promise.all(chs.map((c) => socialChannelConnStatus(c.id).catch(() => null)));
+      const m: Record<string, SocialChannelConn> = {}; chs.forEach((c, i) => { if (rs[i]) m[c.id] = rs[i]!; }); setConns(m);
+    }).catch(() => {});
     getApprovalPolicy(org.id).then(setReqApproval).catch(() => {});
     listMediaAssets(org.id, { limit: 60 }).then(setMediaAssets).catch(() => {});
     getBrandVoice(org.id).then((v) => { if (v) setBv({ tone: v.tone || '', audience: v.audience || '', guidelines: v.guidelines || '', cta: v.cta || '', hashtags: (v.hashtags || []).join(' ') }); }).catch(() => {});
@@ -173,6 +179,9 @@ export default function SocialPage() {
     if (!org || !me) return;
     const next = !reqApproval; setReqApproval(next);
     try { await setApprovalPolicy(org.id, me.id, next); } catch (e: any) { setErr(e.message); setReqApproval(!next); }
+  };
+  const disconnectChannel = async (id: string) => {
+    try { await socialChannelDisconnect(id); load(); } catch (e: any) { setErr(e.message); }
   };
   const bulkApprove = async () => {
     if (!rs.count) return; setBusy(true); setErr('');
@@ -262,11 +271,16 @@ export default function SocialPage() {
           <div className="flex flex-wrap gap-2">
             {channels.map((c) => {
               const m = platMeta(c.platform);
+              const conn = conns[c.id];
+              const expired = conn?.expires_at ? new Date(conn.expires_at).getTime() < Date.now() : false;
+              const label = conn?.connected && !expired ? 'connected' : expired ? 'expired' : 'not connected';
+              const tone = conn?.connected && !expired ? 'text-emerald-600' : expired ? 'text-amber-600' : 'text-muted2';
               return (
                 <span key={c.id} className="pill pill-gray inline-flex items-center gap-1.5">
                   <Icon name={m.icon} />{c.handle || m.label}
-                  <span className={`text-2xs ${c.status === 'connected' ? 'text-emerald-600' : 'text-muted2'}`}>{c.status}</span>
-                  {isAdmin && <button onClick={() => removeChannel(c.id)} className="text-muted2 hover:text-rose-600" title="Remove"><Icon name="ti-x" className="text-xs" /></button>}
+                  <span className={`text-2xs ${tone}`}>{label}</span>
+                  {isAdmin && conn?.connected && <button onClick={() => disconnectChannel(c.id)} className="text-2xs text-muted2 hover:text-rose-600" title="Disconnect account">Disconnect</button>}
+                  {isAdmin && <button onClick={() => removeChannel(c.id)} className="text-muted2 hover:text-rose-600" title="Remove channel"><Icon name="ti-x" className="text-xs" /></button>}
                 </span>
               );
             })}

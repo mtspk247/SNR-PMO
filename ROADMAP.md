@@ -1,4 +1,7 @@
 
+## 2026-07-01 — Social #29a (tenant side): channel connection UI
+- Channels strip on `/social` now shows each channel's real connection state (connected / expired / not connected) via the live `social_channel_conn_status` RPC (structurally token-free), with a staff **Disconnect** action (`social_channel_disconnect`, deletes the secret token + marks the channel disconnected). Completes the tenant-facing half of the #29a secure foundation; live OAuth Connect = #29b (needs a provider registered at /platform/social).
+
 ## 2026-07-01 — Social scale pass: dispatcher/sensor hot-path indexes (DB-only, live via MCP)
 - `social_posts(scheduled_at) WHERE status='scheduled'` — cross-tenant, time-ordered due-post scan for the every-minute dispatcher (no org_id prefix, no sort at scale).
 - `social_post_channels(post_id, status)` — fast per-post channel-state checks in `social_publish_report` finalize + claim join.
