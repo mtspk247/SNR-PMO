@@ -15,6 +15,7 @@ import {
   listSocialPosts, createSocialPost, deleteSocialPost,
   listSocialChannels, createSocialChannel, deleteSocialChannel,
   SocialPost, SocialChannel, SocialPlatform,
+  getBrandVoice, setBrandVoice,
 } from '@/lib/db';
 
 const PLATFORMS: { value: SocialPlatform; label: string; icon: string }[] = [
@@ -75,10 +76,16 @@ export default function SocialPage() {
   const [chHandle, setChHandle] = useState('');
   const [chBusy, setChBusy] = useState(false);
 
+  // Brand voice
+  const [bvOpen, setBvOpen] = useState(false);
+  const [bv, setBv] = useState<{ tone: string; audience: string; guidelines: string; cta: string; hashtags: string }>({ tone: '', audience: '', guidelines: '', cta: '', hashtags: '' });
+  const [bvBusy, setBvBusy] = useState(false);
+
   const load = () => {
     if (!org) return;
     listSocialPosts(org.id).then(setPosts).catch((e) => { setErr(e.message); setPosts([]); });
     listSocialChannels(org.id).then(setChannels).catch(() => {});
+    getBrandVoice(org.id).then((v) => { if (v) setBv({ tone: v.tone || '', audience: v.audience || '', guidelines: v.guidelines || '', cta: v.cta || '', hashtags: (v.hashtags || []).join(' ') }); }).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [org?.id]);
 
@@ -140,6 +147,15 @@ export default function SocialPage() {
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
+  const saveBrandVoice = async () => {
+    if (!org || !me) return;
+    setBvBusy(true); setErr('');
+    try {
+      await setBrandVoice(org.id, me.id, { tone: bv.tone || null, audience: bv.audience || null, guidelines: bv.guidelines || null, cta: bv.cta || null, hashtags: bv.hashtags.split(/[\s,]+/).map((h) => h.trim()).filter(Boolean) });
+      setBvOpen(false);
+    } catch (e: any) { setErr(e.message || 'Failed'); } finally { setBvBusy(false); }
+  };
+
   const cell = (id: string, row: SocialPost) => {
     switch (id) {
       case 'content': return <span className="font-medium text-content">{row.body ? row.body.slice(0, 80) : '(empty)'}{row.body.length > 80 ? '…' : ''}</span>;
@@ -176,7 +192,7 @@ export default function SocialPage() {
     <Layout flat title="Social & Content">
       <PageHeader help="social" title="Social & Content" icon="ti-speakerphone"
         subtitle="Plan, schedule and publish posts across your channels"
-        action={<button className="btn btn-primary" onClick={() => { resetComposer(); setComposeOpen(true); }}><Icon name="ti-pencil-plus" />Compose</button>}
+        action={<div className="flex items-center gap-2">{isAdmin && <button className="btn" onClick={() => setBvOpen(true)}><Icon name="ti-message-star" />Brand voice</button>}<button className="btn btn-primary" onClick={() => { resetComposer(); setComposeOpen(true); }}><Icon name="ti-pencil-plus" />Compose</button></div>}
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
@@ -257,6 +273,19 @@ export default function SocialPage() {
           </div>
           <Field label="Schedule (optional)"><input type="datetime-local" className="input" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} /></Field>
           <p className="text-2xs text-muted2">Live publishing to connected platforms activates once provider sign-in is enabled. Until then, scheduled posts queue here.</p>
+        </div>
+      </Modal>
+
+      {/* Brand voice */}
+      <Modal open={bvOpen} onClose={() => setBvOpen(false)} title="Brand voice" icon="ti-message-star" size="md"
+        footer={<><button className="btn" onClick={() => setBvOpen(false)}>Cancel</button><button className="btn btn-primary" disabled={bvBusy} onClick={saveBrandVoice}>{bvBusy ? 'Saving\u2026' : 'Save'}</button></>}>
+        <div className="space-y-3">
+          <p className="text-2xs text-muted">Your agents draft on-brand using this. Applies to AI-generated posts and replies.</p>
+          <Field label="Tone"><input className="input" value={bv.tone} onChange={(e) => setBv({ ...bv, tone: e.target.value })} placeholder="Confident, helpful, no hype" /></Field>
+          <Field label="Audience"><input className="input" value={bv.audience} onChange={(e) => setBv({ ...bv, audience: e.target.value })} placeholder="Agency owners & ops leads" /></Field>
+          <Field label="Guidelines"><textarea className="input min-h-[70px]" value={bv.guidelines} onChange={(e) => setBv({ ...bv, guidelines: e.target.value })} placeholder="Lead with a hook; one CTA; no jargon; short sentences." /></Field>
+          <Field label="Preferred CTA"><input className="input" value={bv.cta} onChange={(e) => setBv({ ...bv, cta: e.target.value })} placeholder="Book a demo" /></Field>
+          <Field label="Default hashtags"><input className="input" value={bv.hashtags} onChange={(e) => setBv({ ...bv, hashtags: e.target.value })} placeholder="#ops #agencylife" /></Field>
         </div>
       </Modal>
 
