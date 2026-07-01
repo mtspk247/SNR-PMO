@@ -1,4 +1,11 @@
 
+## 2026-07-01 — Unified storage quota: accounting + enforcement + upgrade nudge
+- **Accounting (DB live):** `org_storage_bytes(org)` sums real bytes across ALL buckets (drive/recordings/social/attachments/HR+training docs/guest uploads/avatars; excludes platform backups) via `storage.objects`. `drive_usage` repointed to it → one true total feeds the sidebar meter, `tenant_usage.storage_used_mb`, and the dashboard Storage widget.
+- **Enforcement (DB live):** BEFORE-INSERT trigger `trg_enforce_storage_quota` on `storage.objects` blocks any upload that would exceed `tenant_limit(org,'storage_mb')` with a `P0001` "Storage limit reached … Upgrade your plan" error — covers every bucket. Fail-OPEN on backups / platform-home / NULL(unlimited) / non-org path / missing size. Verified live: 11GB→10GB tenant BLOCKED; 5MB ALLOWED.
+- **Upgrade nudge (frontend):** new `components/StorageNudge.tsx` rendered globally in Layout — amber banner at 80/90% (session-dismissible), red non-dismissible at 100%, with an Upgrade→/billing CTA (owner-gated; else "ask an admin"). Usage % cached in sessionStorage (5 min) so navigation doesn't re-hit the RPC. Docs (billing section) updated.
+- SCALE: quota check + nudge read `org_storage_bytes` (storage.objects prefix scan) — fine now; move to a maintained per-org counter for very large tenants.
+
+
 ## 2026-07-01 — Screen Recording Slice 3: thumbnails + attach-to-task + scan-gate hardening
 - **Thumbnails:** RecorderModal captures a mid-clip poster frame (canvas→JPEG, ≤640px) at save; `uploadScreenRecording` uploads it (scanned) → `thumb_path`. Shown in the /recordings list (lazy signed-URL `RecThumb`) and as the player `poster`.
 - **Attach-to-task (inter-module):** new `screen_recording_links` (org_id, recording_id, task_id, unique) — forms-pattern RLS (staff SELECT; creator+`tenant_can('recordings')` INSERT; creator/admin DELETE), FKs ON DELETE CASCADE from both parents (no `_wipe_tables` edit). Recording viewer gains an "Attached tasks" section (attach via task picker, detach chips). db: listRecordingTaskLinks/linkRecordingToTask/unlinkRecording/listTasksLite. RLS-sim own-allow/cross-deny PASS.
