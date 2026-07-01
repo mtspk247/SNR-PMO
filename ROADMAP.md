@@ -458,3 +458,5 @@
 - #1 Email signup "rate limit exceeded" = Supabase Auth shared-SMTP cap → configure custom Resend SMTP + raise auth email rate limit (dashboard; not code). PENDING (operator action).
 - Docs: `/docs` `feedback` + `workspace-lifecycle` sections; SYSTEM_GUIDE updated.
 
+
+<!-- deploy trigger: Vercel Pro upgraded 2026-07-01; ship latest main (dashboard+recorder v2+upsell engine) -->
