@@ -1,4 +1,7 @@
 
+## 2026-07-01 — Social #40: agents auto-draft from content sources
+- Marketing agents now propose a `draft_social_post` per fresh un-drafted `social_source_item` (approve-first, reversible). `scanForWork` marketing branch reads undrafted items; `runWorkScan` fetches them (undraftedOnly, 20-cap) + dedupes on `payload.source_item_id`. On approval the `draft_social_post` executor creates the draft (source='rss') under the approver's RLS, then calls definer `social_source_item_link_draft` so the item drops out of future scans; deleting the draft auto-nulls the link (FK) and re-surfaces the item. Closes the autonomous feeds→drafts loop. Docs + scanner logic-tested. Follow-up #40b (optional): extend the pg_cron `agent_sensors_run` marketing branch to propose feed drafts continuously.
+
 ## 2026-07-01 — Social #39: RSS/import content sources
 - New **Content Sources** page (Marketing ▸ Social Media ▸ `/social/sources`): add RSS/Atom feeds → **Fetch now** pulls new articles → one-click **Draft** turns any item into a `source='rss'` draft in Social & Content (brand voice + approval + scheduler all still apply).
 - DB: `social_content_sources` + `social_source_items` (forms-pattern RLS; items are read-only to authenticated, written only by the fetch edge fn via service_role). Source-count cap (25/org). Definer `social_source_item_link_draft` (post inserted under RLS, then linked). Security Gate PASS (staff-allow / cross-tenant-deny / anon-no-grant / item-write-locked / link staff-allow+outsider-deny); advisors clean.
