@@ -2,6 +2,10 @@
 
 
 
+
+## 2026-07-02 — GTM: homepage #agents section leads with the control tower
+- Refreshed the landing `#agents` feature cards to lead with this session's differentiators: **Preflight before you approve**, **Just say what you want** (NL workflows — "onboard Acme Corp" — merged with #commands), **Learns what you want** (queue ranking + noise control), alongside the existing approve-first + ROI messaging. Highest-traffic page now surfaces the moat. Content-only, SSG.
+
 ## 2026-07-02 — Agents: queue scale index + log_activity preflight coverage
 - **Scalability:** replaced `agent_actions (org_id,status)` with covering `agent_actions_org_status_proposed_idx (org_id, status, proposed_at DESC)` so the Agent approvals queue + `agent_preflight_pending` serve filter **and** sort from the index (EXPLAIN: index scan, no sort node) at scale. Net-fewer indexes (strict superset of the old prefix).
 - **Preflight coverage:** `agent_preflight_replay` now handles `log_activity` (faithful `crm_activities` insert, rolled back), so its ready/would-fail signal is real, not n/a. RLS-sim allow + zero persistence; advisors clean. DB-only (Supabase MCP).
