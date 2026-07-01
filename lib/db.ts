@@ -3822,6 +3822,14 @@ export function isVerbSuppressed(cfg: AgentPolicyConfig | null, p: AgentPolicy |
   const n = p.approve_count + p.reject_count;
   return n >= cfg.suppress_min_n && Number(p.score) <= cfg.suppress_threshold;
 }
+// Phase 2 server-side transactional preflight: replays the action's writes as the real approver
+// (RLS/RBAC enforced) inside a rolled-back subtransaction, so a guaranteed failure is caught
+// BEFORE approval. checked=false => no server preflight for this tool (client dry-run still applies).
+export interface AgentPreflight { ok: boolean; checked: boolean; tool?: string; creates?: string[]; reason?: string; error?: string; sqlstate?: string; }
+export async function agentPreflight(actionId: string): Promise<AgentPreflight> {
+  const { data, error } = await sb.rpc('agent_preflight_action', { p_action: actionId });
+  if (error) throw new Error(error.message); return data as AgentPreflight;
+}
 export interface AgentToolGrant { agent_id: string; org_id: string; tool_key: string; granted_by: string | null; granted_at: string; }
 
 export const listAgents = (orgId: string) => _list<AgentDefinition>('agent_definitions', orgId);
