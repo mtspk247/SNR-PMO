@@ -2758,6 +2758,7 @@ export async function startTimer(p: { org_id: string; task_id: string; project_i
     .insert({ org_id: p.org_id, task_id: p.task_id, project_id: p.project_id || null, user_id: p.user_id })
     .select(TIME_SEL).single();
   if (error) throw new Error(error.code === '23505' ? 'You already have a running timer — stop it first.' : error.message);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('snrpmo:timers-changed'));
   return data as TimeEntry;
 }
 export async function stopTimer(entry: TimeEntry): Promise<TimeEntry> {
@@ -2766,7 +2767,9 @@ export async function stopTimer(entry: TimeEntry): Promise<TimeEntry> {
   const { data, error } = await sb.from('time_entries')
     .update({ ended_at: ended.toISOString(), duration_minutes: mins })
     .eq('id', entry.id).select(TIME_SEL).single();
-  if (error) throw new Error(error.message); return data as TimeEntry;
+  if (error) throw new Error(error.message);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('snrpmo:timers-changed'));
+  return data as TimeEntry;
 }
 export async function addManualTime(p: { org_id: string; task_id: string; project_id?: string | null; user_id: string; minutes: number; date?: string; notes?: string }): Promise<TimeEntry> {
   const start = p.date ? new Date(p.date + 'T09:00:00') : new Date(Date.now() - p.minutes * 60000);
