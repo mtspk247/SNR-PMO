@@ -30,8 +30,9 @@ Feature entitlements (CRM, HR, Risk, Financial, Portfolios, Integrations, Audit)
 ## 2. Module map
 
 ### Dashboard
-- Aggregated KPIs: open projects, overdue tasks, pipeline value, net ledger balance, headcount.
-- Entry point for daily situational awareness; links to all key sub-pages.
+- Aggregated KPIs: open projects, overdue tasks, pipeline value, net ledger balance, headcount, leads/forms/social/inbox/agent-approvals (all feature-gated).
+- **Cockpit widgets (uplift Slice 1–2):** Needs attention (overdue tasks, agent actions, leave/expense approvals, overdue invoices, open inbox — deep-links to the exact record), AI agent ROI (30-day hours-saved/value/net-of-spend/reliability → /agent-activity), Storage (drive+recording usage vs plan quota → /drives). All fed by the single org-scoped `dashboard_counts(org)` RPC (member-gated, one round-trip) + `agent_roi_summary`.
+- Fully customisable RGL layout (drag/resize/add/remove/variants; per-user + admin workspace default + reset). Every tile links to its module. Entry point for daily situational awareness.
 
 ### Work
 
