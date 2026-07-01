@@ -555,6 +555,7 @@ export const SECTIONS: Section[] = [
       ] },
       { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: posts and channels are workspace-scoped and protected by row-level security — only your staff can read them, editing or deleting is limited to the creator or a workspace owner/admin, and per-page permissions apply. Social & Content is plan-gated and rolls out cohort-by-cohort.' },
       { kind: 'steps', items: [
+        { title: 'Plan on the calendar', body: 'Open Marketing > Content Calendar for a month view of every scheduled and published post. Drag a post to another day to reschedule it, and drag an unscheduled draft onto a day to schedule it.' },
         { title: 'See what is working', body: 'Open Marketing > Social Analytics for reach, impressions, engagement rate, per-channel breakdown, an engagement trend and your top posts. Pick a time range (7 / 30 / 90 days).' },
       ] },
       { kind: 'callout', icon: 'ti-robot', text: 'Agents as your content team: the Content Assistant agent drafts posts straight into this composer for you to review, schedule and publish. It is approve-first and draft-only — it never publishes on its own, and each draft it creates can be rolled back in one click. Grant the \u201cDraft a social post\u201d tool to an agent on the Agents page, or add the Content Assistant from the starter pack.' },

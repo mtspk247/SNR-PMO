@@ -1,4 +1,10 @@
 
+## 2026-06-30 — Phase 3D: Content Calendar (P6)
+- **Signature best-in-market surface:** `/social/calendar` — month grid of every scheduled + published post, colour-coded by status with per-channel platform icons, month nav + Today, channel filter, and an "unscheduled drafts" tray.
+- **Drag-to-reschedule:** drag a post to another day (keeps time-of-day) or drag a draft onto a day to schedule it — writes through the existing RLS-enforced `updateSocialPost` (creator-or-admin UPDATE policy), so RBAC/RLS hold with **zero new attack surface / no new tables**. Optimistic UI + reload-on-error.
+- Reads via the existing RLS-scoped `listSocialPosts`; nav under Marketing; `/docs#social` + help. Frontend-only; esbuild + tests green.
+- Pillars now: P0 substrate ✅ · P1 composer ✅ · P2 agent-draft ✅ · P3 analytics ✅ · **P6 calendar ✅**. Next: P4 live publishing (provider OAuth + rate/cost-capped dispatcher — needs creds), `analyze_social_performance` ABOS tool, P5 engagement inbox.
+
 ## 2026-06-30 — Phase 3C: Social Analytics (extensive) + best-in-market plan
 - **Analytics pillar (P3):** new `/social/analytics` — reach, impressions, engagement + rate, per-channel breakdown (with followers), engagement-over-time trend, and top posts. Inline charts (no new dep); 7/30/90-day range; `AgentPanel(marketing)` for the ABOS link.
 - **Secure substrate (live via MCP):** `social_post_metrics` (per post/channel, generated `engagement` col, indexed incl `org_id, engagement desc`) + `social_channel_metrics` (follower time-series). **Staff-read RLS, no write grant, anon revoked.** Writes ONLY via SECURITY DEFINER `social_record_post_metrics` (org derived from the post, staff-gated; the future publish/metrics dispatcher uses service_role). Reads via **SECURITY INVOKER** aggregation RPCs (RLS-as-wall, org-scoped, `LIMIT`-capped) — server-side aggregation, scalable, cache-friendly.
