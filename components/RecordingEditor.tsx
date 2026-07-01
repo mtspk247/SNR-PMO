@@ -50,8 +50,8 @@ export default function RecordingEditor({ src, onCancel, onDone }: { src: Blob; 
     const stream = (canvas as any).captureStream(30) as MediaStream;
     let ac: AudioContext | null = null;
     if (audio && speed === 1) {
-      try { const AC = (window as any).AudioContext || (window as any).webkitAudioContext; ac = new AC();
-        const s = ac.createMediaElementSource(v); const dest = ac.createMediaStreamDestination(); s.connect(dest);
+      try { const AC = (window as any).AudioContext || (window as any).webkitAudioContext; const actx: AudioContext = new AC(); ac = actx;
+        const s = actx.createMediaElementSource(v); const dest = actx.createMediaStreamDestination(); s.connect(dest);
         dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t)); } catch { /* no audio */ }
     }
     const mime = (window as any).MediaRecorder?.isTypeSupported?.('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : 'video/webm';
