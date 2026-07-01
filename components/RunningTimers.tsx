@@ -27,12 +27,14 @@ export default function RunningTimers() {
     getRunningTimers(org.id).then(setItems).catch(() => {}).finally(() => setLoading(false));
   };
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [org?.id]);
+  useEffect(() => { const h = () => load(); window.addEventListener('snrpmo:timers-changed', h); return () => window.removeEventListener('snrpmo:timers-changed', h); /* eslint-disable-next-line */ }, [org?.id]);
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  if (items.length === 0 && !open) return null;   // header timer visible only while a timer is running
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => { setOpen((o) => !o); if (!open) load(); }} title="Active timers"
