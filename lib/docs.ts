@@ -538,6 +538,25 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'recordings',
+    title: 'Screen recordings',
+    icon: 'ti-video',
+    blocks: [
+      { kind: 'p', text: 'Screen Recordings (under Work) lets anyone on your team capture their screen straight from the browser — no plugins or downloads — to record demos, bug reports, onboarding walk-throughs and quick “here’s what I mean” clips. Recordings are stored privately inside your workspace and count towards your plan’s storage quota (the same storage bar you see on Drives).' },
+      { kind: 'steps', items: [
+        { title: 'Record your screen', body: 'Open Work ▸ Screen Recordings and click “New recording”. Optionally tick “Include microphone” to narrate, then Start recording and choose the tab, window or whole screen to share. A live timer shows the elapsed time; recordings stop automatically at 10 minutes (max 200 MB). Click Stop recording (or the browser’s “Stop sharing”) when done.' },
+        { title: 'Review & save', body: 'After stopping you get an instant preview. Give the clip a title and Save recording — it uploads to your workspace. Not happy? Click Re-record to try again.' },
+        { title: 'Watch, rename & download', body: 'Click any row to play the recording in the browser, download the .webm file, or delete it. Rename inline from the list. Use search, columns and CSV export like every other list.' },
+      ] },
+      { kind: 'bullets', items: [
+        { text: 'Private by default — recordings are only visible to staff in your workspace; downloads use short-lived signed links. Guests never see them.' },
+        { text: 'Who can delete — you can always delete your own recordings; owners and admins can delete any recording.' },
+        { text: 'Access control — like every page, Screen Recordings honours per-role Create / View / Edit / Delete permissions (Users ▸ Roles ▸ Page access) and your plan’s feature gating.' },
+        { text: 'Requirements — screen recording uses your browser’s built-in capture, supported in current Chrome, Edge and Firefox on desktop. You’ll be asked to grant screen (and, if chosen, microphone) permission each time.' },
+      ] },
+    ],
+  },
+  {
     id: 'social',
     title: 'Social & Content',
     icon: 'ti-speakerphone',

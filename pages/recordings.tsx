@@ -1,0 +1,166 @@
+import { useEffect, useMemo, useState } from 'react';
+import Layout from '@/components/Layout';
+import { PageHeader, EmptyState, Icon, StatCard, PersonTag } from '@/components/ui';
+import { Modal } from '@/components/Modal';
+import RecorderModal from '@/components/RecorderModal';
+import { useActiveOrg, useAuthStore } from '@/lib/store';
+import { hasFeature } from '@/lib/entitlements';
+import { toast } from '@/lib/toast';
+import {
+  listScreenRecordings, deleteScreenRecording, updateScreenRecording, screenRecordingUrl,
+  getOrgUsers, ScreenRecording,
+} from '@/lib/db';
+import { OrgUser } from '@/lib/supabase';
+import { useListPrefs, ColDef } from '@/components/ListToolbar';
+import { useRowSelection } from '@/components/RowSelection';
+import { EditSpec } from '@/components/DataList';
+import { ListView } from '@/components/ListView';
+
+const COLS: ColDef[] = [
+  { id: 'title', label: 'Title', locked: true },
+  { id: 'duration', label: 'Length' },
+  { id: 'size', label: 'Size' },
+  { id: 'by', label: 'Recorded by' },
+  { id: 'date', label: 'Date' },
+];
+const fmtDur = (s: number | null) => s == null ? '—' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const fmtSize = (b: number | null) => b == null ? '—' : b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+
+export default function RecordingsPage() {
+  const org = useActiveOrg();
+  const me = useAuthStore((s) => s.user);
+  const enabled = hasFeature(org, 'recordings');
+  const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
+
+  const [recs, setRecs] = useState<ScreenRecording[] | null>(null);
+  const [users, setUsers] = useState<OrgUser[]>([]);
+  const [recording, setRecording] = useState(false);
+  const [viewer, setViewer] = useState<{ rec: ScreenRecording; url: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const load = () => { if (org) listScreenRecordings(org.id).then(setRecs).catch((e) => { setErr(e.message); setRecs([]); }); };
+  useEffect(() => { if (org?.id && enabled) { load(); getOrgUsers(org.id).then(setUsers).catch(() => {}); } /* eslint-disable-line */ }, [org?.id, enabled]);
+
+  const nameOf = (id: string | null) => users.find((u) => u.id === id)?.full_name || '—';
+  const canDeleteRec = (r: ScreenRecording) => isAdmin || r.created_by === me?.id;
+
+  const prefs = useListPrefs('snrpmo.recordings.cols', COLS, { entity: 'recordings', orgId: org?.id, canManage: isAdmin });
+  const rs = useRowSelection(recs || []);
+
+  const play = async (r: ScreenRecording) => {
+    if (!r.storage_path) { toast('This recording is still uploading.', 'error'); return; }
+    try { const url = await screenRecordingUrl(r.storage_path); setViewer({ rec: r, url }); }
+    catch (e: any) { setErr(e.message); }
+  };
+  const download = async (r: ScreenRecording) => {
+    if (!r.storage_path) return;
+    try {
+      const url = await screenRecordingUrl(r.storage_path);
+      const a = document.createElement('a'); a.href = url; a.download = `${r.title}.${r.mime.includes('mp4') ? 'mp4' : 'webm'}`;
+      a.target = '_blank'; document.body.appendChild(a); a.click(); a.remove();
+    } catch (e: any) { setErr(e.message); }
+  };
+  const removeRec = async (r: ScreenRecording) => {
+    if (!confirm(`Delete “${r.title}”? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { await deleteScreenRecording(r); setViewer(null); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const bulkDelete = async () => {
+    const del = rs.selected.filter(canDeleteRec);
+    if (!del.length) { toast('You can only delete recordings you own.', 'error'); return; }
+    if (!confirm(`Delete ${del.length} recording${del.length > 1 ? 's' : ''}? This can't be undone.`)) return;
+    setBusy(true); setErr('');
+    try { for (const r of del) await deleteScreenRecording(r); rs.clear(); load(); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  const cell = (id: string, r: ScreenRecording) => {
+    switch (id) {
+      case 'title': return <span className="font-medium text-content inline-flex items-center gap-2"><Icon name="ti-video" className="text-accentstrong" />{r.title}</span>;
+      case 'duration': return fmtDur(r.duration_sec);
+      case 'size': return fmtSize(r.size_bytes);
+      case 'by': return <PersonTag name={nameOf(r.created_by)} />;
+      case 'date': return new Date(r.created_at).toLocaleDateString();
+      default: return '—';
+    }
+  };
+  const exportValue = (id: string, r: ScreenRecording) =>
+    id === 'title' ? r.title : id === 'duration' ? fmtDur(r.duration_sec) : id === 'size' ? fmtSize(r.size_bytes)
+    : id === 'by' ? nameOf(r.created_by) : id === 'date' ? new Date(r.created_at).toLocaleDateString() : '';
+
+  const editable: Record<string, EditSpec> = { title: { type: 'text' } };
+  const rawValue = (id: string, r: ScreenRecording) => id === 'title' ? r.title : '';
+  const onInlineEdit = async (r: ScreenRecording, id: string, value: string) => {
+    if (id !== 'title' || !value.trim()) return;
+    try { await updateScreenRecording(r.id, { title: value.trim() }); load(); } catch (e: any) { setErr(e.message); }
+  };
+
+  const kpis = useMemo(() => {
+    const all = recs || [];
+    return { total: all.length, size: all.reduce((s, r) => s + (r.size_bytes || 0), 0), dur: all.reduce((s, r) => s + (r.duration_sec || 0), 0) };
+  }, [recs]);
+
+  if (!enabled) return (
+    <Layout flat title="Screen Recordings">
+      <EmptyState icon="ti-video" title="Screen recording not in your plan" text="Capture and share screen recordings for demos, bug reports, and walkthroughs." />
+    </Layout>
+  );
+
+  return (
+    <Layout flat title="Screen Recordings">
+      <PageHeader help="recordings" title="Screen Recordings" subtitle="Record your screen for demos, bug reports, and walkthroughs — stored securely in your workspace." icon="ti-video"
+        action={<button className="btn btn-primary" onClick={() => setRecording(true)}><Icon name="ti-player-record" />New recording</button>} />
+      {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
+
+      <div className="grid grid-cols-3 gap-4 mb-5">
+        <StatCard label="Recordings" value={String(kpis.total)} icon="ti-video" />
+        <StatCard label="Total size" value={fmtSize(kpis.size)} icon="ti-database" />
+        <StatCard label="Total length" value={fmtDur(kpis.dur)} icon="ti-clock" />
+      </div>
+
+      <ListView
+        rows={recs}
+        rowKey={(r) => r.id}
+        cols={COLS}
+        prefs={prefs}
+        cell={cell}
+        selection={rs}
+        searchPlaceholder="Search recordings…"
+        editable={editable}
+        rawValue={rawValue}
+        onEdit={onInlineEdit}
+        onRename={(r, v) => { if (v.trim()) updateScreenRecording(r.id, { title: v.trim() }).then(load).catch((e: any) => setErr(e.message)); }}
+        onRowClick={(r) => play(r)}
+        exportName="recordings"
+        exportValue={exportValue}
+        onDelete={() => bulkDelete()}
+        canDelete={recs != null && (isAdmin || rs.selected.some(canDeleteRec))}
+        busy={busy}
+        emptyIcon="ti-video"
+        emptyText="No recordings yet. Click “New recording” to capture your screen."
+      />
+
+      {recording && me && org && (
+        <RecorderModal orgId={org.id} userId={me.id} onClose={() => setRecording(false)}
+          onSaved={() => { setRecording(false); load(); }} />
+      )}
+
+      {viewer && (
+        <Modal open onClose={() => setViewer(null)} size="lg" icon="ti-video" title={viewer.rec.title}
+          footer={<>
+            {canDeleteRec(viewer.rec) && <button className="btn btn-danger mr-auto" disabled={busy} onClick={() => removeRec(viewer.rec)}><Icon name="ti-trash" />Delete</button>}
+            <button className="btn" onClick={() => download(viewer.rec)}><Icon name="ti-download" />Download</button>
+            <button className="btn btn-primary" onClick={() => setViewer(null)}>Close</button>
+          </>}>
+          <video src={viewer.url} controls autoPlay className="w-full rounded-lg bg-black max-h-[60vh]" />
+          <div className="flex items-center gap-3 text-2xs text-muted2 mt-2">
+            <span><Icon name="ti-clock" className="text-sm" /> {fmtDur(viewer.rec.duration_sec)}</span>
+            <span><Icon name="ti-database" className="text-sm" /> {fmtSize(viewer.rec.size_bytes)}</span>
+            <span><Icon name="ti-user" className="text-sm" /> {nameOf(viewer.rec.created_by)}</span>
+          </div>
+        </Modal>
+      )}
+    </Layout>
+  );
+}

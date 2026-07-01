@@ -4353,21 +4353,42 @@ export async function dashboardCounts(orgId: string): Promise<DashboardCounts> {
   const { data, error } = await sb.rpc('dashboard_counts', { p_org: orgId });
   if (error) throw new Error(error.message); return (data as DashboardCounts) || {};
 }
-// ── Screen recordings (metadata; storage + recorder UI = slice 2) ───────────
+// ── Screen recordings (metadata + storage; recorder UI = slice 2) ───────────
 export interface ScreenRecording { id: string; org_id: string; title: string; description: string | null; storage_path: string | null; thumb_path: string | null; duration_sec: number | null; size_bytes: number | null; mime: string; created_by: string | null; created_at: string; updated_at: string; }
+export const RECORDING_MAX_BYTES = 209715200;   // 200 MB per recording (matches bucket cap)
+export const RECORDING_MAX_SEC = 600;           // 10 min v1
 export async function listScreenRecordings(orgId: string): Promise<ScreenRecording[]> {
   const { data, error } = await sb.from('screen_recordings').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as ScreenRecording[]) || [];
 }
-export async function createScreenRecording(p: { org_id: string; created_by: string; title: string; description?: string | null; storage_path?: string | null; duration_sec?: number | null; size_bytes?: number | null; mime?: string }): Promise<ScreenRecording> {
-  const { data, error } = await sb.from('screen_recordings').insert({ org_id: p.org_id, created_by: p.created_by, title: p.title, description: p.description || null, storage_path: p.storage_path || null, duration_sec: p.duration_sec ?? null, size_bytes: p.size_bytes ?? null, mime: p.mime || 'video/webm' }).select('*').single();
-  if (error) throw new Error(error.message); return data as ScreenRecording;
+// Insert row first (so size counts toward the storage meter), then upload bytes, then stamp storage_path.
+export async function uploadScreenRecording(p: { org_id: string; created_by: string; title: string; description?: string | null; blob: Blob; duration_sec: number; mime?: string }): Promise<ScreenRecording> {
+  const size = p.blob.size;
+  if (size > RECORDING_MAX_BYTES) throw new Error(`Recording is too large (max ${Math.round(RECORDING_MAX_BYTES / 1048576)} MB).`);
+  const mime = p.mime || 'video/webm';
+  const { data: row, error: insErr } = await sb.from('screen_recordings')
+    .insert({ org_id: p.org_id, created_by: p.created_by, title: p.title, description: p.description || null, duration_sec: Math.round(p.duration_sec), size_bytes: size, mime })
+    .select('*').single();
+  if (insErr) throw new Error(insErr.message);
+  const rec = row as ScreenRecording;
+  const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+  const path = `${p.org_id}/${p.created_by}/${rec.id}.${ext}`;
+  const { error: upErr } = await sb.storage.from('recordings').upload(path, p.blob, { upsert: false, contentType: mime });
+  if (upErr) { await sb.from('screen_recordings').delete().eq('id', rec.id); throw new Error(upErr.message); }
+  const { error: updErr } = await sb.from('screen_recordings').update({ storage_path: path }).eq('id', rec.id);
+  if (updErr) throw new Error(updErr.message);
+  return { ...rec, storage_path: path };
 }
 export async function updateScreenRecording(id: string, patch: Partial<Pick<ScreenRecording, 'title'|'description'>>): Promise<void> {
   const { error } = await sb.from('screen_recordings').update(patch).eq('id', id); if (error) throw new Error(error.message);
 }
-export async function deleteScreenRecording(id: string): Promise<void> {
-  const { error } = await sb.from('screen_recordings').delete().eq('id', id); if (error) throw new Error(error.message);
+export async function screenRecordingUrl(path: string): Promise<string> {
+  const { data, error } = await sb.storage.from('recordings').createSignedUrl(path, 3600);
+  if (error) throw new Error(error.message); return data.signedUrl;
+}
+export async function deleteScreenRecording(rec: ScreenRecording): Promise<void> {
+  if (rec.storage_path) { try { await sb.storage.from('recordings').remove([rec.storage_path]); } catch { /* best-effort */ } }
+  const { error } = await sb.from('screen_recordings').delete().eq('id', rec.id); if (error) throw new Error(error.message);
 }
 
 export async function socialOauthBegin(channelId: string, provider: string): Promise<string> {

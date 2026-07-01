@@ -86,6 +86,7 @@ const searchSequences = simpleSpec({ key: 'sequence', label: 'Sequences', icon: 
 const searchSocial = simpleSpec({ key: 'social_post', label: 'Social posts', icon: 'ti-brand-x', table: 'social_posts', col: 'body', href: () => '/social' });
 const searchBooking = simpleSpec({ key: 'booking', label: 'Booking', icon: 'ti-calendar-plus', table: 'booking_pages', col: 'name', href: () => '/booking' });
 const searchAppraisals = simpleSpec({ key: 'appraisal', label: 'Appraisals', icon: 'ti-clipboard-check', table: 'appraisals', col: 'summary', href: () => '/appraisals' });
+const searchRecordings = simpleSpec({ key: 'recording', label: 'Recordings', icon: 'ti-video', table: 'screen_recordings', col: 'title', href: () => '/recordings' });
 // Notes: match title OR body, skip archived; show title or a body snippet.
 const searchNotes: SearchSpec = { key: 'note', label: 'Notes', icon: 'ti-notes',
   run: async (_like, safe) => (await grab(sb.from('sticky_notes').select('id, title, body').or(`title.ilike.*${safe}*,body.ilike.*${safe}*`).is('archived_at', null).limit(8)))
@@ -101,6 +102,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/portal', label: 'Client Portal', icon: 'ti-layout-dashboard', feature: 'portal' },
     { href: '/tasks', label: 'Tasks', icon: 'ti-checkbox', feature: 'projects', search: searchTasks },
     { href: '/ideas', label: 'Ideas', icon: 'ti-bulb', feature: 'ideas', search: searchIdeas },
+    { href: '/recordings', label: 'Screen Recordings', icon: 'ti-video', feature: 'recordings', search: searchRecordings },
     { href: '/roadmap', label: 'Timeline', icon: 'ti-timeline', feature: 'projects' },
     { href: '/approvals', label: 'Approvals', icon: 'ti-checks', adminOnly: true },
   ]},
