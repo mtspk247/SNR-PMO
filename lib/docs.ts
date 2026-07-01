@@ -116,6 +116,7 @@ export const SECTIONS: Section[] = [
     title: 'Billing, plans & renewals',
     icon: 'ti-credit-card',
     blocks: [
+      { kind: 'p', text: 'Storage & upgrades: every workspace has a storage allowance for its plan, and ALL files count toward it — Drive files, screen recordings, social media assets, attachments and documents. A meter shows how much you have used; at 80% and 90% you get a heads-up banner, and once you hit 100% new uploads are blocked (server-enforced) until you free space or upgrade. Owners can upgrade anytime from Billing to lift the limit instantly.' },
       { kind: 'p', text: 'Open Billing (Administration) to manage your subscription. It shows your current plan, seats used, the features your plan includes, a comparison of all plans, your renewal date, your invoices, and your account history.' },
       { kind: 'bullets', items: [
         { text: 'Upgrade or renew', sub: ['Click Upgrade to a plan to open secure Stripe checkout — you review and confirm the charge there before paying.'] },
