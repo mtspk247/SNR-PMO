@@ -1,4 +1,7 @@
 
+## 2026-07-01 — Add "View as owner" (impersonate) to tenant profile
+- Tariq: the impersonate/"View as" action was only on the tenant LIST (`/tenants`), not the tenant PROFILE (`/tenants/[id]`) — which only had the sub-tenant impersonation TOGGLE. Surfaced by the new signup notification routing to the profile. Fixed: added a platform-admin **View as owner** button to the profile PageHeader (`adminImpersonateLink({ org: orgId })` → copies a private sign-in link, same as the list). Unchanged: security (edge fn admin-impersonate-link is platform-admin gated).
+
 ## 2026-07-01 — Notification deep-links: open the exact record (#48 batch 1)
 - Extended precise notification routing to item-level for pages that support it: **idea** → `/ideas/{id}` (detail route), **guest_request/request** → `/requests?req={id}` (page already reads `?req=`), **feedback** → `/feedback?id={id}` (added a deep-open effect: reads `?id=`, finds the row, opens the Detail panel — mirrors the `/tasks?task=` pattern). Combined with task/deal/contact/employee/tenant already done, the large majority of notifications now open their exact record + options. Remaining (list-only for now): leave, approvals, leads, clients — add `?id=` open effects next.
 

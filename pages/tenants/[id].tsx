@@ -15,7 +15,7 @@ import {
   getTenantUsage, getOrgActivity, TenantUsage, ActivityItem,
   getTenantDomain, setCustomDomain, requestDomainVerification, checkDomainVerification, TenantDomain,
   getOrgFeatures, getOrgPlanFeatures, tenantUsers, TenantUser, avatarSrc,
-  platformGetOrgProfile, platformSaveOrgProfile,
+  platformGetOrgProfile, platformSaveOrgProfile, adminImpersonateLink,
 } from '@/lib/db';
 import { Plan, MyOrg } from '@/lib/supabase';
 
@@ -59,6 +59,17 @@ export default function TenantDetail() {
   const [users, setUsers] = useState<TenantUser[] | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const [impMsg, setImpMsg] = useState('');
+  const openAsOwner = async () => {
+    if (!tenant) return;
+    setImpMsg('Generating sign-in link…');
+    try {
+      const r = await adminImpersonateLink({ org: orgId });
+      try { await navigator.clipboard?.writeText(r.link); } catch { /* clipboard optional */ }
+      setImpMsg(`Sign-in link for ${tenant.org_name} copied — open it in a private/incognito window to view this workspace as its owner.`);
+      setTimeout(() => setImpMsg(''), 9000);
+    } catch (e: any) { setImpMsg(e.message || 'Failed to create sign-in link'); }
+  };
   const [wipeName, setWipeName] = useState(''); const [wiping, setWiping] = useState(false);
   const [dom, setDom] = useState<TenantDomain | null>(null);
   const [domInput, setDomInput] = useState(''); const [domBusy, setDomBusy] = useState(false); const [domMsg, setDomMsg] = useState('');
@@ -183,8 +194,10 @@ export default function TenantDetail() {
           {lc?.allowed && (lc?.archived
             ? <button className="btn btn-primary h-8 py-0" disabled={busy || !editMode} onClick={() => ask('Restore tenant?', `Restore ${tenant.org_name}? Members regain access and the workspace becomes active again.`, doRestoreTenant)}><Icon name="ti-refresh" />Restore</button>
             : <button className="btn btn-danger h-8 py-0" disabled={busy || !editMode} onClick={() => ask('Archive (delete) tenant?', `Archive ${tenant.org_name}? Members lose all access immediately. Data is safely retained and fully restorable; a backup snapshot is taken first.`, doArchiveTenant, true)}><Icon name="ti-archive" />Delete</button>)}
+          {platformAdmin && <button className="btn h-8 py-0" title="View as owner (opens in a private window)" onClick={openAsOwner}><Icon name="ti-login-2" />View as owner</button>}
           <button className="btn h-8 py-0" onClick={() => router.push('/tenants')}><Icon name="ti-arrow-left" />Back</button>
         </div>} />
+      {impMsg && <p className="text-2xs text-accentstrong mb-3">{impMsg}</p>}
 
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {okMsg && <p className="text-sm text-emerald-600 mb-3">{okMsg}</p>}
