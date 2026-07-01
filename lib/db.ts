@@ -4305,6 +4305,26 @@ export async function deleteMediaAsset(id: string): Promise<void> {
   const { error } = await sb.from('social_media_assets').delete().eq('id', id); if (error) throw new Error(error.message);
 }
 
+// ── Live publishing: provider config (platform) + per-channel connection (secret-isolated) ──
+export interface SocialProviderStatus { provider: string; enabled: boolean; configured: boolean; redirect_uri: string | null; scopes: string; updated_at: string | null; }
+export async function socialProviderStatus(): Promise<SocialProviderStatus[]> {
+  const { data, error } = await sb.rpc('social_provider_status');
+  if (error) throw new Error(error.message); return (data as SocialProviderStatus[]) || [];
+}
+export async function socialProviderSetConfig(p: { provider: string; client_id: string; client_secret: string; redirect_uri: string; scopes: string; enabled: boolean }): Promise<void> {
+  const { error } = await sb.rpc('social_provider_set_config', { p_provider: p.provider, p_client_id: p.client_id, p_client_secret: p.client_secret, p_redirect_uri: p.redirect_uri, p_scopes: p.scopes, p_enabled: p.enabled });
+  if (error) throw new Error(error.message);
+}
+export interface SocialChannelConn { channel_id: string; connected: boolean; status: string; expires_at: string | null; provider_account_id: string | null; }
+export async function socialChannelConnStatus(channelId: string): Promise<SocialChannelConn | null> {
+  const { data, error } = await sb.rpc('social_channel_conn_status', { p_channel: channelId });
+  if (error) throw new Error(error.message); const r = (data as SocialChannelConn[]) || []; return r[0] || null;
+}
+export async function socialChannelDisconnect(channelId: string): Promise<void> {
+  const { error } = await sb.rpc('social_channel_disconnect', { p_channel: channelId });
+  if (error) throw new Error(error.message);
+}
+
 // ── Reseller feature control (per-sub-tenant) ───────────────────────────────
 export interface ResellerSubFeature { feature_key: string; name: string; reseller_has: boolean; override: boolean | null; effective: boolean; }
 export async function resellerSubFeatures(subOrgId: string): Promise<ResellerSubFeature[]> {
