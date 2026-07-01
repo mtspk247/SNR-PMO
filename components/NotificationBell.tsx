@@ -39,8 +39,7 @@ function bucket(iso: string): 'Today' | 'Yesterday' | 'Earlier' {
 const NOTIF_PAGE: Record<string, string> = {
   project: '/projects', leave: '/leave', chat: '/chat', lead: '/leads', client: '/clients',
   company: '/companies', contract: '/contracts', proposal: '/proposals',
-  guest_request: '/requests', request: '/requests', approval: '/approvals', feedback: '/feedback',
-  social: '/social', social_post: '/social', idea: '/ideas', invoice: '/invoicing', bill: '/bills',
+  approval: '/approvals',   social: '/social', social_post: '/social', invoice: '/invoicing', bill: '/bills',
   expense_claim: '/expense-claims', ticket: '/admin/support', support: '/admin/support',
   application: '/applications', interview: '/interviews', job: '/jobs', offer: '/offers',
   appraisal: '/appraisals', subscription: '/recurring-billing', reminder: '/calendar',
@@ -55,6 +54,9 @@ function hrefFor(n: AppNotification): string | null {
   if (et === 'contact' || et === 'crm_contact') return id ? `/crm/contact/${id}` : '/crm';
   if (et === 'employee') return id ? `/employees/${id}` : '/employees';
   if (et === 'org' || et === 'tenant') return id ? `/tenants/${id}` : '/tenants';
+  if (et === 'idea') return id ? `/ideas/${id}` : '/ideas';
+  if (et === 'guest_request' || et === 'request') return id ? `/requests?req=${id}` : '/requests';
+  if (et === 'feedback') return id ? `/feedback?id=${id}` : '/feedback';
   // drive/comment carry a precise link already — prefer it
   if (et === 'drive' || et === 'drive_file' || et === 'drive_comment' || et === 'comment') return n.link || '/drives';
   // list-level pages (correct destination even without an item param)
