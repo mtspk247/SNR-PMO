@@ -14,8 +14,8 @@ import { AGENT_DOMAINS, RISK_COLOR, toolByKey } from '@/lib/agents';
 import {
   listAgents, listAgentActions, listAgentActionEvents, decideAgentAction, rollbackAgentAction,
   listAgentPolicy, resetAgentPolicy,
-  getAgentPolicyConfig, setAgentPolicyConfig, isVerbSuppressed,
-  AgentDefinition, AgentAction, AgentActionEvent, AgentPolicy, AgentPolicyConfig, recordAgentExecution,
+  getAgentPolicyConfig, setAgentPolicyConfig, isVerbSuppressed, agentPreflight,
+  AgentDefinition, AgentAction, AgentActionEvent, AgentPolicy, AgentPolicyConfig, AgentPreflight, recordAgentExecution,
 } from '@/lib/db';
 import { executorFor, simulateAction } from '@/lib/agentExecutors';
 
@@ -56,6 +56,8 @@ export default function AgentApprovalsPage() {
   const [policy, setPolicy] = useState<AgentPolicy[]>([]);
   const [cfg, setCfg] = useState<AgentPolicyConfig | null>(null);
   const [savingCfg, setSavingCfg] = useState(false);
+  const [pf, setPf] = useState<AgentPreflight | null>(null);
+  const [pfBusy, setPfBusy] = useState(false);
   const [sel, setSel] = useState<AgentAction | null>(null);
   const [events, setEvents] = useState<AgentActionEvent[]>([]);
   const [note, setNote] = useState('');
@@ -132,8 +134,19 @@ export default function AgentApprovalsPage() {
   };
 
   const openDetail = async (a: AgentAction) => {
-    setSel(a); setNote(''); setEvents([]);
+    setSel(a); setNote(''); setEvents([]); setPf(null);
+    // Server preflight: will this actually run for the approver? (RLS/RBAC/trigger/CHECK)
+    if (a.status === 'proposed' && canApprove) { setPfBusy(true); agentPreflight(a.id).then(setPf).catch(() => setPf(null)).finally(() => setPfBusy(false)); }
     try { setEvents(await listAgentActionEvents(a.id)); } catch { /* ignore */ }
+  };
+  const PF_REASON: Record<string, string> = {
+    permission_denied: "The approver's role isn't allowed to create these records (row-level security / page permission).",
+    check_violation: 'A value would fail a validation rule.',
+    missing_reference: 'A referenced record is missing.',
+    missing_required_field: 'A required field is missing.',
+    duplicate: 'It would duplicate an existing record.',
+    not_authorized: 'You need the Approve or Manage agents permission.',
+    error: 'It would fail to run.',
   };
   // Execution runs CLIENT-SIDE as the approver through db.ts fns -> RLS/RBAC enforced.
   const runExecution = async (action: AgentAction) => {
@@ -242,7 +255,7 @@ export default function AgentApprovalsPage() {
             <button className="btn mr-auto" onClick={() => setSel(null)}>Close</button>
             {sel.status === 'proposed' && canApprove && (<>
               <button className="btn btn-danger" disabled={busy} onClick={() => decide('rejected')}>Reject</button>
-              <button className="btn btn-primary" disabled={busy} onClick={() => decide('approved')}>{busy ? 'Working…' : (executorFor(sel.tool_key) ? 'Approve & run' : 'Approve')}</button>
+              <button className="btn btn-primary" disabled={busy || (!!pf && pf.checked && !pf.ok)} title={(!!pf && pf.checked && !pf.ok) ? 'Preflight says this would fail — resolve the cause first' : undefined} onClick={() => decide('approved')}>{busy ? 'Working…' : (executorFor(sel.tool_key) ? 'Approve & run' : 'Approve')}</button>
             </>)}
             {sel.status === 'approved' && canApprove && executorFor(sel.tool_key) && (
               <button className="btn btn-primary" disabled={busy} onClick={executeNow}>{busy ? 'Running…' : 'Execute now'}</button>
@@ -293,6 +306,21 @@ export default function AgentApprovalsPage() {
                     <p className="text-2xs text-muted2 inline-flex items-start gap-1"><Icon name="ti-bulb" className="text-2xs mt-0.5 shrink-0 text-amber-500" /><span><span className="font-medium text-muted">Why:</span> {String(sel.payload.rationale || sel.payload.note)}</span></p>
                   )}
                 </div>
+              </div>
+            )}
+            {sel.status === 'proposed' && (pfBusy || pf) && (
+              <div>
+                <h4 className="text-xs uppercase tracking-wide text-muted2 mb-1.5 inline-flex items-center gap-1.5"><Icon name="ti-shield-check" className="text-sm text-accentstrong" />Preflight — will this run?</h4>
+                {pfBusy && <p className="text-2xs text-muted inline-flex items-center gap-1"><Icon name="ti-loader-2" className="text-2xs animate-spin" />Checking permissions & data rules against your live data…</p>}
+                {!pfBusy && pf && pf.checked && pf.ok && (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/60 p-3 text-sm text-emerald-800 flex items-start gap-2"><Icon name="ti-circle-check-filled" className="text-emerald-600 mt-0.5 shrink-0" /><span>Verified against your live data — the approver’s permissions and every data rule allow this{pf.creates && pf.creates.length ? `; ${pf.creates.length} record type${pf.creates.length === 1 ? '' : 's'} would be created` : ''}. It was run as a real transaction and rolled back, so nothing was written.</span></div>
+                )}
+                {!pfBusy && pf && pf.checked && !pf.ok && (
+                  <div className="rounded-lg border border-rose-500/30 bg-rose-50/60 p-3 text-sm text-rose-800 flex items-start gap-2"><Icon name="ti-alert-triangle-filled" className="text-rose-600 mt-0.5 shrink-0" /><span><b>Would fail if approved.</b> {PF_REASON[pf.reason || 'error'] || 'It would fail to run.'} Resolve the cause (or the approver’s permissions) before approving.</span></div>
+                )}
+                {!pfBusy && pf && !pf.checked && (
+                  <p className="text-2xs text-muted2 inline-flex items-center gap-1"><Icon name="ti-info-circle" className="text-2xs" />No transactional preflight for this action type — see the dry run below.</p>
+                )}
               </div>
             )}
             <div>
