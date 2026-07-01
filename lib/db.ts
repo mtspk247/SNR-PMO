@@ -4280,3 +4280,33 @@ export async function socialRecordPostMetrics(postId: string, channelId: string 
   const { error } = await sb.rpc('social_record_post_metrics', { p_post: postId, p_channel: channelId, p_metrics: metrics });
   if (error) throw new Error(error.message);
 }
+
+// ── Competitor Intelligence (Phase 3E) ──────────────────────────────────────
+export interface SocialCompetitor { id: string; org_id: string; name: string; platform: string | null; handle: string | null; url: string | null; notes: string | null; active: boolean; created_by: string | null; created_at: string; updated_at: string; }
+export interface SocialCompetitorInsight { id: string; org_id: string; competitor_id: string | null; kind: 'trend'|'gap'|'threat'|'opportunity'|'insight'; summary: string; recommendation: string | null; status: 'new'|'reviewed'|'actioned'|'dismissed'; created_by: string | null; created_at: string; }
+
+export async function listCompetitors(orgId: string): Promise<SocialCompetitor[]> {
+  const { data, error } = await sb.from('social_competitors').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as SocialCompetitor[]) || [];
+}
+export async function createCompetitor(p: { org_id: string; name: string; platform?: string; handle?: string; url?: string; created_by: string }): Promise<SocialCompetitor> {
+  const { data, error } = await sb.from('social_competitors').insert({ org_id: p.org_id, name: p.name, platform: p.platform || null, handle: p.handle || null, url: p.url || null, created_by: p.created_by }).select('*').single();
+  if (error) throw new Error(error.message); return data as SocialCompetitor;
+}
+export async function deleteCompetitor(id: string): Promise<void> {
+  const { error } = await sb.from('social_competitors').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listCompetitorInsights(orgId: string): Promise<SocialCompetitorInsight[]> {
+  const { data, error } = await sb.from('social_competitor_insights').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(100);
+  if (error) throw new Error(error.message); return (data as SocialCompetitorInsight[]) || [];
+}
+export async function createCompetitorInsight(p: { org_id: string; summary: string; kind?: SocialCompetitorInsight['kind']; recommendation?: string; competitor_id?: string | null }): Promise<SocialCompetitorInsight> {
+  const { data, error } = await sb.from('social_competitor_insights').insert({ org_id: p.org_id, summary: p.summary, kind: p.kind || 'insight', recommendation: p.recommendation || null, competitor_id: p.competitor_id || null }).select('*').single();
+  if (error) throw new Error(error.message); return data as SocialCompetitorInsight;
+}
+export async function deleteCompetitorInsight(id: string): Promise<void> {
+  const { error } = await sb.from('social_competitor_insights').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function setCompetitorInsightStatus(id: string, status: SocialCompetitorInsight['status']): Promise<void> {
+  const { error } = await sb.from('social_competitor_insights').update({ status }).eq('id', id); if (error) throw new Error(error.message);
+}

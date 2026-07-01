@@ -65,6 +65,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'set_reminder', label: 'Set a reminder', domain: 'general', risk: 'low', reversible: true, description: 'Schedules a reminder for the owner, optionally linked to a record. Reversible — deletes the reminder on rollback.' },
   { key: 'draft_job_posting', label: 'Draft a job description', domain: 'hr', risk: 'low', reversible: true, description: 'Drafts a job description (summary, responsibilities, requirements) for review. Reversible — deletes the draft on rollback.' },
   { key: 'draft_social_post', label: 'Draft a social post', domain: 'marketing', risk: 'low', reversible: true, description: 'Drafts a social post (text + optional channels) into the Social composer for review. Drafting only — scheduling and publishing stay a separate human step. Reversible — deletes the draft on rollback.' },
+  { key: 'watch_competitors', label: 'Watch competitors & draft insights', domain: 'marketing', risk: 'low', reversible: true, description: 'Scans your tracked competitors and drafts a competitive insight (trend / gap / threat / opportunity) with a recommendation, so your team can stay ahead. Read-heavy; produces a reviewable insight — reversible on rollback.' },
 ];
 
 export const toolsForDomain = (d: string) => AGENT_TOOLS.filter((t) => t.domain === d);
@@ -97,6 +98,7 @@ export const SAMPLE_PROPOSALS: Record<string, { tool: string; summary: string; r
   ],
   marketing: [
     { tool: 'draft_social_post', summary: 'Draft a LinkedIn post announcing a recent client onboarding win', risk: 'low', payload: { body: 'Thrilled to welcome our newest client aboard! Another team now runs projects, CRM, and back-office in one place — less tool-juggling, more momentum. 🚀' } },
+    { tool: 'watch_competitors', summary: 'Competitive gap: rivals post 3x/week on LinkedIn; you post 1x', risk: 'low', payload: { kind: 'gap', summary: 'Top competitors post ~3x/week on LinkedIn with carousels; your cadence is ~1x/week text-only.', recommendation: 'Move to 3x/week and test one carousel per week; watch engagement lift in Analytics.' } },
   ],
   general: [
     { tool: 'summarize_project', summary: 'Summarize this week of activity across active projects', risk: 'low', payload: {} },
@@ -114,4 +116,5 @@ export const STARTER_AGENTS: { name: string; domain: AgentDomainKey; autonomy: s
   { name: 'Pipeline Mover', domain: 'crm', autonomy: 'approve_first', description: 'Creates contacts and deals, onboards won clients end-to-end (contact + project + tasks), proposes deal-stage moves, drafts follow-ups, and sends approved SMS. You approve each one.', tools: ['update_deal_stage', 'create_deal', 'create_contact', 'scaffold_client_onboarding', 'draft_followup', 'send_sms'] },
   { name: 'People Coordinator', domain: 'people', autonomy: 'draft_only', description: 'Surfaces capacity risks and drafts 1:1 / meeting briefs from workload. Draft-only - it proposes, you decide.', tools: ['flag_capacity_risk', 'draft_meeting_brief'] },
   { name: 'Content Assistant', domain: 'marketing', autonomy: 'approve_first', description: 'Your content teammate — drafts social posts into the Social composer for you to review, schedule and publish. Approve-first; drafts only (publishing stays a human step).', tools: ['draft_social_post'] },
+  { name: 'Competitor Watcher', domain: 'marketing', autonomy: 'draft_only', description: 'Keeps an eye on your tracked competitors and drafts competitive insights (trends, gaps, threats, opportunities) with recommendations — so your social team always plans a step ahead. Draft-only: it proposes, you decide.', tools: ['watch_competitors'] },
 ];
