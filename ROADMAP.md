@@ -4,6 +4,12 @@
 
 
 
+
+## 2026-07-02 — Chief of Staff program · Phase 1: built-in agent team (non-deletable defaults)
+- **Shipped:** `agent_definitions.builtin` + `archived_at`; RESTRICTIVE delete policy so built-ins can never be deleted (pause/archive only); `agent_set_archived` RPC; feature-aware `seed_builtin_agents` seeding the **Chief of Staff** + Work/CRM/Finance/People assistants (gated by plan features), auto-seeded on the Agents page. UI: **System** badge, Archive/Restore (not Delete) for built-ins, Show-archived toggle. RLS-sim verified (seed=5, delete-blocked, archive); advisors clean; demo org seeded.
+- **Phase 2 (next) — Chief of Staff chat (the "wow"):** a floating, plan/RBAC-gated assistant that acts **as the signed-in user** (RLS/RBAC — never a super-user, no bypass) and can, per the owner's spec: **create more agents** on request (manage-gated), **read/CRUD across modules** through the user's own permissions, **schedule + send reports** (reuse scheduled-tasks + report builder), **send SMS/email** (reuse comms substrate — cost-capped, rate-limited, approve-first for outbound), and **delegate/supervise** the domain agents (drops approve-first, preflighted proposals into their queue). All writes stay approve-first + preflighted + audited + reversible; sends and money-paths are human-gated + capped. Backed by Groq (assistant_config) via an orchestrator edge fn with a tool registry.
+- **Phase 3:** prebuilt default nudges seeded per plan/feature on the upsell engine.
+
 ## 2026-07-02 — Agents: "Onboard an employee" workflow + preflight coverage
 - New deterministic workflow template **Onboard an employee** (HR `draft_onboarding` → week-1 checklist tasks), on the Run-a-workflow launcher + natural language ("onboard new employee John Smith"), with employee-vs-client intent disambiguation in `detectWorkflow` (unit-tested 9/9). Extended `agent_preflight_replay` to cover `draft_onboarding` so its queue signal is real. RLS-sim allow + zero persistence; DB live via MCP.
 

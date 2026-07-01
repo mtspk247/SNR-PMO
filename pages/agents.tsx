@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
@@ -18,7 +18,7 @@ import { SCANNABLE_DOMAINS } from '@/lib/agentScanner';
 import { WORKFLOW_TEMPLATES, workflowByKey, detectWorkflow } from '@/lib/agentPlans';
 import { toast } from '@/lib/toast';
 import {
-  listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
+  listAgents, createAgent, updateAgent, deleteAgent, seedBuiltinAgents, setAgentArchived, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
   listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, agentUsageSummary, runWorkScan, proposeWorkflowPlan,
   setAgentSensing, setOrgAgentsPaused, getOrgAgentsPaused,
   listAgentActions, recordAgentExecution, autoApproveAgentAction, agentPreflight,
@@ -35,7 +35,7 @@ const COLS: ColDef[] = [
   { id: 'created', label: 'Created' },
 ];
 
-type Draft = { id?: string; name: string; domain: AgentDomain; description: string; autonomy_level: AgentAutonomy; enabled: boolean; sense_enabled?: boolean; sense_cadence?: 'daily' | 'hourly'; sense_max?: number };
+type Draft = { id?: string; name: string; domain: AgentDomain; description: string; autonomy_level: AgentAutonomy; enabled: boolean; builtin?: boolean; archived?: boolean; sense_enabled?: boolean; sense_cadence?: 'daily' | 'hourly'; sense_max?: number };
 const SENSOR_DOMAINS = ['accounting', 'tasks', 'crm', 'people'];
 const emptyDraft = (): Draft => ({ name: '', domain: 'general', description: '', autonomy_level: 'approve_first', enabled: true, sense_enabled: false, sense_cadence: 'daily', sense_max: 8 });
 
@@ -81,6 +81,14 @@ export default function AgentsPage() {
     listChatCommands(org.id).then(setCommands).catch(() => {});
   };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
+  const [showArchived, setShowArchived] = useState(false);
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (org?.id && enabled && canManage && !seededRef.current) {
+      seededRef.current = true;
+      seedBuiltinAgents(org.id).then((n) => { if (n > 0) load(); }).catch(() => {});
+    } /* eslint-disable-next-line */
+  }, [org?.id, enabled, canManage]);
 
   // A refused run on the Free taste -> the upgrade moment (not a raw error toast).
   const onRunError = (e: any) => {
@@ -107,15 +115,15 @@ export default function AgentsPage() {
 
   const shown = useMemo(() => {
     const q = prefs.query.trim().toLowerCase();
-    return (agents || []).filter((a) => !q || `${a.name} ${a.domain}`.toLowerCase().includes(q));
-  }, [agents, prefs.query]);
+    return (agents || []).filter((a) => (showArchived || !a.archived_at) && (!q || `${a.name} ${a.domain}`.toLowerCase().includes(q)));
+  }, [agents, prefs.query, showArchived]);
   const rs = useRowSelection(shown);
 
   const GROUPS: GroupMeta[] = AGENT_DOMAINS.map((d) => ({ value: d.key, label: d.label }));
 
   const cell = (id: string, a: AgentDefinition) => {
     switch (id) {
-      case 'name': return <span className="font-medium text-content">{a.name}</span>;
+      case 'name': return <span className="inline-flex items-center gap-2"><span className="font-medium text-content">{a.name}</span>{a.builtin && <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-2xs font-medium" style={{ backgroundColor: '#7c3aed1f', color: '#7c3aed' }} title="Built-in agent — always available; can be paused or archived, but not deleted.">System</span>}{a.archived_at && <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-2xs font-medium" style={{ backgroundColor: '#6b72801f', color: '#6b7280' }}>Archived</span>}</span>;
       case 'domain': { const d = AGENT_DOMAINS.find((x) => x.key === a.domain); return <span className="inline-flex items-center gap-1.5"><Icon name={d?.icon || 'ti-robot'} className="text-sm text-muted2" />{d?.label || a.domain}</span>; }
       case 'autonomy': return <span className="text-xs text-muted">{(AUTONOMY_LABELS[a.autonomy_level] || a.autonomy_level).split(' (')[0]}</span>;
       case 'runs': return <span className="tabular-nums">{runsThisMonth(a.id)}</span>;
@@ -128,7 +136,7 @@ export default function AgentsPage() {
   };
 
   const openEdit = async (a: AgentDefinition) => {
-    setEditor({ mode: 'edit', draft: { id: a.id, name: a.name, domain: a.domain, description: a.description || '', autonomy_level: a.autonomy_level, enabled: a.enabled, sense_enabled: !!a.config?.sense?.enabled, sense_cadence: a.config?.sense?.cadence || 'daily', sense_max: a.config?.sense?.max_per_run ?? 8 }, initial: JSON.stringify(a) });
+    setEditor({ mode: 'edit', draft: { id: a.id, name: a.name, domain: a.domain, description: a.description || '', autonomy_level: a.autonomy_level, enabled: a.enabled, builtin: !!a.builtin, archived: !!a.archived_at, sense_enabled: !!a.config?.sense?.enabled, sense_cadence: a.config?.sense?.cadence || 'daily', sense_max: a.config?.sense?.max_per_run ?? 8 }, initial: JSON.stringify(a) });
     try { const g = await listAgentTools(a.id); setGrants(new Set(g.map((x) => x.tool_key))); } catch { setGrants(new Set()); }
   };
   const setD = (patch: Partial<Draft>) => setEditor((e) => e && { ...e, draft: { ...e.draft, ...patch } });
@@ -411,6 +419,13 @@ export default function AgentsPage() {
         </div>
       )}
 
+      {(agents || []).some((a) => a.archived_at) && (
+        <div className="flex justify-end mb-2">
+          <button type="button" className="text-2xs text-muted2 hover:text-content inline-flex items-center gap-1" onClick={() => setShowArchived((v) => !v)}>
+            <Icon name={showArchived ? 'ti-eye-off' : 'ti-archive'} className="text-2xs" />{showArchived ? 'Hide archived' : `Show archived (${(agents || []).filter((a) => a.archived_at).length})`}
+          </button>
+        </div>
+      )}
       <ListView
         rows={agents === null ? null : shown}
         rowKey={(a) => a.id}
@@ -466,7 +481,10 @@ export default function AgentsPage() {
         <Modal open onClose={() => setEditor(null)} dirty={JSON.stringify({ ...editor.draft }) !== editor.initial && editor.mode === 'add'} size="lg" icon="ti-robot"
           title={editor.mode === 'edit' ? 'Edit agent' : 'New agent'} onSubmit={save}
           footer={<>
-            {editor.mode === 'edit' && editor.draft.id && (
+            {editor.mode === 'edit' && editor.draft.id && editor.draft.builtin && (
+              <button className="btn mr-auto" disabled={busy} title="Built-in agents can't be deleted — archive to hide it." onClick={async () => { if (!editor.draft.id) return; const arch = !editor.draft.archived; if (arch && !confirm('Archive this built-in agent? It stops working and hides from the list until you restore it.')) return; setBusy(true); try { await setAgentArchived(editor.draft.id, arch); setEditor(null); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } }}><Icon name={editor.draft.archived ? 'ti-archive-off' : 'ti-archive'} className="text-sm" />{editor.draft.archived ? 'Restore' : 'Archive'}</button>
+            )}
+            {editor.mode === 'edit' && editor.draft.id && !editor.draft.builtin && (
               <button className="btn btn-danger mr-auto" disabled={busy} onClick={async () => { if (!editor.draft.id || !confirm('Delete this agent?')) return; setBusy(true); try { await deleteAgent(editor.draft.id); setEditor(null); load(); } catch (e: any) { setErr(e.message); } finally { setBusy(false); } }}>Delete</button>
             )}
             <button className="btn" onClick={() => setEditor(null)}>Cancel</button>
