@@ -15,7 +15,7 @@ import {
   listSocialPosts, createSocialPost, deleteSocialPost,
   listSocialChannels, createSocialChannel, deleteSocialChannel,
   SocialPost, SocialChannel, SocialPlatform,
-  getBrandVoice, setBrandVoice, getApprovalPolicy, setApprovalPolicy, approveSocialPost,
+  getBrandVoice, setBrandVoice, getApprovalPolicy, setApprovalPolicy, approveSocialPost, updateSocialPost,
 } from '@/lib/db';
 
 const PLATFORMS: { value: SocialPlatform; label: string; icon: string }[] = [
@@ -82,6 +82,11 @@ export default function SocialPage() {
   const [bv, setBv] = useState<{ tone: string; audience: string; guidelines: string; cta: string; hashtags: string }>({ tone: '', audience: '', guidelines: '', cta: '', hashtags: '' });
   const [bvBusy, setBvBusy] = useState(false);
   const [reqApproval, setReqApproval] = useState(false);
+
+  // Bulk schedule
+  const [schedOpen, setSchedOpen] = useState(false);
+  const [schedStart, setSchedStart] = useState('');
+  const [schedEvery, setSchedEvery] = useState<'daily' | 'weekdays' | 'every2' | 'weekly'>('daily');
 
   const load = () => {
     if (!org) return;
@@ -168,6 +173,27 @@ export default function SocialPage() {
     if (!rs.count) return; setBusy(true); setErr('');
     try { for (const p of rs.selected) if (!p.approved_at) await approveSocialPost(p.id); rs.clear(); load(); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const slotAt = (base: Date, i: number, every: string) => {
+    const d = new Date(base);
+    if (every === 'weekly') d.setDate(d.getDate() + i * 7);
+    else if (every === 'every2') d.setDate(d.getDate() + i * 2);
+    else if (every === 'weekdays') { let added = 0; while (added < i) { d.setDate(d.getDate() + 1); const g = d.getDay(); if (g !== 0 && g !== 6) added++; } }
+    else d.setDate(d.getDate() + i);
+    return d;
+  };
+  const schedTargets = rs.selected.filter((p) => p.status === 'draft' || p.status === 'scheduled');
+  const bulkSchedule = async () => {
+    if (!schedTargets.length || !schedStart) return; setBusy(true); setErr('');
+    const base = new Date(schedStart);
+    try {
+      let i = 0;
+      for (const p of schedTargets) { await updateSocialPost(p.id, { status: 'scheduled', scheduled_at: slotAt(base, i, schedEvery).toISOString() }); i++; }
+      setSchedOpen(false); rs.clear(); load();
+    } catch (e: any) {
+      const m = e.message || '';
+      setErr(m.includes('approval') || m.includes('42501') ? 'Some selected posts need approval before they can be scheduled. Approve them first, then bulk-schedule.' : m);
+    } finally { setBusy(false); }
   };
 
   const cell = (id: string, row: SocialPost) => {
@@ -261,11 +287,24 @@ export default function SocialPage() {
         exportValue={exportValue}
         onDelete={isAdmin ? bulkDelete : undefined}
         canDelete={isAdmin}
-        bulkActions={isAdmin ? () => <button className="btn h-8 text-xs" disabled={busy} onClick={bulkApprove}><Icon name="ti-circle-check" className="text-xs" />Approve</button> : undefined}
+        bulkActions={isAdmin ? () => <><button className="btn h-8 text-xs" disabled={busy} onClick={() => { setSchedStart(''); setSchedOpen(true); }}><Icon name="ti-calendar-plus" className="text-xs" />Schedule</button><button className="btn h-8 text-xs" disabled={busy} onClick={bulkApprove}><Icon name="ti-circle-check" className="text-xs" />Approve</button></> : undefined}
         busy={busy}
       />
 
       <div className="mt-6"><AgentPanel domain="marketing" /></div>
+
+      {/* Bulk schedule */}
+      <Modal open={schedOpen} onClose={() => setSchedOpen(false)} title="Bulk schedule" icon="ti-calendar-plus"
+        footer={<>
+          <button className="btn" onClick={() => setSchedOpen(false)}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy || !schedStart || !schedTargets.length} onClick={bulkSchedule}><Icon name="ti-clock" />{busy ? 'Scheduling\u2026' : `Schedule ${schedTargets.length} post${schedTargets.length === 1 ? '' : 's'}`}</button>
+        </>}>
+        <div className="space-y-3">
+          <p className="text-2xs text-muted2">Spreads the {schedTargets.length} eligible selected post{schedTargets.length === 1 ? '' : 's'} across a cadence from the first slot, same time each slot. Only drafts/scheduled posts are moved. Your approval policy still applies.</p>
+          <Field label="First slot"><input type="datetime-local" className="input" value={schedStart} onChange={(e) => setSchedStart(e.target.value)} /></Field>
+          <Field label="Cadence"><Select value={schedEvery} onChange={(v) => setSchedEvery(v as any)} options={[{ value: 'daily', label: 'Every day' }, { value: 'weekdays', label: 'Weekdays only' }, { value: 'every2', label: 'Every 2 days' }, { value: 'weekly', label: 'Weekly' }]} /></Field>
+        </div>
+      </Modal>
 
       {/* Composer */}
       <Modal open={composeOpen} onClose={() => setComposeOpen(false)} title="Compose post" icon="ti-pencil-plus" size="lg"
