@@ -1,4 +1,11 @@
 
+## 2026-06-30 — Phase 3F: agents analyze real performance (analyze_social_performance)
+- **Functional-now AI loop (no creds):** the marketing agent now reads your REAL social analytics and drafts concrete performance insights — best channel, sub-2% engagement-rate gaps, top-content themes, cadence — each with a recommendation.
+- **Reuses the proven deterministic "Find work in my data" engine:** extended `lib/agentScanner.ts` with a `marketing` branch + analytics ctx; `runWorkScan` fetches the analytics RPCs for marketing agents and dedupes by `insight_key`; proposals flow through the **existing approve-first RPCs** (no LLM key needed). Marketing added to `SCANNABLE_DOMAINS`.
+- **ABOS:** new `analyze_social_performance` tool (marketing, low-risk, reversible); executor persists the insight into the social insights feed **as the approving user** (RLS applies), rollback deletes it. Added to the **Content Assistant** agent (now: draft + analyze).
+- Insights surface in Competitor Watch (unified social-insights feed). esbuild + tests green.
+- Pillars: substrate ✅ composer ✅ agent-draft ✅ analytics ✅ calendar ✅ competitor-intel ✅ **+ performance-analyst ✅**. Next (creds): live publishing; (no-creds): continuous competitor sensor (pg_cron), unified inbox.
+
 ## 2026-06-30 — Phase 3E: Competitor Intelligence (live-agent watch) + nav active-state fix
 - **Nav bug fix (Tariq):** `/social` now `exact:true` — it no longer highlights while on `/social/analytics` or `/social/calendar` (two menu items were active at once). Sub-routes highlight individually.
 - **Competitor Watch (`/social/competitors`):** track competitors (name/platform/handle/url) and review an AI **insights feed** (trend / gap / threat / opportunity + recommendation, with review/action/dismiss + status). The **Competitor Watcher** agent (new ABOS starter agent, draft-only) drafts insights; `AgentPanel(marketing)` on the page.

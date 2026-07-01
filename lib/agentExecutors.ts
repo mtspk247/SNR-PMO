@@ -23,6 +23,21 @@ export const EXECUTORS: Record<string, Executor> = {
   // MARKETING — competitor intelligence. The watcher proposes a competitive insight;
   // on approval it persists a reviewable insight row (as the approving user → RLS applies).
   // Reversible: deletes the insight on rollback.
+  // MARKETING — performance analyst. Reads analytics (via the deterministic scan) and
+  // persists a performance insight for review. Runs as the approving user (RLS applies);
+  // reversible. Reuses the social insights feed (competitor_id null = own-performance).
+  analyze_social_performance: {
+    label: 'Save the performance insight',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const summary = String(p.summary || a.summary || '').slice(0, 600);
+      if (!summary.trim()) throw new Error('analyze_social_performance needs an insight summary in the payload');
+      const kind = (['trend', 'gap', 'threat', 'opportunity', 'insight'] as const).includes(p.kind) ? p.kind : 'insight';
+      const ins = await createCompetitorInsight({ org_id: ctx.orgId, summary, kind, recommendation: p.recommendation ? String(p.recommendation).slice(0, 600) : undefined, competitor_id: null });
+      return { target_table: 'social_competitor_insights', target_id: ins.id, result: { insight_id: ins.id }, reversal: { op: 'delete_competitor_insight' } };
+    },
+    rollback: async (a) => { if (a.target_id) await deleteCompetitorInsight(a.target_id); },
+  },
   watch_competitors: {
     label: 'Save the competitive insight',
     execute: async (a, ctx) => {

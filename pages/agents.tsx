@@ -444,7 +444,7 @@ export default function AgentsPage() {
               </div>
               {SCANNABLE_DOMAINS.includes(editor.draft.domain) && (
                 <div className="mt-3 flex items-center justify-between rounded-md bg-surface2 p-3 gap-3">
-                  <span className="text-xs text-muted">No key needed — scan your real {editor.draft.domain === 'accounting' ? 'expenses' : editor.draft.domain === 'tasks' ? 'tasks' : editor.draft.domain === 'people' ? 'workload' : 'deals'} for actionable work.</span>
+                  <span className="text-xs text-muted">No key needed — scan your real {editor.draft.domain === 'accounting' ? 'expenses' : editor.draft.domain === 'tasks' ? 'tasks' : editor.draft.domain === 'people' ? 'workload' : editor.draft.domain === 'marketing' ? 'social analytics & competitors' : 'deals'} for actionable work.</span>
                   <button className="btn btn-primary btn-sm whitespace-nowrap" disabled={busy} onClick={findWork}><Icon name="ti-radar" className="text-sm" />{busy ? 'Scanning…' : 'Find work in my data'}</button>
                 </div>
               )}
