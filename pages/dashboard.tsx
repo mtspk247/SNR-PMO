@@ -153,6 +153,8 @@ const defH = (k: string) => (k.startsWith('kpi_') ? 2 : 4);
 const coordsOf = (entry: string): Coords | null => { const p = entry.split(':'); return p.length >= 6 ? { x: +p[2], y: +p[3], w: +p[4], h: +p[5] } : null; };
 const makeEntry = (k: string, variant: string, c: Coords): string => { const v = variant && variant !== defVariant(k) ? variant : ''; return `${k}:${v}:${c.x}:${c.y}:${c.w}:${c.h}`; };
 
+// Bump when new default widgets are added → existing saved layouts get the new ones merged in once.
+const DASH_VER = 3;
 const DEFAULT_KEYS = [
   'kpi_projects', 'kpi_tasks', 'kpi_deals', 'kpi_pipeline',
   'kpi_agent_approvals', 'kpi_social', 'kpi_leads', 'kpi_forms', 'kpi_inbox', 'drive_storage',
@@ -231,9 +233,22 @@ export default function Dashboard() {
   useEffect(() => {
     if (!activeOrg?.id || !user?.id) return;
     getDashboardLayouts(activeOrg.id, user.id).then((dl) => {
-      if (dl.personal) { setOrder(dl.personal); setSource('personal'); }
-      else if (dl.orgDefault) { setOrder(dl.orgDefault); setSource('org'); }
-      else { setOrder(DEFAULT_KEYS); setSource('default'); }
+      const saved = dl.personal || dl.orgDefault || null;
+      const src: 'personal' | 'org' | 'default' = dl.personal ? 'personal' : dl.orgDefault ? 'org' : 'default';
+      if (!saved) { setOrder(DEFAULT_KEYS); setSource('default'); return; }
+      // Merge any newly-added default widgets into an existing saved layout, once per version.
+      const have = new Set(saved.map((e) => splitKey(e)[0]));
+      const missing = DEFAULT_KEYS.filter((k) => !have.has(k));
+      const verKey = `snr_dashmerge_v${DASH_VER}_${activeOrg.id}_${user.id}`;
+      let done = false; try { done = localStorage.getItem(verKey) === '1'; } catch { /* */ }
+      if (missing.length && !done) {
+        const merged = [...saved, ...missing];
+        setOrder(merged); setSource(src);
+        try { localStorage.setItem(verKey, '1'); } catch { /* */ }
+        saveUserDashboard(activeOrg.id, merged).catch(() => {}); // persist so the new widgets stick
+        return;
+      }
+      setOrder(saved); setSource(src);
     }).catch(() => { setOrder(DEFAULT_KEYS); setSource('default'); });
   }, [activeOrg?.id, user?.id]);
 
