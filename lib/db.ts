@@ -4460,6 +4460,18 @@ export async function deleteScreenRecording(rec: ScreenRecording): Promise<void>
   const { error } = await sb.from('screen_recordings').delete().eq('id', rec.id); if (error) throw new Error(error.message);
 }
 
+export interface RecordingShare { id: string; recording_id: string; token: string; revoked: boolean; views: number; created_at: string; }
+export async function createRecordingShare(recordingId: string): Promise<string> {
+  const { data, error } = await sb.rpc('screen_recording_share_create', { p_recording: recordingId });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function revokeRecordingShare(id: string): Promise<void> {
+  const { error } = await sb.rpc('screen_recording_share_revoke', { p_id: id }); if (error) throw new Error(error.message);
+}
+export async function listRecordingShares(recordingId: string): Promise<RecordingShare[]> {
+  const { data, error } = await sb.from('screen_recording_shares').select('id, recording_id, token, revoked, views, created_at').eq('recording_id', recordingId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as RecordingShare[]) || [];
+}
 export interface ScreenRecordingLink { id: string; recording_id: string; task_id: string; task_name: string | null; created_at: string; }
 export async function listRecordingTaskLinks(recordingId: string): Promise<ScreenRecordingLink[]> {
   const { data, error } = await sb.from('screen_recording_links').select('id, recording_id, task_id, created_at, tasks(name)').eq('recording_id', recordingId);

@@ -8,7 +8,7 @@ import { hasFeature } from '@/lib/entitlements';
 import { toast } from '@/lib/toast';
 import {
   listScreenRecordings, deleteScreenRecording, updateScreenRecording, screenRecordingUrl,
-  getOrgUsers, listRecordingTaskLinks, linkRecordingToTask, unlinkRecording, listTasksLite,
+  getOrgUsers, listRecordingTaskLinks, linkRecordingToTask, unlinkRecording, listTasksLite, createRecordingShare,
   ScreenRecording, ScreenRecordingLink, TaskLite,
 } from '@/lib/db';
 import { OrgUser } from '@/lib/supabase';
@@ -92,6 +92,15 @@ export default function RecordingsPage() {
     if (!viewer || busy) return; setBusy(true); setErr('');
     try { await unlinkRecording(id); listRecordingTaskLinks(viewer.rec.id).then(setLinks); }
     catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const shareLink = async (r: ScreenRecording) => {
+    if (busy) return; setBusy(true); setErr('');
+    try {
+      const token = await createRecordingShare(r.id);
+      const url = `${window.location.origin}/r/${token}`;
+      try { await navigator.clipboard.writeText(url); toast('Share link copied to clipboard', 'success'); }
+      catch { window.prompt('Copy this share link:', url); }
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
   const bulkDelete = async () => {
     const del = rs.selected.filter(canDeleteRec);
@@ -177,6 +186,7 @@ export default function RecordingsPage() {
         <Modal open onClose={() => setViewer(null)} size="lg" icon="ti-video" title={viewer.rec.title}
           footer={<>
             {canDeleteRec(viewer.rec) && <button className="btn btn-danger mr-auto" disabled={busy} onClick={() => removeRec(viewer.rec)}><Icon name="ti-trash" />Delete</button>}
+            <button className="btn" disabled={busy} onClick={() => shareLink(viewer.rec)}><Icon name="ti-link" />Share link</button>
             <button className="btn" onClick={() => download(viewer.rec)}><Icon name="ti-download" />Download</button>
             <button className="btn btn-primary" onClick={() => setViewer(null)}>Close</button>
           </>}>
