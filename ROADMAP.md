@@ -1,4 +1,10 @@
 
+## 2026-07-01 — Dashboard: locked "Unlock more" upsell cards (dashboard complete)
+- The dashboard now proactively surfaces features the tenant's plan LACKS as a bottom "Unlock more" grid of locked cards (CRM, Accounting, HR, AI Agents, Social, Forms, Sequences, SMS, Booking, Recordings, Drives, Client Portal) via `isUpsellLocked`. Each card = dimmed icon + Locked badge + one-click **Upgrade** (owner/admin only; others see "ask an admin").
+- **Wired to the upsell engine:** the section header/body + CTA label/href come from the resolved `feature_locked` upsell prompt (`upsellPromptsFor`) when present, else defaults → /billing. So platform owners/resellers control the dashboard upsell copy centrally.
+- In-plan widgets unchanged; hidden only while editing. Frontend-only (dashboard.tsx). Completes the Dashboard uplift (Slices 1+2 + upsell). Docs (dashboard section) updated.
+
+
 ## 2026-07-01 — Configurable upsell / upgrade-prompt engine (platform + reseller)
 - **Substrate (DB live):** `snrpmo.upsell_prompts` (owner_org NULL = platform default; owner_org = a reseller's override). Fields: slug, trigger_type (manual/usage_threshold/feature_locked/seat_limit/trial_ending), feature_key, metric+threshold_pct, placement (banner/lock_screen/modal/inline), title/body/cta_label/cta_href, min_plan, audience, status (active/paused/archived), priority, style. RLS: management SELECT for platform admins (all) + reseller owner/admin (own); writes only via SECURITY DEFINER RPCs. Partial-unique per slug (one platform default; one per reseller).
 - **RPCs:** `upsell_prompt_save` (ownership-enforced upsert), `upsell_prompt_set_status` (pause/resume/archive), **`upsell_prompts_for(org)`** resolver (member-gated; merges the org's reseller overrides + platform defaults NOT shadowed by a same-slug reseller row; active only, priority-ordered). RLS-sim: member gets defaults, non-member gets none. Seeded platform defaults: `feature-locked` (lock_screen), `storage-limit` (usage_threshold 80%).
