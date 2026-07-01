@@ -4252,3 +4252,31 @@ export async function resellerSetSubFeature(subOrgId: string, feature: string, e
   const { error } = await sb.rpc('reseller_set_sub_feature', { p_sub: subOrgId, p_feature: feature, p_enabled: enabled });
   if (error) throw new Error(error.message);
 }
+
+// ── Social Analytics (Phase 3C) ─────────────────────────────────────────────
+export interface SocialAnalyticsOverview { posts: number; impressions: number; reach: number; engagement: number; clicks: number; engagement_rate: number; }
+export interface SocialChannelStat { channel_id: string; platform: string; handle: string | null; posts: number; impressions: number; engagement: number; followers: number; }
+export interface SocialTopPost { post_id: string; body: string; platform: string | null; impressions: number; engagement: number; engagement_rate: number; published_at: string | null; }
+export interface SocialTrendPoint { day: string; engagement: number; impressions: number; }
+
+export async function socialAnalyticsOverview(orgId: string, days = 30): Promise<SocialAnalyticsOverview> {
+  const { data, error } = await sb.rpc('social_analytics_overview', { p_org: orgId, p_days: days });
+  if (error) throw new Error(error.message);
+  return (data?.[0] as SocialAnalyticsOverview) || { posts: 0, impressions: 0, reach: 0, engagement: 0, clicks: 0, engagement_rate: 0 };
+}
+export async function socialChannelStats(orgId: string): Promise<SocialChannelStat[]> {
+  const { data, error } = await sb.rpc('social_channel_stats', { p_org: orgId });
+  if (error) throw new Error(error.message); return (data as SocialChannelStat[]) || [];
+}
+export async function socialTopPosts(orgId: string, limit = 10): Promise<SocialTopPost[]> {
+  const { data, error } = await sb.rpc('social_top_posts', { p_org: orgId, p_limit: limit });
+  if (error) throw new Error(error.message); return (data as SocialTopPost[]) || [];
+}
+export async function socialEngagementTrend(orgId: string, days = 30): Promise<SocialTrendPoint[]> {
+  const { data, error } = await sb.rpc('social_engagement_trend', { p_org: orgId, p_days: days });
+  if (error) throw new Error(error.message); return (data as SocialTrendPoint[]) || [];
+}
+export async function socialRecordPostMetrics(postId: string, channelId: string | null, metrics: Record<string, number>): Promise<void> {
+  const { error } = await sb.rpc('social_record_post_metrics', { p_post: postId, p_channel: channelId, p_metrics: metrics });
+  if (error) throw new Error(error.message);
+}
