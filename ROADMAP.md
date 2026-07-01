@@ -1,4 +1,10 @@
 
+## 2026-07-01 — Social #39: RSS/import content sources
+- New **Content Sources** page (Marketing ▸ Social Media ▸ `/social/sources`): add RSS/Atom feeds → **Fetch now** pulls new articles → one-click **Draft** turns any item into a `source='rss'` draft in Social & Content (brand voice + approval + scheduler all still apply).
+- DB: `social_content_sources` + `social_source_items` (forms-pattern RLS; items are read-only to authenticated, written only by the fetch edge fn via service_role). Source-count cap (25/org). Definer `social_source_item_link_draft` (post inserted under RLS, then linked). Security Gate PASS (staff-allow / cross-tenant-deny / anon-no-grant / item-write-locked / link staff-allow+outsider-deny); advisors clean.
+- Edge fn `social-fetch-sources` (verify_jwt): reads sources under caller RLS, writes items via service_role. **SSRF-guarded** (scheme allowlist + private/loopback/link-local/metadata host block + post-redirect re-check), 8s timeout, 2MB cap, 30 items/feed, 10 feeds/run, 2-min min-refetch. Parser handles RSS + Atom + numeric HTML entities. Dedup on (source_id, guid) verified live.
+- `social_posts.source` CHECK extended with `'rss'`. Nav + db wrappers + `/docs#social` updated. Nav tests 15/15. Follow-up #39b: agent auto-draft from new items (approve-first).
+
 ## 2026-07-01 — Social #37 (part): Bulk scheduling
 - Bulk bar **Schedule** action on `/social`: spread selected draft/scheduled posts across a cadence (daily/weekdays/every-2/weekly) from a first slot. Uses RLS-safe `updateSocialPost` — approval policy still enforced server-side; admin-gated. No new tables/creds. Docs updated. RSS/import content sources = remaining part of #37.
 
@@ -299,3 +305,4 @@
 - #5 **In-app feedback**: table + RLS + `submit_feedback`/`feedback_triage`/`platform_feedback_list`; app-wide widget (PR #57) + `/feedback` admin triage (PR #60). LIVE.
 - #1 Email signup "rate limit exceeded" = Supabase Auth shared-SMTP cap → configure custom Resend SMTP + raise auth email rate limit (dashboard; not code). PENDING (operator action).
 - Docs: `/docs` `feedback` + `workspace-lifecycle` sections; SYSTEM_GUIDE updated.
+

@@ -4211,7 +4211,7 @@ export async function tenantLifecycleState(orgId: string): Promise<TenantLifecyc
 export type SocialPlatform = 'facebook'|'instagram'|'linkedin'|'x'|'youtube'|'tiktok'|'threads'|'pinterest'|'google_business';
 export interface SocialChannel { id: string; org_id: string; platform: SocialPlatform; display_name: string | null; handle: string | null; status: 'connected'|'disconnected'|'error'; created_by: string | null; created_at: string; updated_at: string; }
 export interface SocialPostChannel { id: string; org_id: string; post_id: string; channel_id: string | null; status: 'pending'|'published'|'failed'|'skipped'; external_id: string | null; error: string | null; created_at: string; }
-export interface SocialPost { id: string; org_id: string; body: string; media: any[]; status: 'draft'|'scheduled'|'published'|'failed'|'cancelled'; scheduled_at: string | null; published_at: string | null; source: 'manual'|'agent'|'automation'; created_by: string | null; created_at: string; updated_at: string; approved_by?: string | null; approved_at?: string | null; channels?: SocialPostChannel[]; }
+export interface SocialPost { id: string; org_id: string; body: string; media: any[]; status: 'draft'|'scheduled'|'published'|'failed'|'cancelled'; scheduled_at: string | null; published_at: string | null; source: 'manual'|'agent'|'automation'|'rss'; created_by: string | null; created_at: string; updated_at: string; approved_by?: string | null; approved_at?: string | null; channels?: SocialPostChannel[]; }
 
 export async function listSocialChannels(orgId: string): Promise<SocialChannel[]> {
   const { data, error } = await sb.from('social_channels').select('*').eq('org_id', orgId).order('created_at', { ascending: true });
@@ -4245,6 +4245,43 @@ export async function updateSocialPost(id: string, patch: Partial<Pick<SocialPos
 }
 export async function deleteSocialPost(id: string): Promise<void> {
   const { error } = await sb.from('social_posts').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+
+// ── Content sources (RSS/import → drafts) ───────────────────────────────────
+export interface SocialContentSource { id: string; org_id: string; kind: 'rss'|'atom'; name: string; url: string; active: boolean; last_fetched_at: string | null; last_status: string | null; last_error: string | null; item_count: number; created_by: string | null; created_at: string; updated_at: string; }
+export interface SocialSourceItem { id: string; org_id: string; source_id: string; guid: string; title: string; url: string; summary: string; published_at: string | null; drafted_post_id: string | null; created_at: string; }
+export async function listContentSources(orgId: string): Promise<SocialContentSource[]> {
+  const { data, error } = await sb.from('social_content_sources').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as SocialContentSource[]) || [];
+}
+export async function createContentSource(p: { org_id: string; name: string; url: string; created_by: string; kind?: 'rss'|'atom' }): Promise<void> {
+  const { error } = await sb.from('social_content_sources').insert({ org_id: p.org_id, name: p.name, url: p.url, kind: p.kind || 'rss', created_by: p.created_by });
+  if (error) throw new Error(error.message);
+}
+export async function updateContentSource(id: string, patch: Partial<Pick<SocialContentSource, 'name'|'url'|'active'>>): Promise<void> {
+  const { error } = await sb.from('social_content_sources').update(patch).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteContentSource(id: string): Promise<void> {
+  const { error } = await sb.from('social_content_sources').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listSourceItems(orgId: string, opts?: { undraftedOnly?: boolean; limit?: number }): Promise<SocialSourceItem[]> {
+  let q = sb.from('social_source_items').select('*').eq('org_id', orgId);
+  if (opts?.undraftedOnly) q = q.is('drafted_post_id', null);
+  q = q.order('published_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(opts?.limit ?? 200);
+  const { data, error } = await q; if (error) throw new Error(error.message); return (data as SocialSourceItem[]) || [];
+}
+// Fetch feeds server-side (SSRF-guarded, rate-limited edge fn). Returns counts.
+export async function fetchContentSources(sourceId?: string): Promise<{ fetched: number; new_items: number }> {
+  const { data, error } = await sb.functions.invoke('social-fetch-sources', { body: sourceId ? { source_id: sourceId } : {} });
+  if (error) throw new Error(error.message); return (data as { fetched: number; new_items: number }) || { fetched: 0, new_items: 0 };
+}
+// Draft a post from a feed item: post is inserted under RLS as the user, then linked to the item (definer, staff-checked).
+export async function draftPostFromItem(item: SocialSourceItem, createdBy: string): Promise<string> {
+  const body = item.url ? `${item.title}\n\n${item.url}` : item.title;
+  const post = await createSocialPost({ org_id: item.org_id, body, created_by: createdBy, source: 'rss' });
+  const { error } = await sb.rpc('social_source_item_link_draft', { p_item: item.id, p_post: post.id });
+  if (error) throw new Error(error.message);
+  return post.id;
 }
 
 // ── Reseller feature control (per-sub-tenant) ───────────────────────────────
