@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, EmptyState, Icon, StatCard, Spinner } from '@/components/ui';
 import Select from '@/components/Select';
@@ -27,6 +28,7 @@ const dstr = (s: string | null) => (s ? new Date(s).toLocaleDateString(undefined
 
 export default function SocialAnalytics() {
   const org = useActiveOrg();
+  const router = useRouter();
   const [days, setDays] = useState(30);
   const [ov, setOv] = useState<SocialAnalyticsOverview | null>(null);
   const [channels, setChannels] = useState<SocialChannelStat[]>([]);
@@ -60,7 +62,7 @@ export default function SocialAnalytics() {
     <Layout flat title="Social Analytics">
       <PageHeader help="social" title="Social Analytics" icon="ti-chart-dots"
         subtitle="Reach, engagement and top content across every channel"
-        action={<Select value={String(days)} onChange={(v) => setDays(Number(v))} options={[{ value: '7', label: 'Last 7 days' }, { value: '30', label: 'Last 30 days' }, { value: '90', label: 'Last 90 days' }]} />}
+        action={<div className="flex items-center gap-2"><Select value={String(days)} onChange={(v) => setDays(Number(v))} options={[{ value: '7', label: 'Last 7 days' }, { value: '30', label: 'Last 30 days' }, { value: '90', label: 'Last 90 days' }]} /><button className="btn" onClick={() => router.push('/social/report')}><Icon name="ti-file-text" />Export report</button></div>}
       />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {loading ? <div className="p-10"><Spinner /></div> : !hasData ? (
