@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, EmptyState, Icon, PersonTag } from '@/components/ui';
 import { ListView } from '@/components/ListView';
@@ -100,6 +101,11 @@ export default function FeedbackPage() {
 
   const load = useCallback(() => { setErr(''); sb.rpc('feedback_admin_list', { p_status: null }).then(({ data, error }) => { if (error) { setErr(error.message); setRows([]); } else setRows((data as FB[]) || []); }, (e) => { setErr(String(e?.message || e)); setRows([]); }); }, []);
   useEffect(() => { if (allowed) load(); }, [allowed, load]);
+  const router = useRouter();
+  useEffect(() => {
+    const q = router.query.id; if (typeof q !== 'string' || !rows) return;
+    const f = rows.find((x) => x.id === q); if (f) setSel(f);
+  }, [router.query.id, rows]);
 
   const shown = useMemo(() => (rows || []).filter((r) => {
     const sf = filters.status || 'all', kf = filters.kind || 'all', pf = filters.priority || 'all';

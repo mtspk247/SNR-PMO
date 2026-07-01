@@ -1,4 +1,7 @@
 
+## 2026-07-01 — Notification deep-links: open the exact record (#48 batch 1)
+- Extended precise notification routing to item-level for pages that support it: **idea** → `/ideas/{id}` (detail route), **guest_request/request** → `/requests?req={id}` (page already reads `?req=`), **feedback** → `/feedback?id={id}` (added a deep-open effect: reads `?id=`, finds the row, opens the Detail panel — mirrors the `/tasks?task=` pattern). Combined with task/deal/contact/employee/tenant already done, the large majority of notifications now open their exact record + options. Remaining (list-only for now): leave, approvals, leads, clients — add `?id=` open effects next.
+
 ## 2026-07-01 — Fix: "New signup" notification → the actual tenant (not /platform)
 - Tariq report: clicking "New signup" opened Plans & Features (`/platform`) instead of the tenant who signed up. `ensure_personal_workspace` hardcoded `link='/platform'`. Fixed → `link='/tenants/'||org_id`, `entity_type='org'`, `entity_id=org_id` (the notification's org_id IS the new tenant). `hrefFor` now routes org/tenant → `/tenants/{id}` (existing detail route). **Backfilled 86 existing signup notifications** so old ones also open the right tenant (works via link fallback even pre-deploy). Same principle to extend to remaining types = #48 (per-page item-open params for leave/requests/ideas/feedback).
 
