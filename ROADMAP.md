@@ -1,4 +1,10 @@
 
+## 2026-07-01 — Social scale pass: dispatcher/sensor hot-path indexes (DB-only, live via MCP)
+- `social_posts(scheduled_at) WHERE status='scheduled'` — cross-tenant, time-ordered due-post scan for the every-minute dispatcher (no org_id prefix, no sort at scale).
+- `social_post_channels(post_id, status)` — fast per-post channel-state checks in `social_publish_report` finalize + claim join.
+- `social_source_items(org_id, published_at desc) WHERE drafted_post_id IS NULL` — the sensor + Content Sources page read undrafted items per org every tick.
+- `social_publish_counters(day)` — global daily-cap sum. All `IF NOT EXISTS` + ANALYZE. Verified via EXPLAIN.
+
 ## 2026-07-01 — Social #30: publishing dispatcher CORE (ships dark)
 - Scalable, rate/cost-capped send pipeline (SQL core; provider API adapters + cron edge fn = #30b, needs creds). `social_post_channels` gained a `publishing` claim state + `attempts`/`claimed_at` (+ partial index on active sends).
 - `social_publish_config` singleton = **global kill-switch + global daily cap + per-tenant daily cap**; `social_publish_counters(org_id,day,sent)` enforce caps. Both deny-all (service/definer only).
