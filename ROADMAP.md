@@ -1,6 +1,11 @@
 
 
 
+
+## 2026-07-02 — Agents: queue scale index + log_activity preflight coverage
+- **Scalability:** replaced `agent_actions (org_id,status)` with covering `agent_actions_org_status_proposed_idx (org_id, status, proposed_at DESC)` so the Agent approvals queue + `agent_preflight_pending` serve filter **and** sort from the index (EXPLAIN: index scan, no sort node) at scale. Net-fewer indexes (strict superset of the old prefix).
+- **Preflight coverage:** `agent_preflight_replay` now handles `log_activity` (faithful `crm_activities` insert, rolled back), so its ready/would-fail signal is real, not n/a. RLS-sim allow + zero persistence; advisors clean. DB-only (Supabase MCP).
+
 ## 2026-07-02 — GTM: /ai-agents "control tower" section (leads with the new moat)
 - Extended the `/ai-agents` acquisition page with a **control-tower** section showcasing this session's differentiators: **Preflight before you approve**, **Learns your judgment** (noise control + policy ranking), **Just say what you want** (NL workflows — "onboard Acme Corp"), **Never fires blind** (autonomy preflight-gate). +2 trust bullets, +1 FAQ ("how do I know it'll work before I approve"), refreshed meta/OG. SSG, brand-consistent (dark/emerald), reseller-host-guarded, JSON-LD intact. Converts the shipped capability into a sellable story vs GoHighLevel.
 
