@@ -14,7 +14,8 @@ import { AGENT_DOMAINS, RISK_COLOR, toolByKey } from '@/lib/agents';
 import {
   listAgents, listAgentActions, listAgentActionEvents, decideAgentAction, rollbackAgentAction,
   listAgentPolicy, resetAgentPolicy,
-  AgentDefinition, AgentAction, AgentActionEvent, AgentPolicy, recordAgentExecution,
+  getAgentPolicyConfig, setAgentPolicyConfig, isVerbSuppressed,
+  AgentDefinition, AgentAction, AgentActionEvent, AgentPolicy, AgentPolicyConfig, recordAgentExecution,
 } from '@/lib/db';
 import { executorFor, simulateAction } from '@/lib/agentExecutors';
 
@@ -48,10 +49,13 @@ export default function AgentApprovalsPage() {
   const enabled = hasFeature(org, 'agents');
   const isAdmin = ['owner', 'admin'].includes(org?.member_role || '');
   const canApprove = isAdmin || !!me?.can_approve_agent_actions;
+  const canManage = isAdmin || !!me?.can_manage_agents;
 
   const [actions, setActions] = useState<AgentAction[] | null>(null);
   const [agents, setAgents] = useState<AgentDefinition[]>([]);
   const [policy, setPolicy] = useState<AgentPolicy[]>([]);
+  const [cfg, setCfg] = useState<AgentPolicyConfig | null>(null);
+  const [savingCfg, setSavingCfg] = useState(false);
   const [sel, setSel] = useState<AgentAction | null>(null);
   const [events, setEvents] = useState<AgentActionEvent[]>([]);
   const [note, setNote] = useState('');
@@ -64,6 +68,7 @@ export default function AgentApprovalsPage() {
     listAgentActions(org.id).then(setActions).catch((e) => { setErr(e.message); setActions([]); });
     listAgents(org.id).then(setAgents).catch(() => {});
     listAgentPolicy(org.id).then(setPolicy).catch(() => {});
+    getAgentPolicyConfig(org.id).then(setCfg).catch(() => {});
   };
   useEffect(() => { if (org?.id && enabled) { load(); prefs.setFilter('status', 'proposed'); } /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
@@ -71,9 +76,18 @@ export default function AgentApprovalsPage() {
   // Phase 3 — per-tenant policy memory: rank + explain proposals by your own approve/reject history.
   const policyMap = useMemo(() => new Map(policy.map((p) => [p.verb, p])), [policy]);
   const totalDecisions = useMemo(() => policy.reduce((n, p) => n + p.approve_count + p.reject_count, 0), [policy]);
+  // Noise control: which action types the org has muted (agents stop auto-proposing them).
+  const mutedVerbs = useMemo(() => new Set(policy.filter((p) => isVerbSuppressed(cfg, p)).map((p) => p.verb)), [policy, cfg]);
+  const mutedPending = useMemo(() => (actions || []).filter((a) => a.status === 'proposed' && mutedVerbs.has(a.tool_key)).length, [actions, mutedVerbs]);
+  const saveNoise = async (on: boolean) => {
+    if (!org || savingCfg) return; setSavingCfg(true); setErr('');
+    try { const c = await setAgentPolicyConfig(org.id, on); setCfg(c); }
+    catch (e: any) { setErr(e.message); } finally { setSavingCfg(false); }
+  };
   const signalCell = (a: AgentAction) => {
     const p = policyMap.get(a.tool_key);
     const n = p ? p.approve_count + p.reject_count : 0;
+    if (mutedVerbs.has(a.tool_key)) return <span title="You muted this action type — agents have stopped auto-proposing it. Turn off Noise control to resume.">{chip('Muted \u00b7 no longer proposed', '#6b7280')}</span>;
     if (!p || n === 0) return <span className="text-2xs text-muted2 inline-flex items-center gap-1" title="No prior decisions for this action type — your agent learns from your call."><Icon name="ti-sparkles" className="text-2xs" />New</span>;
     const obs = p.approve_count / n; const pct = Math.round(obs * 100);
     let color = '#d97706', label = 'Mixed';
@@ -172,6 +186,28 @@ export default function AgentApprovalsPage() {
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
       {!canApprove && <p className="text-xs text-amber-600 mb-3">You can view the queue but need the <b>Approve agent actions</b> permission to approve, reject, or roll back.</p>}
       {policy.length > 0 && <p className="text-xs text-muted mb-3 inline-flex items-center gap-1.5"><Icon name="ti-brain" className="text-sm text-accentstrong" />Your agents have learned from <b className="text-content">{totalDecisions}</b> decision{totalDecisions === 1 ? '' : 's'} across <b className="text-content">{policy.length}</b> action type{policy.length === 1 ? '' : 's'} — the queue is ranked by how often you approve each kind.</p>}
+
+      {canManage && policy.length > 0 && (
+        <div className="rounded-lg border border-line p-3.5 mb-5 bg-surface2/40">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="text-sm font-medium text-content inline-flex items-center gap-1.5"><Icon name="ti-filter-cog" className="text-sm text-accentstrong" />Noise control</h3>
+              <p className="text-xs text-muted mt-0.5">When on, agents <b className="text-content">stop autonomously proposing</b> action types you consistently reject (learned from at least {cfg?.suppress_min_n ?? 5} decisions). Approvals still work exactly the same — nothing is ever auto-executed, and turning this off brings the suggestions right back.</p>
+              {cfg?.auto_suppress && (
+                mutedVerbs.size > 0
+                  ? <p className="text-2xs text-muted2 mt-1.5 inline-flex items-center gap-1"><Icon name="ti-volume-off" className="text-2xs" />Muted: {[...mutedVerbs].map((v) => toolByKey(v)?.label || v).join(', ')}{mutedPending > 0 ? ` \u00b7 ${mutedPending} pending item${mutedPending === 1 ? '' : 's'} kept for review` : ''}</p>
+                  : <p className="text-2xs text-muted2 mt-1.5 inline-flex items-center gap-1"><Icon name="ti-circle-check" className="text-2xs text-emerald-600" />On — nothing is noisy enough to mute yet. Your agents keep proposing everything.</p>
+              )}
+            </div>
+            <button type="button" role="switch" aria-checked={!!cfg?.auto_suppress} disabled={savingCfg}
+              onClick={() => saveNoise(!cfg?.auto_suppress)}
+              title={cfg?.auto_suppress ? 'Turn noise control off' : 'Turn noise control on'}
+              className={`relative h-5 w-9 rounded-full transition shrink-0 disabled:opacity-50 ${cfg?.auto_suppress ? 'bg-accent' : 'bg-surface2 border border-line'}`}>
+              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${cfg?.auto_suppress ? 'left-[18px]' : 'left-0.5'}`} />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatCard label="Pending" value={String(kpis.pending)} icon="ti-clock" />

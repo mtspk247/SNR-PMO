@@ -3802,6 +3802,26 @@ export async function resetAgentPolicy(orgId: string, verb?: string): Promise<nu
   const { data, error } = await sb.rpc('agent_policy_reset', { p_org: orgId, p_verb: verb ?? null });
   if (error) throw new Error(error.message); return (data as number) ?? 0;
 }
+// Phase 3+ noise control: opt-in muting of chronically-rejected verbs. Agents STOP autonomously
+// proposing a verb once its learned score is low enough - approve-first stays inviolate.
+export interface AgentPolicyConfig { org_id: string; auto_suppress: boolean; suppress_threshold: number; suppress_min_n: number; updated_at?: string; updated_by?: string | null; }
+export const AGENT_POLICY_CONFIG_DEFAULT: Omit<AgentPolicyConfig, 'org_id'> = { auto_suppress: false, suppress_threshold: 0.34, suppress_min_n: 5 };
+export async function getAgentPolicyConfig(orgId: string): Promise<AgentPolicyConfig> {
+  const { data, error } = await sb.from('agent_policy_config').select('*').eq('org_id', orgId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as AgentPolicyConfig) || { org_id: orgId, ...AGENT_POLICY_CONFIG_DEFAULT };
+}
+export async function setAgentPolicyConfig(orgId: string, autoSuppress: boolean, threshold?: number, minN?: number): Promise<AgentPolicyConfig> {
+  const { data, error } = await sb.rpc('agent_policy_config_set', { p_org: orgId, p_auto_suppress: autoSuppress, p_threshold: threshold ?? null, p_min_n: minN ?? null });
+  if (error) throw new Error(error.message); return data as AgentPolicyConfig;
+}
+// Client mirror of snrpmo.agent_policy_suppressed - a verb is muted only when the org opted in,
+// has >= min_n human decisions on it, and its learned score is at/below the threshold.
+export function isVerbSuppressed(cfg: AgentPolicyConfig | null, p: AgentPolicy | undefined): boolean {
+  if (!cfg || !cfg.auto_suppress || !p) return false;
+  const n = p.approve_count + p.reject_count;
+  return n >= cfg.suppress_min_n && Number(p.score) <= cfg.suppress_threshold;
+}
 export interface AgentToolGrant { agent_id: string; org_id: string; tool_key: string; granted_by: string | null; granted_at: string; }
 
 export const listAgents = (orgId: string) => _list<AgentDefinition>('agent_definitions', orgId);
