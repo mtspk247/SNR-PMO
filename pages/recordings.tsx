@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/Layout';
 import { PageHeader, EmptyState, Icon, StatCard, PersonTag } from '@/components/ui';
 import { Modal } from '@/components/Modal';
-import RecorderModal from '@/components/RecorderModal';
+import RecordingEditor from '@/components/RecordingEditor';
+import { openRecorder } from '@/components/RecorderController';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { toast } from '@/lib/toast';
 import {
-  listScreenRecordings, deleteScreenRecording, updateScreenRecording, screenRecordingUrl,
+  listScreenRecordings, deleteScreenRecording, updateScreenRecording, screenRecordingUrl, uploadScreenRecording,
   getOrgUsers, listRecordingTaskLinks, linkRecordingToTask, unlinkRecording, listTasksLite, createRecordingShare, revokeRecordingShare, listRecordingShares, RecordingShare,
   ScreenRecording, ScreenRecordingLink, TaskLite,
 } from '@/lib/db';
@@ -44,7 +45,7 @@ export default function RecordingsPage() {
 
   const [recs, setRecs] = useState<ScreenRecording[] | null>(null);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [recording, setRecording] = useState(false);
+  const [editState, setEditState] = useState<{ rec: ScreenRecording; blob: Blob } | null>(null);
   const [viewer, setViewer] = useState<{ rec: ScreenRecording; url: string; poster: string } | null>(null);
   const [links, setLinks] = useState<ScreenRecordingLink[]>([]);
   const [shares, setShares] = useState<RecordingShare[]>([]);
@@ -55,6 +56,7 @@ export default function RecordingsPage() {
 
   const load = () => { if (org) listScreenRecordings(org.id).then(setRecs).catch((e) => { setErr(e.message); setRecs([]); }); };
   useEffect(() => { if (org?.id && enabled) { load(); getOrgUsers(org.id).then(setUsers).catch(() => {}); listTasksLite(org.id).then(setTasks).catch(() => {}); } /* eslint-disable-line */ }, [org?.id, enabled]);
+  useEffect(() => { const h = () => load(); window.addEventListener('snr:recording-saved', h); return () => window.removeEventListener('snr:recording-saved', h); /* eslint-disable-line */ }, [org?.id]);
 
   const nameOf = (id: string | null) => users.find((u) => u.id === id)?.full_name || '—';
   const canDeleteRec = (r: ScreenRecording) => isAdmin || r.created_by === me?.id;
@@ -111,6 +113,11 @@ export default function RecordingsPage() {
       if (viewer) listRecordingShares(viewer.rec.id).then(setShares).catch(() => {});
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
+  const openEditExisting = async (r: ScreenRecording) => {
+    if (!r.storage_path) return; setBusy(true); setErr('');
+    try { const url = await screenRecordingUrl(r.storage_path); const res = await fetch(url); const b = await res.blob(); setEditState({ rec: r, blob: b }); }
+    catch { setErr('Could not load this recording for editing.'); } finally { setBusy(false); }
+  };
   const bulkDelete = async () => {
     const del = rs.selected.filter(canDeleteRec);
     if (!del.length) { toast('You can only delete recordings you own.', 'error'); return; }
@@ -155,7 +162,7 @@ export default function RecordingsPage() {
   return (
     <Layout flat title="Screen Recordings">
       <PageHeader help="recordings" title="Screen Recordings" subtitle="Record your screen for demos, bug reports, and walkthroughs — stored securely in your workspace." icon="ti-video"
-        action={<button className="btn btn-primary" onClick={() => setRecording(true)}><Icon name="ti-player-record" />New recording</button>} />
+        action={<button className="btn btn-primary" onClick={() => openRecorder()}><Icon name="ti-player-record" />New recording</button>} />
       {err && <p className="text-sm text-rose-600 mb-3">{err}</p>}
 
       <div className="grid grid-cols-3 gap-4 mb-5">
@@ -186,16 +193,22 @@ export default function RecordingsPage() {
         emptyText="No recordings yet. Click “New recording” to capture your screen."
       />
 
-      {recording && me && org && (
-        <RecorderModal orgId={org.id} userId={me.id} onClose={() => setRecording(false)}
-          onSaved={() => { setRecording(false); load(); }} />
-      )}
 
+      {editState && me && org && (
+        <RecordingEditor src={editState.blob} onCancel={() => setEditState(null)}
+          onDone={async (b, ext) => {
+            if (ext === 'gif') { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `${editState.rec.title}.gif`; document.body.appendChild(a); a.click(); a.remove(); setEditState(null); return; }
+            setBusy(true); setErr('');
+            try { await uploadScreenRecording({ org_id: org.id, created_by: me.id, title: `${editState.rec.title} (edited)`, blob: b, duration_sec: editState.rec.duration_sec || 0, mime: (b.type || 'video/webm').split(';')[0] }); toast('Edited copy saved', 'success'); setEditState(null); setViewer(null); load(); }
+            catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+          }} />
+      )}
       {viewer && (
         <Modal open onClose={() => setViewer(null)} size="lg" icon="ti-video" title={viewer.rec.title}
           footer={<>
             {canDeleteRec(viewer.rec) && <button className="btn btn-danger mr-auto" disabled={busy} onClick={() => removeRec(viewer.rec)}><Icon name="ti-trash" />Delete</button>}
             <button className="btn" disabled={busy} onClick={() => shareLink(viewer.rec)}><Icon name="ti-link" />Share link</button>
+            <button className="btn" disabled={busy} onClick={() => openEditExisting(viewer.rec)}><Icon name="ti-scissors" />Edit</button>
             <button className="btn" onClick={() => download(viewer.rec)}><Icon name="ti-download" />Download</button>
             <button className="btn btn-primary" onClick={() => setViewer(null)}>Close</button>
           </>}>

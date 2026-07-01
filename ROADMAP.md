@@ -1,4 +1,11 @@
 
+## 2026-07-02 — Recorder rebuild: global engine + non-blocking floating bar + edit-after-save
+- **App-wide recording engine** — `components/RecorderController.tsx` mounted in `_app`; recording now **survives route navigation** and is no longer a blocking modal. Triggered anywhere via `openRecorder()` (event bus); reloads /recordings on save via `snr:recording-saved`. Replaced + removed RecorderModal.
+- **Non-blocking floating toolbar** during recording (draggable): timer, pause/resume, stop, mic/webcam indicators. Setup + preview remain modals only at natural start/stop points; **only Stop ends recording** (closing/navigating won't). Fixes "modal blocks the app / closing kills the recording".
+- **Edit after save** — Edit button in the /recordings viewer loads an existing recording into the editor (trim/timelapse/watermark/brightness/crop/GIF) and saves an edited copy (`Title (edited)`), or downloads a GIF.
+- Deferred (fast follow): movable webcam bubble DURING recording (viewport→captured-screen mapping); pro settings dropdowns (resolution/fps/format) — currently quality presets. Frontend; verify live.
+
+
 ## 2026-07-02 — Recording share links: rate-limiting + management panel
 - **Hardened the anon `recording-share` edge fn (v2):** per-IP + global rate limiting via `rate_limit_ok` (60/min per IP, 3000/min global, fail-closed → 429) on top of token entropy. Directly addresses the API-rate gap.
 - **Share management panel** in the /recordings viewer: lists active share links with view counts, per-link Copy + Revoke (creator/admin via `screen_recording_share_revoke`). db wrappers revokeRecordingShare/listRecordingShares. Docs updated.
