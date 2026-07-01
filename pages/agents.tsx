@@ -15,10 +15,11 @@ import AgentBriefing from '@/components/AgentBriefing';
 import { ChatCommand, CHAT_TOOLABLE } from '@/lib/chatCommands';
 import { executorFor, canAutoExecute, chatAutoEligible } from '@/lib/agentExecutors';
 import { SCANNABLE_DOMAINS } from '@/lib/agentScanner';
+import { WORKFLOW_TEMPLATES, workflowByKey } from '@/lib/agentPlans';
 import { toast } from '@/lib/toast';
 import {
   listAgents, createAgent, updateAgent, deleteAgent, listAgentTools, grantAgentTool, revokeAgentTool, seedStarterAgents,
-  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, agentUsageSummary, runWorkScan,
+  listAgentCostLimits, setAgentCostLimit, listAgentUsage, simulateAgentProposal, runAgentProposer, agentUsageCost, agentUsageSummary, runWorkScan, proposeWorkflowPlan,
   setAgentSensing, setOrgAgentsPaused, getOrgAgentsPaused,
   listAgentActions, recordAgentExecution, autoApproveAgentAction, agentPreflight,
   listChatCommands, createChatCommand, updateChatCommand, deleteChatCommand, seedBuiltinChatCommands,
@@ -60,6 +61,9 @@ export default function AgentsPage() {
   const [askAgentId, setAskAgentId] = useState('');
   const [askReq, setAskReq] = useState('');
   const [asking, setAsking] = useState(false);
+  const [wfKey, setWfKey] = useState('');
+  const [wfVals, setWfVals] = useState<Record<string, string>>({});
+  const [wfBusy, setWfBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [commands, setCommands] = useState<ChatCommand[]>([]);
@@ -242,6 +246,23 @@ export default function AgentsPage() {
     } catch (e: any) { toast(e?.message || 'Could not run the agent', 'error'); } finally { setAsking(false); }
   };
 
+  // Workflow launcher: propose a deterministic multi-step plan (approve-first, preflighted).
+  const wfTpl = workflowByKey(wfKey);
+  const proposePlan = async () => {
+    if (!org || !wfTpl || wfBusy) return;
+    const agentId = askAgentId || (agents || []).find((a) => a.enabled)?.id || '';
+    if (!agentId) { toast('Create or enable an agent first.', 'info'); return; }
+    const missing = wfTpl.fields.filter((fld) => fld.required && !(wfVals[fld.key] || '').trim());
+    if (missing.length) { toast('Fill in: ' + missing.map((m) => m.label).join(', '), 'info'); return; }
+    setWfBusy(true);
+    try {
+      const steps = wfTpl.build(wfVals);
+      const { count } = await proposeWorkflowPlan(org.id, agentId, wfTpl.label, steps);
+      toast('Proposed a ' + count + '-step plan — review & approve', 'success');
+      setWfKey(''); setWfVals({}); router.push('/agent-approvals');
+    } catch (e: any) { toast(e?.message || 'Could not propose the plan', 'error'); } finally { setWfBusy(false); }
+  };
+
   // Org-wide cost ceiling editor (agent_id = null)
   const orgLimit = (period: 'day' | 'month') => limits.find((l) => l.agent_id === null && l.period === period);
   const [limDraft, setLimDraft] = useState<{ period: 'day' | 'month'; max_runs: string; max_usd: string } | null>(null);
@@ -308,6 +329,40 @@ export default function AgentsPage() {
             <button className="btn btn-primary shrink-0" disabled={asking || !askReq.trim()} onClick={askAgent}><Icon name="ti-send" className="text-sm" />{asking ? 'Thinking…' : 'Ask'}</button>
           </div>
           <p className="text-2xs text-muted2 mt-1.5">Your agent reasons over your data and proposes concrete, approve-first actions — nothing runs until you approve (with the dry-run preview).</p>
+        </div>
+      )}
+
+      {canManage && agents && agents.some((a) => a.enabled) && (
+        <div className="card p-4 mb-5 border border-line">
+          <div className="flex items-center gap-2 mb-1"><Icon name="ti-route" className="text-accentstrong" /><h3 className="text-sm font-semibold text-content">Run a workflow</h3><span className="text-2xs text-muted2 rounded-full bg-surface2 px-1.5 py-0.5">approve-first</span></div>
+          <p className="text-2xs text-muted2 mb-3">Pick a workflow and your agent proposes the whole thing as an ordered, reversible plan — every step is dry-run + preflighted before you approve.</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {WORKFLOW_TEMPLATES.map((t) => (
+              <button key={t.key} type="button" onClick={() => { setWfKey(wfKey === t.key ? '' : t.key); setWfVals({}); }}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition ${wfKey === t.key ? 'border-accent bg-accent/10 text-content' : 'border-line hover:border-borderstrong text-muted'}`}>
+                <Icon name={t.icon} className="text-sm" />{t.label}
+              </button>
+            ))}
+          </div>
+          {wfTpl && (
+            <div className="rounded-lg border border-line p-3 bg-surface2/40 space-y-3">
+              <p className="text-2xs text-muted2">{wfTpl.description}</p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {wfTpl.fields.map((fld) => (
+                  <div key={fld.key} className={fld.kind === 'list' ? 'sm:col-span-2' : ''}>
+                    <label className="text-2xs uppercase tracking-wide text-muted2">{fld.label}</label>
+                    {fld.kind === 'list'
+                      ? <textarea className="input min-h-[56px] resize-y mt-0.5" value={wfVals[fld.key] || ''} placeholder={fld.placeholder} onChange={(e) => setWfVals({ ...wfVals, [fld.key]: e.target.value })} />
+                      : <input className="input mt-0.5" value={wfVals[fld.key] || ''} placeholder={fld.placeholder} onChange={(e) => setWfVals({ ...wfVals, [fld.key]: e.target.value })} />}
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button className="btn btn-primary btn-sm" disabled={wfBusy} onClick={proposePlan}><Icon name="ti-wand" className="text-sm" />{wfBusy ? 'Proposing…' : `Propose plan (${wfTpl.build(wfVals).length} step${wfTpl.build(wfVals).length === 1 ? '' : 's'})`}</button>
+                <span className="text-2xs text-muted2">Proposed as approve-first — nothing runs until you approve each step.</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-5">
