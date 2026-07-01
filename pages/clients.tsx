@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { titleCase } from '@/lib/format';
 import Select from '@/components/Select';
 import Layout from '@/components/Layout';
@@ -69,6 +70,15 @@ export default function ClientsPage() {
   const [err, setErr] = useState('');
   // Set of collapsed group keys
 
+  const router = useRouter();
+  const openedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = router.query.id;
+    if (!id || typeof id !== 'string' || !clients) return;
+    if (openedRef.current === id) return;
+    const row = clients.find((c) => c.id === id);
+    if (row) { openedRef.current = id; setEditor({ mode: 'edit', draft: row, initial: JSON.stringify(row) }); }
+  }, [clients, router.query.id]);
   const load = () => {
     if (!org) return;
     listClients(org.id).then(setClients).catch((e) => { setErr(e.message); setClients([]); });

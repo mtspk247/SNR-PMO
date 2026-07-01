@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Select from '@/components/Select';
@@ -75,6 +75,14 @@ export default function LeadsPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  const openedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = router.query.id;
+    if (!id || typeof id !== 'string' || !leads) return;
+    if (openedRef.current === id) return;
+    const row = leads.find((l) => l.id === id);
+    if (row) { openedRef.current = id; setEditor({ mode: 'edit', draft: row }); }
+  }, [leads, router.query.id]);
   const load = () => {
     if (!org) return;
     listLeads(org.id).then(setLeads).catch((e) => { setErr(e.message); setLeads([]); });

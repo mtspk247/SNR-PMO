@@ -57,6 +57,10 @@ function hrefFor(n: AppNotification): string | null {
   if (et === 'idea') return id ? `/ideas/${id}` : '/ideas';
   if (et === 'guest_request' || et === 'request') return id ? `/requests?req=${id}` : '/requests';
   if (et === 'feedback') return id ? `/feedback?id=${id}` : '/feedback';
+  if (et === 'lead') return id ? `/leads?id=${id}` : '/leads';
+  if (et === 'client') return id ? `/clients?id=${id}` : '/clients';
+  if (et === 'expense_claim') return id ? `/expense-claims?id=${id}` : '/expense-claims';
+  if (et === 'approval') return id ? `/approvals?id=${id}` : '/approvals';
   // drive/comment carry a precise link already — prefer it
   if (et === 'drive' || et === 'drive_file' || et === 'drive_comment' || et === 'comment') return n.link || '/drives';
   // list-level pages (correct destination even without an item param)
