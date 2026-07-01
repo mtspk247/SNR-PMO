@@ -1,4 +1,9 @@
 
+## 2026-07-01 — Screen Recorder v2: countdown, pause/resume, quality presets, webcam PiP
+- **Recorder upgraded (components/RecorderModal.tsx) to a Loom-class capture tool:** 3-2-1 **countdown**; **pause/resume** (MediaRecorder.pause/resume + timer); **quality presets** (High 8Mbps / Balanced 4Mbps / Light 15fps+0.66 scale → smaller files) applied via `videoBitsPerSecond` + `frameRate`; **webcam picture-in-picture** composited on a canvas (screen + circular webcam bubble → `canvas.captureStream`), with mic mixed in via Web Audio. Falls back to direct display capture when no webcam/scale (most efficient). Keeps thumbnail capture + fail-closed scan-gated upload + caps.
+- Completes the achievable **web** recorder feature set. Native-only Screenflick items (HEVC/ProRes, system-wide draw/keystroke overlays, scheduled/unattended capture, iPhone remote/camera, Automator/Shortcuts) remain out of scope for a browser app — would need a separate desktop companion. Docs (recordings) updated.
+
+
 ## 2026-07-01 — Dashboard: locked "Unlock more" upsell cards (dashboard complete)
 - The dashboard now proactively surfaces features the tenant's plan LACKS as a bottom "Unlock more" grid of locked cards (CRM, Accounting, HR, AI Agents, Social, Forms, Sequences, SMS, Booking, Recordings, Drives, Client Portal) via `isUpsellLocked`. Each card = dimmed icon + Locked badge + one-click **Upgrade** (owner/admin only; others see "ask an admin").
 - **Wired to the upsell engine:** the section header/body + CTA label/href come from the resolved `feature_locked` upsell prompt (`upsellPromptsFor`) when present, else defaults → /billing. So platform owners/resellers control the dashboard upsell copy centrally.
