@@ -256,6 +256,7 @@ export const SECTIONS: Section[] = [
           { text: 'AI agent ROI — a 30-day summary of the value your AI agents created: estimated hours saved, dollar value, net of metered spend, actions completed, auto-run share, reliability and an ROI multiple. Opens the full Agent Activity view.' },
           { text: 'Storage — how much of your plan’s storage quota is used (drive files + screen recordings) with a usage bar that turns amber then red as you approach the limit, plus file and recording counts. Opens Drives.' },
           { text: 'Fully customisable — click Edit to drag, resize, add or remove any widget and switch chart variants; save your own layout or, as an admin, set the workspace default. Reset returns to the default at any time. Every tile links directly to the relevant module.' },
+          { text: 'Unlock more — features not on your current plan appear at the bottom as locked cards (CRM, Accounting, AI Agents, Social, Screen Recording and more) so you can see what is available and upgrade in one click. What the button says and where it points is controlled by your provider’s upgrade prompts.' },
         ],
       },
     ],

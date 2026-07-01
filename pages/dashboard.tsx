@@ -12,14 +12,14 @@ import InstallPrompt from '@/components/InstallPrompt';
 import KeyRotationNudge from '@/components/KeyRotationNudge';
 import { Pill, Spinner, EmptyState, Icon, Avatar, StatusBadge } from '@/components/ui';
 import { useAuthStore, useActiveOrg } from '@/lib/store';
-import { hasFeature } from '@/lib/entitlements';
+import { hasFeature, isUpsellLocked } from '@/lib/entitlements';
 import { computeRoi, AgentRoiSummary, DEFAULT_LABOR_RATE_USD } from '@/lib/agentRoi';
 import { atLeast, can } from '@/lib/authz';
 import {
   getProjects, getTasks, getDeals, getLedgerEntries,
   getEmployees, getLeaves, getOnboardingTasks,
   getDashboardLayouts, saveUserDashboard, saveOrgDashboard, resetUserDashboard,
-  dashboardCounts, DashboardCounts, agentRoiSummary,
+  dashboardCounts, DashboardCounts, agentRoiSummary, upsellPromptsFor, UpsellPrompt,
 } from '@/lib/db';
 import {
   Project, Task, Deal, LedgerEntry, Employee, Leave, OnboardingTask, OrgRole, FeatureKey,
@@ -162,6 +162,22 @@ const DEFAULT_KEYS = [
   'due_soon', 'agent_roi', 'my_tasks', 'projects_list', 'headcount', 'leave', 'onboarding',
 ];
 
+// Features surfaced on the dashboard as locked "unlock more" cards when the plan lacks them.
+const UPSELL_FEATURES: { feature: FeatureKey; title: string; icon: string; blurb: string }[] = [
+  { feature: 'crm', title: 'CRM & Sales Pipeline', icon: 'ti-target-arrow', blurb: 'Track leads, deals and clients end-to-end.' },
+  { feature: 'financial', title: 'Accounting & Invoicing', icon: 'ti-currency-dollar', blurb: 'Invoices, bills, ledger and reports.' },
+  { feature: 'hr', title: 'HR & Recruiting', icon: 'ti-users', blurb: 'Jobs, applicants, onboarding and appraisals.' },
+  { feature: 'agents', title: 'AI Agents', icon: 'ti-robot', blurb: 'Automate back-office work with approval-first AI.' },
+  { feature: 'social', title: 'Social & Content', icon: 'ti-speakerphone', blurb: 'Plan, schedule and publish across channels.' },
+  { feature: 'forms', title: 'Forms & Lead Capture', icon: 'ti-forms', blurb: 'Forms that create leads automatically.' },
+  { feature: 'sequences', title: 'Drip Email Marketing', icon: 'ti-mail-forward', blurb: 'Nurture leads with multi-step campaigns.' },
+  { feature: 'comms', title: 'SMS Messaging', icon: 'ti-message-2', blurb: 'Two-way SMS with your customers.' },
+  { feature: 'booking', title: 'Booking', icon: 'ti-calendar-plus', blurb: 'Let clients book time with your team.' },
+  { feature: 'recordings', title: 'Screen Recording', icon: 'ti-video', blurb: 'Record demos, bug reports and walkthroughs.' },
+  { feature: 'drives', title: 'Drives & Files', icon: 'ti-cloud', blurb: 'Secure cloud storage with real-time docs.' },
+  { feature: 'portal', title: 'Client Portal', icon: 'ti-layout-dashboard', blurb: 'A branded portal for your clients.' },
+];
+
 export default function Dashboard() {
   const { user } = useAuthStore();
   const activeOrg = useActiveOrg();
@@ -176,6 +192,7 @@ export default function Dashboard() {
   const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>([]);
   const [counts, setCounts] = useState<DashboardCounts>({});
   const [roi, setRoi] = useState<AgentRoiSummary | null>(null);
+  const [upsells, setUpsells] = useState<UpsellPrompt[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [order, setOrder] = useState<string[]>(DEFAULT_KEYS);
@@ -205,8 +222,9 @@ export default function Dashboard() {
       getOnboardingTasks().catch(() => [] as OnboardingTask[]),
       dashboardCounts(activeOrg.id).catch(() => ({} as DashboardCounts)),
       hasFeature(activeOrg, 'agents') ? agentRoiSummary(activeOrg.id, 30).catch(() => null) : Promise.resolve(null),
-    ]).then(([p, t, d, l, emp, lv, ob, dc, ri]) => {
-      setProjects(p); setTasks(t); setDeals(d); setLedger(l); setEmployees(emp); setLeaves(lv); setOnboardingTasks(ob); setCounts(dc as DashboardCounts); setRoi(ri as AgentRoiSummary | null);
+      upsellPromptsFor(activeOrg.id).catch(() => [] as UpsellPrompt[]),
+    ]).then(([p, t, d, l, emp, lv, ob, dc, ri, up]) => {
+      setProjects(p); setTasks(t); setDeals(d); setLedger(l); setEmployees(emp); setLeaves(lv); setOnboardingTasks(ob); setCounts(dc as DashboardCounts); setRoi(ri as AgentRoiSummary | null); setUpsells((up as UpsellPrompt[]) || []);
     }).finally(() => setLoading(false));
   }, [activeOrg?.id]);
 
@@ -592,6 +610,12 @@ export default function Dashboard() {
   const baseKeys = order.map((e) => splitKey(e)[0]);
   const shown = order.filter(visible);
   const available = Object.keys(WIDGET_META).filter((k) => visible(k) && !baseKeys.includes(k));
+  const lockedCards = UPSELL_FEATURES.filter((f) => isUpsellLocked(activeOrg, f.feature));
+  const flPrompt = upsells.find((u) => u.trigger_type === 'feature_locked' && u.status === 'active');
+  const upsellCta = { label: flPrompt?.cta_label || 'Upgrade', href: flPrompt?.cta_href || '/billing' };
+  const upsellHeader = flPrompt?.title || 'Unlock more with an upgrade';
+  const upsellSub = flPrompt?.body || 'These features are available on a higher plan — upgrade to switch them on for your whole team.';
+  const canBill = can.manageBilling(activeOrg);
 
   const remove = (entry: string) => setOrder((prev) => prev.filter((x) => x !== entry));
   const add = (k: string) => { setOrder((prev) => [...prev, k]); setAddOpen(false); };
@@ -697,6 +721,28 @@ export default function Dashboard() {
             );
           })}
         </GridW>
+      )}
+
+      {!editing && lockedCards.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold text-content mb-1 inline-flex items-center gap-2"><Icon name="ti-lock-open" className="text-muted2" />{upsellHeader}</h2>
+          <p className="text-2xs text-muted2 mb-3">{upsellSub}</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {lockedCards.map((f) => (
+              <div key={f.feature} className="card p-4 flex flex-col">
+                <div className="flex items-center justify-between">
+                  <span className="w-9 h-9 rounded-lg grid place-items-center bg-surface2 text-muted2"><Icon name={f.icon} /></span>
+                  <span className="inline-flex items-center gap-1 text-2xs font-medium text-amber-600"><Icon name="ti-lock" className="text-xs" />Locked</span>
+                </div>
+                <p className="text-sm font-semibold text-content mt-2">{f.title}</p>
+                <p className="text-2xs text-muted2 mt-0.5 flex-1">{f.blurb}</p>
+                {canBill
+                  ? <Link href={upsellCta.href} className="btn btn-sm btn-primary w-full mt-3"><Icon name="ti-arrow-up" className="text-sm" />{upsellCta.label}</Link>
+                  : <p className="text-2xs text-muted2 mt-3">Ask an admin to upgrade.</p>}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </Layout>
   );
