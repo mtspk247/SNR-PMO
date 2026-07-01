@@ -1,5 +1,9 @@
 
 
+
+## 2026-07-02 — GTM: /ai-agents "control tower" section (leads with the new moat)
+- Extended the `/ai-agents` acquisition page with a **control-tower** section showcasing this session's differentiators: **Preflight before you approve**, **Learns your judgment** (noise control + policy ranking), **Just say what you want** (NL workflows — "onboard Acme Corp"), **Never fires blind** (autonomy preflight-gate). +2 trust bullets, +1 FAQ ("how do I know it'll work before I approve"), refreshed meta/OG. SSG, brand-consistent (dark/emerald), reseller-host-guarded, JSON-LD intact. Converts the shipped capability into a sellable story vs GoHighLevel.
+
 ## 2026-07-02 — Agents moat: noise control, transactional preflight, autonomy gate, workflow launcher
 - **Noise control (#143)** — opt-in per-org suppression: agents stop autonomously proposing verbs a tenant chronically rejects. `agent_policy_config` (RLS member-read/DEFINER-write, fail-closed) + `agent_policy_suppressed` resolver + `agent_sensors_run` guards each verb at the source (saves scan + LLM-enrich cost). Approve-first inviolate; only unsolicited sensing suppressed. Toggle on Agent approvals.
 - **Transactional preflight (#144)** — opening a proposed create/composite action replays its writes AS the approver (SECURITY INVOKER → RLS/RBAC/page-CRUD/CHECK/FK/triggers) in a rolled-back subtransaction, force-aborted via P0001. Zero persistence / no side effects. Modal shows Verified / Would-fail (+reason); Approve disabled on certain failure.
