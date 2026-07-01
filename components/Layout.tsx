@@ -15,6 +15,7 @@ import AppFooter from '@/components/AppFooter';
 import CheckInPopup from '@/components/CheckInPopup';
 import PollPopup from '@/components/PollPopup';
 import HelpAssistant from '@/components/HelpAssistant';
+import ChiefOfStaff from '@/components/ChiefOfStaff';
 import GlobalSearch from '@/components/GlobalSearch';
 import ActivityTicker from '@/components/ActivityTicker';
 import ChatPanel from '@/components/ChatPanel';
@@ -325,6 +326,7 @@ export default function Layout({ title, children, flat = false }: { title: strin
       <ShortcutsFab />
       <FeedbackWidget />
       <HelpAssistant />
+      <ChiefOfStaff />
       <CheckInPopup />
       <PollPopup />
       <Toaster />

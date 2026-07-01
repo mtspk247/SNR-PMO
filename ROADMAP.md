@@ -5,6 +5,11 @@
 
 
 
+
+## 2026-07-02 — Chief of Staff program · Phase 2 slice 1: the floating manager chat
+- **Shipped:** `components/ChiefOfStaff.tsx` \u2014 a floating, plan + Manage-agents-gated assistant (bottom-left, mounted in Layout). Talk to it in plain English: it runs ready-made workflows ("onboard Acme Corp"), **creates new agents on request** ("create a support agent"), answers "what needs my attention?", and routes free-form asks to the LLM proposer \u2014 all **as the signed-in user** (RLS/RBAC, never a super-user), all **approve-first + preflighted** through the existing queue. Deterministic-first (works with no AI key); `parseCreateAgent` unit-tested 7/7. No new DB.
+- **Next (Phase 2 remaining):** scheduled + sent reports (scheduled-tasks + report aggregates), SMS/email sends (comms substrate, cost-capped + rate-limited + approve-first), broader read/CRUD tools, an orchestrator edge fn for richer multi-step planning.
+
 ## 2026-07-02 — Chief of Staff program · Phase 1: built-in agent team (non-deletable defaults)
 - **Shipped:** `agent_definitions.builtin` + `archived_at`; RESTRICTIVE delete policy so built-ins can never be deleted (pause/archive only); `agent_set_archived` RPC; feature-aware `seed_builtin_agents` seeding the **Chief of Staff** + Work/CRM/Finance/People assistants (gated by plan features), auto-seeded on the Agents page. UI: **System** badge, Archive/Restore (not Delete) for built-ins, Show-archived toggle. RLS-sim verified (seed=5, delete-blocked, archive); advisors clean; demo org seeded.
 - **Phase 2 (next) — Chief of Staff chat (the "wow"):** a floating, plan/RBAC-gated assistant that acts **as the signed-in user** (RLS/RBAC — never a super-user, no bypass) and can, per the owner's spec: **create more agents** on request (manage-gated), **read/CRUD across modules** through the user's own permissions, **schedule + send reports** (reuse scheduled-tasks + report builder), **send SMS/email** (reuse comms substrate — cost-capped, rate-limited, approve-first for outbound), and **delegate/supervise** the domain agents (drops approve-first, preflighted proposals into their queue). All writes stay approve-first + preflighted + audited + reversible; sends and money-paths are human-gated + capped. Backed by Groq (assistant_config) via an orchestrator edge fn with a tool registry.
