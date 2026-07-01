@@ -1,4 +1,7 @@
 
+## 2026-07-01 — Fix: "New signup" notification → the actual tenant (not /platform)
+- Tariq report: clicking "New signup" opened Plans & Features (`/platform`) instead of the tenant who signed up. `ensure_personal_workspace` hardcoded `link='/platform'`. Fixed → `link='/tenants/'||org_id`, `entity_type='org'`, `entity_id=org_id` (the notification's org_id IS the new tenant). `hrefFor` now routes org/tenant → `/tenants/{id}` (existing detail route). **Backfilled 86 existing signup notifications** so old ones also open the right tenant (works via link fallback even pre-deploy). Same principle to extend to remaining types = #48 (per-page item-open params for leave/requests/ideas/feedback).
+
 ## 2026-07-01 — Fix: notification click-through deep-links
 - Bug (Tariq): clicking a notification landed on a generic page (or nothing), not the respective item/options. Root causes: incomplete client `hrefFor` + several DB creators emitting generic/empty links.
 - **Client `hrefFor` (components/NotificationBell.tsx) made comprehensive:** item-level deep links for task (`?task=`), crm_deal/contact (`/crm/deal|contact/id`), employee (`/employees/id`); correct list pages for project/leave/chat/lead/client/company/contract/proposal/guest_request/approval/feedback/social/idea/invoice/bill/expense_claim/ticket/application/interview/job/offer/appraisal/subscription/reminder/booking/org; drive/comment prefer their stored precise link; then link fallback.

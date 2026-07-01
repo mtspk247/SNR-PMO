@@ -44,7 +44,7 @@ const NOTIF_PAGE: Record<string, string> = {
   expense_claim: '/expense-claims', ticket: '/admin/support', support: '/admin/support',
   application: '/applications', interview: '/interviews', job: '/jobs', offer: '/offers',
   appraisal: '/appraisals', subscription: '/recurring-billing', reminder: '/calendar',
-  org: '/tenants', tenant: '/tenants', notice: '/dashboard', booking: '/booking', appointment: '/booking',
+  notice: '/dashboard', booking: '/booking', appointment: '/booking',
 };
 function hrefFor(n: AppNotification): string | null {
   const et = (n.entity_type || '').toLowerCase();
@@ -54,6 +54,7 @@ function hrefFor(n: AppNotification): string | null {
   if (et === 'crm_deal' || et === 'deal') return id ? `/crm/deal/${id}` : '/crm';
   if (et === 'contact' || et === 'crm_contact') return id ? `/crm/contact/${id}` : '/crm';
   if (et === 'employee') return id ? `/employees/${id}` : '/employees';
+  if (et === 'org' || et === 'tenant') return id ? `/tenants/${id}` : '/tenants';
   // drive/comment carry a precise link already — prefer it
   if (et === 'drive' || et === 'drive_file' || et === 'drive_comment' || et === 'comment') return n.link || '/drives';
   // list-level pages (correct destination even without an item param)
