@@ -1,4 +1,11 @@
 
+## 2026-07-01 — Recording share links (Loom-style public viewer)
+- **DB:** `screen_recording_shares` (token, expires_at, revoked, views) + forms-pattern RLS (staff-read; writes via SECURITY DEFINER RPCs) + `screen_recording_share_create` (staff+`tenant_can('recordings')`, reuses active share, 36-hex token) / `screen_recording_share_revoke` (creator/admin). RLS-sim own-allow/cross-deny PASS.
+- **Anon edge fn `recording-share`** (verify_jwt=false, CORS): token → validates share (not revoked/expired) via service_role → short-lived (1h) signed URL + org name + view count. Token = 36-hex high-entropy (brute-force-infeasible); never exposes storage paths.
+- **Public page `/r/[token]`** (unauthenticated, no app chrome): branded player, read-only, noindex; graceful "link unavailable" for revoked/expired. **Share link** button in the recordings viewer creates + copies the URL.
+- Security/scale: private bucket + signed-URL (cached 1h) + revocable + org-scoped. db wrappers create/revoke/list. Docs updated. Roadmap Phase-4 "instant shareable links" shipped.
+
+
 ## 2026-07-01 — Recording Studio Phase 2: facecam position/size + cursor toggle
 - Studio: webcam bubble now has **4-corner position** + **S/M/L size** controls (applied in the canvas compositor); **Show mouse cursor** capture toggle via getDisplayMedia `cursor` constraint. Web-achievable roadmap Phase-2 items. Keystroke display, live annotation over other apps, separate audio tracks = native/deferred. Frontend-only; verify live.
 
