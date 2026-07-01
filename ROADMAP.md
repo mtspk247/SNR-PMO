@@ -1,4 +1,13 @@
 
+
+## 2026-07-02 — Agents moat: noise control, transactional preflight, autonomy gate, workflow launcher
+- **Noise control (#143)** — opt-in per-org suppression: agents stop autonomously proposing verbs a tenant chronically rejects. `agent_policy_config` (RLS member-read/DEFINER-write, fail-closed) + `agent_policy_suppressed` resolver + `agent_sensors_run` guards each verb at the source (saves scan + LLM-enrich cost). Approve-first inviolate; only unsolicited sensing suppressed. Toggle on Agent approvals.
+- **Transactional preflight (#144)** — opening a proposed create/composite action replays its writes AS the approver (SECURITY INVOKER → RLS/RBAC/page-CRUD/CHECK/FK/triggers) in a rolled-back subtransaction, force-aborted via P0001. Zero persistence / no side effects. Modal shows Verified / Would-fail (+reason); Approve disabled on certain failure.
+- **Queue-level + update coverage (#145)** — shared `agent_preflight_replay` helper; extended to the UPDATE tools (triage_task/categorize_expense/update_deal_stage, flags stale/denied targets); new capped `agent_preflight_pending` batch → Preflight column + "N ready · M would fail" summary + Check all pending.
+- **Autonomy safety gate (#146)** — auto_low_risk agents run each candidate through preflight first; would-fail actions are held for human review instead of auto-firing.
+- **Workflow launcher (#147)** — managers pick a workflow (Onboard a client / Kick off a project), fill a few fields, and the agent proposes an ordered, approve-first, preflighted, reversible plan grouped in one run (`lib/agentPlans.ts` + RLS-safe `proposeWorkflowPlan`).
+- Every slice: RBAC + RLS server-enforced, advisors clean, 6 CI checks green, docs (/docs#agents) + SYSTEM_GUIDE updated. All live on main / snr-pmo.vercel.app.
+
 ## 2026-07-02 — Recorder pro settings: explicit Resolution / FPS / Format
 - Replaced the High/Balanced/Light presets in RecorderController with pro dropdowns: **Resolution** 720p/1080p/1440p (canvas-downscaled to target height, bitrate 4/8/12 Mbps), **Frame rate** 30/60 fps, **Format** Auto/MP4/WebM (pickMime honors the choice, mp4-first on Auto where supported). getDisplayMedia requests `height:{ideal}`; canvas pipeline scales to target. Frontend; verify live. 4K + plan-gating deferred (needs a resolution capability in the plan system).
 
