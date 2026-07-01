@@ -1,4 +1,11 @@
 
+## 2026-06-30 — Social #31: Unified engagement inbox (all networks)
+- **Signature best-in-market pillar:** `/social/inbox` — every comment / mention / DM across channels in one two-pane stream (conversation list + thread + reply), status (open/pending/closed), unread, per-platform icons. `AgentPanel(marketing)` in-context.
+- **Secure substrate (live via MCP):** `social_conversations` + `social_messages`. Staff-read RLS; staff may send **outbound** replies (tenant-gated, creator-stamped, conversation-scoped) + manage status; **inbound arrives only via SECURITY DEFINER `social_ingest_inbound`** (webhook dispatcher/service, org from channel). Authenticated grants, anon revoked. **Security Gate:** staff read+reply own org ✓, cross-tenant convs = 0 ✓, anon read denied ✓.
+- **ABOS:** new `draft_social_reply` tool (marketing, low-risk, reversible) — agent drafts an on-brand outbound reply (status 'draft') **as the approving user** (RLS applies), rollback deletes it. Added to the Content Assistant agent. Brand voice (#35) flows into it.
+- Demo conversations seeded (3) so the inbox is populated. db wrappers + nav (Marketing ▸ Social Media) + `/docs#social`. Tests 24/24.
+- Ready for **live two-way** once provider webhooks connect (P4a creds): `social_ingest_inbound` is the ingestion entrypoint; outbound send wires to the same dispatcher as publishing.
+
 ## 2026-06-30 — Social #34: Approval workflow + publish RBAC (RLS-enforced)
 - **Publish gate at the RLS layer:** RESTRICTIVE `social_posts_publish_gate` — a post reaches scheduled/published only if approval isn't required, OR it's approved (`approved_at`), OR the editor is owner/admin. Server-enforced. Per-org `social_approval_policy` (owner/admin-write) + `social_approve_post` RPC + `approved_by/at` columns.
 - Security Gate (RLS-sim): non-admin unapproved schedule DENIED ✓, owner bypass ✓, approved-post schedule ✓; advisors clean. UI (`/social`): Require-approval toggle + Approval column + bulk Approve. (DB live via MCP; frontend re-based clean after a squash-stack conflict.)
