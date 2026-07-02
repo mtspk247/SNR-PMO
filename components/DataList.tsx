@@ -18,7 +18,7 @@ const CF_PREFIX = 'cf:';
 const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
 // Extract sortable text from a rendered cell — lets DataList self-sort on pages that
 // don't supply rawValue (walks strings/numbers/arrays/element children).
-function nodeText(node: ReactNode): string {
+export function nodeText(node: ReactNode): string {
   if (node == null || node === false || node === true) return '';
   if (typeof node === 'string' || typeof node === 'number') return String(node);
   if (Array.isArray(node)) return node.map(nodeText).join(' ');
