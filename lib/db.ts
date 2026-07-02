@@ -1426,6 +1426,30 @@ export async function listFormSubmissions(formId: string): Promise<FormSubmissio
   const { data, error } = await sb.from('form_submissions').select('*').eq('form_id', formId).order('created_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as FormSubmissionRow[]) || [];
 }
+// ---- Release management (release_management) --------------------------------
+export interface ReleaseHighlight { title: string; body: string }
+export interface Release { id: string; version: string; title: string; highlights: ReleaseHighlight[]; body: string | null; audience: 'all' | 'internal'; status: 'draft' | 'published' | 'archived'; build_sha: string | null; migrations: string[]; rollback_notes: string | null; published_at: string | null; created_at: string; updated_at: string; }
+export async function listReleases(limit = 20): Promise<Release[]> {
+  const { data, error } = await sb.from('releases').select('*').order('published_at', { ascending: false, nullsFirst: true }).order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as Release[]) || [];
+}
+export async function latestRelease(): Promise<Release | null> {
+  const { data, error } = await sb.from('releases').select('*').eq('status', 'published').order('published_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) return null; return (data as Release) || null;
+}
+export async function createRelease(p: Partial<Release> & { version: string; title: string }): Promise<Release> {
+  const { data, error } = await sb.from('releases').insert({ version: p.version, title: p.title, highlights: p.highlights || [], body: p.body || null, audience: p.audience || 'all', status: p.status || 'draft', build_sha: p.build_sha || null, migrations: p.migrations || [], rollback_notes: p.rollback_notes || null, published_at: p.status === 'published' ? new Date().toISOString() : null }).select('*').single();
+  if (error) throw new Error(error.message); return data as Release;
+}
+export async function updateRelease(id: string, patch: Partial<Release>): Promise<void> {
+  const row: any = { ...patch, updated_at: new Date().toISOString() };
+  if (patch.status === 'published' && !patch.published_at) row.published_at = new Date().toISOString();
+  const { error } = await sb.from('releases').update(row).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteRelease(id: string): Promise<void> {
+  const { error } = await sb.from('releases').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+
 // ---- Document signing (sign_foundation) ------------------------------------
 export interface SignRequest { id: string; org_id: string; file_id: string | null; title: string; message: string | null; status: 'draft' | 'sent' | 'completed' | 'voided' | 'expired'; expires_at: string | null; created_by: string | null; created_at: string; updated_at: string; completed_at: string | null; }
 export interface SignRecipient { id: string; request_id: string; org_id: string; email: string; name: string | null; role: 'signer' | 'cc'; sign_order: number; status: 'pending' | 'viewed' | 'consented' | 'signed' | 'declined'; viewed_at: string | null; signed_at: string | null; decline_reason: string | null; }
