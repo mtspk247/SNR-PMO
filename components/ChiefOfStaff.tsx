@@ -4,9 +4,9 @@ import { Icon } from '@/components/ui';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { AGENT_TOOLS, AGENT_DOMAINS } from '@/lib/agents';
-import { detectWorkflow, workflowByKey, detectInvite, parseEmail, parseInviteRole, suggestInviteRole, detectUpgrade, parseTrainingChanges, parseChiefAction, stripMd, type ChiefAction, type InviteIntent, type InviteRole, type TrainingChanges, type UpgradeIntent } from '@/lib/agentPlans';
+import { detectWorkflow, workflowByKey, detectInvite, parseEmail, parseInviteRole, suggestInviteRole, detectUpgrade, parseTrainingChanges, parseChiefAction, stripMd, detectRemember, detectForget, type ChiefAction, type InviteIntent, type InviteRole, type TrainingChanges, type UpgradeIntent } from '@/lib/agentPlans';
 import { retrieveSections, sectionPlain } from '@/lib/docs';
-import { listAgents, proposeWorkflowPlan, createAgent, listAgentTools, runAgentProposer, askChief, getEmployees, dashboardCounts, AssistantTurn, AgentDefinition } from '@/lib/db';
+import { listAgents, proposeWorkflowPlan, createAgent, listAgentTools, runAgentProposer, askChief, getEmployees, dashboardCounts, assistantMemoryList, assistantMemoryUpsert, assistantMemoryForget, assistantFeedbackAdd, AssistantTurn, AgentDefinition } from '@/lib/db';
 
 // Chief of Staff — the project's AI Personal Assistant. LLM-first + conversational: every question
 // is answered by the chief-assistant edge fn, GROUNDED in the live product docs AND a live,
@@ -15,13 +15,14 @@ import { listAgents, proposeWorkflowPlan, createAgent, listAgentTools, runAgentP
 // (run a workflow, create an agent) are proposed approve-first through the existing queue.
 // Movable launcher + persisted conversation history.
 type MsgLink = { href: string; label: string };
-type Msg = { role: 'user' | 'assistant'; content: string; link?: MsgLink };
+type Msg = { role: 'user' | 'assistant'; content: string; link?: MsgLink; fb?: 1 | -1 };
 
 // Multi-turn conversational flows: the assistant collects missing details across
 // turns, then proposes ONE approve-first action through the normal queue.
 type Pending =
   | { kind: 'invite'; step: 'email' | 'role'; email?: string; role?: InviteRole; suggested?: InviteRole; why?: string; src: string }
-  | { kind: 'upgrade'; step: 'agent' | 'tools'; changes: TrainingChanges; agentId?: string; agentName?: string; offered?: string[] };
+  | { kind: 'upgrade'; step: 'agent' | 'tools'; changes: TrainingChanges; agentId?: string; agentName?: string; offered?: string[] }
+  | { kind: 'learn'; q: string; a: string };
 const CANCEL_RE = /\b(cancel|never ?mind|forget it|abort)\b/i;
 const AFFIRM_RE = /^\s*(y(es|ep|eah)?|ok(ay)?|sure|sounds good|go (ahead|for it)|do it|confirm|proceed|please do|that works)\b/i;
 const AUTONOMY_SHORT: Record<string, string> = { draft_only: 'draft-only', approve_first: 'approve-first', auto_low_risk: 'auto low-risk' };
@@ -74,6 +75,7 @@ export default function ChiefOfStaff() {
   const ctxCache = useRef<{ id: string; title: string; text: string }[] | null>(null);
   const pend = useRef<Pending | null>(null);
   const agentsCache = useRef<AgentDefinition[] | null>(null);
+  const lastMem = useRef<string>('');
   const drag = useRef<{ on: boolean; moved: boolean; dx: number; dy: number }>({ on: false, moved: false, dx: 0, dy: 0 });
   const histKey = org ? `chief_hist_${org.id}` : '';
 
@@ -208,6 +210,17 @@ export default function ChiefOfStaff() {
     const p = pend.current;
     if (!p) return false;
     if (CANCEL_RE.test(msg)) { pend.current = null; reply('No problem \u2014 cancelled.'); return true; }
+    if (p.kind === 'learn') {
+      if (/^\s*(skip|no|nah|leave it|it's fine)\b/i.test(msg)) { pend.current = null; reply('Okay — thanks for the signal; I logged it so we can keep improving.'); return true; }
+      const content = `When asked \u201c${p.q.slice(0, 140)}\u201d, the correct answer/behaviour is: ${msg.slice(0, 320)}`;
+      try {
+        await assistantMemoryUpsert(org!.id, 'correction', content);
+        lastMem.current = content; ctxCache.current = null;
+        reply('Learned — I\u2019ll answer that way for everyone in this workspace from now on. Say \u201cforget that\u201d any time to undo it.');
+      } catch (e: any) { reply(`I couldn\u2019t save that: ${e?.message || 'try again'}.`); }
+      pend.current = null;
+      return true;
+    }
     if (p.kind === 'invite') {
       if (p.step === 'email') {
         const e = parseEmail(msg);
@@ -248,6 +261,10 @@ export default function ChiefOfStaff() {
       const [emps, counts] = await Promise.all([getEmployees(org!.id).catch(() => [] as any[]), dashboardCounts(org!.id).catch(() => ({} as any))]);
       const team = (emps || []).slice(0, 60).map((e: any) => `- ${e.full_name}${e.job_title ? ` — ${e.job_title}` : ''}${e.department ? ` (${e.department})` : ''} · role: ${e.role}${e.status && e.status !== 'active' ? ` [${e.status}]` : ''}`).join('\n');
       live.push({ id: 'live-team', title: `Team — ${(emps || []).length} people`, text: team || 'No team members are visible to you.' });
+      try {
+        const mems = await assistantMemoryList(org!.id, 30);
+        if (mems.length) live.push({ id: 'live-learned', title: 'Learned about this workspace (authoritative)', text: mems.map((m) => `- ${m.content}`).join('\n') });
+      } catch { /* learning is optional context */ }
       const m: any = counts || {};
       live.push({ id: 'live-metrics', title: 'Live workspace metrics', text: [
         `Pending agent approvals: ${m.agent_pending ?? 0}`, `Overdue tasks: ${m.tasks_overdue ?? 0}`,
@@ -274,6 +291,26 @@ export default function ChiefOfStaff() {
         if (!canManage) { reply('You need the “Manage agents” permission to create agents.'); return; }
         await createAgent({ org_id: org.id, name: ca.name, domain: ca.domain as any, autonomy_level: 'approve_first', created_by: me?.id || null });
         reply(`Done — I created a new agent, “${ca.name}” (${ca.domain}). It works approve-first; open Agents to grant it tools.`, { href: '/agents', label: 'Open Agents' });
+        return;
+      }
+      const rem = detectRemember(msg);
+      if (rem) {
+        try {
+          await assistantMemoryUpsert(org.id, rem.kind, rem.content);
+          lastMem.current = rem.content; ctxCache.current = null;
+          reply(`Got it — I\u2019ll remember that for this whole workspace (${rem.kind}). Every manager\u2019s assistant learns it too. Say \u201cforget that\u201d to undo.`);
+        } catch (e: any) { reply(`I couldn\u2019t save that: ${e?.message || 'try again'}.`); }
+        return;
+      }
+      const fg = detectForget(msg);
+      if (fg) {
+        const target = fg.match || lastMem.current;
+        if (!target) { reply('Tell me what to forget — e.g. \u201cforget the note about invoicing\u201d.'); return; }
+        try {
+          const n = await assistantMemoryForget(org.id, target.slice(0, 200));
+          ctxCache.current = null; if (!fg.match) lastMem.current = '';
+          reply(n > 0 ? 'Done — forgotten for the whole workspace.' : 'I couldn\u2019t find a matching note to forget.');
+        } catch (e: any) { reply(`Couldn\u2019t forget that: ${e?.message || 'try again'}.`); }
         return;
       }
       const inv = detectInvite(msg);
@@ -313,6 +350,15 @@ export default function ChiefOfStaff() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // 👍/👎 on an answer → org-wide quality signal; 👎 also offers to learn the correction.
+  async function rate(i: number, rating: 1 | -1) {
+    const m = msgs[i]; if (!m || m.role !== 'assistant' || m.fb) return;
+    let q = ''; for (let j = i - 1; j >= 0; j--) { if (msgs[j].role === 'user') { q = msgs[j].content; break; } }
+    setMsgs((prev) => prev.map((x, xi) => (xi === i ? { ...x, fb: rating } : x)));
+    try { await assistantFeedbackAdd(org!.id, q, m.content, rating); } catch { /* non-fatal */ }
+    if (rating === -1) { pend.current = { kind: 'learn', q, a: m.content }; reply('Thanks — what should I have said? I\u2019ll learn it for the whole team (or say \u201cskip\u201d).'); }
   }
 
   // Draggable launcher (persisted). A small move-threshold distinguishes drag from click.
@@ -373,6 +419,12 @@ export default function ChiefOfStaff() {
                   <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
                   {m.role === 'assistant' && m.link && (
                     <Link href={m.link.href} onClick={() => setOpen(false)} className="inline-flex items-center gap-1 mt-2 text-2xs px-2 py-1 rounded-full bg-surface2 text-accentstrong hover:bg-accent/10 transition-colors"><Icon name="ti-arrow-right" className="text-2xs" />{m.link.label}</Link>
+                  )}
+                  {m.role === 'assistant' && (
+                    <span className="inline-flex items-center gap-1 ml-2 align-middle">
+                      <button onClick={() => rate(i, 1)} disabled={!!m.fb} aria-label="Good answer" title="Good answer" className={`text-2xs ${m.fb === 1 ? 'text-emerald-500' : 'text-muted2 hover:text-emerald-500'} disabled:cursor-default`}><Icon name="ti-thumb-up" className="text-xs" /></button>
+                      <button onClick={() => rate(i, -1)} disabled={!!m.fb} aria-label="Needs work" title="Needs work — teach me" className={`text-2xs ${m.fb === -1 ? 'text-rose-500' : 'text-muted2 hover:text-rose-500'} disabled:cursor-default`}><Icon name="ti-thumb-down" className="text-xs" /></button>
+                    </span>
                   )}
                 </div>
               </div>

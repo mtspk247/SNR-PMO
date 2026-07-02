@@ -259,3 +259,27 @@ export function parseChiefAction(answer: string): { shown: string; action: Chief
 export function stripMd(text: string): string {
   return (text || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|\n)#{1,4}\s+/g, '$1').replace(/(^|\n)\s*[*•]\s+/g, '$1- ');
 }
+
+// ---- Continuous learning: "remember / forget" (org-wide assistant memory) ----
+export interface RememberIntent { content: string; kind: 'fact' | 'preference' | 'correction' }
+export function detectRemember(raw: string): RememberIntent | null {
+  const text = (raw || '').trim();
+  if (!text) return null;
+  let kind: RememberIntent['kind'] = 'fact';
+  let m = text.match(/^\s*(?:please\s+|hey\s+)?(?:remember|note|keep in mind|learn)(?:\s+that)?[:,]?\s+(.{3,500})$/i);
+  if (!m) { m = text.match(/^\s*(?:from now on|going forward)[:,]?\s+(.{3,500})$/i); if (m) kind = 'preference'; }
+  if (!m) return null;
+  const content = m[1].replace(/\s+/g, ' ').replace(/["'.!\s]+$/g, '').trim();
+  if (!content || /\?$/.test(content)) return null;
+  if (/^to\s+(invite|add|create|set ?up|onboard|kick|train|grant)\b/i.test(content)) return null; // an action request, not a fact
+  if (/\b(always|never|prefer(s|red)?|should|must|don.?t|do not)\b/i.test(content)) kind = 'preference';
+  return { content, kind };
+}
+export function detectForget(raw: string): { match: string } | null {
+  const text = (raw || '').trim();
+  if (/^\s*(?:please\s+)?forget\s+(?:that|it)\s*[.!]?\s*$/i.test(text)) return { match: '' }; // undo the last learned item
+  const m = text.match(/^\s*(?:please\s+)?(?:forget|unlearn)(?:\s+(?:that|about))?\s+(.{2,300})$/i);
+  if (!m) return null;
+  const match = m[1].replace(/\s+/g, ' ').replace(/["'.!\s]+$/g, '').trim();
+  return match ? { match } : null;
+}
