@@ -166,3 +166,31 @@ test('parseChiefAction: survey action line parses like the other kinds', () => {
   assert.equal(action?.attrs.topic, 'tenant feedback');
   assert.ok(!shown.includes('[['));
 });
+
+
+// ---- Generic create registry (chiefCreate): CoS can create records across modules ----
+test('detectCreate: routes create-asks to the right registry kind with attrs', () => {
+  const { detectCreate } = require('../lib/chiefCreate');
+  const t1 = detectCreate('create a task called Review Q3 numbers due tomorrow');
+  assert.equal(t1?.kind, 'task'); assert.equal(t1?.attrs.due, 'tomorrow'); assert.ok(/review q3 numbers/i.test(t1?.attrs.name || ''));
+  const t2 = detectCreate('add a lead John Smith john@acme.com worth $12k');
+  assert.equal(t2?.kind, 'lead'); assert.equal(t2?.attrs.email, 'john@acme.com'); assert.equal(t2?.attrs.value, '12k');
+  const t3 = detectCreate('make a deal called "Acme renewal" valued at 8,500');
+  assert.equal(t3?.kind, 'deal'); assert.equal(t3?.attrs.name, 'Acme renewal'); assert.equal(t3?.attrs.value, '8,500');
+  const t4 = detectCreate('create a qr code for https://wketing.com/pricing');
+  assert.equal(t4?.kind, 'qr'); assert.equal(t4?.attrs.url, 'https://wketing.com/pricing');
+  const t5 = detectCreate('create a survey and ask tenant what you think about our project and what improvement they would like to have in this.');
+  assert.equal(t5?.kind, 'survey'); assert.ok((t5?.attrs.topic || '').length > 0);
+  assert.ok(!(t5?.attrs.topic || '').includes('and what improvement'), 'topic should stop before "and what"');
+  assert.equal(detectCreate('create an agent called Helper'), null); // agents keep their own flow
+  assert.equal(detectCreate('add a teammate dana@acme.com'), null);  // invites keep their own flow
+  assert.equal(detectCreate('what tasks are due?'), null);           // no create verb → LLM
+});
+test('parseChiefAction: create action line carries kind + attrs', () => {
+  const { parseChiefAction } = require('../lib/agentPlans');
+  const { action } = parseChiefAction('On it. [[create kind=deal name=Acme renewal value=12000]]');
+  assert.equal(action?.kind, 'create');
+  assert.equal(action?.attrs.kind, 'deal');
+  assert.equal(action?.attrs.name, 'Acme renewal');
+  assert.equal(action?.attrs.value, '12000');
+});

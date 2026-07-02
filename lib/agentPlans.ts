@@ -239,10 +239,10 @@ export function detectUpgrade(raw: string, agentNames: string[], catalog: { key:
 // ---- Chief-assistant ACTION protocol (LLM path → deterministic flows) ----
 // The edge fn instructs the model to end an actionable reply with one [[...]] line;
 // the client strips it from the shown text and routes into the SAME approve-first flows.
-export interface ChiefAction { kind: 'invite' | 'train' | 'workflow' | 'survey'; attrs: Record<string, string> }
+export interface ChiefAction { kind: 'invite' | 'train' | 'workflow' | 'survey' | 'create'; attrs: Record<string, string> }
 export function parseChiefAction(answer: string): { shown: string; action: ChiefAction | null } {
-  const m = (answer || '').match(/\[\[\s*(invite|train|workflow|survey)\b([^\]]*)\]\]/i);
-  const shown = (answer || '').replace(/\s*\[\[\s*(invite|train|workflow|survey)\b[^\]]*\]\]\s*/gi, ' ').replace(/\s+\n/g, '\n').trim();
+  const m = (answer || '').match(/\[\[\s*(invite|train|workflow|survey|create)\b([^\]]*)\]\]/i);
+  const shown = (answer || '').replace(/\s*\[\[\s*(invite|train|workflow|survey|create)\b[^\]]*\]\]\s*/gi, ' ').replace(/\s+\n/g, '\n').trim();
   if (!m) return { shown, action: null };
   const raw = m[2] || '';
   const attrs: Record<string, string> = {};
