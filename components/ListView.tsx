@@ -1,7 +1,7 @@
 import { ReactNode, useState, useMemo, useEffect, useRef } from 'react';
 import { ListToolbar, useListPrefs, ColDef, FilterDef, ListPrefs } from '@/components/ListToolbar';
 import { useRowSelection, BulkBar } from '@/components/RowSelection';
-import { DataList, GroupMeta, EditSpec } from '@/components/DataList';
+import { DataList, GroupMeta, EditSpec, nodeText } from '@/components/DataList';
 import { Spinner, EmptyState, Icon } from '@/components/ui';
 import Dropdown from '@/components/Dropdown';
 import { Board } from '@/components/Board';
@@ -124,17 +124,27 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
       if (!dk) return rows;
       return [...rows].sort((a, b) => String((b as any)[dk] ?? '').localeCompare(String((a as any)[dk] ?? '')));
     }
-    const get = (r: T) => (p.exportValue ? p.exportValue(sortBy, r) : p.rawValue ? p.rawValue(sortBy, r) : '');
+    // Always produce a comparable value for the clicked column: exportValue → rawValue →
+    // the rendered cell's text (same fallback DataList's self-sort uses). Without the
+    // fallback, columns not covered by exportValue/rawValue compared '' vs '' — a no-op,
+    // i.e. header sort arrows that "don't work at all".
+    const get = (r: T): string => {
+      const ev = p.exportValue ? p.exportValue(sortBy, r) : undefined;
+      if (ev !== undefined && ev !== null && String(ev) !== '') return String(ev);
+      const rv = p.rawValue ? p.rawValue(sortBy, r) : undefined;
+      if (rv !== undefined && rv !== null && String(rv) !== '') return String(rv);
+      return nodeText(p.cell(sortBy, r));
+    };
     const arr = [...rows];
     arr.sort((a, b) => {
       const av = get(a) ?? '', bv = get(b) ?? '';
       const an = parseFloat(av), bn = parseFloat(bv);
       const num = !isNaN(an) && !isNaN(bn) && av.trim() !== '' && bv.trim() !== '';
-      const c = num ? an - bn : av.localeCompare(bv);
+      const c = num ? an - bn : av.localeCompare(bv, undefined, { numeric: true });
       return sortDir === 'asc' ? c : -c;
     });
     return arr;
-  }, [rows, sortBy, sortDir, p.exportValue, p.rawValue]);
+  }, [rows, sortBy, sortDir, p.exportValue, p.rawValue, p.cell]);
 
   const doExport = (scope: 'selected' | 'all' = 'selected') => {
     if (!p.exportName) return;

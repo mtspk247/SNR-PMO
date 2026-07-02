@@ -45,6 +45,11 @@ const NOTIF_PAGE: Record<string, string> = {
   appraisal: '/appraisals', subscription: '/recurring-billing', reminder: '/calendar',
   notice: '/dashboard', booking: '/booking', appointment: '/booking',
 };
+const TITLE_HINTS: [RegExp, string][] = [
+  [/task/i, '/tasks'], [/feedback/i, '/feedback'], [/invoice/i, '/invoicing'], [/expense/i, '/expense-claims'],
+  [/leave/i, '/leave'], [/lead/i, '/leads'], [/deal|pipeline/i, '/crm'], [/ticket|support/i, '/admin/support'],
+  [/project/i, '/projects'], [/agent/i, '/agent-approvals'],
+];
 function hrefFor(n: AppNotification): string | null {
   const et = (n.entity_type || '').toLowerCase();
   const id = n.entity_id;
@@ -66,7 +71,12 @@ function hrefFor(n: AppNotification): string | null {
   // list-level pages (correct destination even without an item param)
   if (NOTIF_PAGE[et]) return NOTIF_PAGE[et];
   // finally, any stored link
-  return n.link || null;
+  if (n.link) return n.link;
+  // Legacy rows (older producers wrote no entity/link): infer from the text so a
+  // notification is NEVER a dead click; worst case it lands on the dashboard.
+  const hay = `${n.title || ''} ${n.body || ''}`;
+  for (const [re, href] of TITLE_HINTS) { if (re.test(hay)) return href; }
+  return '/dashboard';
 }
 
 export default function NotificationBell({ onCount }: { onCount?: (n: number) => void } = {}) {
