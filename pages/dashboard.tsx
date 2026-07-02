@@ -672,7 +672,7 @@ export default function Dashboard() {
             {greeting}, {user?.full_name?.split(' ')[0] || 'there'}{briefFrags.length > 0 ? ` — ${briefFrags.length} thing${briefFrags.length === 1 ? '' : 's'} need${briefFrags.length === 1 ? 's' : ''} you today.` : ' — you\u2019re all caught up.'}
           </p>
           <p className="text-xs mt-0.5" style={{ opacity: 0.75 }}>
-            {briefFrags.length > 0 ? briefFrags.slice(0, 3).map((f) => f.text).join(' · ') : 'Nothing is waiting on you right now.'}
+            {briefFrags.length > 0 ? briefFrags.slice(0, 3).map((f) => f.text).join(' · ') + '.' : 'Nothing is waiting on you right now.'}
             {brief && (brief.executed_today || 0) > 0 ? ` Your agents completed ${brief.executed_today} action${brief.executed_today === 1 ? '' : 's'} today.` : ''}
           </p>
         </div>
@@ -707,7 +707,7 @@ export default function Dashboard() {
         <div className="space-y-2 overflow-hidden">
           {activity.slice(0, 6).map((a) => (
             <p key={a.id} className="text-2xs text-muted truncate">
-              <span className="font-medium text-content">{a.username || 'system'}</span> {a.action}{a.entity_type ? ` · ${a.entity_type}` : ''}
+              <span className="font-medium text-content">{a.username || 'system'}</span> {({ INSERT: 'created', UPDATE: 'updated', DELETE: 'deleted' } as Record<string, string>)[a.action] || a.action.toLowerCase()}{a.entity_type ? ` ${a.entity_type}` : ''}
               <span className="text-muted2"> · {new Date(a.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </p>
           ))}
