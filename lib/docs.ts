@@ -678,6 +678,21 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'releases',
+    title: 'Updates & release notes',
+    icon: 'ti-sparkles',
+    blocks: [
+      { kind: 'p', text: 'The platform ships improvements continuously — and tells you about them the way a mobile OS does. When a new version is live, a small prompt appears with the version number and the highlights of what changed; one click refreshes you onto it (installed app users tap Update now). The full history lives under Support > What\u2019s new.' },
+      { kind: 'bullets', items: [
+        { text: 'Update prompt — the app checks quietly every few minutes (and whenever you return to the tab) whether a newer build is live. Nothing interrupts your work: the prompt waits until you choose to refresh.' },
+        { text: 'What\u2019s in the update — each release lists its highlights in plain language, so you know what you\u2019re getting before you refresh. The full feed with longer notes is on the What\u2019s new page.' },
+        { text: 'Safe releases — every release is shipped through automated checks (types, tests, security scans) and progressive rollout: new modules go live dark and expand cohort by cohort. Each release records its rollback plan, and database changes are expand-only — an update never destroys your data.' },
+        { text: 'Instant rollback — if anything ever misbehaves, the previous version can be restored in seconds (deployments are immutable), and point-in-time database recovery protects your data independently of app releases.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: release notes are read-only for everyone; only platform operators can author them. Drafts and internal notes are never visible to workspaces.' },
+    ],
+  },
+  {
     id: 'client-portal',
     title: 'Client portal',
     icon: 'ti-layout-dashboard',

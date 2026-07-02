@@ -174,6 +174,7 @@ export const SECTIONS: NavSection[] = [
   { kind: 'link', item: { href: '/drives', label: 'Drives', icon: 'ti-cloud', feature: 'drives' } },
   { kind: 'menu', key: 'support', label: 'Support', icon: 'ti-lifebuoy', items: [
     { href: '/support', label: 'Support', icon: 'ti-lifebuoy', feature: 'support' },
+    { href: '/whats-new', label: 'What\u2019s new', icon: 'ti-sparkles' },
     { href: '/admin/support-agents', label: 'Support Agents', icon: 'ti-headset', platformOnly: true },
     { href: '/admin/support', label: 'Support Queue', icon: 'ti-list-check', platformOnly: true },
   ]},

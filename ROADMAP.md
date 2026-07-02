@@ -7,6 +7,11 @@
 
 
 
+## 2026-07-02 — Release Management System slice 1 (owner directive: "like a mobile OS update")
+- **Shipped (migration `release_management` + PR):** `releases` table (version/title/highlights/body/audience/status + **release-safety record**: build_sha, migrations[], rollback_notes) — RLS: published+all readable by every authenticated user, platform-admin-only authoring + drafts/internal (sim: member-read/author-deny/draft-hidden/admin-CRUD/anon-deny ALL PASS). **UpdateToast v2**: the buildId-diff detector now shows WHAT'S IN the update — version, headline, highlights, platform-aware CTA (installed PWA "Update now" vs browser "Refresh now"), collapse-to-pill, link to full notes. **/whats-new** (Support ▸ What's new, core nav): release feed + platform-admin authoring (highlights editor, safety record admin-only render) + seen-marker. Seeded v2026.07.02 with today's real notes. Docs `/docs#releases` + SYSTEM_GUIDE.
+- **Rollback model (documented per release):** code = promote previous immutable Vercel deployment; data = expand→contract mandate + pre-risk backups; **PITR = pending owner toggle (Supabase add-on)** — flagged again.
+- **Deferred (flagged):** reseller-curated notes per white-label; email digest of releases; release→feature_rollouts linkage (auto-list which dark features a release contains); in-nav unseen badge.
+
 ## 2026-07-02 — Chief of Staff: generic CREATE registry (acts across ALL modules)
 - **Shipped (PR #172 + edge fn chief-assistant v5):** owner feedback "chief shouldn't only create surveys" → `lib/chiefCreate.ts` registry: task, project, lead, deal, client, proposal, contract, QR code (needs url), signature-request draft, survey — one entry per module makes it Chief-creatable (aliases → deterministic `detectCreate`, earliest-noun-wins; `[[create kind=…]]` LLM action; capabilities block lists creatables dynamically). Gates: plan feature (hasFeature) + per-page CREATE perm (`effectivePagePerm`) + RLS as the wall; records created AS the signed-in user (inert/reversible); sends/invites/publishing stay approve-first. Attr extraction: quoted/called names, email, $value incl. 12k, due today/tomorrow/date, url. Tests 48/48 (misroute regressions pinned).
 - **House rule:** never hand-roll a bespoke create-flow in ChiefOfStaff.tsx — add a registry entry.
