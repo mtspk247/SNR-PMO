@@ -8,6 +8,7 @@ import { sb } from '@/lib/supabase';
 
 const TRIGGERS = [
   { v: 'form.submitted', l: 'Form submitted' },
+  { v: 'survey.completed', l: 'Survey completed' },
   { v: 'task.created', l: 'Task created' },
   { v: 'project.created', l: 'Project created' },
   { v: 'deal.created', l: 'Deal created' },
@@ -28,6 +29,7 @@ const ACTION_TYPES = [
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const FIELD_HINT: Record<string, string> = {
   'form.submitted': 'e.g. form_name',
+  'survey.completed': 'e.g. form_name',
   'task.created': 'e.g. priority',
   'deal.created': 'e.g. stage',
   'project.created': 'e.g. status',

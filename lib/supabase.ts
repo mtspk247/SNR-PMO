@@ -119,6 +119,7 @@ export const FEATURES = [
   { key: 'api', label: 'API & Webhooks' },
   { key: 'automations', label: 'Automations' },
   { key: 'forms', label: 'Forms' },
+  { key: 'surveys', label: 'Surveys' },
   { key: 'qr', label: 'QR Codes' },
   { key: 'booking', label: 'Booking' },
   { key: 'comms', label: 'Messaging (SMS)' },
