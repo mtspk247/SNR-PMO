@@ -67,7 +67,7 @@ export default function FormsPage() {
   const [err, setErr] = useState('');
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-  const load = () => { if (!org) return; listForms(org.id).then(setForms).catch((e) => { setErr(e.message); setForms([]); }); };
+  const load = () => { if (!org) return; listForms(org.id, 'form').then(setForms).catch((e) => { setErr(e.message); setForms([]); }); };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
 
   const shown = useMemo(() => (forms || []).filter((f) => !q.trim() || f.name.toLowerCase().includes(q.toLowerCase())), [forms, q]);

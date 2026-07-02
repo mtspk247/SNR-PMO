@@ -1395,16 +1395,19 @@ export async function shareLinkFileUrl(token: string, fileId: string): Promise<s
 }
 
 // ---- Forms (F2) — builder + submissions ----
-export interface FormField { key: string; label: string; type: string; required?: boolean; options?: string[]; placeholder?: string; }
-export interface FormDef { id: string; org_id: string; name: string; slug: string; status: 'draft' | 'published' | 'archived'; fields: FormField[]; settings: Record<string, any>; submit_count: number; created_by: string | null; created_at: string; updated_at: string; }
+export interface FormJump { op: 'eq' | 'ne' | 'lte' | 'gte' | 'includes'; value: string; to: string; }
+export interface FormField { key: string; label: string; type: string; required?: boolean; options?: string[]; placeholder?: string; jumps?: FormJump[]; next?: string; }
+export interface FormDef { id: string; org_id: string; name: string; slug: string; status: 'draft' | 'published' | 'archived'; kind: 'form' | 'survey'; fields: FormField[]; settings: Record<string, any>; survey_meta: Record<string, any>; submit_count: number; created_by: string | null; created_at: string; updated_at: string; }
 export interface FormSubmissionRow { id: string; form_id: string; org_id: string; data: Record<string, any>; lead_id: string | null; source: string | null; created_at: string; }
 
-export async function listForms(orgId: string): Promise<FormDef[]> {
-  const { data, error } = await sb.from('forms').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+export async function listForms(orgId: string, kind?: 'form' | 'survey'): Promise<FormDef[]> {
+  let q = sb.from('forms').select('*').eq('org_id', orgId);
+  if (kind) q = q.eq('kind', kind);
+  const { data, error } = await q.order('created_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as FormDef[]) || [];
 }
-export async function createForm(p: { org_id: string; name: string; slug: string; status?: string; fields?: FormField[]; settings?: Record<string, any>; created_by: string }): Promise<FormDef> {
-  const { data, error } = await sb.from('forms').insert({ org_id: p.org_id, name: p.name, slug: p.slug, status: p.status || 'draft', fields: p.fields || [], settings: p.settings || {}, created_by: p.created_by }).select('*').single();
+export async function createForm(p: { org_id: string; name: string; slug: string; status?: string; kind?: 'form' | 'survey'; fields?: FormField[]; settings?: Record<string, any>; survey_meta?: Record<string, any>; created_by: string }): Promise<FormDef> {
+  const { data, error } = await sb.from('forms').insert({ org_id: p.org_id, name: p.name, slug: p.slug, status: p.status || 'draft', kind: p.kind || 'form', fields: p.fields || [], settings: p.settings || {}, survey_meta: p.survey_meta || {}, created_by: p.created_by }).select('*').single();
   if (error) throw new Error(error.message); return data as FormDef;
 }
 export async function updateForm(id: string, patch: Partial<Pick<FormDef, 'name' | 'status' | 'fields' | 'settings' | 'slug'>>): Promise<void> {
@@ -1412,6 +1415,12 @@ export async function updateForm(id: string, patch: Partial<Pick<FormDef, 'name'
 }
 export async function deleteForm(id: string): Promise<void> {
   const { error } = await sb.from('forms').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export interface SurveyQuestionRollup { key: string; label: string; type: string; answered: number; avg: number | null; nps: { promoters: number; passives: number; detractors: number; score: number | null } | null; csat_pct: number | null; dist: Record<string, number> | null; }
+export interface SurveyResults { form_id: string; kind: string; total: number; questions: SurveyQuestionRollup[]; }
+export async function surveyResults(formId: string): Promise<SurveyResults | null> {
+  const { data, error } = await sb.rpc('survey_results', { p_form_id: formId });
+  if (error) throw new Error(error.message); return (data as SurveyResults) || null;
 }
 export async function listFormSubmissions(formId: string): Promise<FormSubmissionRow[]> {
   const { data, error } = await sb.from('form_submissions').select('*').eq('form_id', formId).order('created_at', { ascending: false });

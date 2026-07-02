@@ -632,6 +632,28 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'surveys',
+    title: 'Surveys (NPS & CSAT)',
+    icon: 'ti-mood-smile',
+    blocks: [
+      { kind: 'p', text: 'Surveys let you measure how people feel — NPS ("how likely are you to recommend us?"), CSAT satisfaction scores, star ratings and open feedback — on a hosted page you can share anywhere. Questions are asked one at a time, and logic rules can route respondents down different paths based on their answers. Find it under Marketing > Surveys.' },
+      { kind: 'bullets', items: [
+        { text: 'Survey question types — NPS (0–10), CSAT (1–5), star rating, single choice, multiple choice, short text, paragraph and email. NPS and CSAT answers are rolled up into scores automatically.' },
+        { text: 'Logic jumps — per question, add rules like "if the answer is ≥ 9, go to…" to skip questions or end the survey early. Rules only jump forward, and required questions are enforced only on the path the respondent actually took.' },
+        { text: 'Live results — click a survey\u2019s response count to see the rollup: the NPS score with promoters/passives/detractors, the % satisfied for CSAT, averages, answer distributions and recent text answers.' },
+        { text: 'Distribute anywhere — every published survey has a public link and an iframe embed; pair it with a QR code (Marketing > QR Codes) to collect responses from print.' },
+        { text: 'Feeds your workflows — each completed response raises a "survey.completed" event for Automations (e.g. notify the owner when a detractor responds), and can optionally create a CRM lead when the survey collects an email.' },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Create the survey', body: 'Marketing > Surveys > New survey. The starter template is a complete NPS flow — a score question that routes promoters and detractors to different follow-ups. Adjust the questions, or add your own.' },
+        { title: 'Add logic (optional)', body: 'Open "Logic" on a question to add jump rules ("if answer ≥ 9 go to …") and choose where to go otherwise. Preview the flow by publishing and opening the public link.' },
+        { title: 'Publish & share', body: 'Set the status to Published and Save, then copy the public link or embed code from the Distribute panel.' },
+        { title: 'Read the results', body: 'Click the response count on the list to open the rollup — scores, distributions and recent answers. Wire an automation on "Survey completed" to act on responses as they arrive.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: surveys run on the same hardened engine as Forms — the public page only ever sees published questions, responses are written through a rate-limited server function, and only your staff can read results. Surveys do not create CRM leads unless you switch that on. Surveys is plan-gated.' },
+    ],
+  },
+  {
     id: 'client-portal',
     title: 'Client portal',
     icon: 'ti-layout-dashboard',
