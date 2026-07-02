@@ -246,16 +246,18 @@ export const SECTIONS: Section[] = [
     blocks: [
       {
         kind: 'p',
-        text: 'The Dashboard is your daily starting point. It surfaces aggregated KPIs across the entire org.',
+        text: 'The Dashboard is your daily starting point — a "morning briefing" that reads like your Chief of Staff wrote it, on top of a fully customisable tile grid. The default layout opens with the briefing strip (what changed, what needs you, what your agents did), a KPI band, your attention list and agent workforce, then insight tiles — and every tile can be moved, resized, added or removed.',
       },
       {
         kind: 'bullets',
         items: [
-          { text: 'KPI tiles — open projects, overdue tasks, pipeline value (CRM), net ledger balance (Accounting), headcount (HR), new leads, form submissions, social, inbox and agent approvals — each shown only if you have that module.' },
+          { text: 'Morning briefing — a one-line summary of everything waiting on you (agent approvals, overdue invoices, leave requests, overdue tasks) plus what your agents completed today, with one-click paths to review approvals or ask the Chief of Staff.' },
+          { text: 'KPI tiles — revenue this month (with % vs last month), cash/net with an estimated runway, pipeline value, delivery health, open projects/tasks/deals, assistant quality, new leads, form submissions, social, inbox and agent approvals — each shown only if you have that module and the right role.' },
           { text: 'Needs attention — one action list of everything waiting on you or your admins right now: overdue tasks, agent actions to review, leave and expense claims to approve, overdue invoices, and open inbox conversations. Each row shows a count and links straight to the exact place to act; when there is nothing outstanding it reads “You’re all caught up”.' },
           { text: 'AI agent ROI — a 30-day summary of the value your AI agents created: estimated hours saved, dollar value, net of metered spend, actions completed, auto-run share, reliability and an ROI multiple. Opens the full Agent Activity view.' },
           { text: 'Storage — how much of your plan’s storage quota is used (drive files + screen recordings) with a usage bar that turns amber then red as you approach the limit, plus file and recording counts. Opens Drives.' },
-          { text: 'Fully customisable — click Edit to drag, resize, add or remove any widget and switch chart variants; save your own layout or, as an admin, set the workspace default. Reset returns to the default at any time. Every tile links directly to the relevant module.' },
+          { text: 'Team workload, live activity and quick actions — see open tasks per teammate, a live feed of what is happening in the workspace, and one-tap buttons to create a task, deal, lead or invoice or ask the Chief of Staff.' },
+          { text: 'Fully customisable — click Customize to drag, resize, add or remove any tile and switch chart variants; save your own layout or, as an admin, set the workspace default (resellers can ship a default per workspace). Reset returns to the latest default at any time.' },
           { text: 'Unlock more — features not on your current plan appear at the bottom as locked cards (CRM, Accounting, AI Agents, Social, Screen Recording and more) so you can see what is available and upgrade in one click. What the button says and where it points is controlled by your provider’s upgrade prompts.' },
         ],
       },
