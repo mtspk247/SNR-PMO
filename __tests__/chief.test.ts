@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectInvite, parseEmail, parseInviteRole, suggestInviteRole, detectUpgrade, parseTrainingChanges, matchToolKeys, parseChiefAction, stripMd } from '@/lib/agentPlans';
+import { detectInvite, parseEmail, parseInviteRole, suggestInviteRole, detectUpgrade, parseTrainingChanges, matchToolKeys, parseChiefAction, stripMd, detectRemember, detectForget } from '@/lib/agentPlans';
 
 const CAT = [
   { key: 'send_sms', label: 'Send an SMS to a contact' },
@@ -128,4 +128,20 @@ test('parseChiefAction: bare + multiword values + none', () => {
 test('stripMd flattens markdown remnants', () => {
   assert.equal(stripMd('**Upgrade** the plan'), 'Upgrade the plan');
   assert.equal(stripMd('## Title\n* item'), 'Title\n- item');
+});
+
+// ---- Continuous learning parsers ----
+
+test('detectRemember: facts, preferences, guards', () => {
+  assert.deepEqual(detectRemember('Remember that our fiscal year starts in April'), { content: 'our fiscal year starts in April', kind: 'fact' });
+  assert.equal(detectRemember('From now on, always cc finance on invoices over $5k')!.kind, 'preference');
+  assert.equal(detectRemember('remember to invite dana@acme.com'), null); // action, not a fact
+  assert.equal(detectRemember('what should I remember about taxes?'), null);
+  assert.equal(detectRemember('how many staff do we have?'), null);
+});
+
+test('detectForget: match + bare undo', () => {
+  assert.deepEqual(detectForget('forget the note about fiscal year'), { match: 'the note about fiscal year' });
+  assert.deepEqual(detectForget('Forget that'), { match: '' });
+  assert.equal(detectForget('I forgot my password'), null);
 });

@@ -3974,6 +3974,24 @@ export async function listAgentUsage(orgId: string): Promise<AgentUsage[]> {
 }
 
 // Accurate ROI rollup over ALL agent rows (server-side; not capped by the 200-row action fetch).
+// ---- Chief of Staff continuous learning (org-wide memory + answer feedback) ----
+export interface AssistantMemory { id: string; org_id: string; kind: 'fact' | 'preference' | 'correction'; content: string; uses: number; archived: boolean; created_at: string; updated_at: string }
+export async function assistantMemoryList(orgId: string, limit = 50): Promise<AssistantMemory[]> {
+  const { data, error } = await sb.from('assistant_memory').select('*').eq('org_id', orgId).eq('archived', false).order('updated_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as AssistantMemory[]) || [];
+}
+export async function assistantMemoryUpsert(orgId: string, kind: AssistantMemory['kind'], content: string): Promise<string> {
+  const { data, error } = await sb.rpc('assistant_memory_upsert', { p_org: orgId, p_kind: kind, p_content: content });
+  if (error) throw new Error(error.message); return data as string;
+}
+export async function assistantMemoryForget(orgId: string, match: string): Promise<number> {
+  const { data, error } = await sb.rpc('assistant_memory_forget', { p_org: orgId, p_match: match });
+  if (error) throw new Error(error.message); return (data as number) ?? 0;
+}
+export async function assistantFeedbackAdd(orgId: string, question: string, answer: string, rating: 1 | -1, comment?: string): Promise<void> {
+  const { error } = await sb.rpc('assistant_feedback_add', { p_org: orgId, p_question: question, p_answer: answer, p_rating: rating, p_comment: comment ?? null });
+  if (error) throw new Error(error.message);
+}
 export interface AgentReportRow { agent_id: string; name: string; domain: string; builtin: boolean; enabled: boolean; archived_at: string | null; autonomy_level: string; proposed_total: number; executed: number; rolled_back: number; rejected: number; pending: number; auto_executed: number; runs: number; runs_completed: number; tokens: number; usd: number; first_at: string | null; last_at: string | null; by_tool: { tool_key: string; domain: string; executed: number }[] }
 // Per-agent accountability report — everything each agent did in the window, its cost and
 // reliability, one row per agent (server-gated to agent managers/approvers, fail closed).
