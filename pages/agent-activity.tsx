@@ -7,13 +7,13 @@ import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection } from '@/components/RowSelection';
-import { GroupMeta } from '@/components/DataList';
+import { DataList, GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
-import { AGENT_DOMAINS } from '@/lib/agents';
+import { AGENT_DOMAINS, AUTONOMY_LABELS, toolByKey } from '@/lib/agents';
 import { computeRoi, minutesSavedFor, DEFAULT_LABOR_RATE_USD, AgentRoiSummary } from '@/lib/agentRoi';
 import {
-  listAgents, listAgentActions, agentRoiSummary, agentUsageCost,
-  AgentDefinition, AgentAction, AgentUsageCost,
+  listAgents, listAgentActions, agentRoiSummary, agentUsageCost, agentReport,
+  AgentDefinition, AgentAction, AgentUsageCost, AgentReportRow,
 } from '@/lib/db';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -41,6 +41,19 @@ const FILTERS: FilterDef[] = [
   ] },
 ];
 
+const RCOLS: ColDef[] = [
+  { id: 'agent', label: 'Agent', locked: true },
+  { id: 'domain', label: 'Domain', width: 110 },
+  { id: 'executed', label: 'Done', width: 70 },
+  { id: 'rolled', label: 'Rolled back', width: 92 },
+  { id: 'reliability', label: 'Reliability', width: 88 },
+  { id: 'time', label: 'Time saved', width: 92 },
+  { id: 'net', label: 'Net value', width: 90 },
+  { id: 'runs', label: 'Runs', width: 66 },
+  { id: 'cost', label: 'Cost', width: 74 },
+  { id: 'last', label: 'Last active', width: 100 },
+];
+
 export default function AgentActivityPage() {
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
@@ -52,10 +65,13 @@ export default function AgentActivityPage() {
   const [actions, setActions] = useState<AgentAction[] | null>(null);
   const [agents, setAgents] = useState<AgentDefinition[]>([]);
   const [cost, setCost] = useState<AgentUsageCost | null>(null);
+  const [report, setReport] = useState<AgentReportRow[] | null>(null);
+  const [selReport, setSelReport] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [rate, setRate] = useState(DEFAULT_LABOR_RATE_USD);
   const [err, setErr] = useState('');
   const prefs = useListPrefs('snrpmo.agentactivity.cols', COLS);
+  const prefsR = useListPrefs('snrpmo.agentreport.cols', RCOLS);
 
   useEffect(() => {
     try { const v = window.localStorage.getItem('snrpmo.agentroi.rate'); if (v) setRate(Number(v) || DEFAULT_LABOR_RATE_USD); } catch { /* ignore */ }
@@ -68,6 +84,7 @@ export default function AgentActivityPage() {
     listAgentActions(org.id).then(setActions).catch(() => setActions([]));
     listAgents(org.id).then(setAgents).catch(() => {});
     agentUsageCost(org.id).then(setCost).catch(() => {});
+    agentReport(org.id, days).then(setReport).catch(() => setReport([]));
   };
   useEffect(() => { if (org?.id && enabled && canSee) load(); /* eslint-disable-next-line */ }, [org?.id, enabled, canSee, days]);
 
@@ -99,6 +116,40 @@ export default function AgentActivityPage() {
       default: return '—';
     }
   };
+
+  // ---- Per-agent report: complete record for every agent (like a user report) ----
+  const rHours = (r: AgentReportRow) => r.by_tool.reduce((m, t) => m + t.executed * minutesSavedFor(t.tool_key, t.domain), 0) / 60;
+  const rValue = (r: AgentReportRow) => rHours(r) * rate;
+  const rNet = (r: AgentReportRow) => rValue(r) - (Number(r.usd) || 0);
+  const rReliability = (r: AgentReportRow) => { const d = r.executed + r.rolled_back; return d > 0 ? Math.round((r.executed / d) * 100) : 100; };
+  const cellR = (id: string, r: AgentReportRow) => {
+    switch (id) {
+      case 'agent': return <span className="inline-flex items-center gap-2 font-medium text-content">{r.name}{r.builtin && <span className="text-2xs px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500">System</span>}{r.archived_at ? <span className="text-2xs px-1.5 py-0.5 rounded bg-surface2 text-muted2">Archived</span> : !r.enabled ? <span className="text-2xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600">Paused</span> : null}</span>;
+      case 'domain': return <span className="text-xs text-muted inline-flex items-center gap-1"><Icon name={domIcon(r.domain)} className="text-sm" />{domLabel(r.domain)}</span>;
+      case 'executed': return <span className="tnum font-medium">{r.executed}</span>;
+      case 'rolled': return r.rolled_back > 0 ? <span className="tnum text-violet-600">{r.rolled_back}</span> : <span className="text-muted2">0</span>;
+      case 'reliability': { const p = rReliability(r); return <span className={`tnum font-medium ${p >= 90 ? 'text-emerald-600' : p >= 70 ? 'text-amber-600' : 'text-rose-600'}`}>{p}%</span>; }
+      case 'time': return <span className="tnum">{rHours(r).toFixed(1)} h</span>;
+      case 'net': { const n = rNet(r); return <span className={`tnum font-medium ${n >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{money(n)}</span>; }
+      case 'runs': return <span className="tnum">{r.runs}</span>;
+      case 'cost': return <span className="tnum text-muted">${(Number(r.usd) || 0).toFixed(2)}</span>;
+      case 'last': return <span className="text-xs text-muted">{r.last_at ? r.last_at.slice(0, 10) : '—'}</span>;
+      default: return '—';
+    }
+  };
+  const rawR = (id: string, r: AgentReportRow) =>
+    id === 'agent' ? r.name : id === 'domain' ? r.domain : id === 'executed' ? String(r.executed)
+    : id === 'rolled' ? String(r.rolled_back) : id === 'reliability' ? String(rReliability(r))
+    : id === 'time' ? rHours(r).toFixed(2) : id === 'net' ? String(Math.round(rNet(r)))
+    : id === 'runs' ? String(r.runs) : id === 'cost' ? String(r.usd) : id === 'last' ? (r.last_at || '') : '';
+  const exportReport = () => {
+    const esc = (v: string) => (/[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v);
+    const head = ['Agent', 'Domain', 'Autonomy', 'Executed', 'Rolled back', 'Rejected', 'Pending', 'Auto', 'Reliability %', 'Hours saved', 'Value $', 'Cost $', 'Net $', 'Runs', 'Tokens', 'First active', 'Last active'];
+    const lines = (report || []).map((r) => [r.name, r.domain, r.autonomy_level, r.executed, r.rolled_back, r.rejected, r.pending, r.auto_executed, rReliability(r), rHours(r).toFixed(1), Math.round(rValue(r)), (Number(r.usd) || 0).toFixed(2), Math.round(rNet(r)), r.runs, r.tokens, r.first_at?.slice(0, 10) || '', r.last_at?.slice(0, 10) || ''].map((x) => esc(String(x))).join(','));
+    const blob = new Blob([[head.join(','), ...lines].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `agent-report-${days}d.csv`; a.click(); URL.revokeObjectURL(a.href);
+  };
+  const selRow = (report || []).find((r) => r.agent_id === selReport) || null;
 
   if (!enabled) return (
     <Layout flat title="Agent activity">
@@ -182,6 +233,66 @@ export default function AgentActivityPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {report && report.length > 0 && (
+        <div className="card p-5 mb-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-id-badge-2" className="text-accent" />Agent team — individual reports</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-2xs text-muted2">last {days} days · click a row for the full record</span>
+              <button className="btn btn-sm" onClick={exportReport}><Icon name="ti-download" />CSV</button>
+            </div>
+          </div>
+          <DataList rows={report} rowKey={(r) => r.agent_id} cols={RCOLS} prefs={prefsR} cell={cellR} rawValue={rawR}
+            onRowClick={(r) => setSelReport(selReport === r.agent_id ? null : r.agent_id)} />
+          {selRow && (
+            <div className="mt-4 border-t border-line pt-4">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="text-sm font-semibold text-content">{selRow.name}</span>
+                {selRow.builtin && <span className="text-2xs px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500">System</span>}
+                <span className="text-2xs text-muted">{domLabel(selRow.domain)} · {AUTONOMY_LABELS[selRow.autonomy_level] || selRow.autonomy_level}</span>
+                {selRow.first_at && <span className="text-2xs text-muted2">· active since {selRow.first_at.slice(0, 10)}</span>}
+              </div>
+              <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Proposed</p><p className="text-sm tnum font-medium">{selRow.proposed_total}</p></div>
+                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Pending</p><p className="text-sm tnum font-medium">{selRow.pending}</p></div>
+                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Rejected</p><p className="text-sm tnum font-medium">{selRow.rejected}</p></div>
+                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Auto-executed</p><p className="text-sm tnum font-medium">{selRow.auto_executed}</p></div>
+                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Runs (done)</p><p className="text-sm tnum font-medium">{selRow.runs}<span className="text-muted2"> ({selRow.runs_completed})</span></p></div>
+                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Tokens</p><p className="text-sm tnum font-medium">{selRow.tokens.toLocaleString()}</p></div>
+              </div>
+              {selRow.by_tool.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-2xs text-muted2 uppercase tracking-wide mb-2">Work by skill</p>
+                  <div className="space-y-2">
+                    {selRow.by_tool.map((t) => { const mx = Math.max(1, ...selRow.by_tool.map((x) => x.executed)); return (
+                      <div key={t.tool_key} className="flex items-center gap-3">
+                        <span className="w-56 shrink-0 text-xs text-muted truncate">{toolByKey(t.tool_key)?.label || t.tool_key}</span>
+                        <div className="flex-1 h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(4, (t.executed / mx) * 100)}%` }} /></div>
+                        <span className="w-16 shrink-0 text-right text-xs tnum">{t.executed}<span className="text-muted2"> · {(t.executed * minutesSavedFor(t.tool_key, t.domain) / 60).toFixed(1)}h</span></span>
+                      </div>
+                    ); })}
+                  </div>
+                </div>
+              )}
+              <div>
+                <p className="text-2xs text-muted2 uppercase tracking-wide mb-2">Recent actions</p>
+                <div className="space-y-1.5">
+                  {(actions || []).filter((a) => a.agent_id === selRow.agent_id).slice(0, 10).map((a) => (
+                    <div key={a.id} className="flex items-center gap-2 text-xs">
+                      {chip(titleCase(a.status.replace('_', ' ')), STATUS_COLOR[a.status] || '#6b7280')}
+                      <span className="truncate text-content">{a.summary}</span>
+                      <span className="ml-auto shrink-0 text-muted2">{(a.executed_at || a.proposed_at)?.slice(0, 10)}</span>
+                    </div>
+                  ))}
+                  {(actions || []).filter((a) => a.agent_id === selRow.agent_id).length === 0 && <p className="text-xs text-muted2">No recent actions in the loaded window.</p>}
+                </div>
+                <Link href="/agent-approvals" className="inline-flex items-center gap-1 mt-2 text-2xs text-accentstrong hover:underline"><Icon name="ti-arrow-right" className="text-2xs" />Full audit trail in Approvals</Link>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
