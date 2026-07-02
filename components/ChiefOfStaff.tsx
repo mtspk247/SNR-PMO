@@ -4,9 +4,10 @@ import { Icon } from '@/components/ui';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { AGENT_TOOLS, AGENT_DOMAINS } from '@/lib/agents';
-import { detectWorkflow, workflowByKey, detectInvite, parseEmail, parseInviteRole, suggestInviteRole, detectUpgrade, parseTrainingChanges, parseChiefAction, stripMd, detectRemember, detectForget, type ChiefAction, type InviteIntent, type InviteRole, type TrainingChanges, type UpgradeIntent } from '@/lib/agentPlans';
+import { detectWorkflow, workflowByKey, detectInvite, parseEmail, parseInviteRole, suggestInviteRole, detectUpgrade, parseTrainingChanges, parseChiefAction, stripMd, detectRemember, detectForget, detectSurvey, type ChiefAction, type InviteIntent, type InviteRole, type TrainingChanges, type UpgradeIntent } from '@/lib/agentPlans';
+import { SECTIONS as NAV_SECTIONS } from '@/lib/nav';
 import { retrieveSections, sectionPlain } from '@/lib/docs';
-import { listAgents, proposeWorkflowPlan, createAgent, listAgentTools, runAgentProposer, askChief, getEmployees, dashboardCounts, assistantMemoryList, assistantMemoryUpsert, assistantMemoryForget, assistantFeedbackAdd, AssistantTurn, AgentDefinition } from '@/lib/db';
+import { listAgents, proposeWorkflowPlan, createAgent, listAgentTools, runAgentProposer, askChief, getEmployees, dashboardCounts, assistantMemoryList, assistantMemoryUpsert, assistantMemoryForget, assistantFeedbackAdd, createForm, AssistantTurn, AgentDefinition } from '@/lib/db';
 
 // Chief of Staff — the project's AI Personal Assistant. LLM-first + conversational: every question
 // is answered by the chief-assistant edge fn, GROUNDED in the live product docs AND a live,
@@ -190,6 +191,7 @@ export default function ChiefOfStaff() {
       await startInvite(inv, srcMsg);
       return;
     }
+    if (act.kind === 'survey') { await startSurvey(act.attrs.topic || act.attrs.title || ''); return; }
     if (act.kind === 'train') {
       await startUpgrade({ agentName: act.attrs.agent || undefined, changes: parseTrainingChanges(srcMsg, AGENT_TOOLS) });
       return;
@@ -257,6 +259,26 @@ export default function ChiefOfStaff() {
     try { for (const h of retrieveSections(question, 4)) ctx.push({ id: h.section.id, title: h.section.title, text: sectionPlain(h.section) }); } catch { /* */ }
     if (ctxCache.current) return [...ctx, ...ctxCache.current];
     const live: { id: string; title: string; text: string }[] = [];
+    // Capability self-knowledge: derived LIVE from the nav manifest + this org's plan gating.
+    // Every shipped feature must update lib/nav.ts (propagation rule #1), so this block keeps
+    // the assistant's knowledge current automatically — no stale hardcoded capability lists.
+    try {
+      const mods: string[] = [];
+      for (const sec of NAV_SECTIONS as any[]) {
+        const items = sec.kind === 'menu' ? sec.items : sec.kind === 'link' ? [sec.item] : [];
+        for (const it of items || []) {
+          if (it.platformOnly) continue;
+          if (it.adminOnly && !isAdmin) continue;
+          if (it.feature && !hasFeature(org, it.feature)) continue;
+          mods.push(`- ${it.label} (${it.href})`);
+        }
+      }
+      live.push({
+        id: 'live-modules',
+        title: 'Modules available in this workspace RIGHT NOW (definitive — never say one of these is missing)',
+        text: mods.join('\n') + '\n\nDirect actions I (the assistant) can take on request: create a draft survey (Surveys), invite a teammate, train an agent, run client/project/employee onboarding workflows, create an agent, remember/forget workspace notes.',
+      });
+    } catch { /* capabilities block is best-effort */ }
     try {
       const [emps, counts] = await Promise.all([getEmployees(org!.id).catch(() => [] as any[]), dashboardCounts(org!.id).catch(() => ({} as any))]);
       const team = (emps || []).slice(0, 60).map((e: any) => `- ${e.full_name}${e.job_title ? ` — ${e.job_title}` : ''}${e.department ? ` (${e.department})` : ''} · role: ${e.role}${e.status && e.status !== 'active' ? ` [${e.status}]` : ''}`).join('\n');
@@ -275,6 +297,28 @@ export default function ChiefOfStaff() {
     } catch { /* */ }
     ctxCache.current = live;
     return [...ctx, ...live];
+  }
+
+  // "Create a survey about X" → ACT: create the draft (as the signed-in user; RLS enforced),
+  // hand back a deep link. Publishing/sharing stays human — a draft is inert.
+  async function startSurvey(topic: string) {
+    if (!hasFeature(org, 'surveys')) { reply('Surveys aren\u2019t enabled on this workspace\u2019s plan yet \u2014 an owner can switch them on under Plan & Features.'); return; }
+    const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'survey';
+    const t = (topic || '').trim();
+    const title = t ? `Feedback \u2014 ${t.slice(0, 60)}` : 'Customer feedback';
+    try {
+      const row = await createForm({
+        org_id: org!.id, created_by: me!.id, name: title, slug: `${slug(title)}-${Math.random().toString(36).slice(2, 8)}`,
+        status: 'draft', kind: 'survey',
+        fields: [
+          { key: 'q_nps', label: t ? `How likely are you to recommend ${t.slice(0, 80)}?` : 'How likely are you to recommend us?', type: 'nps', required: true, jumps: [{ op: 'gte', value: '9', to: 'q_praise' }] },
+          { key: 'q_improve', label: 'What could we do better?', type: 'textarea', next: '_end' },
+          { key: 'q_praise', label: 'What did you love most?', type: 'textarea' },
+        ],
+        settings: { submit_label: 'Finish', success_message: 'Thanks for your feedback!' },
+      });
+      reply(`Done \u2014 I created a draft survey \u201c${title}\u201d with an NPS flow: the score question routes happy and unhappy respondents to different follow-ups. Open it to tweak the questions, publish, and share the public link \u2014 that link is what you send to your tenants or clients.`, { href: `/surveys?open=${row.id}`, label: 'Open the draft survey' });
+    } catch (e: any) { reply(`I couldn\u2019t create the survey: ${e?.message || 'please try again'}.`); }
   }
 
   async function send(text: string) {
@@ -313,6 +357,8 @@ export default function ChiefOfStaff() {
         } catch (e: any) { reply(`Couldn\u2019t forget that: ${e?.message || 'try again'}.`); }
         return;
       }
+      const sv = detectSurvey(msg);
+      if (sv) { await startSurvey(sv.topic); return; }
       const inv = detectInvite(msg);
       if (inv) { await startInvite(inv, msg); return; }
       if (/\b(train|upskill|upgrade|teach|coach|grant|give|revoke|remove|autonom|independent|sensing|proactive)\w*/i.test(msg)) {

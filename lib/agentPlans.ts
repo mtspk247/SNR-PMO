@@ -239,10 +239,10 @@ export function detectUpgrade(raw: string, agentNames: string[], catalog: { key:
 // ---- Chief-assistant ACTION protocol (LLM path → deterministic flows) ----
 // The edge fn instructs the model to end an actionable reply with one [[...]] line;
 // the client strips it from the shown text and routes into the SAME approve-first flows.
-export interface ChiefAction { kind: 'invite' | 'train' | 'workflow'; attrs: Record<string, string> }
+export interface ChiefAction { kind: 'invite' | 'train' | 'workflow' | 'survey'; attrs: Record<string, string> }
 export function parseChiefAction(answer: string): { shown: string; action: ChiefAction | null } {
-  const m = (answer || '').match(/\[\[\s*(invite|train|workflow)\b([^\]]*)\]\]/i);
-  const shown = (answer || '').replace(/\s*\[\[\s*(invite|train|workflow)\b[^\]]*\]\]\s*/gi, ' ').replace(/\s+\n/g, '\n').trim();
+  const m = (answer || '').match(/\[\[\s*(invite|train|workflow|survey)\b([^\]]*)\]\]/i);
+  const shown = (answer || '').replace(/\s*\[\[\s*(invite|train|workflow|survey)\b[^\]]*\]\]\s*/gi, ' ').replace(/\s+\n/g, '\n').trim();
   if (!m) return { shown, action: null };
   const raw = m[2] || '';
   const attrs: Record<string, string> = {};
@@ -255,6 +255,22 @@ export function parseChiefAction(answer: string): { shown: string; action: Chief
   }
   return { shown, action: { kind: m[1].toLowerCase() as ChiefAction['kind'], attrs } };
 }
+// ---- Survey intent: "create a survey about X" → deterministic draft-survey flow.
+// Checked BEFORE workflow detection so "create a survey ... about our project" can never
+// be hijacked by the project-kickoff template (the failure Tariq hit on 2026-07-02).
+export interface SurveyIntent { topic: string }
+export function detectSurvey(raw: string): SurveyIntent | null {
+  const text = (raw || '').trim();
+  if (!text) return null;
+  const low = text.toLowerCase();
+  if (!/\b(survey|nps|csat|questionnaire|poll|feedback (?:form|request))\b/.test(low)) return null;
+  if (!/\b(create|make|build|set ?up|run|send|launch|conduct|start|draft|prepare|new)\b/.test(low)) return null;
+  let topic = '';
+  const m = text.match(/\b(?:about|regarding|on|for)\s+(.{3,140}?)(?:[.?!]|$)/i);
+  if (m) topic = m[1].replace(/\s+/g, ' ').replace(/["'.!?\s]+$/g, '').trim();
+  return { topic };
+}
+
 // Defensive plain-texting of LLM output (the panel renders plain text).
 export function stripMd(text: string): string {
   return (text || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|\n)#{1,4}\s+/g, '$1').replace(/(^|\n)\s*[*•]\s+/g, '$1- ');
