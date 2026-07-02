@@ -36,15 +36,18 @@ export function useHeaderSort<T>(rows: T[], opts: { exportValue?: (id: string, r
       return opts.cell ? nodeText(opts.cell(sortBy, r)) : '';
     };
     return [...rows].map((r) => [r, get(r)] as [T, string]).sort((a, b) => {
-      const an = parseFloat(a[1]), bn = parseFloat(b[1]);
-      const num = !isNaN(an) && !isNaN(bn) && a[1].trim() !== '' && b[1].trim() !== '';
-      const c = num ? an - bn : a[1].localeCompare(b[1], undefined, { numeric: true });
+      // Numeric ONLY when the whole value is a number — parseFloat('2026-06-29T…') = 2026
+      // made every ISO date compare equal (dates never sorted). Dates/text use localeCompare.
+      const num = NUMERIC_RE.test(a[1].trim()) && NUMERIC_RE.test(b[1].trim());
+      const c = num ? parseFloat(a[1]) - parseFloat(b[1]) : a[1].localeCompare(b[1], undefined, { numeric: true });
       return sortDir === 'asc' ? c : -c;
     }).map((x) => x[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, sortBy, sortDir, opts.exportValue, opts.rawValue, opts.cell]);
   return { sorted, sortBy, sortDir, onSort };
 }
+
+const NUMERIC_RE = /^-?\d+(?:[.,]\d+)?$/;
 
 export function nodeText(node: ReactNode): string {
   if (node == null || node === false || node === true) return '';
@@ -374,9 +377,10 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const sortedRows = (!selfSort || !curSortBy) ? orderedRows : orderedRows
     .map((r) => [r, sortKey(r)] as [T, string])
     .sort((a, b) => {
-      const an = parseFloat(a[1]), bn = parseFloat(b[1]);
-      const num = !isNaN(an) && !isNaN(bn) && a[1].trim() !== '' && b[1].trim() !== '';
-      const c = num ? an - bn : a[1].localeCompare(b[1], undefined, { numeric: true });
+      // Numeric ONLY when the whole value is a number — parseFloat('2026-06-29T…') = 2026
+      // made every ISO date compare equal (dates never sorted). Dates/text use localeCompare.
+      const num = NUMERIC_RE.test(a[1].trim()) && NUMERIC_RE.test(b[1].trim());
+      const c = num ? parseFloat(a[1]) - parseFloat(b[1]) : a[1].localeCompare(b[1], undefined, { numeric: true });
       return curSortDir === 'asc' ? c : -c;
     })
     .map((x) => x[0]);

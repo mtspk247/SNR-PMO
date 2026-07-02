@@ -138,9 +138,10 @@ export function ListView<T extends { id: string }>(p: ListViewProps<T>) {
     const arr = [...rows];
     arr.sort((a, b) => {
       const av = get(a) ?? '', bv = get(b) ?? '';
-      const an = parseFloat(av), bn = parseFloat(bv);
-      const num = !isNaN(an) && !isNaN(bn) && av.trim() !== '' && bv.trim() !== '';
-      const c = num ? an - bn : av.localeCompare(bv, undefined, { numeric: true });
+      // Numeric ONLY when the whole value is a number — parseFloat('2026-06-29T…') = 2026
+      // made every ISO date compare equal (dates never sorted). Dates/text use localeCompare.
+      const num = /^-?\d+(?:[.,]\d+)?$/.test(av.trim()) && /^-?\d+(?:[.,]\d+)?$/.test(bv.trim());
+      const c = num ? parseFloat(av) - parseFloat(bv) : av.localeCompare(bv, undefined, { numeric: true });
       return sortDir === 'asc' ? c : -c;
     });
     return arr;
