@@ -68,6 +68,9 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   { key: 'watch_competitors', label: 'Watch competitors & draft insights', domain: 'marketing', risk: 'low', reversible: true, description: 'Scans your tracked competitors and drafts a competitive insight (trend / gap / threat / opportunity) with a recommendation, so your team can stay ahead. Read-heavy; produces a reviewable insight — reversible on rollback.' },
   { key: 'analyze_social_performance', label: 'Analyze social performance', domain: 'marketing', risk: 'low', reversible: true, description: 'Reads your social analytics (best channel, engagement rate, top content, cadence) and drafts a performance insight + recommendation for review. Read-only analysis; reversible on rollback.' },
   { key: 'draft_social_reply', label: 'Draft a reply to a comment/DM', domain: 'marketing', risk: 'low', reversible: true, description: 'Drafts an on-brand reply to an inbox conversation (comment / mention / DM) for a human to review and send. Draft-only, approve-first; reversible on rollback.' },
+  // --- Chief of Staff verbs (workspace administration — always approve-first) ---
+  { key: 'invite_user', label: 'Invite a teammate (workspace user)', domain: 'general', risk: 'medium', reversible: true, noAuto: true, description: 'Invites a new user to the workspace by email as admin, member or viewer. Approve-first — the invitation email only goes out when you approve; reversible (rollback revokes the invite so its link stops working). Sending requires an owner/admin approver.' },
+  { key: 'upgrade_agent', label: 'Train / upgrade an agent', domain: 'general', risk: 'medium', reversible: true, noAuto: true, description: 'Upskills one of your agents: grants or revokes tools, adjusts its autonomy level, or turns proactive sensing on/off. Approve-first and reversible — rollback restores the previous skills and settings.' },
 ];
 
 export const toolsForDomain = (d: string) => AGENT_TOOLS.filter((t) => t.domain === d);

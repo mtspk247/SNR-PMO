@@ -4,9 +4,9 @@ import { Icon } from '@/components/ui';
 import { useActiveOrg, useAuthStore } from '@/lib/store';
 import { hasFeature } from '@/lib/entitlements';
 import { AGENT_TOOLS, AGENT_DOMAINS } from '@/lib/agents';
-import { detectWorkflow, workflowByKey } from '@/lib/agentPlans';
+import { detectWorkflow, workflowByKey, detectInvite, parseEmail, parseInviteRole, suggestInviteRole, detectUpgrade, parseTrainingChanges, parseChiefAction, stripMd, type ChiefAction, type InviteIntent, type InviteRole, type TrainingChanges, type UpgradeIntent } from '@/lib/agentPlans';
 import { retrieveSections, sectionPlain } from '@/lib/docs';
-import { listAgents, proposeWorkflowPlan, createAgent, listAgentTools, runAgentProposer, askChief, getEmployees, dashboardCounts, AssistantTurn } from '@/lib/db';
+import { listAgents, proposeWorkflowPlan, createAgent, listAgentTools, runAgentProposer, askChief, getEmployees, dashboardCounts, AssistantTurn, AgentDefinition } from '@/lib/db';
 
 // Chief of Staff — the project's AI Personal Assistant. LLM-first + conversational: every question
 // is answered by the chief-assistant edge fn, GROUNDED in the live product docs AND a live,
@@ -16,6 +16,15 @@ import { listAgents, proposeWorkflowPlan, createAgent, listAgentTools, runAgentP
 // Movable launcher + persisted conversation history.
 type MsgLink = { href: string; label: string };
 type Msg = { role: 'user' | 'assistant'; content: string; link?: MsgLink };
+
+// Multi-turn conversational flows: the assistant collects missing details across
+// turns, then proposes ONE approve-first action through the normal queue.
+type Pending =
+  | { kind: 'invite'; step: 'email' | 'role'; email?: string; role?: InviteRole; suggested?: InviteRole; why?: string; src: string }
+  | { kind: 'upgrade'; step: 'agent' | 'tools'; changes: TrainingChanges; agentId?: string; agentName?: string; offered?: string[] };
+const CANCEL_RE = /\b(cancel|never ?mind|forget it|abort)\b/i;
+const AFFIRM_RE = /^\s*(y(es|ep|eah)?|ok(ay)?|sure|sounds good|go (ahead|for it)|do it|confirm|proceed|please do|that works)\b/i;
+const AUTONOMY_SHORT: Record<string, string> = { draft_only: 'draft-only', approve_first: 'approve-first', auto_low_risk: 'auto low-risk' };
 
 const DOMAIN_KW: [string, string][] = [
   ['helpdesk', 'support'], ['support', 'support'], ['ticket', 'support'],
@@ -63,6 +72,8 @@ export default function ChiefOfStaff() {
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 20, y: 400 });
   const scroller = useRef<HTMLDivElement>(null);
   const ctxCache = useRef<{ id: string; title: string; text: string }[] | null>(null);
+  const pend = useRef<Pending | null>(null);
+  const agentsCache = useRef<AgentDefinition[] | null>(null);
   const drag = useRef<{ on: boolean; moved: boolean; dx: number; dy: number }>({ on: false, moved: false, dx: 0, dy: 0 });
   const histKey = org ? `chief_hist_${org.id}` : '';
 
@@ -79,6 +90,7 @@ export default function ChiefOfStaff() {
     if (!histKey) return;
     try { const raw = localStorage.getItem(histKey); setMsgs(raw ? JSON.parse(raw) : []); } catch { setMsgs([]); }
     ctxCache.current = null;
+    pend.current = null; agentsCache.current = null;
   }, [histKey]);
   useEffect(() => { if (histKey) { try { localStorage.setItem(histKey, JSON.stringify(msgs.slice(-50))); } catch { /* */ } } }, [msgs, histKey]);
   useEffect(() => { if (open && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [msgs, open, busy]);
@@ -99,6 +111,131 @@ export default function ChiefOfStaff() {
       const c = list.find((a) => a.builtin && a.name === 'Chief of Staff' && a.enabled) || list.find((a) => a.enabled);
       const id = c?.id || ''; if (id) setAgentId(id); return id;
     } catch { return ''; }
+  }
+
+  const toolLabel = (k: string) => AGENT_TOOLS.find((t) => t.key === k)?.label || k;
+
+  async function loadAgents(): Promise<AgentDefinition[]> {
+    if (agentsCache.current) return agentsCache.current;
+    try { const l = await listAgents(org!.id); agentsCache.current = l; return l; } catch { return []; }
+  }
+  const activeAgents = (l: AgentDefinition[]) => l.filter((a) => a.enabled && !a.archived_at);
+
+  // ---- Invite a teammate (multi-turn → ONE approve-first invite_user action) ----
+  async function proposeInvite(email: string, role: InviteRole) {
+    pend.current = null;
+    const aid = await resolveAgent();
+    if (!aid) { reply('I couldn\u2019t find an enabled agent to route this through \u2014 open Agents and enable one.', { href: '/agents', label: 'Open Agents' }); return; }
+    await proposeWorkflowPlan(org!.id, aid, 'Invite a teammate', [{ tool: 'invite_user', domain: 'general', summary: `Invite ${email} to the workspace as ${role}`, payload: { email, role }, risk: 'medium', reversible: true }]);
+    reply(`Queued \u2014 I drafted the invitation for ${email} as ${role}. Approve it and the invite email goes out; you can revoke it any time.${isAdmin ? '' : ' Note: sending invites needs an owner/admin to approve.'}`, { href: '/agent-approvals', label: 'Review & approve' });
+  }
+  function askInviteRole(email: string, src: string) {
+    const s = suggestInviteRole(src);
+    pend.current = { kind: 'invite', step: 'role', email, suggested: s.role, why: s.why, src };
+    reply(`What role should ${email} have?\n\u2022 admin \u2014 full control, including settings\n\u2022 member \u2014 full day-to-day access, no admin settings\n\u2022 viewer \u2014 read-only\nI\u2019d suggest ${s.role} (${s.why}) \u2014 say \u201cyes\u201d to go with that.`);
+  }
+  async function startInvite(inv: InviteIntent, src: string) {
+    if (inv.email && inv.role) { await proposeInvite(inv.email, inv.role); return; }
+    if (!inv.email) {
+      pend.current = { kind: 'invite', step: 'email', role: inv.role, src };
+      reply(inv.role ? `Happy to \u2014 what\u2019s their email address? I\u2019ll set them up as ${inv.role}.` : 'Happy to \u2014 what\u2019s their email address?');
+      return;
+    }
+    askInviteRole(inv.email, src);
+  }
+
+  // ---- Train / upgrade an agent (multi-turn → ONE approve-first upgrade_agent action) ----
+  async function proposeUpgrade(ag: AgentDefinition, ch: TrainingChanges) {
+    pend.current = null;
+    const parts: string[] = [];
+    if (ch.tools.length) parts.push(`${ch.revoke ? 'revoke' : 'grant'} ${ch.tools.map(toolLabel).join(', ')}`);
+    if (ch.autonomy) parts.push(`set autonomy to ${AUTONOMY_SHORT[ch.autonomy]}`);
+    if (ch.sensing !== undefined) parts.push(`${ch.sensing ? 'enable' : 'disable'} proactive sensing`);
+    if (!parts.length) { reply('Tell me what to change \u2014 a skill to grant or revoke, an autonomy level, or sensing on/off.'); return; }
+    const aid = await resolveAgent();
+    if (!aid) { reply('I couldn\u2019t find an enabled agent to route this through \u2014 open Agents and enable one.', { href: '/agents', label: 'Open Agents' }); return; }
+    const payload: Record<string, unknown> = { agent_id: ag.id, agent_name: ag.name };
+    if (ch.tools.length) payload[ch.revoke ? 'revoke_tools' : 'grant_tools'] = ch.tools;
+    if (ch.autonomy) payload.autonomy_level = ch.autonomy;
+    if (ch.sensing !== undefined) payload.sensing = ch.sensing;
+    await proposeWorkflowPlan(org!.id, aid, `Train ${ag.name}`, [{ tool: 'upgrade_agent', domain: 'general', summary: `Train \u201c${ag.name}\u201d: ${parts.join(' \u00b7 ')}`, payload, risk: 'medium', reversible: true }]);
+    reply(`Queued \u2014 approve it and I\u2019ll ${parts.join(', ')} for \u201c${ag.name}\u201d. Fully reversible if you change your mind.`, { href: '/agent-approvals', label: 'Review & approve' });
+  }
+  async function upgradeWithAgent(ag: AgentDefinition, ch: TrainingChanges) {
+    if (ch.tools.length || ch.autonomy !== undefined || ch.sensing !== undefined) { await proposeUpgrade(ag, ch); return; }
+    let have = new Set<string>();
+    try { have = new Set((await listAgentTools(ag.id)).map((g) => g.tool_key)); } catch { /* offer from the full catalog */ }
+    const candidates = AGENT_TOOLS.filter((t) => (t.domain === ag.domain || t.domain === 'general') && t.key !== 'upgrade_agent' && !have.has(t.key)).slice(0, 6);
+    const known = AGENT_TOOLS.filter((t) => have.has(t.key)).map((t) => t.label).join(', ');
+    pend.current = { kind: 'upgrade', step: 'tools', changes: { tools: [], revoke: false }, agentId: ag.id, agentName: ag.name, offered: candidates.map((t) => t.key) };
+    if (!candidates.length) { reply(`\u201c${ag.name}\u201d already holds every skill for its domain${known ? ` (${known})` : ''}. I can still change its autonomy (draft-only / approve-first / auto low-risk) or toggle proactive sensing \u2014 what would you like?`); return; }
+    reply(`\u201c${ag.name}\u201d currently knows: ${known || 'no tools yet'}.\nI can teach it:\n${candidates.map((t, i) => `${i + 1}. ${t.label}`).join('\n')}\nReply with numbers or names \u2014 or say \u201cmake it more autonomous\u201d / \u201cenable sensing\u201d.`);
+  }
+  async function startUpgrade(up: UpgradeIntent) {
+    const ags = activeAgents(await loadAgents());
+    if (!ags.length) { reply('You have no active agents yet \u2014 open Agents to add the built-in team first.', { href: '/agents', label: 'Open Agents' }); return; }
+    const ag = up.agentName ? ags.find((a) => a.name.toLowerCase() === up.agentName!.toLowerCase()) : (ags.length === 1 ? ags[0] : undefined);
+    if (!ag) { pend.current = { kind: 'upgrade', step: 'agent', changes: up.changes }; reply(`Which agent should I train? You have: ${ags.map((a) => a.name).join(' \u00b7 ')}`); return; }
+    await upgradeWithAgent(ag, up.changes);
+  }
+
+  // An action line from the LLM answer routes into the SAME deterministic flows.
+  async function runChiefAction(act: ChiefAction, srcMsg: string) {
+    if (act.kind === 'invite') {
+      const inv: InviteIntent = {};
+      const e = parseEmail(act.attrs.email || ''); if (e) inv.email = e;
+      const r = parseInviteRole(act.attrs.role || ''); if (r) inv.role = r;
+      await startInvite(inv, srcMsg);
+      return;
+    }
+    if (act.kind === 'train') {
+      await startUpgrade({ agentName: act.attrs.agent || undefined, changes: parseTrainingChanges(srcMsg, AGENT_TOOLS) });
+      return;
+    }
+    const tpl = workflowByKey(act.attrs.kind || '');
+    if (!tpl) return;
+    const nm = (act.attrs.name || '').trim();
+    if (!nm) { reply(`What\u2019s ${act.attrs.kind === 'employee_onboarding' ? 'the employee\u2019s name' : act.attrs.kind === 'client_onboarding' ? 'the client\u2019s name' : 'the project name'}?`); return; }
+    const vals: Record<string, string> = act.attrs.kind === 'client_onboarding' ? { client_name: nm } : act.attrs.kind === 'employee_onboarding' ? { employee_name: nm } : { project_name: nm };
+    const aid = await resolveAgent();
+    if (!aid) { reply('I couldn\u2019t find an enabled agent to route this through \u2014 open Agents and enable one.', { href: '/agents', label: 'Open Agents' }); return; }
+    const { count } = await proposeWorkflowPlan(org!.id, aid, tpl.label, tpl.build(vals));
+    reply(`On it \u2014 I drafted a ${count}-step plan for \u201c${tpl.label}\u201d. Every step is preflighted and waiting for your approval.`, { href: '/agent-approvals', label: 'Review & approve' });
+  }
+
+  // A reply while a flow is open belongs to that flow (say \u201ccancel\u201d to exit).
+  async function handlePending(msg: string): Promise<boolean> {
+    const p = pend.current;
+    if (!p) return false;
+    if (CANCEL_RE.test(msg)) { pend.current = null; reply('No problem \u2014 cancelled.'); return true; }
+    if (p.kind === 'invite') {
+      if (p.step === 'email') {
+        const e = parseEmail(msg);
+        if (!e) { reply('That doesn\u2019t look like an email address \u2014 send it like name@company.com, or say cancel.'); return true; }
+        const r = p.role || parseInviteRole(msg);
+        if (r) { await proposeInvite(e, r); } else { askInviteRole(e, `${p.src} ${msg}`); }
+        return true;
+      }
+      const r = parseInviteRole(msg) || (AFFIRM_RE.test(msg) ? p.suggested : null);
+      if (!r) { reply('Just reply admin, member or viewer \u2014 or \u201cyes\u201d for my suggestion.'); return true; }
+      await proposeInvite(p.email!, r);
+      return true;
+    }
+    const ags = activeAgents(await loadAgents());
+    if (p.step === 'agent') {
+      const low = msg.toLowerCase();
+      const ag = ags.find((a) => low.includes(a.name.toLowerCase())) || ags.find((a) => a.name.toLowerCase().includes(low.trim()));
+      if (!ag) { reply(`I don\u2019t recognise that one \u2014 reply with one of: ${ags.map((a) => a.name).join(' \u00b7 ')} (or say cancel).`); return true; }
+      await upgradeWithAgent(ag, p.changes);
+      return true;
+    }
+    const ag = ags.find((a) => a.id === p.agentId);
+    if (!ag) { pend.current = null; reply('That agent is no longer available.'); return true; }
+    const ch = parseTrainingChanges(msg, AGENT_TOOLS);
+    for (const m of msg.match(/\b[1-9]\b/g) || []) { const k = (p.offered || [])[Number(m) - 1]; if (k && !ch.tools.includes(k)) ch.tools.push(k); }
+    if (!ch.tools.length && ch.autonomy === undefined && ch.sensing === undefined) { reply('Tell me which skills (numbers or names), an autonomy level, or \u201cenable sensing\u201d \u2014 or say cancel.'); return true; }
+    await proposeUpgrade(ag, ch);
+    return true;
   }
 
   // Live, RBAC/RLS-scoped snapshot the assistant can reason over. Cached per open session.
@@ -129,6 +266,8 @@ export default function ChiefOfStaff() {
     setMsgs((m) => [...m, { role: 'user', content: msg }]);
     setQ(''); setBusy(true);
     try {
+      // A flow in progress (invite / training) consumes the reply first.
+      if (pend.current && (await handlePending(msg))) return;
       // Clear actions first (deterministic, approve-first). Everything else → the LLM assistant.
       const ca = parseCreateAgent(msg);
       if (ca) {
@@ -136,6 +275,13 @@ export default function ChiefOfStaff() {
         await createAgent({ org_id: org.id, name: ca.name, domain: ca.domain as any, autonomy_level: 'approve_first', created_by: me?.id || null });
         reply(`Done — I created a new agent, “${ca.name}” (${ca.domain}). It works approve-first; open Agents to grant it tools.`, { href: '/agents', label: 'Open Agents' });
         return;
+      }
+      const inv = detectInvite(msg);
+      if (inv) { await startInvite(inv, msg); return; }
+      if (/\b(train|upskill|upgrade|teach|coach|grant|give|revoke|remove|autonom|independent|sensing|proactive)\w*/i.test(msg)) {
+        const names = activeAgents(await loadAgents()).map((a) => a.name);
+        const up = detectUpgrade(msg, names, AGENT_TOOLS);
+        if (up) { await startUpgrade(up); return; }
       }
       const wf = detectWorkflow(msg);
       if (wf) {
@@ -155,7 +301,10 @@ export default function ChiefOfStaff() {
       if (res.configured === false) {
         reply('I can run ready-made workflows (“onboard Acme Corp”) and create agents right now. To answer free-form questions and requests, connect an AI key under Console ▸ AI assistant.', { href: '/keys', label: 'Connect an AI key' });
       } else if (res.answer) {
-        reply(res.answer);
+        const { shown, action } = parseChiefAction(res.answer);
+        if (shown) reply(stripMd(shown));
+        if (action) { await runChiefAction(action, msg); return; }
+        if (!shown) reply('I couldn\u2019t work that out just now \u2014 try rephrasing, or ask me to run a workflow or create an agent.');
       } else {
         reply('I couldn’t work that out just now — try rephrasing, or ask me to run a workflow or create an agent.');
       }
@@ -191,7 +340,7 @@ export default function ChiefOfStaff() {
   const panelLeft = Math.min(Math.max(8, pos.x), Math.max(8, vw - PW - 8));
   const panelTop = pos.y > vh / 2 ? Math.max(8, pos.y - PH - 12) : Math.min(pos.y + 56, vh - PH - 8);
 
-  const CHIPS = ['How many staff do we have and what do they do?', 'What needs my attention today?', 'Onboard a new client', 'Create a support agent'];
+  const CHIPS = ['How many staff do we have and what do they do?', 'What needs my attention today?', 'Onboard a new client', 'Invite a teammate', 'Train one of my agents'];
 
   return (
     <div className="print:hidden">

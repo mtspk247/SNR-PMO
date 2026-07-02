@@ -3,7 +3,7 @@
 // the SAME db.ts functions a human uses, running CLIENT-SIDE as the approving user,
 // so the write is subject to that user's RLS + RBAC — the agent never bypasses.
 // Each executor returns target + reversal so the action becomes rollback-able.
-import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, linkSourceItemDraft, createCompetitorInsight, deleteCompetitorInsight, createSocialReplyDraft, deleteSocialMessage, listLeads, updateLead, convertLeadToClient, deleteClient, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
+import { createTask, deleteTask, updateTask, updateDeal, createContact, deleteContact, createDeal, deleteDeal, createProject, deleteProject, createLedgerEntry, updateLedgerEntry, deleteLedgerEntry, assignTicket, setTicketStatus, sendSms, createActivity, deleteActivity, addComment, deleteComment, createReminder, deleteReminder, createJobDescription, deleteJobDescription, createSocialPost, deleteSocialPost, linkSourceItemDraft, createCompetitorInsight, deleteCompetitorInsight, createSocialReplyDraft, deleteSocialMessage, listLeads, updateLead, convertLeadToClient, deleteClient, inviteMember, revokeMemberInvite, grantAgentTool, revokeAgentTool, updateAgent, setAgentSensing, AgentAction, AgentDefinition, listAgents, listAgentTools, requestChatCommandAction, runAgentProposer, decideAgentAction, recordAgentExecution } from './db';
 import { buildToolPayload, ChatCommand } from './chatCommands';
 import { toolByKey, AGENT_TOOLS } from './agents';
 
@@ -16,6 +16,73 @@ export type Executor = {
 };
 
 export const EXECUTORS: Record<string, Executor> = {
+  // ADMIN — Chief of Staff invites a teammate. Runs as the approving user through the
+  // SAME org_invite_member RPC the Team page uses (server gate: owner/admin only), so
+  // RBAC is enforced at execution. The invite email is only enqueued when a human
+  // approves. Reversible: rollback revokes the invitation (its link stops working).
+  // NOTE: result deliberately stores NO token/link — approvers who aren't owner/admin
+  // must not see a joinable invite URL; owners copy it from Settings ▸ Team if needed.
+  invite_user: {
+    label: 'Send the invitation',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const email = String(p.email || '').trim().toLowerCase();
+      if (!email || !email.includes('@')) throw new Error('invite_user needs a valid email in the payload');
+      const role = ['admin', 'member', 'viewer'].includes(String(p.role)) ? String(p.role) : 'member';
+      const inv = await inviteMember(ctx.orgId, email, role);
+      return { target_table: 'org_invites', target_id: inv.id, result: { invite_id: inv.id, email: inv.email, role: inv.role, expires_at: inv.expires_at }, reversal: { op: 'revoke_invite' } };
+    },
+    rollback: async (a) => { if (a.target_id) await revokeMemberInvite(a.target_id); },
+  },
+  // ADMIN — Chief of Staff trains/upgrades one of its agents: grants/revokes tools,
+  // adjusts autonomy, toggles sensing. Every write goes through the same RLS/RPC-gated
+  // paths the Agents page uses (manage cap enforced server-side). prior_state records
+  // exactly what changed, so rollback restores the previous skills and settings.
+  upgrade_agent: {
+    label: 'Apply the training',
+    execute: async (a, ctx) => {
+      const p = a.payload || {};
+      const id = String(p.agent_id || '');
+      if (!id) throw new Error('upgrade_agent needs agent_id in the payload');
+      const ag = (await listAgents(ctx.orgId)).find((x) => x.id === id);
+      if (!ag) throw new Error('That agent no longer exists in this workspace');
+      const have = new Set((await listAgentTools(id)).map((g) => g.tool_key));
+      const wantGrant = (Array.isArray(p.grant_tools) ? p.grant_tools : []).map(String).filter((k: string) => !!toolByKey(k) && !have.has(k));
+      const wantRevoke = (Array.isArray(p.revoke_tools) ? p.revoke_tools : []).map(String).filter((k: string) => have.has(k));
+      const toAutonomy = ['draft_only', 'approve_first', 'auto_low_risk'].includes(String(p.autonomy_level)) && String(p.autonomy_level) !== ag.autonomy_level ? String(p.autonomy_level) : null;
+      const curSense = (ag.config && ag.config.sense) || {};
+      const toSense = (p.sensing === true || p.sensing === false) && p.sensing !== !!curSense.enabled ? !!p.sensing : null;
+      const prior: any = { granted: [] as string[], revoked: [] as string[] };
+      for (const k of wantGrant) { await grantAgentTool(id, ctx.orgId, k); prior.granted.push(k); }
+      for (const k of wantRevoke) { await revokeAgentTool(id, k); prior.revoked.push(k); }
+      if (toAutonomy) { await updateAgent(id, { autonomy_level: toAutonomy as any }); prior.autonomy_level = ag.autonomy_level; }
+      if (toSense !== null) {
+        const cad = curSense.cadence === 'hourly' ? 'hourly' : 'daily';
+        const max = Number(curSense.max_per_run) || 8;
+        await setAgentSensing(id, toSense, cad, max);
+        prior.sense = { enabled: !!curSense.enabled, cadence: cad, max };
+      }
+      // VERIFY the writes actually took effect — agent_definitions/agent_tool_grants
+      // RLS is manage-gated and a blocked UPDATE/DELETE is a SILENT 0-row no-op via
+      // supabase-js. Never record an execution that didn't happen.
+      if (toAutonomy || prior.revoked.length) {
+        const [after, grantsAfter] = await Promise.all([listAgents(ctx.orgId), listAgentTools(id)]);
+        const agAfter = after.find((x) => x.id === id);
+        if (toAutonomy && agAfter?.autonomy_level !== toAutonomy) throw new Error('Autonomy change was blocked — you need the manage-agents permission');
+        const stillHas = new Set(grantsAfter.map((g) => g.tool_key));
+        if (prior.revoked.some((k: string) => stillHas.has(k))) throw new Error('Tool revoke was blocked — you need the manage-agents permission');
+      }
+      const noop = !prior.granted.length && !prior.revoked.length && !toAutonomy && toSense === null;
+      return { target_table: 'agent_definitions', target_id: id, result: { granted: prior.granted, revoked: prior.revoked, autonomy_level: toAutonomy || undefined, sensing: toSense === null ? undefined : toSense, ...(noop ? { noop: true, note: 'Already up to date' } : {}) }, reversal: { op: 'restore_agent_skills' }, prior_state: prior };
+    },
+    rollback: async (a, ctx) => {
+      const ps = a.prior_state || {}; const id = a.target_id; if (!id) return;
+      for (const k of ps.granted || []) { try { await revokeAgentTool(id, String(k)); } catch { /* keep restoring the rest */ } }
+      for (const k of ps.revoked || []) { try { await grantAgentTool(id, ctx.orgId, String(k)); } catch { /* keep restoring the rest */ } }
+      if (ps.autonomy_level) { try { await updateAgent(id, { autonomy_level: ps.autonomy_level }); } catch { /* best effort */ } }
+      if (ps.sense) { try { await setAgentSensing(id, !!ps.sense.enabled, ps.sense.cadence === 'hourly' ? 'hourly' : 'daily', Number(ps.sense.max) || 8); } catch { /* best effort */ } }
+    },
+  },
   // MARKETING — agents as the content team. Drafts a social post into the Social
   // composer (status='draft', source='agent') via the SAME createSocialPost a human
   // uses, so RLS/RBAC apply (approver must hold social write access). Publishing stays
