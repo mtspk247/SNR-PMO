@@ -3979,6 +3979,33 @@ export async function listAgentUsage(orgId: string): Promise<AgentUsage[]> {
 }
 
 // Accurate ROI rollup over ALL agent rows (server-side; not capped by the 200-row action fetch).
+// ---- QR Codes (dynamic: printed code -> /q/<slug>, target editable after printing) ----
+export interface QrCode { id: string; org_id: string; slug: string; name: string; target_url: string; style: any; active: boolean; scan_count: number; created_by: string | null; created_at: string; updated_at: string }
+export interface QrScan { id: number; org_id: string; qr_id: string; device: string | null; ref_host: string | null; scanned_at: string }
+export async function listQrCodes(orgId: string): Promise<QrCode[]> {
+  const { data, error } = await sb.from('qr_codes').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as QrCode[]) || [];
+}
+export async function createQrCode(row: { org_id: string; slug: string; name: string; target_url: string; style?: any; created_by?: string | null }): Promise<void> {
+  const { error } = await sb.from('qr_codes').insert(row); // return=minimal (INSERT…RETURNING RLS trap)
+  if (error) throw new Error(error.message);
+}
+export async function updateQrCode(id: string, patch: Partial<Pick<QrCode, 'name' | 'target_url' | 'active' | 'style'>>): Promise<void> {
+  const { error } = await sb.from('qr_codes').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function deleteQrCode(id: string): Promise<void> {
+  const { error } = await sb.from('qr_codes').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+export async function listQrScans(qrId: string, limit = 100): Promise<QrScan[]> {
+  const { data, error } = await sb.from('qr_scans').select('*').eq('qr_id', qrId).order('scanned_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as QrScan[]) || [];
+}
+export async function qrResolve(slug: string, device: string, ref: string): Promise<string | null> {
+  const { data, error } = await sb.rpc('qr_resolve', { p_slug: slug, p_device: device, p_ref: ref });
+  if (error) return null; return (data as string) || null;
+}
 // ---- Chief of Staff continuous learning (org-wide memory + answer feedback) ----
 export async function assistantFeedbackStats(orgId: string, days = 30): Promise<{ total: number; positive: number }> {
   const since = new Date(Date.now() - days * 864e5).toISOString();
