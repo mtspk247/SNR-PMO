@@ -328,7 +328,11 @@ export function DataList<T>({ rows, rowKey, cols, prefs, cell, onRowClick, selec
   const rowDnD = !!orderKey || canGroupChange;
 
   const orderedRows = (() => {
-    if (!orderKey || manualOrder.length === 0) return rows;
+    // An ACTIVE header sort always wins over a saved manual drag-order. Without this,
+    // any list that ever persisted a manual order (orderKey in localStorage) silently
+    // re-shuffled the parent's sorted rows back — header sorting looked completely dead
+    // on tasks/crm/leads/clients/social. Manual order still applies when no sort is set.
+    if (!orderKey || manualOrder.length === 0 || curSortBy) return rows;
     const idx = new Map(manualOrder.map((id, i) => [id, i] as [string, number]));
     return [...rows].sort((a, b) => (idx.has(rowKey(a)) ? idx.get(rowKey(a))! : 1e9) - (idx.has(rowKey(b)) ? idx.get(rowKey(b))! : 1e9));
   })();
