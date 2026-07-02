@@ -138,3 +138,124 @@ export function detectWorkflow(raw: string): WorkflowMatch | null {
 
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Chief of Staff conversational intents (PURE + deterministic, unit-testable).
+// The assistant collects missing details across turns, then proposes a single
+// approve-first action through the normal queue — it never writes directly.
+// ---------------------------------------------------------------------------
+
+export const INVITE_ROLES = ['admin', 'member', 'viewer'] as const;
+export type InviteRole = (typeof INVITE_ROLES)[number];
+export interface InviteIntent { email?: string; role?: InviteRole }
+
+export function parseEmail(text: string): string | null {
+  const m = (text || '').match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+  return m ? m[0].toLowerCase() : null;
+}
+
+export function parseInviteRole(text: string): InviteRole | null {
+  const low = (text || '').toLowerCase();
+  if (/\badmin(istrator)?\b/.test(low)) return 'admin';
+  if (/\b(viewer|view[- ]only|read[- ]only)\b/.test(low)) return 'viewer';
+  if (/\bmember\b/.test(low)) return 'member';
+  return null;
+}
+
+// Suggest a workspace role from how the person's duties were described.
+export function suggestInviteRole(text: string): { role: InviteRole; why: string } {
+  const low = (text || '').toLowerCase();
+  if (/\b(manage|admin|owner|billing|settings|permissions|full access|it lead)\b/.test(low)) return { role: 'admin', why: 'they will manage settings or people' };
+  if (/\b(client|external|stakeholder|auditor|view only|read only|only needs? to (view|see|read))\b/.test(low)) return { role: 'viewer', why: 'they only need to view' };
+  return { role: 'member', why: 'full day-to-day access without admin settings' };
+}
+
+// "Invite / add a user" intent. Deliberately narrow: never fires on records
+// (contact / deal / client / agent / employee-onboarding), only on workspace-login nouns.
+export function detectInvite(raw: string): InviteIntent | null {
+  const text = (raw || '').trim();
+  if (!text) return null;
+  const low = text.toLowerCase();
+  if (/\b(agent|contact|deal|client|customer|ticket|expense|invoice|lead|employee|social|channel|password)\b/.test(low)) return null;
+  const email = parseEmail(text);
+  const verb = /\b(invite|add|create|set ?up|register|bring)\b/.test(low);
+  const noun = /\b(users?|teammates?|team ?members?|members?|colleagues?|seat|login|account|someone)\b/.test(low);
+  // "send him a link so he can sign up" / "email her an invite link" — same intent.
+  const linky = /\b(send|email|share|give|text)\b[^.?!]*\blink\b/.test(low) && /\b(sign[- ]?up|signup|join|invite|invitation|register)\b/.test(low);
+  if (!(verb && (noun || email)) && !linky) return null;
+  if (/\bonboard/.test(low) && !/\binvite\b/.test(low) && !email) return null; // HR onboarding workflow owns that phrasing
+  const out: InviteIntent = {};
+  if (email) out.email = email;
+  const role = parseInviteRole(text);
+  if (role) out.role = role;
+  return out;
+}
+
+// ---- Agent training / upgrading ----
+export type AutonomyKey = 'draft_only' | 'approve_first' | 'auto_low_risk';
+export interface TrainingChanges { tools: string[]; revoke: boolean; autonomy?: AutonomyKey; sensing?: boolean }
+export interface UpgradeIntent { agentName?: string; changes: TrainingChanges }
+
+// Match tool mentions against a catalog (key "send_sms" ⇒ "send sms", or the full label).
+const normTool = (x: string): string => ` ${(x || '').toLowerCase().replace(/[-_/]/g, ' ').replace(/\b(a|an|the|to)\b/g, ' ').replace(/\s+/g, ' ').trim()} `;
+export function matchToolKeys(text: string, catalog: { key: string; label: string }[]): string[] {
+  const low = normTool(text);
+  const out: string[] = [];
+  for (const t of catalog) {
+    if (low.includes(normTool(t.key).trim()) || low.includes(normTool(t.label).trim())) out.push(t.key);
+  }
+  return out;
+}
+
+export function parseTrainingChanges(raw: string, catalog: { key: string; label: string }[]): TrainingChanges {
+  const low = (raw || '').toLowerCase();
+  const revoke = /\b(revoke|remove|take (away|back)|un-?grant)\b/.test(low);
+  const autonomy: AutonomyKey | undefined =
+    /\b(auto[- ]?low[- ]?risk|more autonomous|autonomous(ly)?|auto[- ]?pilot|independent(ly)?)\b/.test(low) ? 'auto_low_risk'
+      : /\bdraft[- ]only\b/.test(low) ? 'draft_only'
+        : /\bapprove[- ]first\b/.test(low) ? 'approve_first' : undefined;
+  const senseWord = /\b(sensing|proactive(ly)?|watch(ing)?|monitor(ing)?|scan(ning)?)\b/.test(low);
+  const sensing = senseWord && /\b(enable|turn on|start|switch on|activate)\b/.test(low) ? true
+    : senseWord && /\b(disable|turn off|stop|switch off|deactivate)\b/.test(low) ? false : undefined;
+  return { tools: matchToolKeys(raw, catalog), revoke, autonomy, sensing };
+}
+
+// "Train / upgrade an agent" intent. Requires a training verb (or an explicit
+// autonomy / sensing / tool-grant ask) AND a reference to an agent.
+export function detectUpgrade(raw: string, agentNames: string[], catalog: { key: string; label: string }[]): UpgradeIntent | null {
+  const text = (raw || '').trim();
+  if (!text) return null;
+  const low = text.toLowerCase();
+  const changes = parseTrainingChanges(text, catalog);
+  const trainy = /\b(train|upskill|upgrade|teach|level ?up|coach|improve)\b/.test(low);
+  const granty = /\b(grant|give|add|enable|allow|revoke|remove|take)\b/.test(low) && /\b(tools?|skills?|abilit\w*|capabilit\w*)\b/.test(low);
+  if (!trainy && !granty && changes.autonomy === undefined && changes.sensing === undefined && !changes.tools.length) return null;
+  const named = [...agentNames].sort((a, b) => b.length - a.length).find((n) => n && low.includes(n.toLowerCase()));
+  if (!named && !/\b(agents?|assistants?|chief of staff|my team)\b/.test(low)) return null;
+  if (/\bupgrade\b/.test(low) && /\b(plan|subscription|billing|storage)\b/.test(low)) return null; // plan upsell, not agent training
+  return { agentName: named, changes };
+}
+
+// ---- Chief-assistant ACTION protocol (LLM path → deterministic flows) ----
+// The edge fn instructs the model to end an actionable reply with one [[...]] line;
+// the client strips it from the shown text and routes into the SAME approve-first flows.
+export interface ChiefAction { kind: 'invite' | 'train' | 'workflow'; attrs: Record<string, string> }
+export function parseChiefAction(answer: string): { shown: string; action: ChiefAction | null } {
+  const m = (answer || '').match(/\[\[\s*(invite|train|workflow)\b([^\]]*)\]\]/i);
+  const shown = (answer || '').replace(/\s*\[\[\s*(invite|train|workflow)\b[^\]]*\]\]\s*/gi, ' ').replace(/\s+\n/g, '\n').trim();
+  if (!m) return { shown, action: null };
+  const raw = m[2] || '';
+  const attrs: Record<string, string> = {};
+  const marks: { k: string; end: number; start: number }[] = [];
+  const re = /(\w+)\s*=\s*/g; let mm: RegExpExecArray | null;
+  while ((mm = re.exec(raw))) marks.push({ k: mm[1].toLowerCase(), start: mm.index, end: re.lastIndex });
+  for (let i = 0; i < marks.length; i++) {
+    const v = raw.slice(marks[i].end, i + 1 < marks.length ? marks[i + 1].start : raw.length).replace(/^["']|["',;]+$/g, '').trim();
+    if (v) attrs[marks[i].k] = v;
+  }
+  return { shown, action: { kind: m[1].toLowerCase() as ChiefAction['kind'], attrs } };
+}
+// Defensive plain-texting of LLM output (the panel renders plain text).
+export function stripMd(text: string): string {
+  return (text || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|\n)#{1,4}\s+/g, '$1').replace(/(^|\n)\s*[*•]\s+/g, '$1- ');
+}
