@@ -3933,6 +3933,11 @@ export async function listAgentActions(orgId: string, status?: string): Promise<
   const { data, error } = await qy;
   if (error) throw new Error(error.message); return (data as AgentAction[]) || [];
 }
+// Full action history for ONE agent (complete audit view; RLS wall = can_see_agent_ops).
+export async function listAgentActionsByAgent(orgId: string, agentId: string, limit = 500): Promise<AgentAction[]> {
+  const { data, error } = await sb.from('agent_actions').select('*').eq('org_id', orgId).eq('agent_id', agentId).order('proposed_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message); return (data as AgentAction[]) || [];
+}
 export async function listAgentActionEvents(actionId: string): Promise<AgentActionEvent[]> {
   const { data, error } = await sb.from('agent_action_events').select('*').eq('action_id', actionId).order('at', { ascending: true });
   if (error) throw new Error(error.message); return (data as AgentActionEvent[]) || [];

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { titleCase } from '@/lib/format';
 import Layout from '@/components/Layout';
 import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
@@ -9,7 +10,7 @@ import { useListPrefs, ColDef, FilterDef } from '@/components/ListToolbar';
 import { useRowSelection } from '@/components/RowSelection';
 import { DataList, GroupMeta } from '@/components/DataList';
 import { ListView } from '@/components/ListView';
-import { AGENT_DOMAINS, AUTONOMY_LABELS, toolByKey } from '@/lib/agents';
+import { AGENT_DOMAINS } from '@/lib/agents';
 import { computeRoi, minutesSavedFor, DEFAULT_LABOR_RATE_USD, AgentRoiSummary } from '@/lib/agentRoi';
 import {
   listAgents, listAgentActions, agentRoiSummary, agentUsageCost, agentReport,
@@ -55,6 +56,7 @@ const RCOLS: ColDef[] = [
 ];
 
 export default function AgentActivityPage() {
+  const router = useRouter();
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'agents');
@@ -66,7 +68,6 @@ export default function AgentActivityPage() {
   const [agents, setAgents] = useState<AgentDefinition[]>([]);
   const [cost, setCost] = useState<AgentUsageCost | null>(null);
   const [report, setReport] = useState<AgentReportRow[] | null>(null);
-  const [selReport, setSelReport] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [rate, setRate] = useState(DEFAULT_LABOR_RATE_USD);
   const [err, setErr] = useState('');
@@ -149,7 +150,6 @@ export default function AgentActivityPage() {
     const blob = new Blob([[head.join(','), ...lines].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `agent-report-${days}d.csv`; a.click(); URL.revokeObjectURL(a.href);
   };
-  const selRow = (report || []).find((r) => r.agent_id === selReport) || null;
 
   if (!enabled) return (
     <Layout flat title="Agent activity">
@@ -241,59 +241,13 @@ export default function AgentActivityPage() {
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-id-badge-2" className="text-accent" />Agent team — individual reports</h3>
             <div className="flex items-center gap-2">
-              <span className="text-2xs text-muted2">last {days} days · click a row for the full record</span>
+              <span className="text-2xs text-muted2">last {days} days · click an agent to open its full profile & audit</span>
               <button className="btn btn-sm" onClick={exportReport}><Icon name="ti-download" />CSV</button>
             </div>
           </div>
           <DataList rows={report} rowKey={(r) => r.agent_id} cols={RCOLS} prefs={prefsR} cell={cellR} rawValue={rawR}
-            onRowClick={(r) => setSelReport(selReport === r.agent_id ? null : r.agent_id)} />
-          {selRow && (
-            <div className="mt-4 border-t border-line pt-4">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="text-sm font-semibold text-content">{selRow.name}</span>
-                {selRow.builtin && <span className="text-2xs px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500">System</span>}
-                <span className="text-2xs text-muted">{domLabel(selRow.domain)} · {AUTONOMY_LABELS[selRow.autonomy_level] || selRow.autonomy_level}</span>
-                {selRow.first_at && <span className="text-2xs text-muted2">· active since {selRow.first_at.slice(0, 10)}</span>}
-              </div>
-              <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Proposed</p><p className="text-sm tnum font-medium">{selRow.proposed_total}</p></div>
-                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Pending</p><p className="text-sm tnum font-medium">{selRow.pending}</p></div>
-                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Rejected</p><p className="text-sm tnum font-medium">{selRow.rejected}</p></div>
-                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Auto-executed</p><p className="text-sm tnum font-medium">{selRow.auto_executed}</p></div>
-                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Runs (done)</p><p className="text-sm tnum font-medium">{selRow.runs}<span className="text-muted2"> ({selRow.runs_completed})</span></p></div>
-                <div><p className="text-2xs text-muted2 uppercase tracking-wide">Tokens</p><p className="text-sm tnum font-medium">{selRow.tokens.toLocaleString()}</p></div>
-              </div>
-              {selRow.by_tool.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-2xs text-muted2 uppercase tracking-wide mb-2">Work by skill</p>
-                  <div className="space-y-2">
-                    {selRow.by_tool.map((t) => { const mx = Math.max(1, ...selRow.by_tool.map((x) => x.executed)); return (
-                      <div key={t.tool_key} className="flex items-center gap-3">
-                        <span className="w-56 shrink-0 text-xs text-muted truncate">{toolByKey(t.tool_key)?.label || t.tool_key}</span>
-                        <div className="flex-1 h-2 rounded-full bg-surface2 overflow-hidden"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(4, (t.executed / mx) * 100)}%` }} /></div>
-                        <span className="w-16 shrink-0 text-right text-xs tnum">{t.executed}<span className="text-muted2"> · {(t.executed * minutesSavedFor(t.tool_key, t.domain) / 60).toFixed(1)}h</span></span>
-                      </div>
-                    ); })}
-                  </div>
+            onRowClick={(r) => router.push(`/agents/${r.agent_id}`)} />
                 </div>
-              )}
-              <div>
-                <p className="text-2xs text-muted2 uppercase tracking-wide mb-2">Recent actions</p>
-                <div className="space-y-1.5">
-                  {(actions || []).filter((a) => a.agent_id === selRow.agent_id).slice(0, 10).map((a) => (
-                    <div key={a.id} className="flex items-center gap-2 text-xs">
-                      {chip(titleCase(a.status.replace('_', ' ')), STATUS_COLOR[a.status] || '#6b7280')}
-                      <span className="truncate text-content">{a.summary}</span>
-                      <span className="ml-auto shrink-0 text-muted2">{(a.executed_at || a.proposed_at)?.slice(0, 10)}</span>
-                    </div>
-                  ))}
-                  {(actions || []).filter((a) => a.agent_id === selRow.agent_id).length === 0 && <p className="text-xs text-muted2">No recent actions in the loaded window.</p>}
-                </div>
-                <Link href="/agent-approvals" className="inline-flex items-center gap-1 mt-2 text-2xs text-accentstrong hover:underline"><Icon name="ti-arrow-right" className="text-2xs" />Full audit trail in Approvals</Link>
-              </div>
-            </div>
-          )}
-        </div>
       )}
 
       <ListView
