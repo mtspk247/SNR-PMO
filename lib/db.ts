@@ -3777,6 +3777,14 @@ export async function askAssistant(p: { question: string; brand?: string; histor
   return data as AssistantReply;
 }
 
+// Chief of Staff personal assistant — grounded in docs + a live, RBAC/RLS-scoped data snapshot
+// gathered client-side (so it only ever sees what the user may). Humanized, conversational.
+export async function askChief(p: { question: string; brand?: string; history?: AssistantTurn[]; context: { id: string; title: string; text: string }[] }): Promise<AssistantReply> {
+  const { data, error } = await sb.functions.invoke('chief-assistant', { body: { question: p.question, brand: p.brand, history: p.history ?? [], context: p.context } });
+  if (error) { let msg = error.message; try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* noop */ } throw new Error(msg); }
+  return data as AssistantReply;
+}
+
 // ---------------------------------------------------------------------------
 // Agents (Phase 3.1 agentic-ops foundation) — substrate access layer.
 // Definitions/tool-grants/cost-limits are direct table writes (RLS-gated by the
