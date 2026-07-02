@@ -18,6 +18,34 @@ const CF_PREFIX = 'cf:';
 const isCustomCol = (id: string) => id.startsWith(CF_PREFIX);
 // Extract sortable text from a rendered cell — lets DataList self-sort on pages that
 // don't supply rawValue (walks strings/numbers/arrays/element children).
+// Header-sort for pages that paginate BEFORE DataList (e.g. /tasks): sort the FULL
+// dataset here, paginate the result, and pass sortBy/sortDir/onSort down — otherwise
+// DataList's self-sort could only reorder the visible page slice (looks broken).
+// Same value-resolution chain as ListView: exportValue → rawValue → rendered cell text.
+export function useHeaderSort<T>(rows: T[], opts: { exportValue?: (id: string, r: T) => string; rawValue?: (id: string, r: T) => string | undefined; cell?: (id: string, r: T) => ReactNode }) {
+  const [sortBy, setSortBy] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const onSort = (id: string) => { if (id === sortBy) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); else { setSortBy(id); setSortDir('asc'); } };
+  const sorted = useMemo(() => {
+    if (!sortBy) return rows;
+    const get = (r: T): string => {
+      const ev = opts.exportValue ? opts.exportValue(sortBy, r) : undefined;
+      if (ev !== undefined && ev !== null && String(ev) !== '') return String(ev);
+      const rv = opts.rawValue ? opts.rawValue(sortBy, r) : undefined;
+      if (rv !== undefined && rv !== null && String(rv) !== '') return String(rv);
+      return opts.cell ? nodeText(opts.cell(sortBy, r)) : '';
+    };
+    return [...rows].map((r) => [r, get(r)] as [T, string]).sort((a, b) => {
+      const an = parseFloat(a[1]), bn = parseFloat(b[1]);
+      const num = !isNaN(an) && !isNaN(bn) && a[1].trim() !== '' && b[1].trim() !== '';
+      const c = num ? an - bn : a[1].localeCompare(b[1], undefined, { numeric: true });
+      return sortDir === 'asc' ? c : -c;
+    }).map((x) => x[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, sortBy, sortDir, opts.exportValue, opts.rawValue, opts.cell]);
+  return { sorted, sortBy, sortDir, onSort };
+}
+
 export function nodeText(node: ReactNode): string {
   if (node == null || node === false || node === true) return '';
   if (typeof node === 'string' || typeof node === 'number') return String(node);
