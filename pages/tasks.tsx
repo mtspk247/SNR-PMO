@@ -12,7 +12,7 @@ import { Modal, Field, useModalTabs } from '@/components/Modal';
 import StatusManager from '@/components/StatusManager';
 import { useListPrefs, ColDef } from '@/components/ListToolbar';
 import SaveViewBar from '@/components/SaveViewBar';
-import { DataList, EditSpec, GroupMeta } from '@/components/DataList';
+import { DataList, EditSpec, GroupMeta, useHeaderSort } from '@/components/DataList';
 import EntityLink from '@/components/EntityLink';
 import { Pill, Spinner, EmptyState, Avatar, Icon, PageHeader, StatusBadge, statusMeta } from '@/components/ui';
 import { getOrgUsers, createTask, updateTask, deleteTask, notify, avatarSrc, ensureTaskStatuses, createTaskStatus, updateTaskStatusDef, deleteTaskStatusDef, TaskStatus, getOrgOptions, inviteMember } from '@/lib/db';
@@ -218,7 +218,8 @@ export default function Tasks() {
       (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
     return r;
   }, [roots, query, statusFilter, priorityFilter, projectFilter, assigneeFilter, teamFilter, teams, overdueOnly, sort]);
-  const pg = usePagination(filtered, 25);
+  // Header sort must apply to the FULL task set BEFORE pagination — hooked in below
+  // (useHeaderSort), after cell/rawValue are defined.
 
   const projCompany = useMemo(() => { const m = new Map<string, string>(); projects.forEach((p: any) => { if (p.company_id) m.set(p.id, p.company_id); }); return m; }, [projects]);
   const compName = useMemo(() => { const m = new Map<string, string>(); companies.forEach((c: any) => m.set(c.id, c.name)); return m; }, [companies]);
@@ -611,6 +612,8 @@ export default function Tasks() {
     id === 'name' ? t.name : id === 'status' ? (t.status || '') : id === 'assignee' ? ((t.assignee_ids && t.assignee_ids.length ? t.assignee_ids : (t.assignee_id ? [t.assignee_id] : [])).join(','))
     : id === 'priority' ? (t.priority || '') : id === 'due' ? (t.due_date || '') : id === 'project' ? (t.projects?.name || '')
     : id === 'created' ? (t.created_at || '') : '';
+  const hsort = useHeaderSort(filtered, { rawValue, cell });
+  const pg = usePagination(hsort.sorted, 25);
   const onInlineEdit = (t: Task, id: string, value: string) => {
     const ids = value ? value.split(',') : [];
     const patch: any = id === 'assignee' ? { assignee_ids: ids, assignee_id: ids[0] || null } : id === 'due' ? { due_date: value || null }
@@ -739,6 +742,7 @@ export default function Tasks() {
               <div className="min-w-[960px]">
               {filtered.length === 0 ? <EmptyState text="No tasks match" /> : (
                 <DataList rows={pg.pageItems} rowKey={(t) => t.id} cols={TASK_COLS} prefs={prefs} cell={cell} selection={selectionAdapter}
+                  sortBy={hsort.sortBy} sortDir={hsort.sortDir} onSort={hsort.onSort}
                   editable={editable} rawValue={rawValue} onEdit={onInlineEdit} onRowClick={(t) => selectTask(t.id)}
                   onRename={onRenameTask} onAddSubtask={onAddSubtaskRow} childrenOf={childrenOf}
                   onInvitePerson={canDelete ? (email) => { inviteMember(activeOrg!.id, email, 'member').then(() => alert('Invite sent to ' + email)).catch((e: any) => alert(e.message)); } : undefined}

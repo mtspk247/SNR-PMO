@@ -397,9 +397,9 @@ export default function AgentsPage() {
         <StatCard label="Est. cost this month" value={cost ? `$${cost.amount.toFixed(2)}` : '—'} hint={cost ? `${cost.source === 'reseller' ? 'Reseller rate' : 'Plan rate'}: $${cost.per_run}/run · $${cost.per_1k_tokens}/1k` : 'metered agent usage'} icon="ti-coin" />
         <div className="card p-4">
           <div className="flex items-center justify-between mb-1"><span className="text-2xs uppercase tracking-wide text-muted2">Org cost ceiling</span><Icon name="ti-shield-dollar" className="text-muted2" /></div>
-          <div className="flex items-center gap-2 text-xs">
-            <button className="btn btn-sm" onClick={() => { const l = orgLimit('day'); setLimDraft({ period: 'day', max_runs: l?.max_runs != null ? String(l.max_runs) : '', max_usd: l?.max_usd != null ? String(l.max_usd) : '' }); }}>Day{orgLimit('day') ? ` · ${orgLimit('day')!.max_runs ?? '∞'} runs` : ''}</button>
-            <button className="btn btn-sm" onClick={() => { const l = orgLimit('month'); setLimDraft({ period: 'month', max_runs: l?.max_runs != null ? String(l.max_runs) : '', max_usd: l?.max_usd != null ? String(l.max_usd) : '' }); }}>Month{orgLimit('month') ? ` · ${orgLimit('month')!.max_runs ?? '∞'} runs` : ''}</button>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <button className="btn btn-sm whitespace-nowrap" onClick={() => { const l = orgLimit('day'); setLimDraft({ period: 'day', max_runs: l?.max_runs != null ? String(l.max_runs) : '', max_usd: l?.max_usd != null ? String(l.max_usd) : '' }); }}>Day{orgLimit('day') ? ` · ${orgLimit('day')!.max_runs ?? '∞'} runs` : ''}</button>
+            <button className="btn btn-sm whitespace-nowrap" onClick={() => { const l = orgLimit('month'); setLimDraft({ period: 'month', max_runs: l?.max_runs != null ? String(l.max_runs) : '', max_usd: l?.max_usd != null ? String(l.max_usd) : '' }); }}>Month{orgLimit('month') ? ` · ${orgLimit('month')!.max_runs ?? '∞'} runs` : ''}</button>
           </div>
         </div>
         <div className="card p-4">

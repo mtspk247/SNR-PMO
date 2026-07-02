@@ -3974,6 +3974,14 @@ export async function listAgentUsage(orgId: string): Promise<AgentUsage[]> {
 }
 
 // Accurate ROI rollup over ALL agent rows (server-side; not capped by the 200-row action fetch).
+export interface AgentReportRow { agent_id: string; name: string; domain: string; builtin: boolean; enabled: boolean; archived_at: string | null; autonomy_level: string; proposed_total: number; executed: number; rolled_back: number; rejected: number; pending: number; auto_executed: number; runs: number; runs_completed: number; tokens: number; usd: number; first_at: string | null; last_at: string | null; by_tool: { tool_key: string; domain: string; executed: number }[] }
+// Per-agent accountability report — everything each agent did in the window, its cost and
+// reliability, one row per agent (server-gated to agent managers/approvers, fail closed).
+export async function agentReport(orgId: string, days = 30): Promise<AgentReportRow[]> {
+  const { data, error } = await sb.rpc('agent_report', { p_org: orgId, p_days: days });
+  if (error) throw new Error(error.message);
+  return (data as AgentReportRow[]) || [];
+}
 export async function agentRoiSummary(orgId: string, days = 30): Promise<import('./agentRoi').AgentRoiSummary> {
   const { data, error } = await sb.rpc('agent_roi_summary', { p_org: orgId, p_days: days });
   if (error) throw new Error(error.message);
