@@ -13,7 +13,7 @@ import { ListView } from '@/components/ListView';
 import { AGENT_DOMAINS } from '@/lib/agents';
 import { computeRoi, minutesSavedFor, DEFAULT_LABOR_RATE_USD, AgentRoiSummary } from '@/lib/agentRoi';
 import {
-  listAgents, listAgentActions, agentRoiSummary, agentUsageCost, agentReport,
+  listAgents, listAgentActions, agentRoiSummary, agentUsageCost, agentReport, assistantFeedbackStats,
   AgentDefinition, AgentAction, AgentUsageCost, AgentReportRow,
 } from '@/lib/db';
 
@@ -68,6 +68,7 @@ export default function AgentActivityPage() {
   const [agents, setAgents] = useState<AgentDefinition[]>([]);
   const [cost, setCost] = useState<AgentUsageCost | null>(null);
   const [report, setReport] = useState<AgentReportRow[] | null>(null);
+  const [fb, setFb] = useState<{ total: number; positive: number } | null>(null);
   const [days, setDays] = useState(30);
   const [rate, setRate] = useState(DEFAULT_LABOR_RATE_USD);
   const [err, setErr] = useState('');
@@ -86,6 +87,7 @@ export default function AgentActivityPage() {
     listAgents(org.id).then(setAgents).catch(() => {});
     agentUsageCost(org.id).then(setCost).catch(() => {});
     agentReport(org.id, days).then(setReport).catch(() => setReport([]));
+    assistantFeedbackStats(org.id, days).then(setFb).catch(() => setFb(null));
   };
   useEffect(() => { if (org?.id && enabled && canSee) load(); /* eslint-disable-next-line */ }, [org?.id, enabled, canSee, days]);
 
@@ -168,7 +170,7 @@ export default function AgentActivityPage() {
 
   return (
     <Layout flat title="Agent activity">
-      <PageHeader help="agents" title="Agent activity & ROI" subtitle="The time and money your agents save — measured, with every action auditable and reversible" icon="ti-chart-line"
+      <PageHeader help="agents" title="Agent activity & ROI" subtitle="Your AI workforce, held to human standards — every agent measured, every action auditable and reversible" icon="ti-chart-line"
         action={<div className="flex items-center gap-2">
           <Link href="/agents" className="btn btn-sm"><Icon name="ti-robot" />Agents</Link>
           <Link href="/agent-approvals" className="btn btn-sm"><Icon name="ti-checks" />Approvals</Link>
@@ -202,7 +204,7 @@ export default function AgentActivityPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatCard label="Pending approvals" value={String(summary?.pending_total ?? 0)} icon="ti-clock" />
         <StatCard label="Auto-executed" value={String(roi.autoExecuted)} hint="low-risk, reversible" icon="ti-wand" />
-        <StatCard label="Active agents" value={String(summary?.active_agents ?? 0)} icon="ti-robot" />
+        <StatCard label="Assistant quality" value={fb && fb.total > 0 ? `${Math.round((fb.positive / fb.total) * 100)}%` : '—'} hint={fb && fb.total > 0 ? `${fb.total} rated answers` : 'rate Chief of Staff answers to teach it'} hintTone={fb && fb.total > 0 && fb.positive / fb.total >= 0.8 ? 'up' : undefined} icon="ti-message-star" />
         <StatCard label="Est. agent cost" value={money(roi.spend)} hint="metered runs + tokens" icon="ti-receipt" />
       </div>
 
@@ -214,6 +216,20 @@ export default function AgentActivityPage() {
           </div>
           <Link href="/agents" className="btn btn-primary shrink-0"><Icon name="ti-search" />Find work for my agents</Link>
         </div>
+      )}
+
+      {report && report.length > 0 && (
+        <div className="card p-5 mb-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-id-badge-2" className="text-accent" />Agent team — individual reports</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-2xs text-muted2">last {days} days · click an agent to open its full profile & audit</span>
+              <button className="btn btn-sm" onClick={exportReport}><Icon name="ti-download" />CSV</button>
+            </div>
+          </div>
+          <DataList rows={report} rowKey={(r) => r.agent_id} cols={RCOLS} prefs={prefsR} cell={cellR} rawValue={rawR}
+            onRowClick={(r) => router.push(`/agents/${r.agent_id}`)} />
+                </div>
       )}
 
       {roi.perDomain.length > 0 && (
@@ -234,20 +250,6 @@ export default function AgentActivityPage() {
             ))}
           </div>
         </div>
-      )}
-
-      {report && report.length > 0 && (
-        <div className="card p-5 mb-5">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h3 className="text-sm font-semibold inline-flex items-center gap-2"><Icon name="ti-id-badge-2" className="text-accent" />Agent team — individual reports</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-2xs text-muted2">last {days} days · click an agent to open its full profile & audit</span>
-              <button className="btn btn-sm" onClick={exportReport}><Icon name="ti-download" />CSV</button>
-            </div>
-          </div>
-          <DataList rows={report} rowKey={(r) => r.agent_id} cols={RCOLS} prefs={prefsR} cell={cellR} rawValue={rawR}
-            onRowClick={(r) => router.push(`/agents/${r.agent_id}`)} />
-                </div>
       )}
 
       <ListView

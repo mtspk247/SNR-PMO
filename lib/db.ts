@@ -3980,6 +3980,13 @@ export async function listAgentUsage(orgId: string): Promise<AgentUsage[]> {
 
 // Accurate ROI rollup over ALL agent rows (server-side; not capped by the 200-row action fetch).
 // ---- Chief of Staff continuous learning (org-wide memory + answer feedback) ----
+export async function assistantFeedbackStats(orgId: string, days = 30): Promise<{ total: number; positive: number }> {
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  const { data, error } = await sb.from('assistant_feedback').select('rating').eq('org_id', orgId).gte('created_at', since).limit(2000);
+  if (error) throw new Error(error.message);
+  const rows = (data as { rating: number }[]) || [];
+  return { total: rows.length, positive: rows.filter((r) => r.rating > 0).length };
+}
 export interface AssistantMemory { id: string; org_id: string; kind: 'fact' | 'preference' | 'correction'; content: string; uses: number; archived: boolean; created_at: string; updated_at: string }
 export async function assistantMemoryList(orgId: string, limit = 50): Promise<AssistantMemory[]> {
   const { data, error } = await sb.from('assistant_memory').select('*').eq('org_id', orgId).eq('archived', false).order('updated_at', { ascending: false }).limit(limit);
