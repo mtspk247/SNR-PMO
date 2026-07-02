@@ -1426,6 +1426,60 @@ export async function listFormSubmissions(formId: string): Promise<FormSubmissio
   const { data, error } = await sb.from('form_submissions').select('*').eq('form_id', formId).order('created_at', { ascending: false });
   if (error) throw new Error(error.message); return (data as FormSubmissionRow[]) || [];
 }
+// ---- Document signing (sign_foundation) ------------------------------------
+export interface SignRequest { id: string; org_id: string; file_id: string | null; title: string; message: string | null; status: 'draft' | 'sent' | 'completed' | 'voided' | 'expired'; expires_at: string | null; created_by: string | null; created_at: string; updated_at: string; completed_at: string | null; }
+export interface SignRecipient { id: string; request_id: string; org_id: string; email: string; name: string | null; role: 'signer' | 'cc'; sign_order: number; status: 'pending' | 'viewed' | 'consented' | 'signed' | 'declined'; viewed_at: string | null; signed_at: string | null; decline_reason: string | null; }
+export interface SignField { id: string; request_id: string; org_id: string; recipient_id: string | null; type: 'signature' | 'initials' | 'date' | 'text' | 'checkbox'; label: string | null; required: boolean; value: string | null; }
+export interface SignEvent { id: number; request_id: string; recipient_id: string | null; type: string; detail: Record<string, any>; prev_hash: string; hash: string; at: string; }
+export async function listSignRequests(orgId: string): Promise<SignRequest[]> {
+  const { data, error } = await sb.from('sign_requests').select('*').eq('org_id', orgId).order('created_at', { ascending: false });
+  if (error) throw new Error(error.message); return (data as SignRequest[]) || [];
+}
+export async function createSignRequest(p: { org_id: string; title: string; message?: string | null; file_id?: string | null; expires_at?: string | null; created_by: string }): Promise<SignRequest> {
+  const { data, error } = await sb.from('sign_requests').insert({ org_id: p.org_id, title: p.title, message: p.message || null, file_id: p.file_id || null, expires_at: p.expires_at || null, created_by: p.created_by }).select('*').single();
+  if (error) throw new Error(error.message); return data as SignRequest;
+}
+export async function updateSignRequest(id: string, patch: Partial<Pick<SignRequest, 'title' | 'message' | 'file_id' | 'expires_at' | 'status'>>): Promise<void> {
+  const { error } = await sb.from('sign_requests').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id); if (error) throw new Error(error.message);
+}
+export async function deleteSignRequest(id: string): Promise<void> {
+  const { error } = await sb.from('sign_requests').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listSignRecipients(requestId: string): Promise<SignRecipient[]> {
+  const { data, error } = await sb.from('sign_recipients').select('*').eq('request_id', requestId).order('sign_order').order('created_at');
+  if (error) throw new Error(error.message); return (data as SignRecipient[]) || [];
+}
+export async function addSignRecipient(p: { request_id: string; org_id: string; email: string; name?: string | null; role?: 'signer' | 'cc' }): Promise<SignRecipient> {
+  const { data, error } = await sb.from('sign_recipients').insert({ request_id: p.request_id, org_id: p.org_id, email: p.email.trim().toLowerCase(), name: p.name || null, role: p.role || 'signer' }).select('*').single();
+  if (error) throw new Error(error.message); return data as SignRecipient;
+}
+export async function removeSignRecipient(id: string): Promise<void> {
+  const { error } = await sb.from('sign_recipients').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function listSignFields(requestId: string): Promise<SignField[]> {
+  const { data, error } = await sb.from('sign_fields').select('*').eq('request_id', requestId).order('created_at');
+  if (error) throw new Error(error.message); return (data as SignField[]) || [];
+}
+export async function addSignField(p: { request_id: string; org_id: string; recipient_id: string; type: SignField['type']; label?: string | null; required?: boolean }): Promise<SignField> {
+  const { data, error } = await sb.from('sign_fields').insert({ request_id: p.request_id, org_id: p.org_id, recipient_id: p.recipient_id, type: p.type, label: p.label || null, required: p.required !== false }).select('*').single();
+  if (error) throw new Error(error.message); return data as SignField;
+}
+export async function removeSignField(id: string): Promise<void> {
+  const { error } = await sb.from('sign_fields').delete().eq('id', id); if (error) throw new Error(error.message);
+}
+export async function signSend(requestId: string): Promise<{ ok: boolean; sent: number }> {
+  const { data, error } = await sb.rpc('sign_send', { p_request: requestId });
+  if (error) throw new Error(error.message); return data as { ok: boolean; sent: number };
+}
+export async function listSignEvents(requestId: string): Promise<SignEvent[]> {
+  const { data, error } = await sb.from('sign_events').select('id, request_id, recipient_id, type, detail, prev_hash, hash, at').eq('request_id', requestId).order('id');
+  if (error) throw new Error(error.message); return (data as SignEvent[]) || [];
+}
+export async function listSignableFiles(orgId: string): Promise<{ id: string; name: string; mime_type: string | null }[]> {
+  const { data, error } = await sb.from('drive_files').select('id, name, mime_type').eq('org_id', orgId).is('archived_at', null).order('updated_at', { ascending: false }).limit(200);
+  if (error) throw new Error(error.message); return (data as any[]) || [];
+}
+
 export interface PortalFile { id: string; name: string; kind: string; mime_type: string | null; size_bytes: number; storage_path: string | null; created_at: string; drive_id: string; drive_name?: string | null; }
 // Files the current user can read (RLS-fenced). For a guest = files in project-linked drives they can access.
 export interface PortalApproval { id: string; org_id: string; project_id: string; title: string; body: string | null; status: 'pending' | 'approved' | 'rejected' | 'cancelled'; requested_by: string | null; decided_by: string | null; decided_at: string | null; decision_note: string | null; created_at: string; project_name?: string | null; }

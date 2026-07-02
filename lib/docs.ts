@@ -656,6 +656,28 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'signing',
+    title: 'Document Signing',
+    icon: 'ti-signature',
+    blocks: [
+      { kind: 'p', text: 'Send any document for e-signature without leaving your workspace — proposals, contracts, offers. Recipients get a secure one-time link by email, confirm consent to sign electronically, complete the fields you chose, and every step lands in a tamper-evident audit trail. Find it under CRM > Signatures.' },
+      { kind: 'bullets', items: [
+        { text: 'Send flow — pick a document from your Drive (or send title-only), add signers and CC viewers, choose the fields each signer completes (signature, initials, auto-date, text, checkbox), then Save & send. An optional expiry date kills the links automatically.' },
+        { text: 'Consent + intent — before signing, each signer explicitly agrees to do business electronically (ESIGN/UETA-style); their signature is typed as their full legal name, and the date stamps itself.' },
+        { text: 'Tamper-evident audit trail — every event (sent, viewed, consented, signed, declined, completed) is hash-chained: each entry cryptographically references the one before it, so any alteration is detectable. The chain is visible on the request detail.' },
+        { text: 'Workflow-ready — completion raises a "document.signed" event and a decline raises "document.declined", so Automations can create tasks, notify owners, or update your pipeline the moment ink lands.' },
+        { text: 'Control — drafts are editable until sent; sent requests can be voided at any time (links stop working immediately). Only the request creator or a workspace owner/admin can send, void or delete.' },
+      ] },
+      { kind: 'steps', items: [
+        { title: 'Create the request', body: 'CRM > Signatures > New request. Give it a title, pick the Drive document, add your message and an optional expiry.' },
+        { title: 'Add recipients & fields', body: 'Add each signer (and any CC viewers), then the fields to complete. Signature and date fields are pre-added for the first signer.' },
+        { title: 'Send', body: 'Save & send — each recipient gets an email with their own secure link. Watch statuses move from pending to viewed, consented and signed on the request detail.' },
+        { title: 'Act on completion', body: 'When the last signer finishes, the request completes and fires "document.signed" — wire an automation, or just check the audit trail with its hash chain.' },
+      ] },
+      { kind: 'callout', icon: 'ti-shield-lock', text: 'Security: signer links are single-purpose tokens stored only as cryptographic hashes — even the database never holds the raw link. Signer endpoints are rate-limited and payload-capped, links respect expiry and voiding instantly, and your team\u2019s data stays behind row-level security throughout. Document Signing provides standard electronic-signature records (consent, intent, association, retention); qualified/eIDAS-QES certificates are out of scope.' },
+    ],
+  },
+  {
     id: 'client-portal',
     title: 'Client portal',
     icon: 'ti-layout-dashboard',
