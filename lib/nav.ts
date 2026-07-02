@@ -135,6 +135,7 @@ export const SECTIONS: NavSection[] = [
     { href: '/social/media', label: 'Media Library', icon: 'ti-photo', feature: 'social', group: 'Social Media' },
     { href: '/sequences', label: 'Drip Email Marketing', icon: 'ti-mail-forward', feature: 'sequences', search: searchSequences, group: 'Email Marketing' },
     { href: '/forms', label: 'Forms', icon: 'ti-forms', feature: 'forms', search: searchForms, group: 'Lead Capture' },
+    { href: '/qr', label: 'QR Codes', icon: 'ti-qrcode', feature: 'qr', group: 'Lead Capture' },
   ]},
   { kind: 'menu', key: 'tracking', label: 'Finance', icon: 'ti-report-money', items: [
     { href: '/ledger', label: 'General Ledger', icon: 'ti-book-2', feature: 'financial', group: 'Ledger & Reporting' },

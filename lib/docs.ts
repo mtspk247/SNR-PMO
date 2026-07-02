@@ -596,6 +596,21 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'qr',
+    title: 'QR Codes',
+    icon: 'ti-qrcode',
+    blocks: [
+      { kind: 'p', text: 'QR Codes are DYNAMIC: the printed code encodes a permanent short link (/q/your-slug), and you can change where it points any time — even after it is printed on flyers, packaging or business cards. Every scan is tracked (count, coarse device type, referrer site — never personal data). Find it under Marketing > QR Codes.' },
+      { kind: 'bullets', items: [
+        { text: 'Create a code — give it a name, a permanent short link and a destination (any https:// URL, or an in-app path like /booking). Pick a color, preview live, download a print-ready PNG.' },
+        { text: 'Retarget after printing — edit the destination and the SAME printed code immediately points somewhere new. Pause a code to disable it without deleting.' },
+        { text: 'Scan tracking — total scans per code plus a recent-scan feed (time, device class, referrer host). Export the list to CSV.' },
+        { text: 'Access & safety — creating/editing/deleting respects your per-page permissions; the public link is rate-limited and reveals nothing about your workspace. Deleting a code permanently kills its printed link.' },
+      ] },
+      { kind: 'callout', icon: 'ti-bulb', text: 'Point codes at your Forms, Booking page, Funnels or Client portal to connect offline material to tracked online journeys.' },
+    ],
+  },
+  {
     id: 'forms',
     title: 'Forms & lead capture',
     icon: 'ti-forms',
