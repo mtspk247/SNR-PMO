@@ -10,6 +10,7 @@ import { getCurrentUser, getMyOrgs, getOrgBranding, getOrgBrandingByHost, getOrg
 import { useAuthStore } from '@/lib/store';
 import { applyBranding } from '@/lib/branding';
 import { ErrorBoundary } from '@/components/ui';
+import UpdateToast from '@/components/UpdateToast';
 
 function readCookie(name: string): string {
   if (typeof document === 'undefined') return '';
@@ -97,6 +98,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
+        <UpdateToast />
         <Component {...pageProps} />
         <RecorderController />
       </ErrorBoundary>
