@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { PageHeader, EmptyState, Icon, StatCard } from '@/components/ui';
 import { Modal, Field } from '@/components/Modal';
@@ -62,6 +63,7 @@ const emptyDraft = (): Draft => ({
 });
 
 export default function SurveysPage() {
+  const router = useRouter();
   const org = useActiveOrg();
   const me = useAuthStore((s) => s.user);
   const enabled = hasFeature(org, 'surveys');
@@ -79,6 +81,16 @@ export default function SurveysPage() {
 
   const load = () => { if (!org) return; listForms(org.id, 'survey').then(setRows).catch((e) => { setErr(e.message); setRows([]); }); };
   useEffect(() => { if (org?.id && enabled) load(); /* eslint-disable-next-line */ }, [org?.id, enabled]);
+
+  // Deep link from the Chief of Staff: /surveys?open=<id> opens that survey's editor once.
+  useEffect(() => {
+    const target = typeof router.query.open === 'string' ? router.query.open : '';
+    if (!target || !rows) return;
+    const row = rows.find((r) => r.id === target);
+    if (row) openEditor(row);
+    router.replace('/surveys', undefined, { shallow: true });
+    // eslint-disable-next-line
+  }, [rows, router.query.open]);
 
   const shown = useMemo(() => (rows || []).filter((f) => !q.trim() || f.name.toLowerCase().includes(q.toLowerCase())), [rows, q]);
   const rs = useRowSelection(shown);

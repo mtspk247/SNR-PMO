@@ -145,3 +145,24 @@ test('detectForget: match + bare undo', () => {
   assert.deepEqual(detectForget('Forget that'), { match: '' });
   assert.equal(detectForget('I forgot my password'), null);
 });
+
+
+// ---- Survey intent + action line (CoS creates draft surveys; fixes the 2026-07-02 misroute) ----
+test('detectSurvey: create-a-survey asks route to the survey flow, not workflows', () => {
+  const { detectSurvey, detectWorkflow } = require('../lib/agentPlans');
+  const msg = 'create a survey and ask tenant what you think about our project and what improvement they would like to have in this.';
+  const sv = detectSurvey(msg);
+  assert.ok(sv, 'survey intent not detected');
+  assert.ok(sv.topic.length > 0, 'topic missing');
+  assert.ok(detectSurvey('run an NPS survey for our beta customers'));
+  assert.ok(detectSurvey('send a csat questionnaire'));
+  assert.equal(detectSurvey('how did the survey perform?'), null); // question, no create verb
+  assert.equal(detectSurvey('create a task for the launch'), null); // no survey noun
+});
+test('parseChiefAction: survey action line parses like the other kinds', () => {
+  const { parseChiefAction } = require('../lib/agentPlans');
+  const { shown, action } = parseChiefAction('Setting that up now. [[survey topic=tenant feedback]]');
+  assert.equal(action?.kind, 'survey');
+  assert.equal(action?.attrs.topic, 'tenant feedback');
+  assert.ok(!shown.includes('[['));
+});
