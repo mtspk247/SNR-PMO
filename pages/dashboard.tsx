@@ -20,6 +20,7 @@ import {
   getEmployees, getLeaves, getOnboardingTasks,
   getDashboardLayouts, saveUserDashboard, saveOrgDashboard, resetUserDashboard,
   dashboardCounts, DashboardCounts, agentRoiSummary, upsellPromptsFor, UpsellPrompt,
+  getOrgUsers, getRecentActivity, ActivityItem, assistantFeedbackStats, getAgentBriefing, AgentBriefing as TAgentBriefing,
 } from '@/lib/db';
 import {
   Project, Task, Deal, LedgerEntry, Employee, Leave, OnboardingTask, OrgRole, FeatureKey,
@@ -107,7 +108,7 @@ function Kpi({ href, label, value, hint, hintTone = 'muted', icon, series, serie
   );
 }
 
-interface WidgetMeta { title: string; icon: string; span: 1 | 2; feature?: FeatureKey; minRole?: OrgRole }
+interface WidgetMeta { title: string; icon: string; span: 1 | 2 | 4; feature?: FeatureKey; minRole?: OrgRole }
 const WIDGET_META: Record<string, WidgetMeta> = {
   kpi_projects:  { title: 'Open projects', icon: 'ti-folder', span: 1, feature: 'projects' },
   kpi_tasks:     { title: 'Open tasks', icon: 'ti-checkbox', span: 1, feature: 'projects' },
@@ -135,6 +136,13 @@ const WIDGET_META: Record<string, WidgetMeta> = {
   needs_attention: { title: 'Needs attention', icon: 'ti-alert-hexagon', span: 2 },
   agent_roi:     { title: 'AI agent ROI', icon: 'ti-robot', span: 2, feature: 'agents' },
   drive_storage: { title: 'Storage', icon: 'ti-cloud', span: 1, feature: 'drives' },
+  briefing:      { title: 'Morning briefing', icon: 'ti-sunrise', span: 4 },
+  quick_actions: { title: 'Quick actions', icon: 'ti-bolt', span: 2 },
+  live_activity: { title: 'Live activity', icon: 'ti-activity', span: 1 },
+  team_workload: { title: 'Team workload', icon: 'ti-users-group', span: 1, feature: 'projects' },
+  kpi_quality:   { title: 'Assistant quality', icon: 'ti-sparkles', span: 1, feature: 'agents' },
+  kpi_revenue_month: { title: 'Revenue (MTD)', icon: 'ti-chart-line', span: 1, feature: 'financial', minRole: 'admin' },
+  kpi_delivery:  { title: 'Delivery health', icon: 'ti-truck-delivery', span: 1, feature: 'projects' },
 };
 // Per-widget visual variants — first entry is the default.
 const VARIANTS: Record<string, { id: string; label: string; icon: string }[]> = {
@@ -148,20 +156,23 @@ const GridW = WidthProvider(GridLayout);
 const defVariant = (k: string) => VARIANTS[k]?.[0]?.id || '';
 const splitKey = (entry: string): [string, string] => { const p = entry.split(':'); return [p[0], p[1] || defVariant(p[0])]; };
 type Coords = { x: number; y: number; w: number; h: number };
-const defW = (k: string) => (WIDGET_META[k]?.span === 2 ? 6 : 3);
-const defH = (k: string) => (k.startsWith('kpi_') ? 2 : 4);
+const defW = (k: string) => (WIDGET_META[k]?.span === 4 ? 12 : WIDGET_META[k]?.span === 2 ? 6 : 3);
+const defH = (k: string) => (k === 'briefing' ? 2 : k.startsWith('kpi_') || k === 'quick_actions' ? 2 : 4);
 const coordsOf = (entry: string): Coords | null => { const p = entry.split(':'); return p.length >= 6 ? { x: +p[2], y: +p[3], w: +p[4], h: +p[5] } : null; };
 const makeEntry = (k: string, variant: string, c: Coords): string => { const v = variant && variant !== defVariant(k) ? variant : ''; return `${k}:${v}:${c.x}:${c.y}:${c.w}:${c.h}`; };
 
 // Bump when new default widgets are added → existing saved layouts get the new ones merged in once.
-const DASH_VER = 3;
+const DASH_VER = 4;
+// Layout "A — Morning briefing": briefing hero → KPI band → attention + agent workforce →
+// insight band → work lists. Everything else stays available via "Add widget".
 const DEFAULT_KEYS = [
-  'kpi_projects', 'kpi_tasks', 'kpi_deals', 'kpi_pipeline',
-  'kpi_agent_approvals', 'kpi_social', 'kpi_leads', 'kpi_forms', 'kpi_inbox', 'drive_storage',
-  'needs_attention',
-  'kpi_income', 'kpi_expenses', 'kpi_net', 'kpi_spend_month',
-  'finance_trend', 'project_status', 'pipeline_stage', 'task_progress',
-  'due_soon', 'agent_roi', 'my_tasks', 'projects_list', 'headcount', 'leave', 'onboarding',
+  'briefing',
+  'kpi_revenue_month', 'kpi_net', 'kpi_pipeline', 'kpi_delivery',
+  'kpi_projects', 'kpi_tasks', 'kpi_deals', 'kpi_agent_approvals',
+  'needs_attention', 'agent_roi',
+  'pipeline_stage', 'team_workload', 'live_activity', 'drive_storage',
+  'quick_actions', 'kpi_quality', 'kpi_leads', 'kpi_forms',
+  'my_tasks', 'due_soon',
 ];
 
 // Features surfaced on the dashboard as locked "unlock more" cards when the plan lacks them.
@@ -194,6 +205,10 @@ export default function Dashboard() {
   const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>([]);
   const [counts, setCounts] = useState<DashboardCounts>({});
   const [roi, setRoi] = useState<AgentRoiSummary | null>(null);
+  const [members, setMembers] = useState<{ id: string; full_name: string | null; avatar_url?: string | null }[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [quality, setQuality] = useState<{ total: number; positive: number } | null>(null);
+  const [brief, setBrief] = useState<TAgentBriefing | null>(null);
   const [upsells, setUpsells] = useState<UpsellPrompt[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -225,8 +240,13 @@ export default function Dashboard() {
       dashboardCounts(activeOrg.id).catch(() => ({} as DashboardCounts)),
       hasFeature(activeOrg, 'agents') ? agentRoiSummary(activeOrg.id, 30).catch(() => null) : Promise.resolve(null),
       upsellPromptsFor(activeOrg.id).catch(() => [] as UpsellPrompt[]),
-    ]).then(([p, t, d, l, emp, lv, ob, dc, ri, up]) => {
+      getOrgUsers(activeOrg.id).catch(() => []),
+      getRecentActivity().catch(() => [] as ActivityItem[]),
+      hasFeature(activeOrg, 'agents') ? assistantFeedbackStats(activeOrg.id, 30).catch(() => null) : Promise.resolve(null),
+      hasFeature(activeOrg, 'agents') ? getAgentBriefing(activeOrg.id).catch(() => null) : Promise.resolve(null),
+    ]).then(([p, t, d, l, emp, lv, ob, dc, ri, up, mem, act, qs, bf]) => {
       setProjects(p); setTasks(t); setDeals(d); setLedger(l); setEmployees(emp); setLeaves(lv); setOnboardingTasks(ob); setCounts(dc as DashboardCounts); setRoi(ri as AgentRoiSummary | null); setUpsells((up as UpsellPrompt[]) || []);
+      setMembers((mem as any[]) || []); setActivity((act as ActivityItem[]) || []); setQuality(qs as { total: number; positive: number } | null); setBrief(bf as TAgentBriefing | null);
     }).finally(() => setLoading(false));
   }, [activeOrg?.id]);
 
@@ -242,7 +262,14 @@ export default function Dashboard() {
       const verKey = `snr_dashmerge_v${DASH_VER}_${activeOrg.id}_${user.id}`;
       let done = false; try { done = localStorage.getItem(verKey) === '1'; } catch { /* */ }
       if (missing.length && !done) {
-        const merged = [...saved, ...missing];
+        let merged: string[];
+        if (missing.includes('briefing')) {
+          // The briefing is the new hero — pin it at the very top and shift placed rows down.
+          const shifted = saved.map((e) => { const c = coordsOf(e); const [k, v] = splitKey(e); return c ? makeEntry(k, v, { ...c, y: c.y + 2 }) : e; });
+          merged = ['briefing::0:0:12:2', ...shifted, ...missing.filter((k) => k !== 'briefing')];
+        } else {
+          merged = [...saved, ...missing];
+        }
         setOrder(merged); setSource(src);
         try { localStorage.setItem(verKey, '1'); } catch { /* */ }
         saveUserDashboard(activeOrg.id, merged).catch(() => {}); // persist so the new widgets stick
@@ -302,6 +329,31 @@ export default function Dashboard() {
   const lineExp = trendBuckets.map((b, i) => `${ax(i).toFixed(1)},${ay(b.expense).toFixed(1)}`).join(' ');
   const areaInc = `0,115 ${lineInc} 300,115`;
 
+  // ── derived for the briefing + new tiles ──────────────────────────────────
+  const prevMonthKey = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
+  const monthIncome = ledger.filter((e) => e.type === 'income' && (e.entry_date || '').slice(0, 7) === monthKey).reduce((s, e) => s + (e.amount || 0), 0);
+  const prevIncome = ledger.filter((e) => e.type === 'income' && (e.entry_date || '').slice(0, 7) === prevMonthKey).reduce((s, e) => s + (e.amount || 0), 0);
+  const revDeltaPct = prevIncome > 0 ? Math.round(((monthIncome - prevIncome) / prevIncome) * 100) : null;
+  const avgMonthlyExpense = (() => { const xs = trendBuckets.map((b) => b.expense).filter((x) => x > 0); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0; })();
+  const runwayMonths = net > 0 && avgMonthlyExpense > 0 ? net / avgMonthlyExpense : null;
+  const deliveryPct = openTasks.length ? Math.round(((openTasks.length - overdue) / openTasks.length) * 100) : 100;
+  const atRiskProjects = projects.filter((p) => p.status === 'On Hold').length;
+  const nameOf = (uid: string | null) => members.find((m) => m.id === uid)?.full_name || null;
+  const workload = (() => {
+    const m = new Map<string, number>();
+    openTasks.forEach((t) => { const k = t.assignee_id || ''; m.set(k, (m.get(k) || 0) + 1); });
+    return [...m.entries()].map(([uid, n]) => ({ uid, name: uid ? (nameOf(uid) || 'Teammate') : 'Unassigned', n }))
+      .sort((a, b) => b.n - a.n).slice(0, 5);
+  })();
+  const maxLoad = Math.max(1, ...workload.map((w) => w.n));
+  const briefFrags = [
+    { show: hasFeature(activeOrg, 'agents'), n: counts.agent_pending || 0, text: `${counts.agent_pending || 0} agent action${(counts.agent_pending || 0) === 1 ? '' : 's'} await approval` },
+    { show: isAdmin && hasFeature(activeOrg, 'financial'), n: counts.invoices_overdue || 0, text: `${counts.invoices_overdue || 0} invoice${(counts.invoices_overdue || 0) === 1 ? ' is' : 's are'} overdue` },
+    { show: isAdmin && hasFeature(activeOrg, 'attendance'), n: counts.leave_pending || 0, text: `${counts.leave_pending || 0} leave request${(counts.leave_pending || 0) === 1 ? '' : 's'} to decide` },
+    { show: hasFeature(activeOrg, 'projects'), n: counts.tasks_overdue || 0, text: `${counts.tasks_overdue || 0} task${(counts.tasks_overdue || 0) === 1 ? ' is' : 's are'} overdue` },
+  ].filter((f) => f.show && f.n > 0);
+  const openChief = () => { try { window.dispatchEvent(new CustomEvent('snr:open-chief')); } catch { /* noop */ } };
+
   // ── widget renderers (v = visual variant) ─────────────────────────────────
   const W: Record<string, (v?: string) => JSX.Element> = {
     kpi_projects: () => <Kpi href="/projects" label="Open projects" value={activeProjects} hint={`${projects.length} total`} icon="ti-folder" />,
@@ -310,7 +362,7 @@ export default function Dashboard() {
     kpi_pipeline: () => <Kpi href="/crm" label="Pipeline value" value={money(pipeline)} hint="Open opportunities" icon="ti-currency-dollar" />,
     kpi_income: () => <Kpi href="/accounting" label="Income" value={money(income)} hint="All time" icon="ti-trending-up" series={trendBuckets.map((b) => b.income)} />,
     kpi_expenses: () => <Kpi href="/accounting" label="Expenses" value={money(expense)} hint="Incl. payroll" icon="ti-trending-down" series={trendBuckets.map((b) => b.expense)} seriesColor="#f43f5e" />,
-    kpi_net: () => <Kpi href="/accounting" label="Net" value={money(net)} hint={net >= 0 ? 'Profitable' : 'Negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" series={trendBuckets.map((b) => b.income - b.expense)} />,
+    kpi_net: () => <Kpi href="/accounting" label="Cash (net)" value={money(net)} hint={runwayMonths != null ? `runway ~${runwayMonths.toFixed(1)} months` : net >= 0 ? 'Profitable' : 'Negative'} hintTone={net >= 0 ? 'up' : 'down'} icon="ti-scale" series={trendBuckets.map((b) => b.income - b.expense)} />,
     kpi_spend_month: () => <Kpi href="/accounting" label="Spend / month" value={money(monthExpense)} hint={monthKey} icon="ti-calendar-stats" series={trendBuckets.map((b) => b.expense)} seriesColor="#f43f5e" />,
     kpi_agent_approvals: () => <Kpi href="/agent-approvals" label="Agent approvals" value={counts.agent_pending || 0} hint={(counts.agent_pending || 0) > 0 ? 'awaiting your review' : 'all clear'} hintTone={(counts.agent_pending || 0) > 0 ? 'down' : 'up'} icon="ti-robot" />,
     kpi_social: () => <Kpi href="/social" label="Social" value={(counts.social_scheduled || 0) + (counts.social_draft || 0)} hint={`${counts.social_scheduled || 0} scheduled · ${counts.social_draft || 0} drafts`} icon="ti-speakerphone" />,
@@ -612,6 +664,83 @@ export default function Dashboard() {
         </ClickCard>
       );
     },
+    briefing: () => (
+      <div className="h-full rounded-xl border-0 p-4 sm:p-5 flex items-center gap-4 flex-wrap text-white" style={{ background: 'linear-gradient(100deg,#0d1f1a,#123528)' }}>
+        <span className="w-9 h-9 rounded-full grid place-items-center text-xs font-bold shrink-0" style={{ background: 'linear-gradient(135deg,#34d399,#0ea5e9)' }}>CS</span>
+        <div className="flex-1 min-w-[240px]">
+          <p className="font-semibold text-sm sm:text-[14.5px]">
+            {greeting}, {user?.full_name?.split(' ')[0] || 'there'}{briefFrags.length > 0 ? ` — ${briefFrags.length} thing${briefFrags.length === 1 ? '' : 's'} need${briefFrags.length === 1 ? 's' : ''} you today.` : ' — you\u2019re all caught up.'}
+          </p>
+          <p className="text-xs mt-0.5" style={{ opacity: 0.75 }}>
+            {briefFrags.length > 0 ? briefFrags.slice(0, 3).map((f) => f.text).join(' · ') : 'Nothing is waiting on you right now.'}
+            {brief && (brief.executed_today || 0) > 0 ? ` Your agents completed ${brief.executed_today} action${brief.executed_today === 1 ? '' : 's'} today.` : ''}
+          </p>
+        </div>
+        {hasFeature(activeOrg, 'agents') && (counts.agent_pending || 0) > 0 && (
+          <Link href="/agent-approvals" className="rgl-no-drag inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium" style={{ background: '#ffffff14', border: '1px solid #ffffff2e', color: '#fff' }}>Review approvals</Link>
+        )}
+        <button onClick={openChief} className="rgl-no-drag inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium" style={{ background: '#ffffff14', border: '1px solid #ffffff2e', color: '#fff' }}>Ask Chief of Staff</button>
+      </div>
+    ),
+    quick_actions: () => {
+      const acts = [
+        { show: hasFeature(activeOrg, 'projects'), label: 'Task', icon: 'ti-checkbox', href: '/tasks' },
+        { show: hasFeature(activeOrg, 'crm'), label: 'Deal', icon: 'ti-target', href: '/crm' },
+        { show: isAdmin && hasFeature(activeOrg, 'financial'), label: 'Invoice', icon: 'ti-file-invoice', href: '/invoicing' },
+        { show: hasFeature(activeOrg, 'crm'), label: 'Lead', icon: 'ti-user-plus', href: '/leads' },
+      ].filter((a) => a.show);
+      return (
+        <div className="card p-4 h-full flex flex-col">
+          <p className="text-2xs uppercase tracking-wide text-muted2 font-medium">Quick actions</p>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            {acts.map((a) => (
+              <Link key={a.label} href={a.href} className="rgl-no-drag btn btn-ghost border border-line h-8 py-0 text-xs"><Icon name={a.icon} className="text-sm" />+ {a.label}</Link>
+            ))}
+            <button onClick={openChief} className="rgl-no-drag btn btn-primary h-8 py-0 text-xs"><Icon name="ti-sparkles" className="text-sm" />Ask Chief of Staff</button>
+          </div>
+        </div>
+      );
+    },
+    live_activity: () => (
+      <div className="card p-4 h-full flex flex-col overflow-hidden">
+        <p className="text-2xs uppercase tracking-wide text-muted2 font-medium mb-2">Live activity</p>
+        <div className="space-y-2 overflow-hidden">
+          {activity.slice(0, 6).map((a) => (
+            <p key={a.id} className="text-2xs text-muted truncate">
+              <span className="font-medium text-content">{a.username || 'system'}</span> {a.action}{a.entity_type ? ` · ${a.entity_type}` : ''}
+              <span className="text-muted2"> · {new Date(a.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </p>
+          ))}
+          {activity.length === 0 && <EmptyState text="No recent activity" icon="ti-activity" />}
+        </div>
+      </div>
+    ),
+    team_workload: () => (
+      <ClickCard href="/tasks" className="card p-4 h-full">
+        <p className="text-2xs uppercase tracking-wide text-muted2 font-medium mb-3">Team workload — open tasks</p>
+        {workload.length === 0 ? <EmptyState text="No open tasks" icon="ti-users-group" /> : (
+          <div className="space-y-2.5">
+            {workload.map((w) => (
+              <div key={w.uid || 'none'} className="flex items-center gap-2">
+                <span className="text-2xs text-muted w-20 truncate shrink-0" title={w.name}>{w.name.split(' ')[0]}</span>
+                <div className="flex-1 h-2 rounded-full bg-surface2 overflow-hidden"><div className={`h-full rounded-full ${w.n === maxLoad && w.n >= 8 ? 'bg-rose-500' : 'bg-accent'}`} style={{ width: `${(w.n / maxLoad) * 100}%` }} /></div>
+                <span className="text-2xs text-muted2 tabular-nums w-6 text-right">{w.n}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </ClickCard>
+    ),
+    kpi_quality: () => {
+      const pct = quality && quality.total > 0 ? Math.round((quality.positive / quality.total) * 100) : null;
+      return <Kpi href="/agent-activity" label="Assistant quality" value={pct != null ? `${pct}%` : '—'} hint={quality && quality.total > 0 ? `${quality.total} ratings · 30d` : 'no ratings yet'} hintTone={pct != null && pct >= 80 ? 'up' : 'muted'} icon="ti-sparkles" />;
+    },
+    kpi_revenue_month: () => (
+      <Kpi href="/accounting" label="Revenue (MTD)" value={money(monthIncome)} hint={revDeltaPct != null ? `${revDeltaPct >= 0 ? '▲' : '▼'} ${Math.abs(revDeltaPct)}% vs last month` : monthKey} hintTone={revDeltaPct != null ? (revDeltaPct >= 0 ? 'up' : 'down') : 'muted'} icon="ti-chart-line" series={trendBuckets.map((b) => b.income)} />
+    ),
+    kpi_delivery: () => (
+      <Kpi href="/tasks" label="Delivery health" value={`${deliveryPct}%`} hint={overdue || atRiskProjects ? `${overdue} overdue · ${atRiskProjects} project${atRiskProjects === 1 ? '' : 's'} on hold` : 'on schedule'} hintTone={deliveryPct >= 85 ? 'up' : 'down'} icon="ti-truck-delivery" />
+    ),
   };
 
   const visible = (entry: string) => {
@@ -718,7 +847,7 @@ export default function Dashboard() {
         <EmptyState text="No widgets to show — click Customize to add some." icon="ti-layout-dashboard" />
       ) : isMobile ? (
         <div className="flex flex-col gap-3">
-          {shown.map((entry) => { const [k, variant] = splitKey(entry); const tall = !k.startsWith('kpi_'); return (
+          {shown.map((entry) => { const [k, variant] = splitKey(entry); const tall = !k.startsWith('kpi_') && k !== 'briefing' && k !== 'quick_actions'; return (
             <div key={entry} className={`dash-cell overflow-hidden ${tall ? 'min-h-[260px]' : ''}`}>{W[k](variant)}</div>
           ); })}
         </div>
